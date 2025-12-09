@@ -24,7 +24,7 @@ import xgboost as xgb
 import shap
 import category_encoders as ce
 import optuna
-from optuna.integration.sklearn import OptunaSearchCV # Usado para otimização robusta
+from optuna.integration import OptunaSearchCV # Usado para otimização robusta. Corrigido o caminho de importação.
 
 # --- Dask para Paralelismo/Escalabilidade
 import dask.dataframe as dd
