@@ -9,7 +9,7 @@ Fluxo Automatizado de Recomendação (Sequencial):
 3. Etapa 3: Guia de Viabilidade (Visualização e Recomendações).
 4. Etapa 4: Fechamento Financeiro (Seleção e Fluxo de Pagamento).
 
-Versão: 8.9 (Design de Boxes Padronizados & Correção de Overflow)
+Versão: 9.0 (Design de Boxes Corrigido & Expander de Empreendimentos)
 =============================================================================
 """
 
@@ -108,7 +108,6 @@ def configurar_layout():
         * { font-family: 'Inter', sans-serif; }
         .main { background-color: #f8fafc; }
         
-        /* Centralização Global */
         .block-container {
             max-width: 1200px !important;
             padding-left: 1rem !important;
@@ -119,7 +118,7 @@ def configurar_layout():
         .header-container { text-align: center; padding: 25px 0; background: #ffffff; border-bottom: 1px solid #e2e8f0; margin-bottom: 25px; border-radius: 0 0 15px 15px; }
         .header-title { color: #0f172a; font-size: 2rem; font-weight: 700; margin: 0; }
         
-        /* Estilo para Cards de Potencial */
+        /* Ajuste de altura e overflow para as caixas */
         .card { 
             background: white; 
             padding: 20px; 
@@ -128,29 +127,30 @@ def configurar_layout():
             box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); 
             margin-bottom: 20px; 
             width: 100%;
-            min-height: 160px; /* Alterado para min-height para evitar overflow */
+            min-height: 160px;
+            height: auto !important; 
             display: flex;
             flex-direction: column;
             justify-content: center;
-            overflow: hidden;
+            overflow: visible;
         }
         
-        /* Estilo para Boxes de Empreendimento e Recomendações */
+        /* Estilo antigo para recomendações: branco com borda colorida no topo */
         .recommendation-card { 
-            border-left: 5px solid #2563eb; 
             background: #ffffff; 
             padding: 15px; 
             border: 1px solid #e2e8f0;
-            border-left: 5px solid #2563eb;
+            border-top: 5px solid #2563eb;
             border-radius: 12px; 
             margin-bottom: 15px; 
             text-align: center; 
-            min-height: 150px; /* Alterado para min-height para evitar overflow */
+            min-height: 160px;
+            height: auto !important;
             display: flex;
             flex-direction: column;
             justify-content: center;
             box-shadow: 0 2px 4px rgba(0,0,0,0.02);
-            overflow: hidden;
+            overflow: visible;
         }
         
         .price-tag { color: #2563eb; font-weight: 700; font-size: 1.1rem; }
@@ -161,7 +161,6 @@ def configurar_layout():
         .stButton button { border-radius: 10px !important; padding: 10px !important; font-weight: 600 !important; }
         h1, h2, h3, h4 { text-align: center !important; width: 100%; }
         
-        /* Box Financeiro Personalizado - Etapa 4 */
         .fin-box {
             text-align: center;
             padding: 20px;
@@ -169,6 +168,7 @@ def configurar_layout():
             border: 1px solid #e2e8f0;
             margin-bottom: 15px;
             width: 100%;
+            height: auto !important;
         }
 
         .inline-ref {
@@ -216,7 +216,10 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
             
             if st.button("🚀 Avançar para Visão Financeira", type="primary", use_container_width=True):
                 finan, fgts = motor.obter_enquadramento(renda, social, cotista)
-                perc = df_politicas.loc[df_politicas['CLASSIFICAÇÃO'] == ('EMCASH' if politica_ps == "Emcash" else ranking), 'PERC_PS'].values[0]
+                
+                # Correção KeyError: Filtragem correta da política
+                classificacao_busca = 'EMCASH' if politica_ps == "Emcash" else ranking
+                perc = df_politicas.loc[df_politicas['CLASSIFICAÇÃO'] == classificacao_busca, 'PERC_PS'].values[0]
                 
                 st.session_state.dados_cliente = {
                     'nome': nome, 'renda': renda, 'social': social, 'cotista': cotista,
@@ -271,25 +274,24 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
             st.error("❌ Nenhuma unidade viável encontrada.")
             if st.button("⬅️ Voltar", use_container_width=True): st.session_state.passo_simulacao = 'potential'; st.rerun()
         else:
-            # Empreendimentos como boxes (mesmo tamanho das recomendações)
-            st.markdown("#### 🏢 Empreendimentos com unidades disponíveis:")
-            empreendimentos_unid = df_viaveis.groupby('Empreendimento').size().to_dict()
-            
-            # Grid de 3 colunas para os boxes de empreendimentos
-            emp_items = list(empreendimentos_unid.items())
-            for i in range(0, len(emp_items), 3):
-                cols = st.columns(3)
-                for j in range(3):
-                    if i + j < len(emp_items):
-                        emp, qtd = emp_items[i+j]
-                        with cols[j]:
-                            st.markdown(f"""
-                                <div class="recommendation-card" style="border-left-color: #64748b; background: white;">
-                                    <small style="color: #64748b; font-weight: 600;">PRODUTO</small><br>
-                                    <b style="font-size: 1rem;">{emp}</b><br>
-                                    <span style="color: #2563eb; font-weight: 700;">{qtd} unidades viáveis</span>
-                                </div>
-                            """, unsafe_allow_html=True)
+            # Empreendimentos dentro de um Expander
+            with st.expander("🏢 Ver Empreendimentos com unidades disponíveis", expanded=False):
+                empreendimentos_unid = df_viaveis.groupby('Empreendimento').size().to_dict()
+                emp_items = list(empreendimentos_unid.items())
+                for i in range(0, len(emp_items), 3):
+                    cols = st.columns(3)
+                    for j in range(3):
+                        if i + j < len(emp_items):
+                            emp, qtd = emp_items[i+j]
+                            with cols[j]:
+                                # Boxes menores no estilo antigo (branco)
+                                st.markdown(f"""
+                                    <div class="recommendation-card" style="border-top-color: #64748b; min-height: 100px;">
+                                        <small style="color: #64748b; font-weight: 600;">PRODUTO</small><br>
+                                        <b style="font-size: 0.95rem;">{emp}</b><br>
+                                        <span style="color: #2563eb; font-weight: 700; font-size: 0.85rem;">{qtd} unidades viáveis</span>
+                                    </div>
+                                """, unsafe_allow_html=True)
 
             tab_rec, tab_list = st.tabs(["⭐ Unidades Recomendadas", "📋 Lista Completa de Unidades"])
 
@@ -309,18 +311,19 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
                         return cands.iloc[0] if not cands.empty else df_rec.iloc[-1]
                     r100, r90, r75 = rec(1.0), rec(0.9), rec(0.75)
                     
+                    # Boxes de recomendação no "Estilo Antigo" (Borda colorida no topo)
                     c_r1, c_r2, c_r3 = st.columns(3)
-                    with c_r1: st.markdown(f'<div class="recommendation-card" style="border-color:#2563eb;"><small>IDEAL (100%)</small><br><b style="font-size: 1.1rem;">{r100["Identificador"]}</b><br><small>{r100["Empreendimento"]}</small><br><span class="price-tag">R$ {r100["Valor de Venda"]:,.2f}</span></div>', unsafe_allow_html=True)
-                    with c_r2: st.markdown(f'<div class="recommendation-card" style="border-color:#f59e0b;"><small>SEGURA (90%)</small><br><b style="font-size: 1.1rem;">{r90["Identificador"]}</b><br><small>{r90["Empreendimento"]}</small><br><span class="price-tag">R$ {r90["Valor de Venda"]:,.2f}</span></div>', unsafe_allow_html=True)
-                    with c_r3: st.markdown(f'<div class="recommendation-card" style="border-color:#10b981;"><small>FACILITADA (75%)</small><br><b style="font-size: 1.1rem;">{r75["Identificador"]}</b><br><small>{r75["Empreendimento"]}</small><br><span class="price-tag">R$ {r75["Valor de Venda"]:,.2f}</span></div>', unsafe_allow_html=True)
+                    with c_r1: st.markdown(f'<div class="recommendation-card" style="border-top-color:#2563eb;"><small>IDEAL (100%)</small><br><b style="font-size: 1.1rem;">{r100["Identificador"]}</b><br><small>{r100["Empreendimento"]}</small><br><span class="price-tag">R$ {r100["Valor de Venda"]:,.2f}</span></div>', unsafe_allow_html=True)
+                    with c_r2: st.markdown(f'<div class="recommendation-card" style="border-top-color:#f59e0b;"><small>SEGURA (90%)</small><br><b style="font-size: 1.1rem;">{r90["Identificador"]}</b><br><small>{r90["Empreendimento"]}</small><br><span class="price-tag">R$ {r90["Valor de Venda"]:,.2f}</span></div>', unsafe_allow_html=True)
+                    with c_r3: st.markdown(f'<div class="recommendation-card" style="border-top-color:#10b981;"><small>FACILITADA (75%)</small><br><b style="font-size: 1.1rem;">{r75["Identificador"]}</b><br><small>{r75["Empreendimento"]}</small><br><span class="price-tag">R$ {r75["Valor de Venda"]:,.2f}</span></div>', unsafe_allow_html=True)
                 
-                # Botões no final
+                # Botões no final da página
                 st.write("")
                 st.markdown("---")
                 if st.button("💰 Prosseguir para Fechamento Financeiro", type="primary", use_container_width=True):
                     st.session_state.passo_simulacao = 'payment_flow'
                     st.rerun()
-
+                st.write("")
                 if st.button("⬅️ Voltar ao Potencial de Compra", use_container_width=True): 
                     st.session_state.passo_simulacao = 'potential'
                     st.rerun()
@@ -366,6 +369,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
         
         parc_ps = st.number_input("Quantidade de Parcelas Pro Soluto", min_value=1, max_value=84, value=84)
 
+        # Métricas Financeiras
         v_parc = ps_usado / parc_ps
         p_renda = (v_parc / d['renda']) * 100
         saldo_entrada = u['Valor de Venda'] - f_usado - fgts_usado - ps_usado
