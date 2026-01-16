@@ -9,7 +9,7 @@ Fluxo Automatizado de Recomendação:
 3. Lógica de Poder de Compra: 2x Renda + Finan + FGTS + PS.
 4. Recomendações por faixas: 100%, 90% e 75%.
 
-Versão: 4.3 (Design Full Width - Ocupa toda a página)
+Versão: 4.4 (Interface Simplificada - Apenas Simulação e Estoque)
 =============================================================================
 """
 
@@ -292,17 +292,14 @@ def main():
         </div>
     """, unsafe_allow_html=True)
 
-    tabs = st.tabs(["🎯 Simulação e Recomendação", "🏢 Base de Estoque", "📜 Políticas de PS"])
+    # Removida a aba de Políticas de PS conforme solicitação
+    tabs = st.tabs(["🎯 Simulação e Recomendação", "🏢 Base de Estoque"])
 
     with tabs[0]:
         aba_simulador_automacao(df_finan, df_estoque, df_politicas)
 
     with tabs[1]:
         aba_estoque_geral(df_estoque)
-
-    with tabs[2]:
-        st.markdown("### 📖 Regras de Classificação e Pro Soluto")
-        st.table(df_politicas.style.format({'PERC_PS': '{:.0%}'}))
 
 if __name__ == "__main__":
     main()
