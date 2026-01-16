@@ -9,7 +9,7 @@ Fluxo Automatizado de Recomendação:
 3. Lógica de Poder de Compra: 2x Renda + Finan + FGTS + PS.
 4. Recomendações por faixas: 100%, 90% e 75%.
 
-Versão: 4.0 (Navegação Sequencial & Persistência de Dados)
+Versão: 4.1 (Filtros e Ordenação na Base de Estoque)
 =============================================================================
 """
 
@@ -200,17 +200,12 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
                 unidades_emp = df_viaveis[df_viaveis['Empreendimento'] == emp_escolhido].sort_values('Valor de Venda', ascending=False)
                 
                 # Lógica de Poder de Compra Específica
-                # O poder de compra varia por unidade (devido ao Pro Soluto ser % da unidade)
-                # Vamos considerar o teto máximo deste empreendimento para as faixas
                 max_poder_neste_emp = unidades_emp['Poder_Compra'].max()
-                min_venda_neste_emp = unidades_emp['Valor de Venda'].min()
 
                 def recomendar(percentual):
                     limite = max_poder_neste_emp * percentual
-                    # Tenta a mais cara dentro do limite
                     candidatos = unidades_emp[unidades_emp['Valor de Venda'] <= limite]
                     if candidatos.empty:
-                        # Se o limite for menor que a unidade mais barata, recomenda a mais barata
                         return unidades_emp.iloc[-1]
                     return candidatos.iloc[0]
 
@@ -262,7 +257,28 @@ def main():
 
     with tabs[1]:
         st.markdown("### 📋 Base de Estoque Total")
-        st.dataframe(df_estoque, use_container_width=True, hide_index=True)
+        
+        # Filtros de Empreendimento e Ordenação
+        c1, c2 = st.columns([2, 1])
+        with c1:
+            emp_opcoes = sorted(df_estoque['Empreendimento'].unique())
+            emp_selecionados = st.multiselect("Filtrar por Empreendimento:", options=emp_opcoes)
+        
+        with c2:
+            sort_option = st.selectbox("Ordenar por Valor de Venda:", ["Nenhum", "Menor Preço", "Maior Preço"])
+
+        # Lógica de Filtro
+        df_display_estoque = df_estoque.copy()
+        if emp_selecionados:
+            df_display_estoque = df_display_estoque[df_display_estoque['Empreendimento'].isin(emp_selecionados)]
+        
+        # Lógica de Ordenação
+        if sort_option == "Menor Preço":
+            df_display_estoque = df_display_estoque.sort_values(by='Valor de Venda', ascending=True)
+        elif sort_option == "Maior Preço":
+            df_display_estoque = df_display_estoque.sort_values(by='Valor de Venda', ascending=False)
+            
+        st.dataframe(df_display_estoque, use_container_width=True, hide_index=True)
 
     with tabs[2]:
         st.markdown("### 📖 Regras de Classificação e Pro Soluto")
