@@ -8,7 +8,7 @@ Fluxo Automatizado de Recomendação (Sequencial):
 2. Etapa 2: Valor Potencial de Compra (Visão Financeira).
 3. Etapa 3: Escolha do Produto, Recomendações e Tabela de Estoque Completa.
 
-Versão: 4.9 (Design Unificado, Filtros em Linha & Novos Parâmetros)
+Versão: 5.0 (Design Totalmente Centralizado e Equilibrado)
 =============================================================================
 """
 
@@ -109,18 +109,20 @@ def configurar_layout():
         * { font-family: 'Inter', sans-serif; }
         .main { background-color: #f8fafc; }
         
+        /* Centralização Global Reconstruída */
         .block-container {
-            max-width: 100% !important;
-            padding-left: 3rem !important;
-            padding-right: 3rem !important;
+            max-width: 1200px !important;
+            padding-left: 1rem !important;
+            padding-right: 1rem !important;
             padding-top: 2rem !important;
+            margin: auto !important;
         }
 
-        .header-container { text-align: center; padding: 25px 0; background: #ffffff; border-bottom: 1px solid #e2e8f0; margin-bottom: 25px; border-radius: 0 0 15px 15px; width: 100%; }
+        .header-container { text-align: center; padding: 30px 0; background: #ffffff; border-bottom: 1px solid #e2e8f0; margin-bottom: 30px; border-radius: 0 0 15px 15px; }
         .header-title { color: #0f172a; font-size: 2.2rem; font-weight: 700; margin: 0; }
         
         .card { background: white; padding: 25px; border-radius: 18px; border: 1px solid #e2e8f0; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); margin-bottom: 20px; width: 100%; }
-        .recommendation-card { border-left: 5px solid #2563eb; background: #f8fafc; padding: 15px; border-radius: 12px; margin-bottom: 10px; }
+        .recommendation-card { border-left: 5px solid #2563eb; background: #f8fafc; padding: 15px; border-radius: 12px; margin-bottom: 10px; text-align: center; }
         .price-tag { color: #2563eb; font-weight: 700; font-size: 1.1rem; }
         
         .stButton button { border-radius: 10px !important; padding: 10px !important; font-weight: 600 !important; }
@@ -130,9 +132,12 @@ def configurar_layout():
         
         h1, h2, h3, h4 { text-align: center !important; width: 100%; }
         
-        /* Ajuste para filtros em linha */
-        .row-widget.stHorizontal {
-            align-items: flex-end;
+        div[data-baseweb="tab-list"] { justify-content: center !important; border-bottom: none; width: 100%; }
+        
+        /* Ajuste para centralizar o botão de formulário */
+        .stButton > button {
+            display: block;
+            margin: 0 auto;
         }
         </style>
     """, unsafe_allow_html=True)
@@ -165,6 +170,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
             social = st.toggle("Fator Social", value=st.session_state.dados_cliente.get('social', False))
             cotista = st.toggle("Cotista FGTS", value=st.session_state.dados_cliente.get('cotista', True))
             
+            st.write("")
             if st.button("🚀 Avançar para Visão Financeira", type="primary", use_container_width=True):
                 finan, fgts = motor.obter_enquadramento(renda, social, cotista)
                 perc = df_politicas[df_politicas['CLASSIFICAÇÃO'] == 'EMCASH' if politica_ps == "Emcash" else ranking]['PERC_PS'].values[0]
@@ -209,25 +215,27 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
                 st.session_state.passo_simulacao = 'results'
                 st.rerun()
             
+            st.write("")
             if st.button("⬅️ Editar Dados do Cliente", use_container_width=True):
                 st.session_state.passo_simulacao = 'input'
                 st.rerun()
 
-    # --- PASSO 3: PRODUTOS E UNIDADES (INCLUI BASE DE ESTOQUE NO FINAL) ---
+    # --- PASSO 3: PRODUTOS E UNIDADES ---
     else:
         d = st.session_state.dados_cliente
         st.markdown(f"### 🎯 Etapa 3: Escolha do Produto e Oportunidades")
         
-        # Filtra as unidades viáveis baseadas no poder de compra individual de cada unidade
         df_viaveis = motor.filtrar_unidades_viaveis(d['renda'], d['finan_estimado'], d['fgts_sub'], d['perc_ps'])
         
         if df_viaveis.empty:
             st.error("❌ Não foram encontradas unidades compatíveis com o poder de compra calculado.")
             if st.button("⬅️ Voltar"): st.session_state.passo_simulacao = 'potential'; st.rerun()
         else:
-            # Seleção de Produto Principal para Recomendações
-            emp_opcoes = ["Todos"] + sorted(df_viaveis['Empreendimento'].unique().tolist())
-            emp_escolhido_rec = st.selectbox("Filtrar Recomendações por Empreendimento:", options=emp_opcoes)
+            # Seleção de Produto Principal Centralizada
+            _, col_sel_emp, _ = st.columns([1, 2, 1])
+            with col_sel_emp:
+                emp_opcoes = ["Todos"] + sorted(df_viaveis['Empreendimento'].unique().tolist())
+                emp_escolhido_rec = st.selectbox("Filtrar Recomendações por Empreendimento:", options=emp_opcoes)
             
             df_para_rec = df_viaveis if emp_escolhido_rec == "Todos" else df_viaveis[df_viaveis['Empreendimento'] == emp_escolhido_rec]
             df_para_rec = df_para_rec.sort_values('Valor de Venda', ascending=False)
@@ -269,14 +277,11 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
             with f_col5:
                 p_max = st.number_input("Preço Máximo:", value=float(df_viaveis['Valor de Venda'].max()), key="f_preco")
             
-            # Aplicação dos Filtros na Tabela
             df_tabela = df_viaveis.copy()
             if filtro_emp: df_tabela = df_tabela[df_tabela['Empreendimento'].isin(filtro_emp)]
             if filtro_bairro: df_tabela = df_tabela[df_tabela['Bairro'].isin(filtro_bairro)]
             if filtro_andar: df_tabela = df_tabela[df_tabela['Andar'].isin(filtro_andar)]
             df_tabela = df_tabela[df_tabela['Valor de Venda'] <= p_max]
-            
-            # Ordenação Explícita
             df_tabela = df_tabela.sort_values('Valor de Venda', ascending=(ordenacao == "Menor Preço"))
             
             st.dataframe(
@@ -286,15 +291,17 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
             )
             
             st.markdown("---")
-            col_nav1, col_nav2, _ = st.columns([1, 1, 2])
-            with col_nav1:
-                if st.button("⬅️ Voltar ao Potencial", use_container_width=True):
-                    st.session_state.passo_simulacao = 'potential'
-                    st.rerun()
-            with col_nav2:
-                if st.button("👤 Mudar Cliente", use_container_width=True):
-                    st.session_state.passo_simulacao = 'input'
-                    st.rerun()
+            _, col_nav_center, _ = st.columns([1, 2, 1])
+            with col_nav_center:
+                c1, c2 = st.columns(2)
+                with c1:
+                    if st.button("⬅️ Voltar ao Potencial", use_container_width=True):
+                        st.session_state.passo_simulacao = 'potential'
+                        st.rerun()
+                with c2:
+                    if st.button("👤 Mudar Cliente", use_container_width=True):
+                        st.session_state.passo_simulacao = 'input'
+                        st.rerun()
 
 # =============================================================================
 # 5. MAIN
@@ -311,7 +318,6 @@ def main():
         </div>
     """, unsafe_allow_html=True)
 
-    # Agora a aplicação é unificada em uma única jornada sequencial
     aba_simulador_automacao(df_finan, df_estoque, df_politicas)
 
 if __name__ == "__main__":
