@@ -9,7 +9,7 @@ Fluxo Automatizado de Recomendação:
 3. Lógica de Poder de Compra: 2x Renda + Finan + FGTS + PS.
 4. Recomendações por faixas: 100%, 90% e 75%.
 
-Versão: 4.5 (Design Sequencial Vertical e Centralizado)
+Versão: 4.6 (Ranking separado de Política EMCASH)
 =============================================================================
 """
 
@@ -55,7 +55,7 @@ def carregar_dados_sistema():
     }
     df_estoque = pd.DataFrame(data_estoque)
     
-    # MOCK: POLÍTICAS PS
+    # MOCK: POLÍTICAS PS (EMCASH é mantido aqui para parâmetros de cálculo, mas filtrado na UI)
     df_politicas = pd.DataFrame({
         'CLASSIFICAÇÃO': ['EMCASH', 'DIAMANTE', 'OURO', 'PRATA', 'BRONZE', 'AÇO'],
         'PERC_PS': [0.25, 0.25, 0.20, 0.18, 0.15, 0.10],
@@ -160,7 +160,11 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
             
             nome = st.text_input("Nome do Cliente", value=st.session_state.dados_cliente.get('nome', ""))
             renda = st.number_input("Renda Bruta Familiar (R$)", min_value=1500.0, value=st.session_state.dados_cliente.get('renda', 3500.0), step=100.0)
-            ranking = st.selectbox("Ranking do Cliente", options=df_politicas['CLASSIFICAÇÃO'].unique(), index=2)
+            
+            # Filtramos a lista de rankings para remover 'EMCASH' conforme solicitado
+            ranking_options = [r for r in df_politicas['CLASSIFICAÇÃO'].unique() if r != 'EMCASH']
+            ranking = st.selectbox("Ranking do Cliente", options=ranking_options, index=1)
+            
             politica_ps = st.selectbox("Política de Pro Soluto", ["Direcional", "Emcash"])
             
             # Toggles um embaixo do outro para ser sequencial
@@ -176,10 +180,12 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
                     # Salva no estado
                     finan, fgts = motor.obter_enquadramento(renda, social, cotista)
                     
-                    # Define percentual de PS
+                    # Define percentual de PS baseado na política escolhida
                     if politica_ps == "Emcash":
+                        # Busca os parâmetros específicos da política Emcash na tabela original
                         perc = df_politicas[df_politicas['CLASSIFICAÇÃO'] == 'EMCASH']['PERC_PS'].values[0]
                     else:
+                        # Busca os parâmetros baseados no Ranking selecionado
                         perc = df_politicas[df_politicas['CLASSIFICAÇÃO'] == ranking]['PERC_PS'].values[0]
                     
                     st.session_state.dados_cliente = {
@@ -202,8 +208,11 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
         m1, m2, m3, m4 = st.columns(4)
         with m1: st.markdown(f'<div class="card"><p class="metric-label">Financiamento</p><p class="metric-value">R$ {d["finan_estimado"]:,.2f}</p></div>', unsafe_allow_html=True)
         with m2: st.markdown(f'<div class="card"><p class="metric-label">FGTS + Subsídio</p><p class="metric-value">R$ {d["fgts_sub"]:,.2f}</p></div>', unsafe_allow_html=True)
-        with m3: st.markdown(f'<div class="card"><p class="metric-label">Teto PS ({d["ranking"]})</p><p class="metric-value">{d["perc_ps"]*100:.0f}%</p></div>', unsafe_allow_html=True)
-        with m4: st.markdown(f'<div class="card"><p class="metric-label">Política</p><p class="metric-value">{d["politica"]}</p></div>', unsafe_allow_html=True)
+        
+        # Exibe o teto de PS correto dependendo da política
+        label_ps = "Teto PS (EMCASH)" if d['politica'] == "Emcash" else f"Teto PS ({d['ranking']})"
+        with m3: st.markdown(f'<div class="card"><p class="metric-label">{label_ps}</p><p class="metric-value">{d["perc_ps"]*100:.0f}%</p></div>', unsafe_allow_html=True)
+        with m4: st.markdown(f'<div class="card"><p class="metric-label">Política Ativa</p><p class="metric-value">{d["politica"]}</p></div>', unsafe_allow_html=True)
 
         # Processamento das unidades
         df_viaveis = motor.filtrar_unidades_viaveis(d['renda'], d['finan_estimado'], d['fgts_sub'], d['perc_ps'])
@@ -297,7 +306,7 @@ def main():
         </div>
     """, unsafe_allow_html=True)
 
-    # Removida a aba de Políticas de PS conforme solicitação
+    # Abas principais
     tabs = st.tabs(["🎯 Simulação e Recomendação", "🏢 Base de Estoque"])
 
     with tabs[0]:
