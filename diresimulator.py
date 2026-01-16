@@ -8,7 +8,7 @@ Fluxo Automatizado de Recomendação (Sequencial):
 2. Etapa 2: Valor Potencial de Compra (Visão Financeira).
 3. Etapa 3: Escolha do Produto, Recomendações e Tabela de Estoque Completa.
 
-Versão: 5.0 (Design Totalmente Centralizado e Equilibrado)
+Versão: 5.1 (Correção de KeyError & Remoção de Card Visual na Etapa 1)
 =============================================================================
 """
 
@@ -159,7 +159,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
         st.markdown("### 👤 Etapa 1: Dados do Cliente")
         _, col_center, _ = st.columns([1, 2, 1])
         with col_center:
-            st.markdown('<div class="card">', unsafe_allow_html=True)
+            # Box removido conforme solicitado: agora os campos ficam diretamente na página
             nome = st.text_input("Nome do Cliente", value=st.session_state.dados_cliente.get('nome', ""))
             renda = st.number_input("Renda Bruta Familiar (R$)", min_value=1500.0, value=st.session_state.dados_cliente.get('renda', 3500.0), step=100.0)
             
@@ -173,7 +173,10 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
             st.write("")
             if st.button("🚀 Avançar para Visão Financeira", type="primary", use_container_width=True):
                 finan, fgts = motor.obter_enquadramento(renda, social, cotista)
-                perc = df_politicas[df_politicas['CLASSIFICAÇÃO'] == 'EMCASH' if politica_ps == "Emcash" else ranking]['PERC_PS'].values[0]
+                
+                # CORREÇÃO DO KeyError: Ajustando a lógica de filtragem do DataFrame
+                classificacao_busca = 'EMCASH' if politica_ps == "Emcash" else ranking
+                perc = df_politicas.loc[df_politicas['CLASSIFICAÇÃO'] == classificacao_busca, 'PERC_PS'].values[0]
                 
                 st.session_state.dados_cliente = {
                     'nome': nome, 'renda': renda, 'social': social, 'cotista': cotista,
@@ -182,7 +185,6 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
                 }
                 st.session_state.passo_simulacao = 'potential'
                 st.rerun()
-            st.markdown('</div>', unsafe_allow_html=True)
 
     # --- PASSO 2: POTENCIAL DE COMPRA ---
     elif st.session_state.passo_simulacao == 'potential':
@@ -254,7 +256,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
                 
                 col_rec1, col_rec2, col_rec3 = st.columns(3)
                 with col_rec1: st.markdown(f'<div class="recommendation-card" style="border-color:#2563eb;"><small>IDEAL (100%)</small><br><b>{r100["Identificador"]}</b><br><small>{r100["Empreendimento"]}</small><br><span class="price-tag">R$ {r100["Valor de Venda"]:,.2f}</span></div>', unsafe_allow_html=True)
-                with col_rec2: st.markdown(f'<div class="recommendation-card" style="border-color:#f59e0b;"><small>SEGURA (90%)</small><br><b>{r90["Identificador"]}</b><br><small>{r90["Empreendimento"]}</small><br><span class="price-tag">R$ {r90["Valor de Venda"]:,.2f}</span></div>', unsafe_allow_html=True)
+                with col_rec2: st.markdown(f'<div class="recommendation-card" style="border-color:#f59e0b;"><small>SEGURA (90%)</small><br><b>{r90["Identificador"]}</b><br><span class="price-tag">R$ {r90["Valor de Venda"]:,.2f}</span></div>', unsafe_allow_html=True)
                 with col_rec3: st.markdown(f'<div class="recommendation-card" style="border-color:#10b981;"><small>FACILITADA (75%)</small><br><b>{r75["Identificador"]}</b><br><small>{r75["Empreendimento"]}</small><br><span class="price-tag">R$ {r75["Valor de Venda"]:,.2f}</span></div>', unsafe_allow_html=True)
             else:
                 st.warning("Selecione um empreendimento válido para ver as recomendações.")
