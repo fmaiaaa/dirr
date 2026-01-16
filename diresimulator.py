@@ -9,7 +9,7 @@ Fluxo Automatizado de Recomendação (Sequencial):
 3. Etapa 3: Guia de Viabilidade (Visualização e Recomendações).
 4. Etapa 4: Fechamento Financeiro (Seleção e Fluxo de Pagamento).
 
-Versão: 8.6 (Layout Padronizado & Fluxo Verticalizado)
+Versão: 8.7 (Botões Verticais na Etapa 3 e Fluxo Verticalizado)
 =============================================================================
 """
 
@@ -287,26 +287,23 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
             tab_rec, tab_list = st.tabs(["⭐ Unidades Recomendadas", "📋 Lista Completa de Unidades"])
 
             with tab_rec:
-                # Alinhamento de controles espelhando as caixas de recomendações
-                c_ctl1, c_ctl2, c_ctl3 = st.columns(3)
-                
+                # Cada controle ocupando uma linha inteira com use_container_width
                 emp_opcoes = ["Todos"] + sorted(df_viaveis['Empreendimento'].unique().tolist())
-                with c_ctl1:
-                    emp_rec = st.selectbox("Filtrar Recomendações:", options=emp_opcoes, key="sel_rec_3")
-                with c_ctl2:
-                    st.write("") # Espaçador para alinhar com o selectbox
-                    if st.button("💰 Prosseguir para Fechamento", type="primary", use_container_width=True):
-                        st.session_state.passo_simulacao = 'payment_flow'
-                        st.rerun()
-                with c_ctl3:
-                    st.write("")
-                    if st.button("⬅️ Voltar ao Potencial", use_container_width=True): 
-                        st.session_state.passo_simulacao = 'potential'
-                        st.rerun()
+                emp_rec = st.selectbox("Filtrar Recomendações por Empreendimento:", options=emp_opcoes, key="sel_rec_3")
+
+                st.write("")
+                if st.button("💰 Prosseguir para Fechamento Financeiro", type="primary", use_container_width=True):
+                    st.session_state.passo_simulacao = 'payment_flow'
+                    st.rerun()
+
+                if st.button("⬅️ Voltar ao Potencial de Compra", use_container_width=True): 
+                    st.session_state.passo_simulacao = 'potential'
+                    st.rerun()
                 
                 df_rec = df_viaveis if emp_rec == "Todos" else df_viaveis[df_viaveis['Empreendimento'] == emp_rec]
                 df_rec = df_rec.sort_values('Valor de Venda', ascending=False)
 
+                st.write("")
                 if not df_rec.empty:
                     max_p = df_rec['Poder_Compra'].max()
                     def rec(pct):
@@ -315,9 +312,10 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
                         return cands.iloc[0] if not cands.empty else df_rec.iloc[-1]
                     r100, r90, r75 = rec(1.0), rec(0.9), rec(0.75)
                     
+                    # As caixas de recomendação continuam em 3 colunas para destaque visual
                     c_r1, c_r2, c_r3 = st.columns(3)
                     with c_r1: st.markdown(f'<div class="recommendation-card" style="border-color:#2563eb;"><small>IDEAL (100%)</small><br><b>{r100["Identificador"]}</b><br><small>{r100["Empreendimento"]}</small><br><span class="price-tag">R$ {r100["Valor de Venda"]:,.2f}</span></div>', unsafe_allow_html=True)
-                    with c_r2: st.markdown(f'<div class="recommendation-card" style="border-color:#f59e0b;"><small>SEGURA (90%)</small><br><b>{r90["Identificador"]}</b><br><span class="price-tag">R$ {r90["Valor de Venda"]:,.2f}</span></div>', unsafe_allow_html=True)
+                    with c_r2: st.markdown(f'<div class="recommendation-card" style="border-color:#f59e0b;"><small>SEGURA (90%)</small><br><b>{r90["Identificador"]}</b><br><small>{r90["Empreendimento"]}</small><br><span class="price-tag">R$ {r90["Valor de Venda"]:,.2f}</span></div>', unsafe_allow_html=True)
                     with c_r3: st.markdown(f'<div class="recommendation-card" style="border-color:#10b981;"><small>FACILITADA (75%)</small><br><b>{r75["Identificador"]}</b><br><small>{r75["Empreendimento"]}</small><br><span class="price-tag">R$ {r75["Valor de Venda"]:,.2f}</span></div>', unsafe_allow_html=True)
 
             with tab_list:
