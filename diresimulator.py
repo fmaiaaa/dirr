@@ -9,7 +9,7 @@ Fluxo Automatizado de Recomendação (Sequencial):
 3. Etapa 3: Guia de Viabilidade (Visualização e Recomendações).
 4. Etapa 4: Fechamento Financeiro (Seleção e Fluxo de Pagamento).
 
-Versão: 8.3 (Design Centralizado na Etapa 3 e Etapa 4 Verticalizada)
+Versão: 8.6 (Layout Padronizado & Fluxo Verticalizado)
 =============================================================================
 """
 
@@ -108,6 +108,7 @@ def configurar_layout():
         * { font-family: 'Inter', sans-serif; }
         .main { background-color: #f8fafc; }
         
+        /* Centralização Global */
         .block-container {
             max-width: 1200px !important;
             padding-left: 1rem !important;
@@ -118,8 +119,34 @@ def configurar_layout():
         .header-container { text-align: center; padding: 25px 0; background: #ffffff; border-bottom: 1px solid #e2e8f0; margin-bottom: 25px; border-radius: 0 0 15px 15px; }
         .header-title { color: #0f172a; font-size: 2rem; font-weight: 700; margin: 0; }
         
-        .card { background: white; padding: 25px; border-radius: 18px; border: 1px solid #e2e8f0; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); margin-bottom: 20px; width: 100%; }
-        .recommendation-card { border-left: 5px solid #2563eb; background: #f8fafc; padding: 15px; border-radius: 12px; margin-bottom: 10px; text-align: center; }
+        /* Padronização das caixas na Etapa 2 */
+        .card { 
+            background: white; 
+            padding: 25px; 
+            border-radius: 18px; 
+            border: 1px solid #e2e8f0; 
+            box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); 
+            margin-bottom: 20px; 
+            width: 100%;
+            height: 160px; /* Altura fixa para alinhar */
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+        }
+        
+        .recommendation-card { 
+            border-left: 5px solid #2563eb; 
+            background: #f8fafc; 
+            padding: 15px; 
+            border-radius: 12px; 
+            margin-bottom: 10px; 
+            text-align: center; 
+            height: 140px; /* Altura padronizada para recomendações */
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+        }
+        
         .price-tag { color: #2563eb; font-weight: 700; font-size: 1.1rem; }
         
         .metric-label { color: #64748b; font-size: 0.8rem; font-weight: 600; text-transform: uppercase; text-align: center; width: 100%; }
@@ -140,13 +167,14 @@ def configurar_layout():
         .stButton button { border-radius: 10px !important; padding: 10px !important; font-weight: 600 !important; }
         h1, h2, h3, h4 { text-align: center !important; width: 100%; }
         
-        /* Box Financeiro Personalizado */
+        /* Box Financeiro Personalizado - Etapa 4 */
         .fin-box {
             text-align: center;
             padding: 20px;
             border-radius: 15px;
             border: 1px solid #e2e8f0;
             margin-bottom: 15px;
+            width: 100%;
         }
 
         .inline-ref {
@@ -158,7 +186,6 @@ def configurar_layout():
             text-align: left;
         }
 
-        /* Centralização de Abas */
         div[data-baseweb="tab-list"] {
             justify-content: center !important;
             display: flex !important;
@@ -217,6 +244,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
         pot_min = d['finan_estimado'] + d['fgts_sub'] + ps_min_total + dobro_renda
         pot_max = d['finan_estimado'] + d['fgts_sub'] + ps_max_total + dobro_renda
         
+        # 4 Boxes com mesma altura e largura
         m1, m2, m3, m4 = st.columns(4)
         with m1: st.markdown(f'<div class="card"><p class="metric-label">Financiamento Aprovado</p><p class="metric-value">R$ {d["finan_estimado"]:,.2f}</p></div>', unsafe_allow_html=True)
         with m2: st.markdown(f'<div class="card"><p class="metric-label">FGTS + Subsídio</p><p class="metric-value">R$ {d["fgts_sub"]:,.2f}</p></div>', unsafe_allow_html=True)
@@ -226,7 +254,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
         _, col_pot, _ = st.columns([1, 2, 1])
         with col_pot:
             st.markdown(f"""
-                <div class="card" style="border-top: 5px solid #2563eb; text-align: center; background: #f0f7ff;">
+                <div class="card" style="border-top: 5px solid #2563eb; text-align: center; background: #f0f7ff; height: auto;">
                     <p class="metric-label" style="color: #2563eb; font-size: 1.1rem;">Valor Potencial de Compra</p>
                     <p class="metric-value" style="font-size: 1.8rem; color: #0f172a; margin-bottom:5px;">R$ {pot_min:,.2f} a R$ {pot_max:,.2f}</p>
                     <p style="margin:0; font-size:0.85rem; color:#475569;">O valor potencial varia de acordo com o preço da unidade escolhida.</p>
@@ -249,11 +277,9 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
         
         if df_viaveis.empty:
             st.error("❌ Nenhuma unidade viável encontrada.")
-            _, col_back_err, _ = st.columns([1, 2, 1])
-            with col_back_err:
-                if st.button("⬅️ Voltar"): st.session_state.passo_simulacao = 'potential'; st.rerun()
+            if st.button("⬅️ Voltar"): st.session_state.passo_simulacao = 'potential'; st.rerun()
         else:
-            st.markdown("#### 🏢 Empreendimentos com unidades disponíveis para este perfil:")
+            st.markdown("#### 🏢 Empreendimentos com unidades disponíveis:")
             empreendimentos_unid = df_viaveis.groupby('Empreendimento').size().to_dict()
             badges_html = "".join([f'<div class="emp-badge">{emp} ({qtd} unid.)</div>' for emp, qtd in empreendimentos_unid.items()])
             st.markdown(f'<div style="text-align: center; margin-bottom: 20px;">{badges_html}</div>', unsafe_allow_html=True)
@@ -261,10 +287,22 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
             tab_rec, tab_list = st.tabs(["⭐ Unidades Recomendadas", "📋 Lista Completa de Unidades"])
 
             with tab_rec:
-                _, col_sel_rec, _ = st.columns([1, 2, 1])
-                with col_sel_rec:
-                    emp_opcoes = ["Todos"] + sorted(df_viaveis['Empreendimento'].unique().tolist())
+                # Alinhamento de controles espelhando as caixas de recomendações
+                c_ctl1, c_ctl2, c_ctl3 = st.columns(3)
+                
+                emp_opcoes = ["Todos"] + sorted(df_viaveis['Empreendimento'].unique().tolist())
+                with c_ctl1:
                     emp_rec = st.selectbox("Filtrar Recomendações:", options=emp_opcoes, key="sel_rec_3")
+                with c_ctl2:
+                    st.write("") # Espaçador para alinhar com o selectbox
+                    if st.button("💰 Prosseguir para Fechamento", type="primary", use_container_width=True):
+                        st.session_state.passo_simulacao = 'payment_flow'
+                        st.rerun()
+                with c_ctl3:
+                    st.write("")
+                    if st.button("⬅️ Voltar ao Potencial", use_container_width=True): 
+                        st.session_state.passo_simulacao = 'potential'
+                        st.rerun()
                 
                 df_rec = df_viaveis if emp_rec == "Todos" else df_viaveis[df_viaveis['Empreendimento'] == emp_rec]
                 df_rec = df_rec.sort_values('Valor de Venda', ascending=False)
@@ -279,15 +317,8 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
                     
                     c_r1, c_r2, c_r3 = st.columns(3)
                     with c_r1: st.markdown(f'<div class="recommendation-card" style="border-color:#2563eb;"><small>IDEAL (100%)</small><br><b>{r100["Identificador"]}</b><br><small>{r100["Empreendimento"]}</small><br><span class="price-tag">R$ {r100["Valor de Venda"]:,.2f}</span></div>', unsafe_allow_html=True)
-                    with c_r2: st.markdown(f'<div class="recommendation-card" style="border-color:#f59e0b;"><small>SEGURA (90%)</small><br><b>{r90["Identificador"]}</b><br><small>{r90["Empreendimento"]}</small><br><span class="price-tag">R$ {r90["Valor de Venda"]:,.2f}</span></div>', unsafe_allow_html=True)
+                    with c_r2: st.markdown(f'<div class="recommendation-card" style="border-color:#f59e0b;"><small>SEGURA (90%)</small><br><b>{r90["Identificador"]}</b><br><span class="price-tag">R$ {r90["Valor de Venda"]:,.2f}</span></div>', unsafe_allow_html=True)
                     with c_r3: st.markdown(f'<div class="recommendation-card" style="border-color:#10b981;"><small>FACILITADA (75%)</small><br><b>{r75["Identificador"]}</b><br><small>{r75["Empreendimento"]}</small><br><span class="price-tag">R$ {r75["Valor de Venda"]:,.2f}</span></div>', unsafe_allow_html=True)
-                
-                st.write("")
-                _, col_btn_flow, _ = st.columns([1, 2, 1])
-                with col_btn_flow:
-                    if st.button("💰 Prosseguir para Fechamento Financeiro", type="primary", use_container_width=True):
-                        st.session_state.passo_simulacao = 'payment_flow'
-                        st.rerun()
 
             with tab_list:
                 f1, f2, f3, f4, f5 = st.columns([1.2, 1, 0.8, 1, 0.8])
@@ -304,21 +335,15 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
                 df_tab = df_tab.sort_values('Valor de Venda', ascending=(f_ordem == "Menor Preço"))
                 st.dataframe(df_tab[['Identificador', 'Empreendimento', 'Bairro', 'Andar', 'Valor de Venda', 'PS_Unidade', 'Poder_Compra']], use_container_width=True, hide_index=True)
 
-            st.write("")
-            _, col_back_pot, _ = st.columns([1, 2, 1])
-            with col_back_pot:
-                if st.button("⬅️ Voltar ao Potencial", use_container_width=True): 
-                    st.session_state.passo_simulacao = 'potential'
-                    st.rerun()
-
     # --- PASSO 4: SELEÇÃO DEFINITIVA E FLUXO DE PAGAMENTO ---
     elif st.session_state.passo_simulacao == 'payment_flow':
         d = st.session_state.dados_cliente
         st.markdown(f"### 📑 Etapa 4: Detalhamento do Fluxo")
         
-        _, col_center_flow, _ = st.columns([1, 2, 1])
+        # Fluxo Vertical e Centralizado
+        _, col_main, _ = st.columns([1, 2, 1])
         
-        with col_center_flow:
+        with col_main:
             st.subheader("✅ Seleção da Unidade")
             emp_def = st.selectbox("Empreendimento Escolhido:", options=sorted(df_estoque['Empreendimento'].unique()))
             unidades_def = df_estoque[(df_estoque['Empreendimento'] == emp_def) & (df_estoque['Status'] == 'Disponível')]
@@ -345,54 +370,40 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
             p_renda = (v_parc / d['renda']) * 100
             saldo_entrada = u['Valor de Venda'] - f_usado - fgts_usado - ps_usado
             
+            # Boxes Verticais de Informação
             st.write("")
-            ci1, ci2, ci3 = st.columns(3)
-            
-            with ci1:
-                st.markdown(f"""
-                    <div class="fin-box" style="background: #ffffff; border-top: 5px solid #64748b;">
-                        <p class="metric-label" style="color: #64748b;">Valor do Imóvel</p>
-                        <p class="metric-value" style="font-size: 1.2rem; margin-bottom: 0;">R$ {u['Valor de Venda']:,.2f}</p>
-                        <p style="margin:0; font-size:0.8rem; font-weight:600; color:#94a3b8;">({u['Identificador']})</p>
-                    </div>
-                """, unsafe_allow_html=True)
-
-            with ci2:
-                st.markdown(f"""
-                    <div class="fin-box" style="background: #f8fafc; border-top: 5px solid #2563eb;">
-                        <p class="metric-label" style="color: #2563eb;">Parcelamento PS</p>
-                        <p class="metric-value" style="font-size: 1.2rem; margin-bottom: 0;">R$ {v_parc:,.2f}</p>
-                        <p style="margin:0; font-size:0.8rem; font-weight:600; color:#475569;">({p_renda:.2f}% da Renda)</p>
-                    </div>
-                """, unsafe_allow_html=True)
-
-            with ci3:
-                st.markdown(f"""
-                    <div class="fin-box" style="background: #fff1f2; border-top: 5px solid #e11d48;">
-                        <p class="metric-label" style="color: #e11d48;">Saldo Entrada</p>
-                        <p class="metric-value" style="font-size: 1.2rem; margin-bottom: 0;">R$ {max(0, saldo_entrada):,.2f}</p>
-                        <p style="margin:0; font-size:0.8rem; font-weight:600; color:#475569;">(Ato / 30 / 60 / 90)</p>
-                    </div>
-                """, unsafe_allow_html=True)
+            st.markdown(f"""
+                <div class="fin-box" style="background: #ffffff; border-top: 5px solid #64748b;">
+                    <p class="metric-label" style="color: #64748b;">Valor do Imóvel</p>
+                    <p class="metric-value" style="font-size: 1.6rem; margin-bottom: 0;">R$ {u['Valor de Venda']:,.2f}</p>
+                    <p style="margin:0; font-size:0.9rem; font-weight:600; color:#94a3b8;">({u['Identificador']})</p>
+                </div>
+                <div class="fin-box" style="background: #f8fafc; border-top: 5px solid #2563eb;">
+                    <p class="metric-label" style="color: #2563eb;">Parcelamento Pro Soluto</p>
+                    <p class="metric-value" style="font-size: 1.6rem; margin-bottom: 0;">R$ {v_parc:,.2f}</p>
+                    <p style="margin:0; font-size:0.9rem; font-weight:600; color:#475569;">({p_renda:.2f}% da Renda)</p>
+                </div>
+                <div class="fin-box" style="background: #fff1f2; border-top: 5px solid #e11d48;">
+                    <p class="metric-label" style="color: #e11d48;">Saldo de Entrada Total</p>
+                    <p class="metric-value" style="font-size: 1.6rem; margin-bottom: 0;">R$ {max(0, saldo_entrada):,.2f}</p>
+                </div>
+            """, unsafe_allow_html=True)
             
             if saldo_entrada > 0:
                 st.markdown("#### 🖋️ Parcelamento da Entrada")
-                sc1, sc2, sc3, sc4 = st.columns(4)
-                with sc1: st.number_input("Ato (R$)", value=saldo_entrada/4, key="ato_v8")
-                with sc2: st.number_input("30d (R$)", value=saldo_entrada/4, key="ato30_v8")
-                with sc3: st.number_input("60d (R$)", value=saldo_entrada/4, key="ato60_v8")
-                with sc4: st.number_input("90d (R$)", value=saldo_entrada/4, key="ato90_v8")
+                ato = st.number_input("Valor Ato (R$)", value=saldo_entrada/4, key="ato_v8")
+                ato30 = st.number_input("Ato 30d (R$)", value=saldo_entrada/4, key="ato30_v8")
+                ato60 = st.number_input("Ato 60d (R$)", value=saldo_entrada/4, key="ato60_v8")
+                ato90 = st.number_input("Ato 90d (R$)", value=saldo_entrada/4, key="ato90_v8")
             
             st.markdown("---")
-            col_b1, col_b2 = st.columns(2)
-            with col_b1:
-                if st.button("⬅️ Voltar para Guia", use_container_width=True):
-                    st.session_state.passo_simulacao = 'guide'
-                    st.rerun()
-            with col_b2:
-                if st.button("👤 Mudar Cliente", use_container_width=True):
-                    st.session_state.passo_simulacao = 'input'
-                    st.rerun()
+            if st.button("⬅️ Voltar para Guia", use_container_width=True):
+                st.session_state.passo_simulacao = 'guide'
+                st.rerun()
+            st.write("")
+            if st.button("👤 Mudar Cliente", use_container_width=True):
+                st.session_state.passo_simulacao = 'input'
+                st.rerun()
 
 # =============================================================================
 # 5. MAIN
