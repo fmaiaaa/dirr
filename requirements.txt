@@ -11,3 +11,7 @@ optuna
 dask
 distributed
 category-encoders
+streamlit
+pandas
+numpy
+st-gsheets-connection
