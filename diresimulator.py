@@ -9,7 +9,7 @@ Fluxo Automatizado de Recomendação:
 3. Lógica de Poder de Compra: 2x Renda + Finan + FGTS + PS.
 4. Recomendações por faixas: 100%, 90% e 75%.
 
-Versão: 4.6 (Ranking separado de Política EMCASH)
+Versão: 4.7 (Layout de Poder de Compra Expandido)
 =============================================================================
 """
 
@@ -55,7 +55,7 @@ def carregar_dados_sistema():
     }
     df_estoque = pd.DataFrame(data_estoque)
     
-    # MOCK: POLÍTICAS PS (EMCASH é mantido aqui para parâmetros de cálculo, mas filtrado na UI)
+    # MOCK: POLÍTICAS PS
     df_politicas = pd.DataFrame({
         'CLASSIFICAÇÃO': ['EMCASH', 'DIAMANTE', 'OURO', 'PRATA', 'BRONZE', 'AÇO'],
         'PERC_PS': [0.25, 0.25, 0.20, 0.18, 0.15, 0.10],
@@ -182,10 +182,8 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
                     
                     # Define percentual de PS baseado na política escolhida
                     if politica_ps == "Emcash":
-                        # Busca os parâmetros específicos da política Emcash na tabela original
                         perc = df_politicas[df_politicas['CLASSIFICAÇÃO'] == 'EMCASH']['PERC_PS'].values[0]
                     else:
-                        # Busca os parâmetros baseados no Ranking selecionado
                         perc = df_politicas[df_politicas['CLASSIFICAÇÃO'] == ranking]['PERC_PS'].values[0]
                     
                     st.session_state.dados_cliente = {
@@ -204,15 +202,28 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
         # Header de Resumo
         st.markdown(f"### 🎯 Oportunidades para {d['nome'] or 'o Cliente'}")
         
-        # Cards de Enquadramento
-        m1, m2, m3, m4 = st.columns(4)
-        with m1: st.markdown(f'<div class="card"><p class="metric-label">Financiamento</p><p class="metric-value">R$ {d["finan_estimado"]:,.2f}</p></div>', unsafe_allow_html=True)
-        with m2: st.markdown(f'<div class="card"><p class="metric-label">FGTS + Subsídio</p><p class="metric-value">R$ {d["fgts_sub"]:,.2f}</p></div>', unsafe_allow_html=True)
+        # Cálculos de Poder de Compra Geral
+        ps_medio = df_estoque['Valor de Venda'].mean() * d['perc_ps']
+        dobro_renda = 2 * d['renda']
+        valor_potencial = d['finan_estimado'] + d['fgts_sub'] + ps_medio + dobro_renda
         
-        # Exibe o teto de PS correto dependendo da política
-        label_ps = "Teto PS (EMCASH)" if d['politica'] == "Emcash" else f"Teto PS ({d['ranking']})"
-        with m3: st.markdown(f'<div class="card"><p class="metric-label">{label_ps}</p><p class="metric-value">{d["perc_ps"]*100:.0f}%</p></div>', unsafe_allow_html=True)
-        with m4: st.markdown(f'<div class="card"><p class="metric-label">Política Ativa</p><p class="metric-value">{d["politica"]}</p></div>', unsafe_allow_html=True)
+        # Cards de Enquadramento (4 Boxes Individuais)
+        m1, m2, m3, m4 = st.columns(4)
+        with m1: st.markdown(f'<div class="card"><p class="metric-label">Financiamento Aprovado</p><p class="metric-value">R$ {d["finan_estimado"]:,.2f}</p></div>', unsafe_allow_html=True)
+        with m2: st.markdown(f'<div class="card"><p class="metric-label">FGTS + Subsídio</p><p class="metric-value">R$ {d["fgts_sub"]:,.2f}</p></div>', unsafe_allow_html=True)
+        with m3: st.markdown(f'<div class="card"><p class="metric-label">Pro Soluto Médio</p><p class="metric-value">R$ {ps_medio:,.2f}</p></div>', unsafe_allow_html=True)
+        with m4: st.markdown(f'<div class="card"><p class="metric-label">Dobro da Renda</p><p class="metric-value">R$ {dobro_renda:,.2f}</p></div>', unsafe_allow_html=True)
+
+        # Valor Potencial de Compra Centralizado
+        _, col_potencial, _ = st.columns([1, 2, 1])
+        with col_potencial:
+            st.markdown(f"""
+                <div class="card" style="border-top: 5px solid #2563eb; text-align: center; background: #f0f7ff;">
+                    <p class="metric-label" style="color: #2563eb; font-size: 1.1rem;">Valor Potencial de Compra</p>
+                    <p class="metric-value" style="font-size: 2.2rem; color: #0f172a;">R$ {valor_potencial:,.2f}</p>
+                    <p style="margin:0; font-size:0.8rem; color:#64748b;">(Soma de Financiamento + FGTS + PS Médio + 2x Renda)</p>
+                </div>
+            """, unsafe_allow_html=True)
 
         # Processamento das unidades
         df_viaveis = motor.filtrar_unidades_viaveis(d['renda'], d['finan_estimado'], d['fgts_sub'], d['perc_ps'])
