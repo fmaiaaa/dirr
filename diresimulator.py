@@ -9,7 +9,7 @@ Fluxo Automatizado de Recomendação (Sequencial):
 3. Etapa 3: Guia de Viabilidade (Visualização e Recomendações).
 4. Etapa 4: Fechamento Financeiro (Seleção e Fluxo de Pagamento).
 
-Versão: 8.2 (Design Centralizado na Etapa 3)
+Versão: 8.3 (Design Centralizado na Etapa 3 e Etapa 4 Verticalizada)
 =============================================================================
 """
 
@@ -155,6 +155,13 @@ def configurar_layout():
             margin-top: -12px;
             margin-bottom: 12px;
             font-weight: 500;
+            text-align: left;
+        }
+
+        /* Centralização de Abas */
+        div[data-baseweb="tab-list"] {
+            justify-content: center !important;
+            display: flex !important;
         }
         </style>
     """, unsafe_allow_html=True)
@@ -309,35 +316,29 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
         d = st.session_state.dados_cliente
         st.markdown(f"### 📑 Etapa 4: Detalhamento do Fluxo")
         
-        with st.container():
-            st.markdown('<div class="card">', unsafe_allow_html=True)
+        _, col_center_flow, _ = st.columns([1, 2, 1])
+        
+        with col_center_flow:
             st.subheader("✅ Seleção da Unidade")
-            c1, c2 = st.columns(2)
-            with c1:
-                emp_def = st.selectbox("Empreendimento Escolhido:", options=sorted(df_estoque['Empreendimento'].unique()))
-            with c2:
-                unidades_def = df_estoque[(df_estoque['Empreendimento'] == emp_def) & (df_estoque['Status'] == 'Disponível')]
-                uni_def = st.selectbox("Unidade definitiva:", options=unidades_def['Identificador'].unique())
+            emp_def = st.selectbox("Empreendimento Escolhido:", options=sorted(df_estoque['Empreendimento'].unique()))
+            unidades_def = df_estoque[(df_estoque['Empreendimento'] == emp_def) & (df_estoque['Status'] == 'Disponível')]
+            uni_def = st.selectbox("Unidade definitiva:", options=unidades_def['Identificador'].unique())
             u = unidades_def[unidades_def['Identificador'] == uni_def].iloc[0]
-            st.markdown('</div>', unsafe_allow_html=True)
-
-        st.markdown("#### 💰 Configuração Financeira")
-        with st.container():
-            col_inp_1, col_inp_2 = st.columns(2)
             
-            with col_inp_1:
-                f_usado = st.number_input("Financiamento a utilizar (R$)", value=float(d['finan_estimado']))
-                st.markdown(f'<p class="inline-ref">Ref. (Aprovado): R$ {d["finan_estimado"]:,.2f}</p>', unsafe_allow_html=True)
-                
-                fgts_usado = st.number_input("FGTS + Subsídio a utilizar (R$)", value=float(d['fgts_sub']))
-                st.markdown(f'<p class="inline-ref">Ref. (Estimado): R$ {d["fgts_sub"]:,.2f}</p>', unsafe_allow_html=True)
+            st.markdown("---")
+            st.subheader("💰 Configuração Financeira")
             
-            with col_inp_2:
-                ps_max_real = u['Valor de Venda'] * d['perc_ps']
-                ps_usado = st.number_input("Pro Soluto a utilizar (R$)", value=float(ps_max_real))
-                st.markdown(f'<p class="inline-ref">Ref. (Máximo Permitido): R$ {ps_max_real:,.2f}</p>', unsafe_allow_html=True)
-                
-                parc_ps = st.number_input("Quantidade de Parcelas Pro Soluto", min_value=1, max_value=84, value=84)
+            f_usado = st.number_input("Financiamento a utilizar (R$)", value=float(d['finan_estimado']))
+            st.markdown(f'<p class="inline-ref">Ref. (Aprovado): R$ {d["finan_estimado"]:,.2f}</p>', unsafe_allow_html=True)
+            
+            fgts_usado = st.number_input("FGTS + Subsídio a utilizar (R$)", value=float(d['fgts_sub']))
+            st.markdown(f'<p class="inline-ref">Ref. (Estimado): R$ {d["fgts_sub"]:,.2f}</p>', unsafe_allow_html=True)
+            
+            ps_max_real = u['Valor de Venda'] * d['perc_ps']
+            ps_usado = st.number_input("Pro Soluto a utilizar (R$)", value=float(ps_max_real))
+            st.markdown(f'<p class="inline-ref">Ref. (Máximo Permitido): R$ {ps_max_real:,.2f}</p>', unsafe_allow_html=True)
+            
+            parc_ps = st.number_input("Quantidade de Parcelas Pro Soluto", min_value=1, max_value=84, value=84)
 
             # Métricas Financeiras
             v_parc = ps_usado / parc_ps
@@ -351,36 +352,36 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
                 st.markdown(f"""
                     <div class="fin-box" style="background: #ffffff; border-top: 5px solid #64748b;">
                         <p class="metric-label" style="color: #64748b;">Valor do Imóvel</p>
-                        <p class="metric-value" style="font-size: 1.6rem; margin-bottom: 0;">R$ {u['Valor de Venda']:,.2f}</p>
-                        <p style="margin:0; font-size:0.9rem; font-weight:600; color:#94a3b8;">({u['Identificador']})</p>
+                        <p class="metric-value" style="font-size: 1.2rem; margin-bottom: 0;">R$ {u['Valor de Venda']:,.2f}</p>
+                        <p style="margin:0; font-size:0.8rem; font-weight:600; color:#94a3b8;">({u['Identificador']})</p>
                     </div>
                 """, unsafe_allow_html=True)
 
             with ci2:
                 st.markdown(f"""
                     <div class="fin-box" style="background: #f8fafc; border-top: 5px solid #2563eb;">
-                        <p class="metric-label" style="color: #2563eb;">Parcelamento Pro Soluto</p>
-                        <p class="metric-value" style="font-size: 1.6rem; margin-bottom: 0;">R$ {v_parc:,.2f}</p>
-                        <p style="margin:0; font-size:0.9rem; font-weight:600; color:#475569;">({p_renda:.2f}% da Renda)</p>
+                        <p class="metric-label" style="color: #2563eb;">Parcelamento PS</p>
+                        <p class="metric-value" style="font-size: 1.2rem; margin-bottom: 0;">R$ {v_parc:,.2f}</p>
+                        <p style="margin:0; font-size:0.8rem; font-weight:600; color:#475569;">({p_renda:.2f}% da Renda)</p>
                     </div>
                 """, unsafe_allow_html=True)
 
             with ci3:
                 st.markdown(f"""
                     <div class="fin-box" style="background: #fff1f2; border-top: 5px solid #e11d48;">
-                        <p class="metric-label" style="color: #e11d48;">Saldo de Entrada Total</p>
-                        <p class="metric-value" style="font-size: 1.6rem; margin-bottom: 0;">R$ {max(0, saldo_entrada):,.2f}</p>
-                        <p style="margin:0; font-size:0.9rem; font-weight:600; color:#475569;">(Ato / 30 / 60 / 90)</p>
+                        <p class="metric-label" style="color: #e11d48;">Saldo Entrada</p>
+                        <p class="metric-value" style="font-size: 1.2rem; margin-bottom: 0;">R$ {max(0, saldo_entrada):,.2f}</p>
+                        <p style="margin:0; font-size:0.8rem; font-weight:600; color:#475569;">(Ato / 30 / 60 / 90)</p>
                     </div>
                 """, unsafe_allow_html=True)
             
             if saldo_entrada > 0:
                 st.markdown("#### 🖋️ Parcelamento da Entrada")
                 sc1, sc2, sc3, sc4 = st.columns(4)
-                with sc1: st.number_input("Valor Ato (R$)", value=saldo_entrada/4, key="ato_v8")
-                with sc2: st.number_input("Ato 30d (R$)", value=saldo_entrada/4, key="ato30_v8")
-                with sc3: st.number_input("Ato 60d (R$)", value=saldo_entrada/4, key="ato60_v8")
-                with sc4: st.number_input("Ato 90d (R$)", value=saldo_entrada/4, key="ato90_v8")
+                with sc1: st.number_input("Ato (R$)", value=saldo_entrada/4, key="ato_v8")
+                with sc2: st.number_input("30d (R$)", value=saldo_entrada/4, key="ato30_v8")
+                with sc3: st.number_input("60d (R$)", value=saldo_entrada/4, key="ato60_v8")
+                with sc4: st.number_input("90d (R$)", value=saldo_entrada/4, key="ato90_v8")
             
             st.markdown("---")
             col_b1, col_b2 = st.columns(2)
