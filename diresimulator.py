@@ -9,7 +9,7 @@ Fluxo Automatizado de Recomendação (Sequencial):
 3. Etapa 3: Guia de Viabilidade (Visualização e Recomendações).
 4. Etapa 4: Fechamento Financeiro (Seleção e Fluxo de Pagamento).
 
-Versão: 8.1 (Layout de Fechamento Otimizado com Referências Inline)
+Versão: 8.2 (Design Centralizado na Etapa 3)
 =============================================================================
 """
 
@@ -242,7 +242,9 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
         
         if df_viaveis.empty:
             st.error("❌ Nenhuma unidade viável encontrada.")
-            if st.button("⬅️ Voltar"): st.session_state.passo_simulacao = 'potential'; st.rerun()
+            _, col_back_err, _ = st.columns([1, 2, 1])
+            with col_back_err:
+                if st.button("⬅️ Voltar"): st.session_state.passo_simulacao = 'potential'; st.rerun()
         else:
             st.markdown("#### 🏢 Empreendimentos com unidades disponíveis para este perfil:")
             empreendimentos_unid = df_viaveis.groupby('Empreendimento').size().to_dict()
@@ -252,8 +254,11 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
             tab_rec, tab_list = st.tabs(["⭐ Unidades Recomendadas", "📋 Lista Completa de Unidades"])
 
             with tab_rec:
-                emp_opcoes = ["Todos"] + sorted(df_viaveis['Empreendimento'].unique().tolist())
-                emp_rec = st.selectbox("Filtrar Recomendações:", options=emp_opcoes, key="sel_rec_3")
+                _, col_sel_rec, _ = st.columns([1, 2, 1])
+                with col_sel_rec:
+                    emp_opcoes = ["Todos"] + sorted(df_viaveis['Empreendimento'].unique().tolist())
+                    emp_rec = st.selectbox("Filtrar Recomendações:", options=emp_opcoes, key="sel_rec_3")
+                
                 df_rec = df_viaveis if emp_rec == "Todos" else df_viaveis[df_viaveis['Empreendimento'] == emp_rec]
                 df_rec = df_rec.sort_values('Valor de Venda', ascending=False)
 
@@ -271,9 +276,11 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
                     with c_r3: st.markdown(f'<div class="recommendation-card" style="border-color:#10b981;"><small>FACILITADA (75%)</small><br><b>{r75["Identificador"]}</b><br><small>{r75["Empreendimento"]}</small><br><span class="price-tag">R$ {r75["Valor de Venda"]:,.2f}</span></div>', unsafe_allow_html=True)
                 
                 st.write("")
-                if st.button("💰 Prosseguir para Fechamento Financeiro", type="primary", use_container_width=True):
-                    st.session_state.passo_simulacao = 'payment_flow'
-                    st.rerun()
+                _, col_btn_flow, _ = st.columns([1, 2, 1])
+                with col_btn_flow:
+                    if st.button("💰 Prosseguir para Fechamento Financeiro", type="primary", use_container_width=True):
+                        st.session_state.passo_simulacao = 'payment_flow'
+                        st.rerun()
 
             with tab_list:
                 f1, f2, f3, f4, f5 = st.columns([1.2, 1, 0.8, 1, 0.8])
@@ -290,7 +297,12 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
                 df_tab = df_tab.sort_values('Valor de Venda', ascending=(f_ordem == "Menor Preço"))
                 st.dataframe(df_tab[['Identificador', 'Empreendimento', 'Bairro', 'Andar', 'Valor de Venda', 'PS_Unidade', 'Poder_Compra']], use_container_width=True, hide_index=True)
 
-            if st.button("⬅️ Voltar ao Potencial"): st.session_state.passo_simulacao = 'potential'; st.rerun()
+            st.write("")
+            _, col_back_pot, _ = st.columns([1, 2, 1])
+            with col_back_pot:
+                if st.button("⬅️ Voltar ao Potencial", use_container_width=True): 
+                    st.session_state.passo_simulacao = 'potential'
+                    st.rerun()
 
     # --- PASSO 4: SELEÇÃO DEFINITIVA E FLUXO DE PAGAMENTO ---
     elif st.session_state.passo_simulacao == 'payment_flow':
