@@ -9,7 +9,7 @@ Fluxo Automatizado de Recomendação:
 3. Lógica de Poder de Compra: 2x Renda + Finan + FGTS + PS.
 4. Recomendações por faixas: 100%, 90% e 75%.
 
-Versão: 4.1 (Filtros e Ordenação na Base de Estoque)
+Versão: 4.2 (Design Totalmente Centralizado)
 =============================================================================
 """
 
@@ -104,14 +104,34 @@ def configurar_layout():
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap');
         * { font-family: 'Inter', sans-serif; }
         .main { background-color: #f8fafc; }
-        .header-container { text-align: center; padding: 20px 0; background: #ffffff; border-bottom: 1px solid #e2e8f0; margin-bottom: 25px; border-radius: 0 0 15px 15px; }
+        
+        /* Centralização Global do Design */
+        .block-container {
+            max-width: 1100px;
+            padding-left: 2rem;
+            padding-right: 2rem;
+            margin: auto;
+        }
+
+        .header-container { text-align: center; padding: 25px 0; background: #ffffff; border-bottom: 1px solid #e2e8f0; margin-bottom: 25px; border-radius: 0 0 15px 15px; }
         .header-title { color: #0f172a; font-size: 1.8rem; font-weight: 700; margin: 0; }
+        
         .card { background: white; padding: 25px; border-radius: 18px; border: 1px solid #e2e8f0; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); margin-bottom: 20px; }
         .recommendation-card { border-left: 5px solid #2563eb; background: #f8fafc; padding: 15px; border-radius: 12px; margin-bottom: 10px; }
         .price-tag { color: #2563eb; font-weight: 700; font-size: 1.1rem; }
+        
         .stButton button { border-radius: 10px !important; padding: 10px !important; font-weight: 600 !important; }
-        .metric-label { color: #64748b; font-size: 0.8rem; font-weight: 600; text-transform: uppercase; }
-        .metric-value { color: #1e293b; font-size: 1.2rem; font-weight: 700; }
+        
+        .metric-label { color: #64748b; font-size: 0.8rem; font-weight: 600; text-transform: uppercase; text-align: center; width: 100%; }
+        .metric-value { color: #1e293b; font-size: 1.2rem; font-weight: 700; text-align: center; width: 100%; }
+        
+        /* Alinhamento de títulos e textos auxiliares */
+        h1, h2, h3, h4 { text-align: center !important; }
+        
+        div[data-baseweb="tab-list"] { justify-content: center !important; border-bottom: none; }
+        
+        /* Ajuste fino para inputs centralizados visualmente */
+        .stMultiSelect, .stSelectbox { text-align: left; }
         </style>
     """, unsafe_allow_html=True)
 
@@ -146,6 +166,8 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
                 with c1: social = st.toggle("Fator Social", value=st.session_state.dados_cliente.get('social', False))
                 with c2: cotista = st.toggle("Cotista FGTS", value=st.session_state.dados_cliente.get('cotista', True))
             
+            st.write("")
+            col_btn, _ = st.columns([1, 1e-6]) # Hack para centralizar o botão se necessário, mas largura total é preferível aqui
             if st.button("🚀 Calcular Oportunidades", type="primary"):
                 # Salva no estado
                 finan, fgts = motor.obter_enquadramento(renda, social, cotista)
@@ -193,13 +215,10 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
             with col_sel:
                 st.markdown("#### Escolha o Produto")
                 empreendimentos = sorted(df_viaveis['Empreendimento'].unique())
-                # O valor selecionado aqui não resetará o perfil pois os dados do cliente estão no session_state
                 emp_escolhido = st.selectbox("Produtos Viáveis:", options=empreendimentos)
                 
             with col_rec:
                 unidades_emp = df_viaveis[df_viaveis['Empreendimento'] == emp_escolhido].sort_values('Valor de Venda', ascending=False)
-                
-                # Lógica de Poder de Compra Específica
                 max_poder_neste_emp = unidades_emp['Poder_Compra'].max()
 
                 def recomendar(percentual):
@@ -228,12 +247,36 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
             st.dataframe(unidades_emp[['Identificador', 'Valor de Venda', 'PS_Unidade', 'Poder_Compra']], use_container_width=True, hide_index=True)
             
             st.markdown("---")
-            # Botão para mudar as informações no rodapé
-            col_back, _ = st.columns([1, 3])
-            with col_back:
+            col_back_space, col_back_btn, col_back_space2 = st.columns([1, 1, 1])
+            with col_back_btn:
                 if st.button("⬅️ Mudar Informações do Cliente", use_container_width=True):
                     st.session_state.passo_simulacao = 'input'
                     st.rerun()
+
+def aba_estoque_geral(df_estoque):
+    st.markdown("### 📋 Base de Estoque Total")
+    
+    # Filtros de Empreendimento e Ordenação
+    c1, c2 = st.columns([2, 1])
+    with c1:
+        emp_opcoes = sorted(df_estoque['Empreendimento'].unique())
+        emp_selecionados = st.multiselect("Filtrar por Empreendimento:", options=emp_opcoes)
+    
+    with c2:
+        sort_option = st.selectbox("Ordenar por Valor de Venda:", ["Nenhum", "Menor Preço", "Maior Preço"])
+
+    # Lógica de Filtro
+    df_display_estoque = df_estoque.copy()
+    if emp_selecionados:
+        df_display_estoque = df_display_estoque[df_display_estoque['Empreendimento'].isin(emp_selecionados)]
+    
+    # Lógica de Ordenação
+    if sort_option == "Menor Preço":
+        df_display_estoque = df_display_estoque.sort_values(by='Valor de Venda', ascending=True)
+    elif sort_option == "Maior Preço":
+        df_display_estoque = df_display_estoque.sort_values(by='Valor de Venda', ascending=False)
+        
+    st.dataframe(df_display_estoque, use_container_width=True, hide_index=True)
 
 # =============================================================================
 # 5. MAIN
@@ -256,29 +299,7 @@ def main():
         aba_simulador_automacao(df_finan, df_estoque, df_politicas)
 
     with tabs[1]:
-        st.markdown("### 📋 Base de Estoque Total")
-        
-        # Filtros de Empreendimento e Ordenação
-        c1, c2 = st.columns([2, 1])
-        with c1:
-            emp_opcoes = sorted(df_estoque['Empreendimento'].unique())
-            emp_selecionados = st.multiselect("Filtrar por Empreendimento:", options=emp_opcoes)
-        
-        with c2:
-            sort_option = st.selectbox("Ordenar por Valor de Venda:", ["Nenhum", "Menor Preço", "Maior Preço"])
-
-        # Lógica de Filtro
-        df_display_estoque = df_estoque.copy()
-        if emp_selecionados:
-            df_display_estoque = df_display_estoque[df_display_estoque['Empreendimento'].isin(emp_selecionados)]
-        
-        # Lógica de Ordenação
-        if sort_option == "Menor Preço":
-            df_display_estoque = df_display_estoque.sort_values(by='Valor de Venda', ascending=True)
-        elif sort_option == "Maior Preço":
-            df_display_estoque = df_display_estoque.sort_values(by='Valor de Venda', ascending=False)
-            
-        st.dataframe(df_display_estoque, use_container_width=True, hide_index=True)
+        aba_estoque_geral(df_estoque)
 
     with tabs[2]:
         st.markdown("### 📖 Regras de Classificação e Pro Soluto")
