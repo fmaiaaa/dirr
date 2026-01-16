@@ -9,7 +9,7 @@ Fluxo Automatizado de Recomendação:
 3. Lógica de Poder de Compra: 2x Renda + Finan + FGTS + PS.
 4. Recomendações por faixas: 100%, 90% e 75%.
 
-Versão: 4.4 (Interface Simplificada - Apenas Simulação e Estoque)
+Versão: 4.5 (Design Sequencial Vertical e Centralizado)
 =============================================================================
 """
 
@@ -151,39 +151,44 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
     # --- PASSO 1: ENTRADA DE DADOS ---
     if st.session_state.passo_simulacao == 'input':
         st.markdown("### 👤 Dados do Cliente e Crédito")
-        with st.container():
+        
+        # Colunas de centralização para o formulário
+        _, col_center, _ = st.columns([1, 2, 1])
+        
+        with col_center:
             st.markdown('<div class="card">', unsafe_allow_html=True)
-            col1, col2 = st.columns(2)
             
-            with col1:
-                nome = st.text_input("Nome do Cliente", value=st.session_state.dados_cliente.get('nome', ""))
-                renda = st.number_input("Renda Bruta Familiar (R$)", min_value=1500.0, value=st.session_state.dados_cliente.get('renda', 3500.0), step=100.0)
-                ranking = st.selectbox("Ranking do Cliente", options=df_politicas['CLASSIFICAÇÃO'].unique(), index=2)
+            nome = st.text_input("Nome do Cliente", value=st.session_state.dados_cliente.get('nome', ""))
+            renda = st.number_input("Renda Bruta Familiar (R$)", min_value=1500.0, value=st.session_state.dados_cliente.get('renda', 3500.0), step=100.0)
+            ranking = st.selectbox("Ranking do Cliente", options=df_politicas['CLASSIFICAÇÃO'].unique(), index=2)
+            politica_ps = st.selectbox("Política de Pro Soluto", ["Direcional", "Emcash"])
             
-            with col2:
-                politica_ps = st.selectbox("Política de Pro Soluto", ["Direcional", "Emcash"])
-                c1, c2 = st.columns(2)
-                with c1: social = st.toggle("Fator Social", value=st.session_state.dados_cliente.get('social', False))
-                with c2: cotista = st.toggle("Cotista FGTS", value=st.session_state.dados_cliente.get('cotista', True))
+            # Toggles um embaixo do outro para ser sequencial
+            social = st.toggle("Fator Social", value=st.session_state.dados_cliente.get('social', False))
+            cotista = st.toggle("Cotista FGTS", value=st.session_state.dados_cliente.get('cotista', True))
             
             st.write("")
-            if st.button("🚀 Calcular Oportunidades", type="primary"):
-                # Salva no estado
-                finan, fgts = motor.obter_enquadramento(renda, social, cotista)
-                
-                # Define percentual de PS
-                if politica_ps == "Emcash":
-                    perc = df_politicas[df_politicas['CLASSIFICAÇÃO'] == 'EMCASH']['PERC_PS'].values[0]
-                else:
-                    perc = df_politicas[df_politicas['CLASSIFICAÇÃO'] == ranking]['PERC_PS'].values[0]
-                
-                st.session_state.dados_cliente = {
-                    'nome': nome, 'renda': renda, 'social': social, 'cotista': cotista,
-                    'ranking': ranking, 'politica': politica_ps, 'perc_ps': perc,
-                    'finan_estimado': finan, 'fgts_sub': fgts
-                }
-                st.session_state.passo_simulacao = 'results'
-                st.rerun()
+            
+            # Centralização do botão dentro do card
+            btn_col1, btn_col2, btn_col3 = st.columns([1, 2, 1])
+            with btn_col2:
+                if st.button("🚀 Calcular Oportunidades", type="primary", use_container_width=True):
+                    # Salva no estado
+                    finan, fgts = motor.obter_enquadramento(renda, social, cotista)
+                    
+                    # Define percentual de PS
+                    if politica_ps == "Emcash":
+                        perc = df_politicas[df_politicas['CLASSIFICAÇÃO'] == 'EMCASH']['PERC_PS'].values[0]
+                    else:
+                        perc = df_politicas[df_politicas['CLASSIFICAÇÃO'] == ranking]['PERC_PS'].values[0]
+                    
+                    st.session_state.dados_cliente = {
+                        'nome': nome, 'renda': renda, 'social': social, 'cotista': cotista,
+                        'ranking': ranking, 'politica': politica_ps, 'perc_ps': perc,
+                        'finan_estimado': finan, 'fgts_sub': fgts
+                    }
+                    st.session_state.passo_simulacao = 'results'
+                    st.rerun()
             st.markdown('</div>', unsafe_allow_html=True)
 
     # --- PASSO 2: RESULTADOS E RECOMENDAÇÃO ---
