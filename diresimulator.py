@@ -6,9 +6,9 @@ SISTEMA DE SIMULAÇÃO IMOBILIÁRIA - DIRE RIO V2
 Fluxo Automatizado de Recomendação (Sequencial):
 1. Etapa 1: Entrada de dados do cliente.
 2. Etapa 2: Valor Potencial de Compra (Visão Financeira).
-3. Etapa 3: Escolha do Produto e Unidades Recomendadas.
+3. Etapa 3: Escolha do Produto, Recomendações e Tabela de Estoque Completa.
 
-Versão: 4.8 (Navegação em 3 Etapas & Tabela Interativa)
+Versão: 4.9 (Design Unificado, Filtros em Linha & Novos Parâmetros)
 =============================================================================
 """
 
@@ -42,6 +42,7 @@ def carregar_dados_sistema():
     df_finan = pd.DataFrame(data_finan)
 
     # MOCK: BASE ESTOQUE
+    bairros_mock = ['Recreio', 'Jacarepaguá', 'Campo Grande', 'São Gonçalo', 'Itaboraí', 'Niterói', 'Caxias', 'Nova Iguaçu', 'Bangu', 'Santa Cruz']
     data_estoque = {
         'Identificador': [f'BL{i:02d}-{j:03d}' for i in range(1, 11) for j in [101, 102, 201, 202, 301, 302, 401, 402]],
         'Empreendimento': [
@@ -49,8 +50,9 @@ def carregar_dados_sistema():
             'Direcional Conquista Max Norte', 'Conquista Norte Clube', 'Nova Caxias Up',
             'Residencial Jerivá', 'Conquista Itanhangá Green', 'Viva Vida Realengo', 'Vert Alcântara'
         ] * 8,
+        'Bairro': bairros_mock * 8,
         'Valor de Venda': np.random.randint(190000, 340000, 80),
-        'Status': ['Disponível'] * 70 + ['Reservado'] * 10
+        'Status': ['Disponível'] * 75 + ['Reservado'] * 5
     }
     df_estoque = pd.DataFrame(data_estoque)
     
@@ -127,7 +129,11 @@ def configurar_layout():
         .metric-value { color: #1e293b; font-size: 1.4rem; font-weight: 700; text-align: center; width: 100%; }
         
         h1, h2, h3, h4 { text-align: center !important; width: 100%; }
-        div[data-baseweb="tab-list"] { justify-content: center !important; border-bottom: none; width: 100%; }
+        
+        /* Ajuste para filtros em linha */
+        .row-widget.stHorizontal {
+            align-items: flex-end;
+        }
         </style>
     """, unsafe_allow_html=True)
 
@@ -207,87 +213,88 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
                 st.session_state.passo_simulacao = 'input'
                 st.rerun()
 
-    # --- PASSO 3: PRODUTOS E UNIDADES ---
+    # --- PASSO 3: PRODUTOS E UNIDADES (INCLUI BASE DE ESTOQUE NO FINAL) ---
     else:
         d = st.session_state.dados_cliente
-        st.markdown(f"### 🎯 Etapa 3: Oportunidades em Estoque")
+        st.markdown(f"### 🎯 Etapa 3: Escolha do Produto e Oportunidades")
         
-        # Filtra as unidades viáveis
+        # Filtra as unidades viáveis baseadas no poder de compra individual de cada unidade
         df_viaveis = motor.filtrar_unidades_viaveis(d['renda'], d['finan_estimado'], d['fgts_sub'], d['perc_ps'])
         
         if df_viaveis.empty:
-            st.error("❌ Não foram encontradas unidades compatíveis.")
+            st.error("❌ Não foram encontradas unidades compatíveis com o poder de compra calculado.")
             if st.button("⬅️ Voltar"): st.session_state.passo_simulacao = 'potential'; st.rerun()
         else:
-            # Seleção de Produto
+            # Seleção de Produto Principal para Recomendações
             emp_opcoes = ["Todos"] + sorted(df_viaveis['Empreendimento'].unique().tolist())
-            emp_escolhido = st.selectbox("Selecione o Empreendimento:", options=emp_opcoes)
+            emp_escolhido_rec = st.selectbox("Filtrar Recomendações por Empreendimento:", options=emp_opcoes)
             
-            df_final = df_viaveis if emp_escolhido == "Todos" else df_viaveis[df_viaveis['Empreendimento'] == emp_escolhido]
-            df_final = df_final.sort_values('Valor de Venda', ascending=False)
+            df_para_rec = df_viaveis if emp_escolhido_rec == "Todos" else df_viaveis[df_viaveis['Empreendimento'] == emp_escolhido_rec]
+            df_para_rec = df_para_rec.sort_values('Valor de Venda', ascending=False)
             
             # --- RECOMENDAÇÕES ---
             st.markdown("#### ⭐ Unidades Recomendadas")
-            max_poder = df_final['Poder_Compra'].max()
-            
-            def recomendar(pct):
-                limit = max_poder * pct
-                candidatos = df_final[df_final['Valor de Venda'] <= limit]
-                return candidatos.iloc[0] if not candidatos.empty else df_final.iloc[-1]
+            if not df_para_rec.empty:
+                max_poder = df_para_rec['Poder_Compra'].max()
+                
+                def recomendar(pct):
+                    limit = max_poder * pct
+                    candidatos = df_para_rec[df_para_rec['Valor de Venda'] <= limit]
+                    return candidatos.iloc[0] if not candidatos.empty else df_para_rec.iloc[-1]
 
-            r100, r90, r75 = recomendar(1.0), recomendar(0.9), recomendar(0.75)
-            
-            c_a, c_b, c_c = st.columns(3)
-            with c_a: st.markdown(f'<div class="recommendation-card" style="border-color:#2563eb;"><small>IDEAL (100%)</small><br><b>{r100["Identificador"]}</b><br><small>{r100["Empreendimento"]}</small><br><span class="price-tag">R$ {r100["Valor de Venda"]:,.2f}</span></div>', unsafe_allow_html=True)
-            with c_b: st.markdown(f'<div class="recommendation-card" style="border-color:#f59e0b;"><small>SEGURA (90%)</small><br><b>{r90["Identificador"]}</b><br><small>{r90["Empreendimento"]}</small><br><span class="price-tag">R$ {r90["Valor de Venda"]:,.2f}</span></div>', unsafe_allow_html=True)
-            with c_c: st.markdown(f'<div class="recommendation-card" style="border-color:#10b981;"><small>FACILITADA (75%)</small><br><b>{r75["Identificador"]}</b><br><small>{r75["Empreendimento"]}</small><br><span class="price-tag">R$ {r75["Valor de Venda"]:,.2f}</span></div>', unsafe_allow_html=True)
+                r100, r90, r75 = recomendar(1.0), recomendar(0.9), recomendar(0.75)
+                
+                col_rec1, col_rec2, col_rec3 = st.columns(3)
+                with col_rec1: st.markdown(f'<div class="recommendation-card" style="border-color:#2563eb;"><small>IDEAL (100%)</small><br><b>{r100["Identificador"]}</b><br><small>{r100["Empreendimento"]}</small><br><span class="price-tag">R$ {r100["Valor de Venda"]:,.2f}</span></div>', unsafe_allow_html=True)
+                with col_rec2: st.markdown(f'<div class="recommendation-card" style="border-color:#f59e0b;"><small>SEGURA (90%)</small><br><b>{r90["Identificador"]}</b><br><small>{r90["Empreendimento"]}</small><br><span class="price-tag">R$ {r90["Valor de Venda"]:,.2f}</span></div>', unsafe_allow_html=True)
+                with col_rec3: st.markdown(f'<div class="recommendation-card" style="border-color:#10b981;"><small>FACILITADA (75%)</small><br><b>{r75["Identificador"]}</b><br><small>{r75["Empreendimento"]}</small><br><span class="price-tag">R$ {r75["Valor de Venda"]:,.2f}</span></div>', unsafe_allow_html=True)
+            else:
+                st.warning("Selecione um empreendimento válido para ver as recomendações.")
 
-            # --- TABELA COMPLETA COM FILTROS ---
+            # --- TABELA COMPLETA COM FILTROS EM UMA LINHA ---
             st.markdown("---")
             st.subheader("📋 Lista Completa de Unidades Disponíveis")
             
-            col_f1, col_f2 = st.columns(2)
-            with col_f1:
-                andar_filtro = st.multiselect("Filtrar por Andar:", options=sorted(df_final['Andar'].unique()))
-            with col_f2:
-                preco_max = st.number_input("Preço Máximo (R$):", value=float(df_final['Valor de Venda'].max()))
+            # Linha Única de Filtros
+            f_col1, f_col2, f_col3, f_col4, f_col5 = st.columns([1.2, 1, 0.8, 1, 0.8])
             
-            df_table = df_final.copy()
-            if andar_filtro: df_table = df_table[df_table['Andar'].isin(andar_filtro)]
-            df_table = df_table[df_table['Valor de Venda'] <= preco_max]
+            with f_col1:
+                filtro_emp = st.multiselect("Empreendimento:", options=sorted(df_viaveis['Empreendimento'].unique()), key="f_emp")
+            with f_col2:
+                filtro_bairro = st.multiselect("Bairro:", options=sorted(df_viaveis['Bairro'].unique()), key="f_bairro")
+            with f_col3:
+                filtro_andar = st.multiselect("Andar:", options=sorted(df_viaveis['Andar'].unique()), key="f_andar")
+            with f_col4:
+                ordenacao = st.selectbox("Ordenar por Valor:", ["Maior Preço", "Menor Preço"], key="f_ordem")
+            with f_col5:
+                p_max = st.number_input("Preço Máximo:", value=float(df_viaveis['Valor de Venda'].max()), key="f_preco")
             
-            # Tabela interativa com ordenação nativa do Streamlit
+            # Aplicação dos Filtros na Tabela
+            df_tabela = df_viaveis.copy()
+            if filtro_emp: df_tabela = df_tabela[df_tabela['Empreendimento'].isin(filtro_emp)]
+            if filtro_bairro: df_tabela = df_tabela[df_tabela['Bairro'].isin(filtro_bairro)]
+            if filtro_andar: df_tabela = df_tabela[df_tabela['Andar'].isin(filtro_andar)]
+            df_tabela = df_tabela[df_tabela['Valor de Venda'] <= p_max]
+            
+            # Ordenação Explícita
+            df_tabela = df_tabela.sort_values('Valor de Venda', ascending=(ordenacao == "Menor Preço"))
+            
             st.dataframe(
-                df_table[['Identificador', 'Empreendimento', 'Andar', 'Valor de Venda', 'PS_Unidade', 'Poder_Compra']], 
+                df_tabela[['Identificador', 'Empreendimento', 'Bairro', 'Andar', 'Valor de Venda', 'PS_Unidade', 'Poder_Compra']], 
                 use_container_width=True, 
                 hide_index=True
             )
             
             st.markdown("---")
-            col_b1, col_b2, _ = st.columns([1, 1, 2])
-            with col_b1:
+            col_nav1, col_nav2, _ = st.columns([1, 1, 2])
+            with col_nav1:
                 if st.button("⬅️ Voltar ao Potencial", use_container_width=True):
                     st.session_state.passo_simulacao = 'potential'
                     st.rerun()
-            with col_b2:
+            with col_nav2:
                 if st.button("👤 Mudar Cliente", use_container_width=True):
                     st.session_state.passo_simulacao = 'input'
                     st.rerun()
-
-def aba_estoque_geral(df_estoque):
-    st.markdown("### 🏢 Base de Estoque Total")
-    c1, c2 = st.columns([2, 1])
-    with c1:
-        emp_selecionados = st.multiselect("Filtrar por Empreendimento:", options=sorted(df_estoque['Empreendimento'].unique()))
-    with c2:
-        sort_option = st.selectbox("Ordenar por Valor:", ["Nenhum", "Menor Preço", "Maior Preço"])
-
-    df_f = df_estoque.copy()
-    if emp_selecionados: df_f = df_f[df_f['Empreendimento'].isin(emp_selecionados)]
-    if sort_option == "Menor Preço": df_f = df_f.sort_values('Valor de Venda', ascending=True)
-    elif sort_option == "Maior Preço": df_f = df_f.sort_values('Valor de Venda', ascending=False)
-        
-    st.dataframe(df_f, use_container_width=True, hide_index=True)
 
 # =============================================================================
 # 5. MAIN
@@ -304,9 +311,8 @@ def main():
         </div>
     """, unsafe_allow_html=True)
 
-    tabs = st.tabs(["🎯 Simulação e Recomendação", "🏢 Base de Estoque"])
-    with tabs[0]: aba_simulador_automacao(df_finan, df_estoque, df_politicas)
-    with tabs[1]: aba_estoque_geral(df_estoque)
+    # Agora a aplicação é unificada em uma única jornada sequencial
+    aba_simulador_automacao(df_finan, df_estoque, df_politicas)
 
 if __name__ == "__main__":
     main()
