@@ -9,7 +9,7 @@ Fluxo Automatizado de Recomendação (Sequencial):
 3. Etapa 3: Guia de Viabilidade (Visualização e Recomendações).
 4. Etapa 4: Fechamento Financeiro (Seleção e Fluxo de Pagamento).
 
-Versão: 9.1 (Boxes Horizontais no Expander & Correção de Overflow)
+Versão: 9.2 (Correção de Lateralidade e Alinhamento Global)
 =============================================================================
 """
 
@@ -217,31 +217,30 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
     # --- PASSO 1: ENTRADA DE DADOS ---
     if st.session_state.passo_simulacao == 'input':
         st.markdown("### 👤 Etapa 1: Dados do Cliente")
-        _, col_center, _ = st.columns([1, 2, 1])
-        with col_center:
-            nome = st.text_input("Nome do Cliente", value=st.session_state.dados_cliente.get('nome', ""))
-            renda = st.number_input("Renda Bruta Familiar (R$)", min_value=1500.0, value=st.session_state.dados_cliente.get('renda', 3500.0), step=100.0)
+        # Removido st.columns([1, 2, 1]) para ocupar toda a largura (lateralidade corrigida)
+        nome = st.text_input("Nome do Cliente", value=st.session_state.dados_cliente.get('nome', ""))
+        renda = st.number_input("Renda Bruta Familiar (R$)", min_value=1500.0, value=st.session_state.dados_cliente.get('renda', 3500.0), step=100.0)
+        
+        ranking_options = [r for r in df_politicas['CLASSIFICAÇÃO'].unique() if r != 'EMCASH']
+        ranking = st.selectbox("Ranking do Cliente", options=ranking_options, index=1)
+        politica_ps = st.selectbox("Política de Pro Soluto", ["Direcional", "Emcash"])
+        
+        social = st.toggle("Fator Social", value=st.session_state.dados_cliente.get('social', False))
+        cotista = st.toggle("Cotista FGTS", value=st.session_state.dados_cliente.get('cotista', True))
+        
+        if st.button("🚀 Avançar para Visão Financeira", type="primary", use_container_width=True):
+            finan, fgts = motor.obter_enquadramento(renda, social, cotista)
             
-            ranking_options = [r for r in df_politicas['CLASSIFICAÇÃO'].unique() if r != 'EMCASH']
-            ranking = st.selectbox("Ranking do Cliente", options=ranking_options, index=1)
-            politica_ps = st.selectbox("Política de Pro Soluto", ["Direcional", "Emcash"])
+            classificacao_busca = 'EMCASH' if politica_ps == "Emcash" else ranking
+            perc = df_politicas.loc[df_politicas['CLASSIFICAÇÃO'] == classificacao_busca, 'PERC_PS'].values[0]
             
-            social = st.toggle("Fator Social", value=st.session_state.dados_cliente.get('social', False))
-            cotista = st.toggle("Cotista FGTS", value=st.session_state.dados_cliente.get('cotista', True))
-            
-            if st.button("🚀 Avançar para Visão Financeira", type="primary", use_container_width=True):
-                finan, fgts = motor.obter_enquadramento(renda, social, cotista)
-                
-                classificacao_busca = 'EMCASH' if politica_ps == "Emcash" else ranking
-                perc = df_politicas.loc[df_politicas['CLASSIFICAÇÃO'] == classificacao_busca, 'PERC_PS'].values[0]
-                
-                st.session_state.dados_cliente = {
-                    'nome': nome, 'renda': renda, 'social': social, 'cotista': cotista,
-                    'ranking': ranking, 'politica': politica_ps, 'perc_ps': perc,
-                    'finan_estimado': finan, 'fgts_sub': fgts
-                }
-                st.session_state.passo_simulacao = 'potential'
-                st.rerun()
+            st.session_state.dados_cliente = {
+                'nome': nome, 'renda': renda, 'social': social, 'cotista': cotista,
+                'ranking': ranking, 'politica': politica_ps, 'perc_ps': perc,
+                'finan_estimado': finan, 'fgts_sub': fgts
+            }
+            st.session_state.passo_simulacao = 'potential'
+            st.rerun()
 
     # --- PASSO 2: POTENCIAL DE COMPRA ---
     elif st.session_state.passo_simulacao == 'potential':
@@ -357,6 +356,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
         d = st.session_state.dados_cliente
         st.markdown(f"### 📑 Etapa 4: Detalhamento do Fluxo")
         
+        # Removido st.columns([1, 2, 1]) para ocupar toda a largura (lateralidade corrigida)
         st.subheader("✅ Seleção da Unidade")
         emp_def = st.selectbox("Empreendimento Escolhido:", options=sorted(df_estoque['Empreendimento'].unique()))
         unidades_def = df_estoque[(df_estoque['Empreendimento'] == emp_def) & (df_estoque['Status'] == 'Disponível')]
