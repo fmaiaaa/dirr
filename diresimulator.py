@@ -9,7 +9,7 @@ Fluxo Automatizado de Recomendação:
 3. Lógica de Poder de Compra: 2x Renda + Finan + FGTS + PS.
 4. Recomendações por faixas: 100%, 90% e 75%.
 
-Versão: 4.2 (Design Totalmente Centralizado)
+Versão: 4.3 (Design Full Width - Ocupa toda a página)
 =============================================================================
 """
 
@@ -105,33 +105,33 @@ def configurar_layout():
         * { font-family: 'Inter', sans-serif; }
         .main { background-color: #f8fafc; }
         
-        /* Centralização Global do Design */
+        /* Layout Full Width */
         .block-container {
-            max-width: 1100px;
-            padding-left: 2rem;
-            padding-right: 2rem;
-            margin: auto;
+            max-width: 100% !important;
+            padding-left: 3rem !important;
+            padding-right: 3rem !important;
+            padding-top: 2rem !important;
         }
 
-        .header-container { text-align: center; padding: 25px 0; background: #ffffff; border-bottom: 1px solid #e2e8f0; margin-bottom: 25px; border-radius: 0 0 15px 15px; }
-        .header-title { color: #0f172a; font-size: 1.8rem; font-weight: 700; margin: 0; }
+        .header-container { text-align: center; padding: 25px 0; background: #ffffff; border-bottom: 1px solid #e2e8f0; margin-bottom: 25px; border-radius: 0 0 15px 15px; width: 100%; }
+        .header-title { color: #0f172a; font-size: 2.2rem; font-weight: 700; margin: 0; }
         
-        .card { background: white; padding: 25px; border-radius: 18px; border: 1px solid #e2e8f0; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); margin-bottom: 20px; }
+        .card { background: white; padding: 25px; border-radius: 18px; border: 1px solid #e2e8f0; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); margin-bottom: 20px; width: 100%; }
         .recommendation-card { border-left: 5px solid #2563eb; background: #f8fafc; padding: 15px; border-radius: 12px; margin-bottom: 10px; }
         .price-tag { color: #2563eb; font-weight: 700; font-size: 1.1rem; }
         
         .stButton button { border-radius: 10px !important; padding: 10px !important; font-weight: 600 !important; }
         
-        .metric-label { color: #64748b; font-size: 0.8rem; font-weight: 600; text-transform: uppercase; text-align: center; width: 100%; }
-        .metric-value { color: #1e293b; font-size: 1.2rem; font-weight: 700; text-align: center; width: 100%; }
+        .metric-label { color: #64748b; font-size: 0.9rem; font-weight: 600; text-transform: uppercase; text-align: center; width: 100%; }
+        .metric-value { color: #1e293b; font-size: 1.4rem; font-weight: 700; text-align: center; width: 100%; }
         
-        /* Alinhamento de títulos e textos auxiliares */
-        h1, h2, h3, h4 { text-align: center !important; }
+        /* Alinhamento de títulos */
+        h1, h2, h3, h4 { text-align: center !important; width: 100%; }
         
-        div[data-baseweb="tab-list"] { justify-content: center !important; border-bottom: none; }
+        div[data-baseweb="tab-list"] { justify-content: center !important; border-bottom: none; width: 100%; }
         
-        /* Ajuste fino para inputs centralizados visualmente */
-        .stMultiSelect, .stSelectbox { text-align: left; }
+        /* Tabelas e Dataframes ocupando largura total */
+        .stDataFrame { width: 100% !important; }
         </style>
     """, unsafe_allow_html=True)
 
@@ -167,7 +167,6 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
                 with c2: cotista = st.toggle("Cotista FGTS", value=st.session_state.dados_cliente.get('cotista', True))
             
             st.write("")
-            col_btn, _ = st.columns([1, 1e-6]) # Hack para centralizar o botão se necessário, mas largura total é preferível aqui
             if st.button("🚀 Calcular Oportunidades", type="primary"):
                 # Salva no estado
                 finan, fgts = motor.obter_enquadramento(renda, social, cotista)
