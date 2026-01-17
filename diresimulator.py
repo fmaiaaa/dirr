@@ -9,7 +9,7 @@ Fluxo Automatizado de Recomendação (Sequencial):
 3. Etapa 4: Fechamento Financeiro.
 5. Etapa 5: Resumo da Compra e Exportação PDF Profissional.
 
-Versão: 47.0 (Elite Tecnológica - Tabela de Estoque Premium e Padronização Vermelho Direcional)
+Versão: 48.0 (Ícone Direcional Integrado e Design Elite Tecnológica)
 =============================================================================
 """
 
@@ -44,6 +44,7 @@ URL_FINAN = f"https://docs.google.com/spreadsheets/d/{ID_FINAN}/edit#gid=0"
 URL_RANKING = f"https://docs.google.com/spreadsheets/d/{ID_RANKING}/edit#gid=0"
 URL_ESTOQUE = f"https://docs.google.com/spreadsheets/d/{ID_ESTOQUE}/edit#gid=0"
 
+# Link de reserva da Direcional
 URL_FAVICON_RESERVA = "https://direcional.com.br/wp-content/uploads/2021/04/cropped-favicon-direcional-32x32.png"
 
 # Cores Oficiais Direcional - Elite Tecnológica
@@ -174,7 +175,13 @@ class MotorRecomendacao:
 # =============================================================================
 
 def configurar_layout():
-    st.set_page_config(page_title="Simulador Direcional Elite", page_icon=URL_FAVICON_RESERVA, layout="wide")
+    # ALTERAÇÃO: Define o favicon.png do repositório Git como o ícone da página
+    favicon_path = "favicon.png"
+    if not os.path.exists(favicon_path):
+        favicon_path = URL_FAVICON_RESERVA
+        
+    st.set_page_config(page_title="Simulador Direcional Elite", page_icon=favicon_path, layout="wide")
+    
     st.markdown(f"""
         <style>
         @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800;900&family=Inter:wght@300;400;500;600;700&display=swap');
@@ -645,8 +652,6 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
             df_tab = df_tab[df_tab['Valor de Venda'] <= f_pmax]
             df_tab = df_tab.sort_values('Valor de Venda', ascending=(f_ordem == "Menor Preço"))
             
-            # Tabela Elite - TRATAMENTO PREMIUM SUPERIOR
-            # Refinamento de alinhamento, rótulos e formatação estrita
             st.dataframe(
                 df_tab[['Identificador', 'Empreendimento', 'Bairro', 'Andar', 'Valor de Venda', 'Poder_Compra', 'Status Viabilidade']], 
                 use_container_width=True, 
