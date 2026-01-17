@@ -523,7 +523,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
             })
         
         st.markdown("---")
-        if st.button("Obter Resumo de Compra", type="primary", use_container_width=True, key="btn_to_summary"):
+        if st.button("Avançar para Resumo de Compra", type="primary", use_container_width=True, key="btn_to_summary"):
             st.session_state.passo_simulacao = 'summary'
             st.rerun()
         if st.button("Voltar para Seleção de Imóvel", use_container_width=True): 
@@ -568,7 +568,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
         st.markdown("---")
         if st.button("Iniciar Novo Cliente", type="primary", use_container_width=True): 
             st.session_state.dados_cliente = {}; st.session_state.passo_simulacao = 'input'; st.rerun()
-        if st.button("Editar Fechamento Financeiro", use_container_width=True):
+        if st.button("Voltar para Fechamento Financeiro", use_container_width=True):
             st.session_state.passo_simulacao = 'payment_flow'; st.rerun()
 
 def main():
