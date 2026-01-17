@@ -9,7 +9,7 @@ Fluxo Automatizado de Recomendação (Sequencial):
 3. Etapa 3: Guia de Viabilidade (Seleção do Produto).
 4. Etapa 4: Fechamento Financeiro.
 
-Versão: 26.0 (Seleção de Unidade na Etapa 3 & Layout 50/50)
+Versão: 26.2 (Inclusão de Subtítulo no Cabeçalho conforme solicitado)
 =============================================================================
 """
 
@@ -162,9 +162,10 @@ def configurar_layout():
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap');
         * { font-family: 'Inter', sans-serif; }
         .main { background-color: #f8fafc; }
-        .block-container { max-width: 1200px !important; padding: 1rem 1rem 5rem 1rem !important; margin: auto !important; }
+        .block-container { max-width: 1200px !important; padding: 1rem !important; margin: auto !important; }
         .header-container { text-align: center; padding: 25px 0; background: #ffffff; border-bottom: 1px solid #e2e8f0; margin-bottom: 25px; border-radius: 0 0 15px 15px; }
         .header-title { color: #0f172a; font-size: 2rem; font-weight: 700; margin: 0; }
+        .header-subtitle { color: #64748b; font-size: 1rem; font-weight: 400; margin-top: 5px; }
         .card { background: white; padding: 20px; border-radius: 18px; border: 1px solid #e2e8f0; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); margin-bottom: 20px; min-height: 120px; display: flex; flex-direction: column; justify-content: center; }
         .recommendation-card { background: #ffffff; padding: 20px; border: 1px solid #e2e8f0; border-top: 5px solid #2563eb; border-radius: 12px; margin-bottom: 15px; text-align: center; min-height: 160px; display: flex; flex-direction: column; justify-content: center; box-shadow: 0 2px 4px rgba(0,0,0,0.02); }
         .thin-card { background: white; padding: 12px 20px; border-radius: 10px; border: 1px solid #e2e8f0; border-left: 5px solid #64748b; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center; }
@@ -308,11 +309,10 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
             
             st.dataframe(df_tab[['Identificador', 'Empreendimento', 'Bairro', 'Andar', 'Valor de Venda', 'Poder_Compra', 'Status Viabilidade']], use_container_width=True, hide_index=True)
 
-        # --- NOVA SEÇÃO: ESCOLHA DEFINITIVA DO IMÓVEL ---
+        # --- SEÇÃO DE ESCOLHA DEFINITIVA DO IMÓVEL ---
         st.markdown("---")
         st.markdown("### Seleção do Imóvel")
         
-        # Funções de label para os selectboxes
         def label_emp_guide(name):
             sub = df_estoque[(df_estoque['Empreendimento'] == name) & (df_estoque['Status'] == 'Disponível')]
             if sub.empty: return name
@@ -342,7 +342,6 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
         st.write("")
         if st.button("Avançar para Fechamento Financeiro", type="primary", use_container_width=True, key="btn_fech_v26"):
             if uni_escolhida_id:
-                # Salva a unidade selecionada no session_state para a etapa 4
                 st.session_state.dados_cliente['unidade_id'] = uni_escolhida_id
                 st.session_state.dados_cliente['empreendimento_nome'] = emp_escolhido
                 st.session_state.passo_simulacao = 'payment_flow'
@@ -358,11 +357,8 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
         d = st.session_state.dados_cliente
         st.markdown(f"### Fechamento Financeiro")
         
-        # Recupera a unidade selecionada na etapa anterior
         u_id = d.get('unidade_id')
         emp_name = d.get('empreendimento_nome')
-        
-        # Busca os dados da unidade no estoque
         unidades_filtradas = df_estoque[(df_estoque['Empreendimento'] == emp_name) & (df_estoque['Identificador'] == u_id)]
         
         if unidades_filtradas.empty:
@@ -373,7 +369,6 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
             
             st.info(f"**Unidade Selecionada:** {u['Identificador']} - {u['Empreendimento']} (R$ {u['Valor de Venda']:,.2f})")
             
-            # Campos de Entrada Financeira com Referências
             f_u = st.number_input("Financiamento", value=float(d['finan_estimado']), key="fin_u_v23")
             st.markdown(f'<p class="inline-ref">Referência Aprovada: R$ {d["finan_estimado"]:,.2f}</p>', unsafe_allow_html=True)
             
@@ -384,11 +379,9 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
             ps_u = st.number_input("Pro Soluto", value=float(ps_max_real), key="ps_u_v23")
             st.markdown(f'<p class="inline-ref">Máximo Permitido ({int(d["perc_ps"]*100)}%): R$ {ps_max_real:,.2f}</p>', unsafe_allow_html=True)
             
-            # Parcelas limitadas pelo Ranking
             parc = st.number_input("Quantidade de Parcelas do Pro Soluto", min_value=1, max_value=d['prazo_ps_max'], value=d['prazo_ps_max'], key="parc_u_v23")
             st.markdown(f'<p class="inline-ref">Limite de Parcelamento: {d["prazo_ps_max"]}x</p>', unsafe_allow_html=True)
             
-            # Cálculo dos resultados em tempo real
             v_parc = ps_u / parc
             comp_r = (v_parc / d['renda'])
             saldo_e = u['Valor de Venda'] - f_u - fgts_u - ps_u
@@ -438,7 +431,7 @@ def main():
     if df_finan.empty or df_estoque.empty:
         st.warning("⚠️ Carregando dados privados...")
         st.stop()
-    st.markdown('<div class="header-container"><div class="header-title">SIMULADOR DE COMPRA - DIRECIONAL ENGENHARIA</div></div>', unsafe_allow_html=True)
+    st.markdown('<div class="header-container"><div class="header-title">SIMULADOR DE COMPRA - DIRECIONAL ENGENHARIA</div><div class="header-subtitle">Gestão de Vendas e Viabilidade Imobiliária</div></div>', unsafe_allow_html=True)
     aba_simulador_automacao(df_finan, df_estoque, df_politicas)
 
 if __name__ == "__main__":
