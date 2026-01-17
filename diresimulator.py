@@ -9,7 +9,7 @@ Fluxo Automatizado de Recomendação (Sequencial):
 3. Etapa 4: Fechamento Financeiro.
 5. Etapa 5: Resumo da Compra e Exportação PDF Profissional.
 
-Versão: 51.0 (Restauração de Textos Originais com Design Elite Tecnológica)
+Versão: 52.0 (Referências de Valores no Fechamento e Design Elite)
 =============================================================================
 """
 
@@ -290,6 +290,17 @@ def configurar_layout():
         .metric-label {{ color: {COR_TEXTO_MUTED} !important; font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.15em; margin-bottom: 12px; }}
         .metric-value {{ color: {COR_AZUL_ESC} !important; font-size: 1.8rem; font-weight: 800; font-family: 'Montserrat', sans-serif; }}
         
+        /* Estilo para referências em linha sob inputs */
+        .inline-ref {{
+            font-size: 0.78rem;
+            color: #64748b;
+            margin-top: -15px;
+            margin-bottom: 15px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }}
+
         /* Botões de Alta Performance */
         .stButton button {{ 
             font-family: 'Inter', sans-serif;
@@ -524,7 +535,6 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
         social = st.toggle("Fator Social", value=st.session_state.dados_cliente.get('social', False), key="in_soc_v23")
         cotista = st.toggle("Cotista FGTS", value=st.session_state.dados_cliente.get('cotista', True), key="in_cot_v23")
         
-        # RESTAURAÇÃO: Nome do Botão Etapa 1
         if st.button("Avançar para Valor Potencial de Compra", type="primary", use_container_width=True, key="btn_s1_v23"):
             if not nome.strip():
                 st.markdown(f'<div class="custom-alert">Por favor, informe o Nome do Cliente para continuar.</div>', unsafe_allow_html=True)
@@ -571,7 +581,6 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
             </div>
         """, unsafe_allow_html=True)
         
-        # RESTAURAÇÃO: Nome dos Botões Etapa 2
         if st.button("Avançar para Seleção de Imóvel", type="primary", use_container_width=True, key="btn_s2_v23"):
             st.session_state.passo_simulacao = 'guide'; st.rerun()
         st.write("")
@@ -592,7 +601,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
         
         df_viaveis = df_disp_total[df_disp_total['Viavel']].copy()
         
-        st.markdown("#### Empreendimentos Viáveis")
+        st.markdown("#### Resumo de Ofertas Ativas")
         if df_viaveis.empty:
             st.info("Sem produtos viaveis no perfil selecionado.")
         else:
@@ -625,9 +634,9 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
                 if not df_filt_rec.empty:
                     r100, r90, r75 = df_filt_rec.iloc[0], df_filt_rec.iloc[len(df_filt_rec)//2], df_filt_rec.iloc[-1]
                     c1, c2, c3 = st.columns(3)
-                    with c1: st.markdown(f'<div class="recommendation-card" style="border-top: 4px solid {COR_AZUL_ESC};"><b>IDEAL</b><br><small>{r100["Empreendimento"]}</small><br>{r100["Identificador"]}<br><span class="price-tag">R$ {r100["Valor de Venda"]:,.2f}</span></div>', unsafe_allow_html=True)
-                    with c2: st.markdown(f'<div class="recommendation-card" style="border-top: 4px solid {COR_VERMELHO};"><b>SEGURO</b><br><small>{r90["Empreendimento"]}</small><br>{r90["Identificador"]}<br><span class="price-tag">R$ {r90["Valor de Venda"]:,.2f}</span></div>', unsafe_allow_html=True)
-                    with c3: st.markdown(f'<div class="recommendation-card" style="border-top: 4px solid {COR_AZUL_ESC};"><b>FACILITADO</b><br><small>{r75["Empreendimento"]}</small><br>{r75["Identificador"]}<br><span class="price-tag">R$ {r75["Valor de Venda"]:,.2f}</span></div>', unsafe_allow_html=True)
+                    with c1: st.markdown(f'<div class="recommendation-card" style="border-top: 4px solid {COR_AZUL_ESC};"><b>PERFIL IDEAL</b><br><small>{r100["Empreendimento"]}</small><br>{r100["Identificador"]}<br><span class="price-tag">R$ {r100["Valor de Venda"]:,.2f}</span></div>', unsafe_allow_html=True)
+                    with c2: st.markdown(f'<div class="recommendation-card" style="border-top: 4px solid {COR_VERMELHO};"><b>OPCAO SEGURA</b><br><small>{r90["Empreendimento"]}</small><br>{r90["Identificador"]}<br><span class="price-tag">R$ {r90["Valor de Venda"]:,.2f}</span></div>', unsafe_allow_html=True)
+                    with c3: st.markdown(f'<div class="recommendation-card" style="border-top: 4px solid {COR_AZUL_ESC};"><b>MAIOR FACILIDADE</b><br><small>{r75["Empreendimento"]}</small><br>{r75["Identificador"]}<br><span class="price-tag">R$ {r75["Valor de Venda"]:,.2f}</span></div>', unsafe_allow_html=True)
 
         with tab_list:
             f1, f2, f3, f4, f5, f6 = st.columns([1.2, 1, 0.7, 1.1, 0.9, 0.8])
@@ -687,7 +696,6 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
                                                format_func=lambda x: label_uni_guide(x, unidades_disp), key="sel_uni_guide_v26")
 
         st.write("")
-        # RESTAURAÇÃO: Nome dos Botões Etapa 3
         if st.button("Avançar para Fechamento Financeiro", type="primary", use_container_width=True, key="btn_fech_v26"):
             if uni_escolhida_id:
                 st.session_state.dados_cliente['unidade_id'] = uni_escolhida_id
@@ -716,14 +724,19 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
             u = unidades_filtradas.iloc[0]
             st.markdown(f'<div class="custom-alert">Unidade Selecionada: {u["Identificador"]} - {u["Empreendimento"]} (R$ {u["Valor de Venda"]:,.2f})</div>', unsafe_allow_html=True)
             
+            # Inputs com referências solicitadas
             f_u = st.number_input("Financiamento Bancário", value=float(d['finan_estimado']), step=1000.0, key="fin_u_v23")
-            fgts_u = st.number_input("FGTS + Subsidio", value=float(d['fgts_sub']), step=1000.0, key="fgt_u_v23")
+            st.markdown(f'<p class="inline-ref">Referência Aprovada: R$ {d["finan_estimado"]:,.2f}</p>', unsafe_allow_html=True)
+            
+            fgts_u = st.number_input("FGTS + Subsídio", value=float(d['fgts_sub']), step=1000.0, key="fgt_u_v23")
+            st.markdown(f'<p class="inline-ref">Referência Aprovada: R$ {d["fgts_sub"]:,.2f}</p>', unsafe_allow_html=True)
             
             ps_max_real = u['Valor de Venda'] * d['perc_ps']
             ps_u = st.number_input("Pro Soluto Direcional", value=float(ps_max_real), step=1000.0, key="ps_u_v23")
-            st.markdown(f'<p style="font-size:0.75rem; color:{COR_TEXTO_MUTED}; margin-top:-15px; margin-bottom:15px; font-weight:700; text-transform:uppercase;">LIMITE DIRECIONAL ({int(d["perc_ps"]*100)}%): R$ {ps_max_real:,.2f}</p>', unsafe_allow_html=True)
+            st.markdown(f'<p class="inline-ref">Máximo Permitido ({int(d["perc_ps"]*100)}%): R$ {ps_max_real:,.2f}</p>', unsafe_allow_html=True)
             
-            parc = st.number_input("Numero de Parcelas Pro Soluto", min_value=1, max_value=d['prazo_ps_max'], value=d['prazo_ps_max'], key="parc_u_v23")
+            parc = st.number_input("Número de Parcelas Pro Soluto", min_value=1, max_value=d['prazo_ps_max'], value=d['prazo_ps_max'], key="parc_u_v23")
+            st.markdown(f'<p class="inline-ref">Limite de Parcelamento: {d["prazo_ps_max"]}x</p>', unsafe_allow_html=True)
             
             v_parc = ps_u / parc
             comp_r = (v_parc / d['renda'])
@@ -744,7 +757,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
             with fin3: st.markdown(f"""<div class="fin-box" style="border-top: 6px solid {COR_AZUL_ESC};"><b>SALDO DE ENTRADA</b><br>R$ {max(0, saldo_e):,.2f}</div>""", unsafe_allow_html=True)
             
             if comp_r > d['limit_ps_renda']:
-                st.warning(f"Atencao: Parcela Pro Soluto excede o limite de {d['limit_ps_renda']*100:.0f}% da renda.")
+                st.warning(f"Atenção: Parcela Pro Soluto excede o limite de {d['limit_ps_renda']*100:.0f}% da renda.")
 
             if saldo_e > 0:
                 st.markdown("#### Distribuição da Entrada")
@@ -758,7 +771,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
                 
                 soma_entrada = st.session_state.ato_1 + st.session_state.ato_2 + st.session_state.ato_3 + st.session_state.ato_4
                 if abs(soma_entrada - saldo_e) > 0.01:
-                    st.error(f"Erro na Distribuicao: A soma das parcelas (R$ {soma_entrada:,.2f}) difere do saldo de entrada.")
+                    st.error(f"Erro na Distribuição: A soma das parcelas (R$ {soma_entrada:,.2f}) difere do saldo de entrada.")
             
             st.session_state.dados_cliente.update({
                 'imovel_valor': u['Valor de Venda'], 'finan_usado': f_u, 'fgts_sub_usado': fgts_u,
@@ -768,8 +781,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
             })
         
         st.markdown("---")
-        # RESTAURAÇÃO: Nome dos Botões Etapa 4
-        if st.button("Avançar para Resumo de Compra", type="primary", use_container_width=True, key="btn_to_summary"):
+        if st.button("Obter Resumo de Compra", type="primary", use_container_width=True, key="btn_to_summary"):
             st.session_state.passo_simulacao = 'summary'
             st.rerun()
         if st.button("Voltar para Seleção de Imóvel", use_container_width=True, key="btn_back_to_guide"): 
@@ -794,14 +806,13 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
                         key="btn_download_pdf_final"
                     )
 
-        # Resumo Site (Design V39 Revertido)
         st.markdown(f'<div class="summary-header">DADOS DO IMÓVEL</div>', unsafe_allow_html=True)
         st.markdown(f"""<div class="summary-body"><b>Empreendimento:</b> {d.get('empreendimento_nome')}<br>
             <b>Unidade:</b> {d.get('unidade_id')}<br><b>Valor de Venda:</b> <span style="color: {COR_VERMELHO}; font-weight: 800;">R$ {d.get('imovel_valor', 0):,.2f}</span></div>""", unsafe_allow_html=True)
 
         st.markdown(f'<div class="summary-header">PLANO DE FINANCIAMENTO</div>', unsafe_allow_html=True)
         st.markdown(f"""<div class="summary-body"><b>Financiamento Bancário:</b> R$ {d.get('finan_usado', 0):,.2f}<br>
-            <b>FGTS + Subsidio:</b> R$ {d.get('fgts_sub_usado', 0):,.2f}<br>
+            <b>FGTS + Subsídio:</b> R$ {d.get('fgts_sub_usado', 0):,.2f}<br>
             <b>Pro Soluto Total:</b> R$ {d.get('ps_usado', 0):,.2f} ({d.get('ps_parcelas')}x de R$ {d.get('ps_mensal', 0):,.2f})</div>""", unsafe_allow_html=True)
 
         st.markdown(f'<div class="summary-header">FLUXO DE ENTRADA (ATO)</div>', unsafe_allow_html=True)
@@ -810,7 +821,6 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
             <b>Ato 60 Dias:</b> R$ {d.get('ato_60', 0):,.2f}<br><b>Ato 90 Dias:</b> R$ {d.get('ato_90', 0):,.2f}</div>""", unsafe_allow_html=True)
 
         st.markdown("---")
-        # RESTAURAÇÃO: Nome dos Botões Etapa 5
         if st.button("Fazer Nova Simulação", type="primary", use_container_width=True, key="btn_new_client_summary"): 
             st.session_state.dados_cliente = {}; st.session_state.passo_simulacao = 'input'; st.rerun()
         if st.button("Voltar para Fechamento Financeiro", use_container_width=True, key="btn_edit_fin_summary"):
@@ -820,10 +830,9 @@ def main():
     configurar_layout()
     df_finan, df_estoque, df_politicas = carregar_dados_sistema()
     if df_finan.empty or df_estoque.empty:
-        st.warning("Aguardando conexao com base de dados...")
+        st.warning("Aguardando conexão com base de dados...")
         st.stop()
     
-    # Codifica a imagem local para Base64 para garantir a exibição na web
     logo_src = URL_FAVICON_RESERVA
     if os.path.exists("favicon.png"):
         try:
@@ -833,11 +842,10 @@ def main():
         except:
             pass
 
-    # RESTAURAÇÃO: Título e Subtítulo Principais
     st.markdown(f'''
         <div class="header-container">
             <img src="{logo_src}" style="position: absolute; top: 30px; left: 40px; height: 50px;">
-            <div class="header-title">SIMULADOR IMOBILIÁRIO DV</div>
+            <div class="header-title">SIMULADOR IMOBILIÁRIO DIRE RIO</div>
             <div class="header-subtitle">Sistema de Gestão de Vendas e Viabilidade Imobiliária</div>
         </div>
     ''', unsafe_allow_html=True)
