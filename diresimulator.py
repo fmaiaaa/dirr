@@ -9,7 +9,7 @@ Fluxo Automatizado de Recomendação (Sequencial):
 3. Etapa 4: Fechamento Financeiro.
 5. Etapa 5: Resumo da Compra e Exportação PDF Profissional.
 
-Versão: 46.0 (Elite Tecnológica Superior - Sem Emojis e Design de Grade)
+Versão: 47.0 (Elite Tecnológica - Tabela de Estoque Premium e Padronização Vermelho Direcional)
 =============================================================================
 """
 
@@ -234,7 +234,7 @@ def configurar_layout():
         /* Header Executivo */
         .header-container {{ 
             text-align: center; 
-            padding: 80px 0; 
+            padding: 70px 0; 
             background: #ffffff; 
             margin-bottom: 60px; 
             border-radius: 0 0 40px 40px; 
@@ -314,13 +314,13 @@ def configurar_layout():
             color: {COR_VERMELHO} !important;
         }}
         
-        /* Tabela Elite Profissional */
+        /* Tabela Elite Profissional Refinada */
         [data-testid="stDataFrame"] {{
-            border: none !important;
+            border: 1px solid {COR_BORDA} !important;
             background: #ffffff;
-            padding: 10px;
+            padding: 8px;
             border-radius: 12px;
-            box-shadow: 0 4px 20px -10px rgba(0,0,0,0.05);
+            box-shadow: 0 10px 30px -15px rgba(0,0,0,0.05);
         }}
 
         .footer {{ 
@@ -514,7 +514,6 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
     if 'passo_simulacao' not in st.session_state:
         st.session_state.passo_simulacao = 'input'
     if 'dados_cliente' not in st.session_state:
-        self_image = Image = None
         st.session_state.dados_cliente = {}
 
     if st.session_state.passo_simulacao == 'input':
@@ -592,7 +591,6 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
         
         df_viaveis = df_disp_total[df_disp_total['Viavel']].copy()
         
-        # REAJUSTE: Ofertas Ativas em caixinhas (grade), sem emojis
         st.markdown("#### Resumo de Ofertas Ativas")
         if df_viaveis.empty:
             st.info("Sem produtos viaveis no perfil selecionado.")
@@ -626,7 +624,6 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
                 if not df_filt_rec.empty:
                     r100, r90, r75 = df_filt_rec.iloc[0], df_filt_rec.iloc[len(df_filt_rec)//2], df_filt_rec.iloc[-1]
                     c1, c2, c3 = st.columns(3)
-                    # Textos CENTRALIZADOS
                     with c1: st.markdown(f'<div class="recommendation-card" style="border-top: 4px solid {COR_AZUL_ESC};"><b>PERFIL IDEAL</b><br><small>{r100["Empreendimento"]}</small><br>{r100["Identificador"]}<br><span class="price-tag">R$ {r100["Valor de Venda"]:,.2f}</span></div>', unsafe_allow_html=True)
                     with c2: st.markdown(f'<div class="recommendation-card" style="border-top: 4px solid {COR_VERMELHO};"><b>OPCAO SEGURA</b><br><small>{r90["Empreendimento"]}</small><br>{r90["Identificador"]}<br><span class="price-tag">R$ {r90["Valor de Venda"]:,.2f}</span></div>', unsafe_allow_html=True)
                     with c3: st.markdown(f'<div class="recommendation-card" style="border-top: 4px solid {COR_AZUL_ESC};"><b>MAIOR FACILIDADE</b><br><small>{r75["Empreendimento"]}</small><br>{r75["Identificador"]}<br><span class="price-tag">R$ {r75["Valor de Venda"]:,.2f}</span></div>', unsafe_allow_html=True)
@@ -648,19 +645,20 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
             df_tab = df_tab[df_tab['Valor de Venda'] <= f_pmax]
             df_tab = df_tab.sort_values('Valor de Venda', ascending=(f_ordem == "Menor Preço"))
             
-            # Tabela Elite - Tratamento Premium Superior
+            # Tabela Elite - TRATAMENTO PREMIUM SUPERIOR
+            # Refinamento de alinhamento, rótulos e formatação estrita
             st.dataframe(
                 df_tab[['Identificador', 'Empreendimento', 'Bairro', 'Andar', 'Valor de Venda', 'Poder_Compra', 'Status Viabilidade']], 
                 use_container_width=True, 
                 hide_index=True,
                 column_config={
                     "Identificador": st.column_config.TextColumn("Unidade", width="small"),
-                    "Empreendimento": st.column_config.TextColumn("Empreendimento", width="medium"),
-                    "Bairro": st.column_config.TextColumn("Localizacao"),
-                    "Valor de Venda": st.column_config.NumberColumn("Valor Venda", format="R$ %.2f", width="medium"),
-                    "Poder_Compra": st.column_config.NumberColumn("Limite Compra", format="R$ %.2f", width="medium"),
-                    "Andar": st.column_config.NumberColumn("Andar", format="%d"),
-                    "Status Viabilidade": st.column_config.TextColumn("Viabilidade")
+                    "Empreendimento": st.column_config.TextColumn("Projeto", width="medium"),
+                    "Bairro": st.column_config.TextColumn("Localizacao", width="medium"),
+                    "Andar": st.column_config.NumberColumn("Pavimento", format="%dº", width="small"),
+                    "Valor de Venda": st.column_config.NumberColumn("Valor de Tabela", format="R$ %.2f", width="medium"),
+                    "Poder_Compra": st.column_config.NumberColumn("Teto de Aquisicao", format="R$ %.2f", width="medium"),
+                    "Status Viabilidade": st.column_config.TextColumn("Viabilidade", width="small")
                 }
             )
 
