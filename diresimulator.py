@@ -9,7 +9,7 @@ Fluxo Automatizado de Recomendação (Sequencial):
 3. Etapa 4: Fechamento Financeiro.
 5. Etapa 5: Resumo da Compra e Exportação PDF Profissional.
 
-Versão: 49.0 (Ícone Superior Esquerdo Integrado na Web e PDF - Elite Tecnológica)
+Versão: 50.0 (Ícone Direcional Fixo na Web e PDF - Elite Tecnológica)
 =============================================================================
 """
 
@@ -20,10 +20,11 @@ import re
 from streamlit_gsheets import GSheetsConnection
 import io
 import streamlit.components.v1 as components
+import base64
 try:
     from PIL import Image
 except ImportError:
-    pass
+    Image = None
 import os
 
 # Tenta importar fpdf de forma segura
@@ -170,16 +171,19 @@ class MotorRecomendacao:
         return estoque_disp[estoque_disp['Viavel']]
 
 # =============================================================================
-# 3. INTERFACE E DESIGN (ELITE TECNOLÓGICA - REFINAMENTO ABSOLUTO)
+# 3. INTERFACE E DESIGN (ELITE TECNOLÓGICA)
 # =============================================================================
 
 def configurar_layout():
-    # Define o favicon.png como ícone da página
-    favicon_path = "favicon.png"
-    if not os.path.exists(favicon_path):
-        favicon_path = URL_FAVICON_RESERVA
+    # ALTERAÇÃO: Carrega o ícone localmente via PIL para o favicon do navegador
+    favicon = URL_FAVICON_RESERVA
+    if os.path.exists("favicon.png") and Image:
+        try:
+            favicon = Image.open("favicon.png")
+        except:
+            pass
         
-    st.set_page_config(page_title="Simulador Direcional Elite", page_icon=favicon_path, layout="wide")
+    st.set_page_config(page_title="Simulador Direcional Elite", page_icon=favicon, layout="wide")
     
     st.markdown(f"""
         <style>
@@ -202,7 +206,6 @@ def configurar_layout():
 
         .block-container {{ max-width: 1400px !important; padding: 4rem 2rem !important; }}
         
-        /* Inputs Elite (Ultra Minimal) */
         div[data-baseweb="input"] {{
             border-radius: 8px !important;
             border: 1px solid #e2e8f0 !important;
@@ -220,14 +223,12 @@ def configurar_layout():
             color: {COR_AZUL_ESC} !important;
         }}
         
-        /* Step Buttons Hover - Official Red */
         div[data-testid="stNumberInput"] button:hover {{
             background-color: {COR_VERMELHO} !important;
             color: #ffffff !important;
             border-color: {COR_VERMELHO} !important;
         }}
 
-        /* Toggle Slider Color - Official Red */
         div[data-testid="stToggle"] div[aria-checked="true"] {{
             background-color: {COR_VERMELHO} !important;
         }}
@@ -237,7 +238,6 @@ def configurar_layout():
             border: 1px solid #e2e8f0 !important;
         }}
 
-        /* Header Executivo */
         .header-container {{ 
             text-align: center; 
             padding: 70px 0; 
@@ -246,7 +246,7 @@ def configurar_layout():
             border-radius: 0 0 40px 40px; 
             border-bottom: 1px solid {COR_BORDA};
             box-shadow: 0 15px 35px -20px rgba(0,44,93,0.1);
-            position: relative; /* Para logo em absoluto */
+            position: relative;
         }}
         .header-title {{ 
             font-family: 'Montserrat', sans-serif;
@@ -266,7 +266,6 @@ def configurar_layout():
             text-transform: uppercase;
         }}
         
-        /* Cards Elite - Centralizados */
         .card, .fin-box, .recommendation-card {{ 
             background: #ffffff; 
             padding: 40px; 
@@ -289,7 +288,6 @@ def configurar_layout():
         .metric-label {{ color: {COR_TEXTO_MUTED} !important; font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.15em; margin-bottom: 12px; }}
         .metric-value {{ color: {COR_AZUL_ESC} !important; font-size: 1.8rem; font-weight: 800; font-family: 'Montserrat', sans-serif; }}
         
-        /* Botões de Alta Performance */
         .stButton button {{ 
             font-family: 'Inter', sans-serif;
             border-radius: 8px !important; 
@@ -316,12 +314,7 @@ def configurar_layout():
             color: {COR_AZUL_ESC} !important;
             border: 1px solid {COR_AZUL_ESC} !important;
         }}
-        .stButton button:not([kind="primary"]):hover {{
-            border-color: {COR_VERMELHO} !important;
-            color: {COR_VERMELHO} !important;
-        }}
         
-        /* Tabela Elite Profissional Refinada */
         [data-testid="stDataFrame"] {{
             border: 1px solid {COR_BORDA} !important;
             background: #ffffff;
@@ -340,7 +333,6 @@ def configurar_layout():
             text-transform: uppercase;
         }}
         
-        /* Resumo Executivo */
         .summary-header {{ 
             font-family: 'Montserrat', sans-serif;
             background: {COR_AZUL_ESC}; 
@@ -383,21 +375,6 @@ def configurar_layout():
         }}
         button[data-baseweb="tab"][aria-selected="true"] p {{ color: {COR_AZUL_ESC} !important; }}
         div[data-baseweb="tab-highlight"] {{ background-color: {COR_VERMELHO} !important; height: 3px !important; }}
-        
-        /* Thin Card Refinement */
-        .thin-card {{
-            background: #ffffff;
-            padding: 18px 24px;
-            border-radius: 10px;
-            border-left: 5px solid {COR_VERMELHO};
-            border-right: 1px solid {COR_BORDA};
-            border-top: 1px solid {COR_BORDA};
-            border-bottom: 1px solid {COR_BORDA};
-            margin-bottom: 12px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }}
         </style>
     """, unsafe_allow_html=True)
 
@@ -420,11 +397,10 @@ def gerar_resumo_pdf(d):
         CINZA_RGB = (100, 116, 139)
         FUNDO_SECAO = (248, 250, 252)
 
-        # Barra de topo Direcional
         pdf.set_fill_color(*AZUL_RGB)
         pdf.rect(0, 0, 210, 3, 'F')
 
-        # INSERÇÃO: Ícone no Canto Superior Esquerdo do PDF
+        # Logótipo no PDF (Canto Superior Esquerdo)
         if os.path.exists("favicon.png"):
             pdf.image("favicon.png", 10, 8, 10)
         
@@ -828,9 +804,16 @@ def main():
         st.warning("Aguardando conexao com base de dados...")
         st.stop()
     
-    # INSERÇÃO: Logotipo da Direcional no canto superior esquerdo da interface Web
-    # Utilizando o favicon do git ou fallback remoto
-    logo_src = "favicon.png" if os.path.exists("favicon.png") else URL_FAVICON_RESERVA
+    # ALTERAÇÃO: Codifica a imagem local para Base64 para garantir a exibição na web
+    logo_src = URL_FAVICON_RESERVA
+    if os.path.exists("favicon.png"):
+        try:
+            with open("favicon.png", "rb") as f:
+                encoded = base64.b64encode(f.read()).decode()
+                logo_src = f"data:image/png;base64,{encoded}"
+        except:
+            pass
+
     st.markdown(f'''
         <div class="header-container">
             <img src="{logo_src}" style="position: absolute; top: 30px; left: 40px; height: 50px;">
