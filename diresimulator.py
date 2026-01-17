@@ -9,7 +9,7 @@ Fluxo Automatizado de Recomendação (Sequencial):
 3. Etapa 4: Fechamento Financeiro.
 5. Etapa 5: Resumo da Compra e Exportação PDF Profissional.
 
-Versão: 45.0 (Elite Tecnológica - Design Minimalista Superior e Sem Emojis)
+Versão: 46.0 (Elite Tecnológica Superior - Sem Emojis e Design de Grade)
 =============================================================================
 """
 
@@ -46,9 +46,9 @@ URL_ESTOQUE = f"https://docs.google.com/spreadsheets/d/{ID_ESTOQUE}/edit#gid=0"
 
 URL_FAVICON_RESERVA = "https://direcional.com.br/wp-content/uploads/2021/04/cropped-favicon-direcional-32x32.png"
 
-# Cores Oficiais Direcional - Elite
+# Cores Oficiais Direcional - Elite Tecnológica
 COR_AZUL_ESC = "#002c5d"
-COR_VERMELHO = "#e30613"  # Vermelho Direcional Padrão
+COR_VERMELHO = "#e30613"  # Vermelho Direcional Oficial
 COR_FUNDO = "#fcfdfe"
 COR_BORDA = "#eef2f6"
 COR_TEXTO_MUTED = "#64748b"
@@ -170,7 +170,7 @@ class MotorRecomendacao:
         return estoque_disp[estoque_disp['Viavel']]
 
 # =============================================================================
-# 3. INTERFACE E DESIGN (ELITE TECNOLÓGICA)
+# 3. INTERFACE E DESIGN (ELITE TECNOLÓGICA - REFINAMENTO ABSOLUTO)
 # =============================================================================
 
 def configurar_layout():
@@ -214,14 +214,14 @@ def configurar_layout():
             color: {COR_AZUL_ESC} !important;
         }}
         
-        /* Custom Styling for Number Input Step Buttons */
+        /* Step Buttons Hover - Official Red */
         div[data-testid="stNumberInput"] button:hover {{
             background-color: {COR_VERMELHO} !important;
             color: #ffffff !important;
             border-color: {COR_VERMELHO} !important;
         }}
 
-        /* Toggle Slider Color (Official Red) */
+        /* Toggle Slider Color - Official Red */
         div[data-testid="stToggle"] div[aria-checked="true"] {{
             background-color: {COR_VERMELHO} !important;
         }}
@@ -234,9 +234,9 @@ def configurar_layout():
         /* Header Executivo */
         .header-container {{ 
             text-align: center; 
-            padding: 70px 0; 
+            padding: 80px 0; 
             background: #ffffff; 
-            margin-bottom: 50px; 
+            margin-bottom: 60px; 
             border-radius: 0 0 40px 40px; 
             border-bottom: 1px solid {COR_BORDA};
             box-shadow: 0 15px 35px -20px rgba(0,44,93,0.1);
@@ -376,6 +376,21 @@ def configurar_layout():
         }}
         button[data-baseweb="tab"][aria-selected="true"] p {{ color: {COR_AZUL_ESC} !important; }}
         div[data-baseweb="tab-highlight"] {{ background-color: {COR_VERMELHO} !important; height: 3px !important; }}
+        
+        /* Thin Card Refinement */
+        .thin-card {{
+            background: #ffffff;
+            padding: 18px 24px;
+            border-radius: 10px;
+            border-left: 5px solid {COR_VERMELHO};
+            border-right: 1px solid {COR_BORDA};
+            border-top: 1px solid {COR_BORDA};
+            border-bottom: 1px solid {COR_BORDA};
+            margin-bottom: 12px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }}
         </style>
     """, unsafe_allow_html=True)
 
@@ -499,6 +514,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
     if 'passo_simulacao' not in st.session_state:
         st.session_state.passo_simulacao = 'input'
     if 'dados_cliente' not in st.session_state:
+        self_image = Image = None
         st.session_state.dados_cliente = {}
 
     if st.session_state.passo_simulacao == 'input':
@@ -576,14 +592,27 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
         
         df_viaveis = df_disp_total[df_disp_total['Viavel']].copy()
         
-        with st.expander("Resumo de Ofertas Ativas", expanded=False):
-            if df_viaveis.empty:
-                st.write("Sem produtos viaveis no perfil selecionado.")
-            else:
-                emp_counts = df_viaveis.groupby('Empreendimento').size().to_dict()
-                for emp, qtd in emp_counts.items():
-                    st.markdown(f'<div class="thin-card"><div><b>{emp}</b></div><div>{qtd} unidades</div></div>', unsafe_allow_html=True)
+        # REAJUSTE: Ofertas Ativas em caixinhas (grade), sem emojis
+        st.markdown("#### Resumo de Ofertas Ativas")
+        if df_viaveis.empty:
+            st.info("Sem produtos viaveis no perfil selecionado.")
+        else:
+            emp_counts = df_viaveis.groupby('Empreendimento').size().to_dict()
+            items = list(emp_counts.items())
+            cols_per_row = 3
+            for i in range(0, len(items), cols_per_row):
+                row_items = items[i:i+cols_per_row]
+                row_cols = st.columns(len(row_items))
+                for idx, (emp, qtd) in enumerate(row_items):
+                    with row_cols[idx]:
+                        st.markdown(f"""
+                            <div class="card" style="min-height: 100px; padding: 20px; border-top: 3px solid {COR_VERMELHO};">
+                                <p style="margin:0; font-weight:700; color:{COR_AZUL_ESC};">{emp}</p>
+                                <p style="margin:5px 0 0 0; font-size:0.85rem; color:{COR_TEXTO_MUTED};">{qtd} unidades disponiveis</p>
+                            </div>
+                        """, unsafe_allow_html=True)
 
+        st.write("")
         tab_rec, tab_list = st.tabs(["Sugestoes Estrategicas", "Estoque Geral"])
         
         with tab_rec:
@@ -597,7 +626,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
                 if not df_filt_rec.empty:
                     r100, r90, r75 = df_filt_rec.iloc[0], df_filt_rec.iloc[len(df_filt_rec)//2], df_filt_rec.iloc[-1]
                     c1, c2, c3 = st.columns(3)
-                    # Textos CENTRALIZADOS e SEM EMOJIS
+                    # Textos CENTRALIZADOS
                     with c1: st.markdown(f'<div class="recommendation-card" style="border-top: 4px solid {COR_AZUL_ESC};"><b>PERFIL IDEAL</b><br><small>{r100["Empreendimento"]}</small><br>{r100["Identificador"]}<br><span class="price-tag">R$ {r100["Valor de Venda"]:,.2f}</span></div>', unsafe_allow_html=True)
                     with c2: st.markdown(f'<div class="recommendation-card" style="border-top: 4px solid {COR_VERMELHO};"><b>OPCAO SEGURA</b><br><small>{r90["Empreendimento"]}</small><br>{r90["Identificador"]}<br><span class="price-tag">R$ {r90["Valor de Venda"]:,.2f}</span></div>', unsafe_allow_html=True)
                     with c3: st.markdown(f'<div class="recommendation-card" style="border-top: 4px solid {COR_AZUL_ESC};"><b>MAIOR FACILIDADE</b><br><small>{r75["Empreendimento"]}</small><br>{r75["Identificador"]}<br><span class="price-tag">R$ {r75["Valor de Venda"]:,.2f}</span></div>', unsafe_allow_html=True)
@@ -619,16 +648,17 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
             df_tab = df_tab[df_tab['Valor de Venda'] <= f_pmax]
             df_tab = df_tab.sort_values('Valor de Venda', ascending=(f_ordem == "Menor Preço"))
             
-            # Tabela Elite - Configuração Profissional Superior
+            # Tabela Elite - Tratamento Premium Superior
             st.dataframe(
                 df_tab[['Identificador', 'Empreendimento', 'Bairro', 'Andar', 'Valor de Venda', 'Poder_Compra', 'Status Viabilidade']], 
                 use_container_width=True, 
                 hide_index=True,
                 column_config={
-                    "Identificador": st.column_config.TextColumn("ID Unidade"),
-                    "Empreendimento": st.column_config.TextColumn("Projeto"),
-                    "Valor de Venda": st.column_config.NumberColumn("Preço de Tabela", format="R$ %.2f", width="medium"),
-                    "Poder_Compra": st.column_config.NumberColumn("Teto de Compra", format="R$ %.2f", width="medium"),
+                    "Identificador": st.column_config.TextColumn("Unidade", width="small"),
+                    "Empreendimento": st.column_config.TextColumn("Empreendimento", width="medium"),
+                    "Bairro": st.column_config.TextColumn("Localizacao"),
+                    "Valor de Venda": st.column_config.NumberColumn("Valor Venda", format="R$ %.2f", width="medium"),
+                    "Poder_Compra": st.column_config.NumberColumn("Limite Compra", format="R$ %.2f", width="medium"),
                     "Andar": st.column_config.NumberColumn("Andar", format="%d"),
                     "Status Viabilidade": st.column_config.TextColumn("Viabilidade")
                 }
@@ -710,9 +740,9 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
                 st.session_state.last_calc_hash = calc_hash
             
             fin1, fin2, fin3 = st.columns(3)
-            with fin1: st.markdown(f"""<div class="fin-box" style="border-top: 5px solid {COR_AZUL_ESC};"><b>VALOR DO ATIVO</b><br>R$ {u['Valor de Venda']:,.2f}</div>""", unsafe_allow_html=True)
-            with fin2: st.markdown(f"""<div class="fin-box" style="border-top: 5px solid {COR_VERMELHO};"><b>MENSALIDADE PS</b><br>R$ {v_parc:,.2f} ({parc}x)</div>""", unsafe_allow_html=True)
-            with fin3: st.markdown(f"""<div class="fin-box" style="border-top: 5px solid {COR_AZUL_ESC};"><b>SALDO ENTRADA</b><br>R$ {max(0, saldo_e):,.2f}</div>""", unsafe_allow_html=True)
+            with fin1: st.markdown(f"""<div class="fin-box" style="border-top: 6px solid {COR_AZUL_ESC};"><b>VALOR DO ATIVO</b><br>R$ {u['Valor de Venda']:,.2f}</div>""", unsafe_allow_html=True)
+            with fin2: st.markdown(f"""<div class="fin-box" style="border-top: 6px solid {COR_VERMELHO};"><b>MENSALIDADE PS</b><br>R$ {v_parc:,.2f} ({parc}x)</div>""", unsafe_allow_html=True)
+            with fin3: st.markdown(f"""<div class="fin-box" style="border-top: 6px solid {COR_AZUL_ESC};"><b>SALDO ENTRADA</b><br>R$ {max(0, saldo_e):,.2f}</div>""", unsafe_allow_html=True)
             
             if comp_r > d['limit_ps_renda']:
                 st.warning(f"Atencao: Parcela Pro Soluto excede o limite de {d['limit_ps_renda']*100:.0f}% da renda.")
@@ -773,7 +803,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
             <b>Pro Soluto Total:</b> R$ {d.get('ps_usado', 0):,.2f} ({d.get('ps_parcelas')}x de R$ {d.get('ps_mensal', 0):,.2f})</div>""", unsafe_allow_html=True)
 
         st.markdown(f'<div class="summary-header">FLUXO DE ENTRADA (ATO)</div>', unsafe_allow_html=True)
-        st.markdown(f"""<div class="summary-body"><b>Total de Entrada:</b> R$ {d.get('entrada_total', 0):,.2f}<br><hr style="border: 0; border-top: 1px solid #e2e8f0; margin: 15px 0;">
+        st.markdown(f"""<div class="summary-body"><b>Total de Entrada:</b> R$ {d.get('entrada_total', 0):,.2f}<br><hr style="border: 0; border-top: 1px solid #e2e8f0; margin: 10px 0;">
             <b>Ato:</b> R$ {d.get('ato_final', 0):,.2f}<br><b>Ato 30 Dias:</b> R$ {d.get('ato_30', 0):,.2f}<br>
             <b>Ato 60 Dias:</b> R$ {d.get('ato_60', 0):,.2f}<br><b>Ato 90 Dias:</b> R$ {d.get('ato_90', 0):,.2f}</div>""", unsafe_allow_html=True)
 
