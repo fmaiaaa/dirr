@@ -10,7 +10,7 @@ Fluxo Automatizado de Recomendação (Sequencial):
 4. Etapa 4: Fechamento Financeiro.
 5. Etapa 5: Resumo da Compra e Exportação PDF.
 
-Versão: 29.7 (Aviso com Box Azul/Branco e Padronização de Caixas Financeiras)
+Versão: 29.8 (Legibilidade: Letras Brancas em Fundos Coloridos)
 =============================================================================
 """
 
@@ -216,13 +216,14 @@ def configurar_layout():
             border-radius: 8px !important; 
             padding: 12px !important; 
             font-weight: 600 !important; 
-            color: #ffffff !important; 
+            color: #ffffff !important; /* FORÇAR LETRA BRANCA */
             border: none !important; 
         }}
 
         /* Botão de VOLTAR: Azul Escuro Direcional */
         .stButton button {{ 
             background-color: {COR_AZUL_ESC} !important; 
+            color: #ffffff !important;
         }}
         .stButton button:hover {{ 
             background-color: #001a3d !important; 
@@ -232,6 +233,7 @@ def configurar_layout():
         /* Botão de AVANÇAR (primary): Vermelho Direcional */
         .stButton button[kind="primary"] {{ 
             background-color: {COR_VERMELHO} !important; 
+            color: #ffffff !important;
         }}
         .stButton button[kind="primary"]:hover {{ 
             background-color: #c40a10 !important; 
@@ -251,13 +253,13 @@ def configurar_layout():
         
         /* Resumo */
         .summary-header {{ background: {COR_AZUL_ESC}; color: white !important; padding: 15px; border-radius: 10px 10px 0 0; font-weight: 600; text-align: center; margin-bottom: 0px; }}
-        .summary-header span {{ color: white !important; }}
+        .summary-header span, .summary-header b {{ color: white !important; }}
         .summary-body {{ background: white; padding: 20px; border: 1px solid #e2e8f0; border-radius: 0 0 10px 10px; margin-bottom: 20px; }}
         .download-container {{ display: flex; justify-content: center; margin-bottom: 20px; }}
         
-        /* Custom Alert / Info Box */
+        /* Custom Alert / Info Box (FORÇAR BRANCO) */
         .custom-alert {{ background-color: {COR_AZUL_ESC}; color: white !important; padding: 15px; border-radius: 10px; margin-bottom: 20px; text-align: center; font-weight: 600; }}
-        .custom-alert * {{ color: white !important; }}
+        .custom-alert b, .custom-alert span, .custom-alert p {{ color: white !important; }}
         </style>
     """, unsafe_allow_html=True)
 
@@ -358,6 +360,7 @@ def gerar_resumo_pdf(d):
 # =============================================================================
 
 def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
+    # Componente para forçar scroll ao topo
     passo_atual = st.session_state.get('passo_simulacao', 'init')
     components.html(
         f"""
@@ -583,11 +586,12 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
                 st.session_state.ato_4 = dist_val
                 st.session_state.last_calc_hash = calc_hash
             
-            # FBOX AZUL COM LETRA BRANCA PARA MENSALIDADE
+            # MENSALIDADE PRO SOLUTO EM AZUL COM LETRA BRANCA (ESTILO REFORÇADO)
             st.markdown(f"""
                 <div class="fin-box" style="border-top: 5px solid {COR_AZUL_ESC};"><b>Valor do Imóvel:</b> R$ {u['Valor de Venda']:,.2f}</div>
-                <div class="fin-box" style="background:{COR_AZUL_ESC}; color: white; border-top: 5px solid {COR_AZUL_ESC};">
-                    <span style="color: white !important;"><b>Mensalidade Pro Soluto:</b> R$ {v_parc:,.2f} em {parc}x</span>
+                <div class="fin-box" style="background:{COR_AZUL_ESC}; color: white !important; border-top: 5px solid {COR_AZUL_ESC};">
+                    <b style="color: white !important;">Mensalidade Pro Soluto:</b> 
+                    <span style="color: white !important;">R$ {v_parc:,.2f} em {parc}x</span>
                 </div>
             """, unsafe_allow_html=True)
             
