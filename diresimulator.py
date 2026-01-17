@@ -10,7 +10,7 @@ Fluxo Automatizado de Recomendação (Sequencial):
 4. Etapa 4: Fechamento Financeiro.
 5. Etapa 5: Resumo da Compra e Exportação PDF.
 
-Versão: 31.0 (PDF Premium e Sincronização Visual DV)
+Versão: 32.0 (Fontes Profissionais e Ajuste de Cores no Resumo)
 =============================================================================
 """
 
@@ -185,21 +185,39 @@ def configurar_layout():
     st.set_page_config(page_title="Simulador Direcional", page_icon=icone_final, layout="wide")
     st.markdown(f"""
         <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap');
+        /* Importação de fontes profissionais */
+        @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;700;800&family=Inter:wght@300;400;600&display=swap');
         
-        /* Cor de texto padrão */
+        /* Cor de texto padrão e fonte do corpo */
         html, body, [data-testid="stAppViewContainer"] {{
             font-family: 'Inter', sans-serif;
             color: {COR_AZUL_ESC};
         }}
         
+        /* Títulos com fonte Montserrat para maior impacto e profissionalismo */
+        h1, h2, h3, h4 {{
+            font-family: 'Montserrat', sans-serif !important;
+            text-align: center !important; 
+            width: 100%; 
+            color: {COR_AZUL_ESC} !important; 
+            font-weight: 700;
+        }}
+
         /* Fundo branco */
         .main {{ background-color: #ffffff; }}
         .block-container {{ max-width: 1200px !important; padding: 1rem !important; margin: auto !important; }}
         
         /* Header */
         .header-container {{ text-align: center; padding: 35px 0; background: #ffffff; border-bottom: 5px solid {COR_VERMELHO}; margin-bottom: 25px; border-radius: 0 0 15px 15px; }}
-        .header-title {{ color: {COR_AZUL_ESC}; font-size: 2.2rem; font-weight: 800; margin: 0; text-transform: uppercase; letter-spacing: 1px; }}
+        .header-title {{ 
+            font-family: 'Montserrat', sans-serif;
+            color: {COR_AZUL_ESC}; 
+            font-size: 2.2rem; 
+            font-weight: 800; 
+            margin: 0; 
+            text-transform: uppercase; 
+            letter-spacing: 1px; 
+        }}
         .header-subtitle {{ color: #64748b; font-size: 1rem; font-weight: 400; margin-top: 8px; }}
         
         /* Cards Padronizados */
@@ -229,9 +247,10 @@ def configurar_layout():
         
         /* Botões */
         .stButton button {{ 
+            font-family: 'Montserrat', sans-serif;
             border-radius: 8px !important; 
             padding: 12px !important; 
-            font-weight: 600 !important; 
+            font-weight: 700 !important; 
             color: #ffffff !important; 
             border: none !important; 
         }}
@@ -244,19 +263,17 @@ def configurar_layout():
         .stButton button[kind="primary"] {{ background-color: {COR_VERMELHO} !important; color: white !important; }}
         .stButton button[kind="primary"]:hover {{ background-color: #c40a10 !important; box-shadow: 0 4px 8px rgba(0,0,0,0.1); }}
         
-        /* Títulos */
-        h1, h2, h3, h4 {{ text-align: center !important; width: 100%; color: {COR_AZUL_ESC} !important; font-weight: 700; }}
-        
         /* Rodapé */
         .footer {{ text-align: center; padding: 30px 0; color: {COR_AZUL_ESC} !important; font-size: 0.85rem; border-top: 1px solid {COR_VERMELHO}; margin-top: 50px; font-weight: 400; background: #ffffff; }}
         
         /* Resumo - Cabeçalhos com Texto Branco */
         .summary-header {{ 
+            font-family: 'Montserrat', sans-serif;
             background: {COR_AZUL_ESC}; 
             color: #ffffff !important; 
             padding: 15px; 
             border-radius: 10px 10px 0 0; 
-            font-weight: 600; 
+            font-weight: 700; 
             text-align: center; 
             margin-bottom: 0px; 
         }}
@@ -313,11 +330,11 @@ def gerar_resumo_pdf(d):
         pdf.cell(0, 6, "Resumo de Compra e Viabilidade Financeira", ln=True, align='C')
         pdf.ln(10)
 
-        # Informações do Cliente
+        # Informações do Cliente (Ajustado para Azul)
         pdf.set_text_color(*AZUL_RGB)
         pdf.set_font("Helvetica", 'B', 12)
         pdf.cell(0, 10, f"Cliente: {d.get('nome', 'Nao informado')}", ln=True)
-        pdf.set_text_color(*TEXTO_BASE)
+        pdf.set_text_color(*AZUL_RGB) # Ajustado de TEXTO_BASE (preto) para AZUL_RGB conforme solicitado
         pdf.set_font("Helvetica", '', 11)
         pdf.cell(0, 8, f"Renda Familiar: R$ {d.get('renda', 0):,.2f}", ln=True)
         pdf.ln(8)
@@ -342,6 +359,9 @@ def gerar_resumo_pdf(d):
                 if destaque_vermelho and i == len(linhas) - 1:
                     pdf.set_text_color(*VERMELHO_RGB)
                     pdf.set_font("Helvetica", 'B', 11)
+                else:
+                    pdf.set_text_color(*AZUL_RGB)
+                    pdf.set_font("Helvetica", '', 10.5)
                 
                 pdf.cell(0, 8, f"     {texto}", ln=True, border='LR')
             
@@ -391,6 +411,7 @@ def gerar_resumo_pdf(d):
 # =============================================================================
 
 def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
+    # Componente para forçar scroll ao topo
     passo_atual = st.session_state.get('passo_simulacao', 'init')
     components.html(
         f"""
@@ -510,6 +531,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
                 if not df_filt_rec.empty:
                     r100, r90, r75 = df_filt_rec.iloc[0], df_filt_rec.iloc[len(df_filt_rec)//2], df_filt_rec.iloc[-1]
                     c1, c2, c3 = st.columns(3)
+                    # RECOMENDAÇÕES PADRONIZADAS (Azul - Vermelho - Azul)
                     with c1: st.markdown(f'<div class="recommendation-card" style="border-top: 5px solid {COR_AZUL_ESC};"><b>IDEAL</b><br><small>{r100["Empreendimento"]}</small><br>{r100["Identificador"]}<br><span class="price-tag">R$ {r100["Valor de Venda"]:,.2f}</span></div>', unsafe_allow_html=True)
                     with c2: st.markdown(f'<div class="recommendation-card" style="border-top: 5px solid {COR_VERMELHO};"><b>SEGURA</b><br><small>{r90["Empreendimento"]}</small><br>{r90["Identificador"]}<br><span class="price-tag">R$ {r90["Valor de Venda"]:,.2f}</span></div>', unsafe_allow_html=True)
                     with c3: st.markdown(f'<div class="recommendation-card" style="border-top: 5px solid {COR_AZUL_ESC};"><b>FACILITADA</b><br><small>{r75["Empreendimento"]}</small><br>{r75["Identificador"]}<br><span class="price-tag">R$ {r75["Valor de Venda"]:,.2f}</span></div>', unsafe_allow_html=True)
@@ -677,6 +699,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
         else:
             st.warning("Função de PDF indisponível. Verifique o arquivo requirements.txt.")
 
+        # CABEÇALHOS DO RESUMO COM TEXTO EM BRANCO FORÇADO
         st.markdown(f'<div class="summary-header">DADOS DO IMÓVEL</div>', unsafe_allow_html=True)
         st.markdown(f"""<div class="summary-body"><b>Empreendimento:</b> {d.get('empreendimento_nome')}<br>
             <b>Unidade:</b> {d.get('unidade_id')}<br><b>Valor de Venda:</b> <span class="price-tag">R$ {d.get('imovel_valor', 0):,.2f}</span></div>""", unsafe_allow_html=True)
