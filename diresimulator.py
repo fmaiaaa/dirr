@@ -10,7 +10,7 @@ Fluxo Automatizado de Recomendação (Sequencial):
 4. Etapa 4: Fechamento Financeiro.
 5. Etapa 5: Resumo da Compra e Exportação PDF.
 
-Versão: 29.0 (Correção TypeError, Favicon Direcional e Scroll Automático)
+Versão: 29.1 (Suporte para Ícone Personalizado Local e Fallback de URL)
 =============================================================================
 """
 
@@ -21,6 +21,8 @@ import re
 from streamlit_gsheets import GSheetsConnection
 import io
 import streamlit.components.v1 as components
+from PIL import Image
+import os
 
 # Tenta importar fpdf de forma segura
 try:
@@ -41,8 +43,8 @@ URL_FINAN = f"https://docs.google.com/spreadsheets/d/{ID_FINAN}/edit#gid=0"
 URL_RANKING = f"https://docs.google.com/spreadsheets/d/{ID_RANKING}/edit#gid=0"
 URL_ESTOQUE = f"https://docs.google.com/spreadsheets/d/{ID_ESTOQUE}/edit#gid=0"
 
-# Link do ícone oficial da Direcional para a aba do navegador
-FAVICON_DIRECIONAL = "https://direcional.com.br/wp-content/uploads/2021/04/cropped-favicon-direcional-32x32.png"
+# Link de reserva (caso o ícone descarregado não esteja na pasta)
+URL_FAVICON_RESERVA = "https://direcional.com.br/wp-content/uploads/2021/04/cropped-favicon-direcional-32x32.png"
 
 # =============================================================================
 # 1. CARREGAMENTO E TRATAMENTO DE DADOS
@@ -169,8 +171,16 @@ class MotorRecomendacao:
 # =============================================================================
 
 def configurar_layout():
-    # Atualizado com o favicon da Direcional
-    st.set_page_config(page_title="Simulador Direcional", page_icon=FAVICON_DIRECIONAL, layout="wide")
+    # Tenta carregar ícone descarregado localmente (Ex: favicon.png na raiz do repositório)
+    # Se não existir, utiliza a URL de reserva.
+    icone_final = URL_FAVICON_RESERVA
+    if os.path.exists("favicon.png"):
+        try:
+            icone_final = Image.open("favicon.png")
+        except:
+            pass
+
+    st.set_page_config(page_title="Simulador Direcional", page_icon=icone_final, layout="wide")
     st.markdown("""
         <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap');
@@ -282,17 +292,16 @@ def gerar_resumo_pdf(d):
 
 def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
     # Componente para forçar scroll ao topo
-    # Usamos uma string de comentário única para forçar o re-render a cada etapa
     passo_atual = st.session_state.get('passo_simulacao', 'init')
     components.html(
         f"""
-        <!-- Step ID: {passo_atual} -->
+        <div id="scroll-anchor-{passo_atual}"></div>
         <script>
-            window.parent.window.scrollTo(0,0);
             var mainContainer = window.parent.document.querySelector('.main');
             if (mainContainer) {{
-                mainContainer.scrollTo(0,0);
+                mainContainer.scrollTo({{top: 0, behavior: 'smooth'}});
             }}
+            window.parent.window.scrollTo({{top: 0, behavior: 'smooth'}});
         </script>
         """,
         height=0
