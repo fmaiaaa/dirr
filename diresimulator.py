@@ -432,7 +432,7 @@ def main():
     if df_finan.empty or df_estoque.empty:
         st.warning("⚠️ Carregando dados privados...")
         st.stop()
-    st.markdown('<div class="header-container"><div class="header-title">SIMULADOR DE COMPRA - DIRECIONAL ENGENHARIA</div><div class="header-subtitle">Gestão de Vendas e Viabilidade Imobiliária</div></div>', unsafe_allow_html=True)
+    st.markdown('<div class="header-container"><div class="header-title">SIMULADOR IMOBILIÁRIO DV</div><div class="header-subtitle">Sistema de Gestão de Vendas e Viabilidade Imobiliária</div></div>', unsafe_allow_html=True)
     
     aba_simulador_automacao(df_finan, df_estoque, df_politicas)
 
