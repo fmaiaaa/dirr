@@ -9,7 +9,7 @@ Fluxo Automatizado de Recomendação (Sequencial):
 3. Etapa 3: Guia de Viabilidade.
 4. Etapa 4: Fechamento Financeiro.
 
-Versão: 20.0 (Correção Final: Syntax Error, Tela Duplicada e Unificação de Chaves)
+Versão: 21.0 (Remoção Emcash do Ranking, Expander Fechado, Filtros de Estoque e Recomendações Detalhadas)
 =============================================================================
 """
 
@@ -192,15 +192,17 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
     # --- ETAPA 1 ---
     if st.session_state.passo_simulacao == 'input':
         st.markdown("### 👤 Etapa 1: Dados do Cliente")
-        nome = st.text_input("Nome do Cliente", value=st.session_state.dados_cliente.get('nome', ""), key="in_nome_v20")
-        renda = st.number_input("Renda Bruta Familiar (R$)", min_value=1.0, value=st.session_state.dados_cliente.get('renda', 3500.0), step=100.0, key="in_renda_v20")
-        ranking_options = df_politicas['CLASSIFICAÇÃO'].unique().tolist() if not df_politicas.empty else ["DIAMANTE"]
-        ranking = st.selectbox("Ranking do Cliente", options=ranking_options, index=0, key="in_rank_v20")
-        politica_ps = st.selectbox("Política de Pro Soluto", ["Direcional", "Emcash"], key="in_pol_v20")
-        social = st.toggle("Fator Social", value=st.session_state.dados_cliente.get('social', False), key="in_soc_v20")
-        cotista = st.toggle("Cotista FGTS", value=st.session_state.dados_cliente.get('cotista', True), key="in_cot_v20")
+        nome = st.text_input("Nome do Cliente", value=st.session_state.dados_cliente.get('nome', ""), key="in_nome_v21")
+        renda = st.number_input("Renda Bruta Familiar (R$)", min_value=1.0, value=st.session_state.dados_cliente.get('renda', 3500.0), step=100.0, key="in_renda_v21")
         
-        if st.button("🚀 Avançar para Visão Financeira", type="primary", use_container_width=True, key="btn_s1_v20"):
+        # Remoção do EMCASH da lista de ranking (ele é uma política)
+        ranking_options = [r for r in df_politicas['CLASSIFICAÇÃO'].unique().tolist() if r != "EMCASH"] if not df_politicas.empty else ["DIAMANTE"]
+        ranking = st.selectbox("Ranking do Cliente", options=ranking_options, index=0, key="in_rank_v21")
+        politica_ps = st.selectbox("Política de Pro Soluto", ["Direcional", "Emcash"], key="in_pol_v21")
+        social = st.toggle("Fator Social", value=st.session_state.dados_cliente.get('social', False), key="in_soc_v21")
+        cotista = st.toggle("Cotista FGTS", value=st.session_state.dados_cliente.get('cotista', True), key="in_cot_v21")
+        
+        if st.button("🚀 Avançar para Visão Financeira", type="primary", use_container_width=True, key="btn_s1_v21"):
             finan, sub = motor.obter_enquadramento(renda, social, cotista)
             class_b = 'EMCASH' if politica_ps == "Emcash" else ranking
             politica_row = df_politicas[df_politicas['CLASSIFICAÇÃO'] == class_b].iloc[0]
@@ -210,7 +212,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
                 'nome': nome, 'renda': renda, 'social': social, 'cotista': cotista,
                 'ranking': ranking, 'politica': politica_ps, 
                 'perc_ps': politica_row['PROSOLUTO'], 
-                'prazo_ps_max': int(politica_row['PARCELAS']), # Unificado
+                'prazo_ps_max': int(politica_row['PARCELAS']),
                 'limit_ps_renda': limit_ps_r, 'finan_estimado': finan, 'fgts_sub': sub
             }
             st.session_state.passo_simulacao = 'potential'
@@ -240,10 +242,10 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
             </div>
         """, unsafe_allow_html=True)
         
-        if st.button("🏢 Ver Produtos Viáveis", type="primary", use_container_width=True, key="btn_s2_v20"):
+        if st.button("🏢 Ver Produtos Viáveis", type="primary", use_container_width=True, key="btn_s2_v21"):
             st.session_state.passo_simulacao = 'guide'; st.rerun()
         st.write("")
-        if st.button("⬅️ Editar Dados", use_container_width=True, key="btn_edit_v20"):
+        if st.button("⬅️ Editar Dados", use_container_width=True, key="btn_edit_v21"):
             st.session_state.passo_simulacao = 'input'; st.rerun()
 
     # --- ETAPA 3 ---
@@ -254,54 +256,70 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
         
         if df_viaveis.empty:
             st.error("❌ Nenhuma unidade viável no estoque para este perfil.")
-            if st.button("⬅️ Voltar", use_container_width=True, key="btn_v_err_v20"): st.session_state.passo_simulacao = 'potential'; st.rerun()
+            if st.button("⬅️ Voltar", use_container_width=True, key="btn_v_err_v21"): st.session_state.passo_simulacao = 'potential'; st.rerun()
         else:
-            with st.expander("🏢 Empreendimentos Disponíveis", expanded=True):
+            # Expander de empreendimentos sempre fechado primeiramente
+            with st.expander("🏢 Empreendimentos Disponíveis", expanded=False):
                 emp_counts = df_viaveis.groupby('Empreendimento').size().to_dict()
                 for emp, qtd in emp_counts.items():
                     st.markdown(f'<div class="thin-card"><div><b>{emp}</b></div><div>{qtd} unid. viáveis</div></div>', unsafe_allow_html=True)
 
             tab_rec, tab_list = st.tabs(["⭐ Recomendações", "📋 Estoque Completo"])
             with tab_rec:
-                emp_rec = st.selectbox("Filtrar por Empreendimento:", options=["Todos"] + sorted(df_viaveis['Empreendimento'].unique().tolist()), key="sel_emp_v20")
+                emp_rec = st.selectbox("Filtrar por Empreendimento:", options=["Todos"] + sorted(df_viaveis['Empreendimento'].unique().tolist()), key="sel_emp_v21")
                 df_filt = df_viaveis if emp_rec == "Todos" else df_viaveis[df_viaveis['Empreendimento'] == emp_rec]
                 df_filt = df_filt.sort_values('Valor de Venda', ascending=False)
                 
                 if not df_filt.empty:
                     r100, r90, r75 = df_filt.iloc[0], df_filt.iloc[len(df_filt)//2], df_filt.iloc[-1]
                     c1, c2, c3 = st.columns(3)
-                    with c1: st.markdown(f'<div class="recommendation-card" style="border-top-color:#2563eb;"><b>IDEAL</b><br>{r100["Identificador"]}<br><span class="price-tag">R$ {r100["Valor de Venda"]:,.2f}</span></div>', unsafe_allow_html=True)
-                    with c2: st.markdown(f'<div class="recommendation-card" style="border-top-color:#f59e0b;"><b>SEGURA</b><br>{r90["Identificador"]}<br><span class="price-tag">R$ {r90["Valor de Venda"]:,.2f}</span></div>', unsafe_allow_html=True)
-                    with c3: st.markdown(f'<div class="recommendation-card" style="border-top-color:#10b981;"><b>FACILITADA</b><br>{r75["Identificador"]}<br><span class="price-tag">R$ {r75["Valor de Venda"]:,.2f}</span></div>', unsafe_allow_html=True)
+                    # Colocado nome do empreendimento antes da unidade
+                    with c1: st.markdown(f'<div class="recommendation-card" style="border-top-color:#2563eb;"><b>IDEAL</b><br><small>{r100["Empreendimento"]}</small><br>{r100["Identificador"]}<br><span class="price-tag">R$ {r100["Valor de Venda"]:,.2f}</span></div>', unsafe_allow_html=True)
+                    with c2: st.markdown(f'<div class="recommendation-card" style="border-top-color:#f59e0b;"><b>SEGURA</b><br><small>{r90["Empreendimento"]}</small><br>{r90["Identificador"]}<br><span class="price-tag">R$ {r90["Valor de Venda"]:,.2f}</span></div>', unsafe_allow_html=True)
+                    with c3: st.markdown(f'<div class="recommendation-card" style="border-top-color:#10b981;"><b>FACILITADA</b><br><small>{r75["Empreendimento"]}</small><br>{r75["Identificador"]}<br><span class="price-tag">R$ {r75["Valor de Venda"]:,.2f}</span></div>', unsafe_allow_html=True)
 
                 st.markdown("---")
-                if st.button("💰 Ir para Fechamento", type="primary", use_container_width=True, key="btn_fech_v20"):
+                if st.button("💰 Ir para Fechamento", type="primary", use_container_width=True, key="btn_fech_v21"):
                     st.session_state.passo_simulacao = 'payment_flow'; st.rerun()
                 st.write("")
-                if st.button("⬅️ Voltar ao Potencial", use_container_width=True, key="btn_pot_v20"): 
+                if st.button("⬅️ Voltar ao Potencial", use_container_width=True, key="btn_pot_v21"): 
                     st.session_state.passo_simulacao = 'potential'; st.rerun()
 
             with tab_list:
-                st.dataframe(df_viaveis[['Identificador', 'Empreendimento', 'Bairro', 'Valor de Venda', 'Poder_Compra']], use_container_width=True, hide_index=True)
+                # Adicionado filtros de bairro, empreendimento e ordenação no estoque completo
+                f1, f2, f3, f4, f5 = st.columns([1.2, 1, 0.8, 1, 0.8])
+                with f1: f_emp = st.multiselect("Filtrar Empreendimento:", options=sorted(df_viaveis['Empreendimento'].unique()), key="f_emp_tab_v21")
+                with f2: f_bairro = st.multiselect("Filtrar Bairro:", options=sorted(df_viaveis['Bairro'].unique()), key="f_bairro_tab_v21")
+                with f3: f_andar = st.multiselect("Filtrar Andar:", options=sorted(df_viaveis['Andar'].unique()), key="f_andar_tab_v21")
+                with f4: f_ordem = st.selectbox("Ordenar Preço:", ["Maior Preço", "Menor Preço"], key="f_ordem_tab_v21")
+                with f5: f_pmax = st.number_input("Preço Máx:", value=float(df_viaveis['Valor de Venda'].max()), key="f_pmax_tab_v21")
+                
+                df_tab = df_viaveis.copy()
+                if f_emp: df_tab = df_tab[df_tab['Empreendimento'].isin(f_emp)]
+                if f_bairro: df_tab = df_tab[df_tab['Bairro'].isin(f_bairro)]
+                if f_andar: df_tab = df_tab[df_tab['Andar'].isin(f_andar)]
+                df_tab = df_tab[df_tab['Valor de Venda'] <= f_pmax]
+                df_tab = df_tab.sort_values('Valor de Venda', ascending=(f_ordem == "Menor Preço"))
+                
+                st.dataframe(df_tab[['Identificador', 'Empreendimento', 'Bairro', 'Andar', 'Valor de Venda', 'Poder_Compra']], use_container_width=True, hide_index=True)
 
     # --- ETAPA 4 ---
     elif st.session_state.passo_simulacao == 'payment_flow':
         d = st.session_state.dados_cliente
         st.markdown(f"### 📑 Etapa 4: Fechamento Financeiro")
-        emp_def = st.selectbox("Escolha o Empreendimento:", options=sorted(df_estoque['Empreendimento'].unique()), key="sel_emp_f_v20")
+        emp_def = st.selectbox("Escolha o Empreendimento:", options=sorted(df_estoque['Empreendimento'].unique()), key="sel_emp_f_v21")
         unidades = df_estoque[(df_estoque['Empreendimento'] == emp_def) & (df_estoque['Status'] == 'Disponível')]
         
         if not unidades.empty:
-            u_id = st.selectbox("Escolha a Unidade:", options=unidades['Identificador'].unique(), key="sel_uni_f_v20")
+            u_id = st.selectbox("Escolha a Unidade:", options=unidades['Identificador'].unique(), key="sel_uni_f_v21")
             u = unidades[unidades['Identificador'] == u_id].iloc[0]
             
-            f_u = st.number_input("Financiamento (R$)", value=float(d['finan_estimado']), key="fin_u_v20")
-            fgts_u = st.number_input("FGTS + Subsídio (R$)", value=float(d['fgts_sub']), key="fgt_u_v20")
+            f_u = st.number_input("Financiamento (R$)", value=float(d['finan_estimado']), key="fin_u_v21")
+            fgts_u = st.number_input("FGTS + Subsídio (R$)", value=float(d['fgts_sub']), key="fgt_u_v21")
             ps_max_v = u['Valor de Venda'] * d['perc_ps']
-            ps_u = st.number_input("Pro Soluto Total (R$)", value=float(ps_max_v), key="ps_u_v20")
+            ps_u = st.number_input("Pro Soluto Total (R$)", value=float(ps_max_v), key="ps_u_v21")
             
-            # Unificado: 'prazo_ps_max'
-            parc = st.number_input("Parcelas Pro Soluto", min_value=1, max_value=d['prazo_ps_max'], value=d['prazo_ps_max'], key="parc_u_v20")
+            parc = st.number_input("Parcelas Pro Soluto", min_value=1, max_value=d['prazo_ps_max'], value=d['prazo_ps_max'], key="parc_u_v21")
             
             v_parc = ps_u / parc
             comp_r = (v_parc / d['renda'])
@@ -319,14 +337,14 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
             
             if saldo_e > 0:
                 st.markdown("#### 🖋️ Parcelamento da Entrada")
-                st.number_input("Ato (R$)", value=saldo_e/4, key="a1_v20")
-                st.number_input("30 dias (R$)", value=saldo_e/4, key="a2_v20")
-                st.number_input("60 dias (R$)", value=saldo_e/4, key="a3_v20")
-                st.number_input("90 dias (R$)", value=saldo_e/4, key="a4_v20")
+                st.number_input("Ato (R$)", value=saldo_e/4, key="a1_v21")
+                st.number_input("30 dias (R$)", value=saldo_e/4, key="a2_v21")
+                st.number_input("60 dias (R$)", value=saldo_e/4, key="a3_v21")
+                st.number_input("90 dias (R$)", value=saldo_e/4, key="a4_v21")
         
         st.markdown("---")
-        if st.button("⬅️ Voltar", use_container_width=True, key="btn_v_guide_v20"): st.session_state.passo_simulacao = 'guide'; st.rerun()
-        if st.button("👤 Novo Cliente", use_container_width=True, key="btn_new_c_v20"): st.session_state.passo_simulacao = 'input'; st.rerun()
+        if st.button("⬅️ Voltar", use_container_width=True, key="btn_v_guide_v21"): st.session_state.passo_simulacao = 'guide'; st.rerun()
+        if st.button("👤 Novo Cliente", use_container_width=True, key="btn_new_c_v21"): st.session_state.passo_simulacao = 'input'; st.rerun()
 
 def main():
     configurar_layout()
