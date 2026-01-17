@@ -10,7 +10,7 @@ Fluxo Automatizado de Recomendação (Sequencial):
 4. Etapa 4: Fechamento Financeiro.
 5. Etapa 5: Resumo da Compra e Exportação PDF.
 
-Versão: 29.4 (Design Clean: Fundo Branco com Destaques Azul/Vermelho)
+Versão: 29.5 (Botões Coloridos: Avançar em Vermelho e Voltar em Azul)
 =============================================================================
 """
 
@@ -210,9 +210,32 @@ def configurar_layout():
         .metric-label {{ color: #64748b; font-size: 0.85rem; font-weight: 600; text-transform: uppercase; text-align: center; }}
         .metric-value {{ color: {COR_AZUL_ESC}; font-size: 1.4rem; font-weight: 700; text-align: center; }}
         
-        /* Botões: Azul Escuro com texto Branco */
-        .stButton button {{ border-radius: 8px !important; padding: 12px !important; font-weight: 600 !important; background-color: {COR_AZUL_ESC} !important; color: #ffffff !important; border: none !important; }}
-        .stButton button:hover {{ background-color: #001a3d !important; box-shadow: 0 4px 8px rgba(0,0,0,0.1); }}
+        /* Estilização Geral de Botões */
+        .stButton button {{ 
+            border-radius: 8px !important; 
+            padding: 12px !important; 
+            font-weight: 600 !important; 
+            color: #ffffff !important; 
+            border: none !important; 
+        }}
+
+        /* Botão de VOLTAR (Padrão): Azul Escuro #002c5d */
+        .stButton button {{ 
+            background-color: {COR_AZUL_ESC} !important; 
+        }}
+        .stButton button:hover {{ 
+            background-color: #001a3d !important; 
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1); 
+        }}
+        
+        /* Botão de AVANÇAR (Primário): Vermelho #b11116 */
+        .stButton button[kind="primary"] {{ 
+            background-color: {COR_VERMELHO} !important; 
+        }}
+        .stButton button[kind="primary"]:hover {{ 
+            background-color: #8c0d11 !important; 
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1); 
+        }}
         
         /* Títulos das Etapas: Azul Escuro */
         h1, h2, h3, h4 {{ text-align: center !important; width: 100%; color: {COR_AZUL_ESC}; font-weight: 700; }}
@@ -223,7 +246,7 @@ def configurar_layout():
         div[data-baseweb="tab-list"] {{ justify-content: center !important; display: flex !important; }}
         
         /* Rodapé: Fundo Branco com borda superior Vermelha */
-        .footer {{ text-align: center; padding: 30px 0; color: #64748b; font-size: 0.85rem; border-top: 5px solid {COR_VERMELHO}; margin-top: 50px; font-weight: 400; background: #ffffff; }}
+        .footer {{ text-align: center; padding: 30px 0; color: #64748b; font-size: 0.85rem; border-top: 1px solid {COR_VERMELHO}; margin-top: 50px; font-weight: 400; background: #ffffff; }}
         
         /* Resumo: Cabeçalho Azul Escuro, Corpo Branco */
         .summary-header {{ background: {COR_AZUL_ESC}; color: white; padding: 15px; border-radius: 10px 10px 0 0; font-weight: 600; text-align: center; margin-bottom: 0px; }}
@@ -291,7 +314,7 @@ def gerar_resumo_pdf(d):
             for linha in conteudo:
                 pdf.cell(0, 8, f"    {linha}", ln=True, border='LR')
             
-            # Rodapé do bloco com detalhe vermelho se for entrada
+            # Rodapé do bloco
             pdf.cell(0, 2, "", ln=True, border='LRB')
             pdf.ln(12)
 
@@ -333,6 +356,7 @@ def gerar_resumo_pdf(d):
 # =============================================================================
 
 def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
+    # Componente para forçar scroll ao topo
     passo_atual = st.session_state.get('passo_simulacao', 'init')
     components.html(
         f"""
@@ -368,6 +392,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
         cotista = st.toggle("Cotista FGTS", value=st.session_state.dados_cliente.get('cotista', True), key="in_cot_v23")
         
         if st.button("Avançar para Valor Potencial de Compra", type="primary", use_container_width=True, key="btn_s1_v23"):
+            # VALIDAÇÃO DE NOME OBRIGATÓRIO
             if not nome.strip():
                 st.warning("Por favor, informe o Nome do Cliente para iniciar a simulação.")
             else:
@@ -411,9 +436,11 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
             </div>
         """, unsafe_allow_html=True)
         
+        # Botão de Avançar (Vermelho)
         if st.button("Avançar para Seleção de Imóvel", type="primary", use_container_width=True, key="btn_s2_v23"):
             st.session_state.passo_simulacao = 'guide'; st.rerun()
         st.write("")
+        # Botão de Voltar (Azul)
         if st.button("Voltar para Dados do Cliente", use_container_width=True, key="btn_edit_v23"):
             st.session_state.passo_simulacao = 'input'; st.rerun()
 
@@ -501,6 +528,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
                                                format_func=lambda x: label_uni_guide(x, unidades_disp), key="sel_uni_guide_v26")
 
         st.write("")
+        # Botão de Avançar (Vermelho)
         if st.button("Avançar para Fechamento Financeiro", type="primary", use_container_width=True, key="btn_fech_v26"):
             if uni_escolhida_id:
                 st.session_state.dados_cliente['unidade_id'] = uni_escolhida_id
@@ -510,6 +538,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
             else:
                 st.error("Por favor, selecione uma unidade válida.")
         
+        # Botão de Voltar (Azul)
         if st.button("Voltar para Valor Potencial de Compra", use_container_width=True, key="btn_pot_v23"): 
             st.session_state.passo_simulacao = 'potential'; st.rerun()
 
@@ -524,6 +553,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
         
         if unidades_filtradas.empty:
             st.error("Erro ao recuperar unidade selecionada.")
+            # Botão de Voltar (Azul)
             if st.button("Voltar para Seleção de Imóvel"): st.session_state.passo_simulacao = 'guide'; st.rerun()
         else:
             u = unidades_filtradas.iloc[0]
@@ -587,10 +617,12 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
             })
         
         st.markdown("---")
+        # Botão de Avançar (Vermelho)
         if st.button("Obter Resumo de Compra", type="primary", use_container_width=True, key="btn_to_summary"):
             st.session_state.passo_simulacao = 'summary'
             st.rerun()
-        if st.button("Voltar para Seleção de Imóvel", use_container_width=True): 
+        # Botão de Voltar (Azul)
+        if st.button("Voltar para Seleção de Imóvel", use_container_width=True, key="btn_back_to_guide"): 
             st.session_state.passo_simulacao = 'guide'; st.rerun()
 
     # --- ETAPA 5 ---
@@ -630,9 +662,11 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
             <b>Ato 60 Dias:</b> R$ {d.get('ato_60', 0):,.2f}<br><b>Ato 90 Dias:</b> R$ {d.get('ato_90', 0):,.2f}</div>""", unsafe_allow_html=True)
 
         st.markdown("---")
-        if st.button("Iniciar Novo Cliente", type="primary", use_container_width=True): 
+        # Botão de Avançar (Vermelho)
+        if st.button("Iniciar Novo Cliente", type="primary", use_container_width=True, key="btn_new_client_summary"): 
             st.session_state.dados_cliente = {}; st.session_state.passo_simulacao = 'input'; st.rerun()
-        if st.button("Editar Fechamento Financeiro", use_container_width=True):
+        # Botão de Voltar (Azul)
+        if st.button("Editar Fechamento Financeiro", use_container_width=True, key="btn_edit_fin_summary"):
             st.session_state.passo_simulacao = 'payment_flow'; st.rerun()
 
 def main():
