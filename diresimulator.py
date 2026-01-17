@@ -845,7 +845,7 @@ def main():
     st.markdown(f'''
         <div class="header-container">
             <img src="{logo_src}" style="position: absolute; top: 30px; left: 40px; height: 50px;">
-            <div class="header-title">SIMULADOR IMOBILIÁRIO DIRE RIO</div>
+            <div class="header-title">SIMULADOR IMOBILIÁRIO DV</div>
             <div class="header-subtitle">Sistema de Gestão de Vendas e Viabilidade Imobiliária</div>
         </div>
     ''', unsafe_allow_html=True)
