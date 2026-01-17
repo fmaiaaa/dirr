@@ -9,7 +9,7 @@ Fluxo Automatizado de Recomendação (Sequencial):
 3. Etapa 3: Guia de Viabilidade.
 4. Etapa 4: Fechamento Financeiro.
 
-Versão: 21.0 (Remoção Emcash do Ranking, Expander Fechado, Filtros de Estoque e Recomendações Detalhadas)
+Versão: 22.0 (Estoque Completo com Todos os Produtos & Filtros Globais)
 =============================================================================
 """
 
@@ -73,12 +73,14 @@ def carregar_dados_sistema():
             for col in ['PROSOLUTO', 'FX_RENDA_1', 'FX_RENDA_2']:
                 if col in df_politicas.columns:
                     df_politicas[col] = df_politicas[col].apply(limpar_porcentagem)
-        except: df_politicas = pd.DataFrame()
+        except Exception:
+            df_politicas = pd.DataFrame()
 
         # --- 1.3 Carregar Financiamento ---
         try:
             df_finan = conn.read(spreadsheet=URL_FINAN)
-        except: df_finan = pd.DataFrame()
+        except Exception:
+            df_finan = pd.DataFrame()
 
         # --- 1.4 Carregar Estoque ---
         try:
@@ -89,9 +91,9 @@ def carregar_dados_sistema():
                 'Status da unidade': 'Status'
             })
             df_estoque['Valor de Venda'] = df_estoque['Valor de Venda'].apply(limpar_moeda)
+            # Filtro básico de integridade (preço real e empreendimento preenchido)
             df_estoque = df_estoque[
-                (df_estoque['Valor de Venda'] > 100000) & 
-                (df_estoque['Valor de Venda'] < 1200000) & 
+                (df_estoque['Valor de Venda'] > 0) & 
                 (df_estoque['Empreendimento'].notnull())
             ].copy()
 
@@ -107,7 +109,8 @@ def carregar_dados_sistema():
                 except: return 0
 
             df_estoque['Andar'] = df_estoque['Identificador'].apply(extrair_andar_seguro)
-        except: df_estoque = pd.DataFrame()
+        except Exception:
+            df_estoque = pd.DataFrame()
         
         return df_finan, df_estoque, df_politicas
     
@@ -195,7 +198,6 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
         nome = st.text_input("Nome do Cliente", value=st.session_state.dados_cliente.get('nome', ""), key="in_nome_v21")
         renda = st.number_input("Renda Bruta Familiar (R$)", min_value=1.0, value=st.session_state.dados_cliente.get('renda', 3500.0), step=100.0, key="in_renda_v21")
         
-        # Remoção do EMCASH da lista de ranking (ele é uma política)
         ranking_options = [r for r in df_politicas['CLASSIFICAÇÃO'].unique().tolist() if r != "EMCASH"] if not df_politicas.empty else ["DIAMANTE"]
         ranking = st.selectbox("Ranking do Cliente", options=ranking_options, index=0, key="in_rank_v21")
         politica_ps = st.selectbox("Política de Pro Soluto", ["Direcional", "Emcash"], key="in_pol_v21")
@@ -223,8 +225,10 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
         d = st.session_state.dados_cliente
         st.markdown(f"### 💰 Etapa 2: Potencial de Compra - {d['nome'] or 'Cliente'}")
         
-        ps_min_total = df_estoque['Valor de Venda'].min() * d['perc_ps']
-        ps_max_total = df_estoque['Valor de Venda'].max() * d['perc_ps']
+        # Filtramos apenas estoque disponível para estimar potencial
+        df_pot = df_estoque[df_estoque['Status'] == 'Disponível']
+        ps_min_total = df_pot['Valor de Venda'].min() * d['perc_ps']
+        ps_max_total = df_pot['Valor de Venda'].max() * d['perc_ps']
         dobro_renda = 2 * d['renda']
         pot_min = d['finan_estimado'] + d['fgts_sub'] + ps_min_total + dobro_renda
         pot_max = d['finan_estimado'] + d['fgts_sub'] + ps_max_total + dobro_renda
@@ -252,56 +256,79 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
     elif st.session_state.passo_simulacao == 'guide':
         d = st.session_state.dados_cliente
         st.markdown(f"### 🔍 Etapa 3: Guia de Viabilidade")
-        df_viaveis = motor.filtrar_unidades_viaveis(d['renda'], d['finan_estimado'], d['fgts_sub'], d['perc_ps'])
+        
+        # Filtramos o estoque disponível total
+        df_disp_total = df_estoque[df_estoque['Status'] == 'Disponível'].copy()
+        
+        # Calculamos as métricas financeiras para TODO o estoque disponível
+        res = df_disp_total['Valor de Venda'].apply(lambda vv: motor.calcular_poder_compra(d['renda'], d['finan_estimado'], d['fgts_sub'], d['perc_ps'], vv))
+        df_disp_total['Poder_Compra'] = [x[0] for x in res]
+        df_disp_total['PS_Unidade'] = [x[1] for x in res]
+        df_disp_total['Viavel'] = df_disp_total['Valor de Venda'] <= df_disp_total['Poder_Compra']
+        
+        # O subconjunto de unidades viáveis para recomendações e expander
+        df_viaveis = df_disp_total[df_disp_total['Viavel']].copy()
         
         if df_viaveis.empty:
-            st.error("❌ Nenhuma unidade viável no estoque para este perfil.")
-            if st.button("⬅️ Voltar", use_container_width=True, key="btn_v_err_v21"): st.session_state.passo_simulacao = 'potential'; st.rerun()
-        else:
-            # Expander de empreendimentos sempre fechado primeiramente
-            with st.expander("🏢 Empreendimentos Disponíveis", expanded=False):
+            st.warning("⚠️ Nenhuma unidade encontrada como viável para o perfil, mas você pode consultar o Estoque Completo.")
+        
+        # Expander de empreendimentos viáveis sempre fechado primeiramente
+        with st.expander("🏢 Empreendimentos com unidades viáveis", expanded=False):
+            if df_viaveis.empty:
+                st.write("Sem produtos viáveis no momento.")
+            else:
                 emp_counts = df_viaveis.groupby('Empreendimento').size().to_dict()
                 for emp, qtd in emp_counts.items():
                     st.markdown(f'<div class="thin-card"><div><b>{emp}</b></div><div>{qtd} unid. viáveis</div></div>', unsafe_allow_html=True)
 
-            tab_rec, tab_list = st.tabs(["⭐ Recomendações", "📋 Estoque Completo"])
-            with tab_rec:
-                emp_rec = st.selectbox("Filtrar por Empreendimento:", options=["Todos"] + sorted(df_viaveis['Empreendimento'].unique().tolist()), key="sel_emp_v21")
-                df_filt = df_viaveis if emp_rec == "Todos" else df_viaveis[df_viaveis['Empreendimento'] == emp_rec]
-                df_filt = df_filt.sort_values('Valor de Venda', ascending=False)
+        tab_rec, tab_list = st.tabs(["⭐ Recomendações (Viáveis)", "📋 Estoque Completo (Todos)"])
+        
+        with tab_rec:
+            if df_viaveis.empty:
+                st.info("Ajuste a renda ou ranking para obter recomendações viáveis.")
+            else:
+                emp_rec = st.selectbox("Filtrar Recomendações por Empreendimento:", options=["Todos"] + sorted(df_viaveis['Empreendimento'].unique().tolist()), key="sel_emp_v21")
+                df_filt_rec = df_viaveis if emp_rec == "Todos" else df_viaveis[df_viaveis['Empreendimento'] == emp_rec]
+                df_filt_rec = df_filt_rec.sort_values('Valor de Venda', ascending=False)
                 
-                if not df_filt.empty:
-                    r100, r90, r75 = df_filt.iloc[0], df_filt.iloc[len(df_filt)//2], df_filt.iloc[-1]
+                if not df_filt_rec.empty:
+                    r100, r90, r75 = df_filt_rec.iloc[0], df_filt_rec.iloc[len(df_filt_rec)//2], df_filt_rec.iloc[-1]
                     c1, c2, c3 = st.columns(3)
-                    # Colocado nome do empreendimento antes da unidade
                     with c1: st.markdown(f'<div class="recommendation-card" style="border-top-color:#2563eb;"><b>IDEAL</b><br><small>{r100["Empreendimento"]}</small><br>{r100["Identificador"]}<br><span class="price-tag">R$ {r100["Valor de Venda"]:,.2f}</span></div>', unsafe_allow_html=True)
                     with c2: st.markdown(f'<div class="recommendation-card" style="border-top-color:#f59e0b;"><b>SEGURA</b><br><small>{r90["Empreendimento"]}</small><br>{r90["Identificador"]}<br><span class="price-tag">R$ {r90["Valor de Venda"]:,.2f}</span></div>', unsafe_allow_html=True)
                     with c3: st.markdown(f'<div class="recommendation-card" style="border-top-color:#10b981;"><b>FACILITADA</b><br><small>{r75["Empreendimento"]}</small><br>{r75["Identificador"]}<br><span class="price-tag">R$ {r75["Valor de Venda"]:,.2f}</span></div>', unsafe_allow_html=True)
 
-                st.markdown("---")
-                if st.button("💰 Ir para Fechamento", type="primary", use_container_width=True, key="btn_fech_v21"):
-                    st.session_state.passo_simulacao = 'payment_flow'; st.rerun()
-                st.write("")
-                if st.button("⬅️ Voltar ao Potencial", use_container_width=True, key="btn_pot_v21"): 
-                    st.session_state.passo_simulacao = 'potential'; st.rerun()
+            st.markdown("---")
+            if st.button("💰 Ir para Fechamento", type="primary", use_container_width=True, key="btn_fech_v21"):
+                st.session_state.passo_simulacao = 'payment_flow'; st.rerun()
+            st.write("")
+            if st.button("⬅️ Voltar ao Potencial", use_container_width=True, key="btn_pot_v21"): 
+                st.session_state.passo_simulacao = 'potential'; st.rerun()
 
-            with tab_list:
-                # Adicionado filtros de bairro, empreendimento e ordenação no estoque completo
-                f1, f2, f3, f4, f5 = st.columns([1.2, 1, 0.8, 1, 0.8])
-                with f1: f_emp = st.multiselect("Filtrar Empreendimento:", options=sorted(df_viaveis['Empreendimento'].unique()), key="f_emp_tab_v21")
-                with f2: f_bairro = st.multiselect("Filtrar Bairro:", options=sorted(df_viaveis['Bairro'].unique()), key="f_bairro_tab_v21")
-                with f3: f_andar = st.multiselect("Filtrar Andar:", options=sorted(df_viaveis['Andar'].unique()), key="f_andar_tab_v21")
-                with f4: f_ordem = st.selectbox("Ordenar Preço:", ["Maior Preço", "Menor Preço"], key="f_ordem_tab_v21")
-                with f5: f_pmax = st.number_input("Preço Máx:", value=float(df_viaveis['Valor de Venda'].max()), key="f_pmax_tab_v21")
-                
-                df_tab = df_viaveis.copy()
-                if f_emp: df_tab = df_tab[df_tab['Empreendimento'].isin(f_emp)]
-                if f_bairro: df_tab = df_tab[df_tab['Bairro'].isin(f_bairro)]
-                if f_andar: df_tab = df_tab[df_tab['Andar'].isin(f_andar)]
-                df_tab = df_tab[df_tab['Valor de Venda'] <= f_pmax]
-                df_tab = df_tab.sort_values('Valor de Venda', ascending=(f_ordem == "Menor Preço"))
-                
-                st.dataframe(df_tab[['Identificador', 'Empreendimento', 'Bairro', 'Andar', 'Valor de Venda', 'Poder_Compra']], use_container_width=True, hide_index=True)
+        with tab_list:
+            # Filtros aplicados sobre TODO o estoque disponível
+            f1, f2, f3, f4, f5 = st.columns([1.2, 1, 0.8, 1, 0.8])
+            with f1: f_emp = st.multiselect("Filtrar Empreendimento:", options=sorted(df_disp_total['Empreendimento'].unique()), key="f_emp_tab_v21")
+            with f2: f_bairro = st.multiselect("Filtrar Bairro:", options=sorted(df_disp_total['Bairro'].unique()), key="f_bairro_tab_v21")
+            with f3: f_andar = st.multiselect("Filtrar Andar:", options=sorted(df_disp_total['Andar'].unique()), key="f_andar_tab_v21")
+            with f4: f_ordem = st.selectbox("Ordenar Preço:", ["Maior Preço", "Menor Preço"], key="f_ordem_tab_v21")
+            with f5: f_pmax = st.number_input("Preço Máx:", value=float(df_disp_total['Valor de Venda'].max()), key="f_pmax_tab_v21")
+            
+            df_tab = df_disp_total.copy()
+            if f_emp: df_tab = df_tab[df_tab['Empreendimento'].isin(f_emp)]
+            if f_bairro: df_tab = df_tab[df_tab['Bairro'].isin(f_bairro)]
+            if f_andar: df_tab = df_tab[df_tab['Andar'].isin(f_andar)]
+            df_tab = df_tab[df_tab['Valor de Venda'] <= f_pmax]
+            df_tab = df_tab.sort_values('Valor de Venda', ascending=(f_ordem == "Menor Preço"))
+            
+            # Adicionamos uma coluna visual para indicar o que é viável ou não na tabela completa
+            df_tab['Status Viabilidade'] = df_tab['Viavel'].apply(lambda x: "✅ Viável" if x else "❌ Insuficiente")
+            
+            st.dataframe(
+                df_tab[['Identificador', 'Empreendimento', 'Bairro', 'Andar', 'Valor de Venda', 'Poder_Compra', 'Status Viabilidade']], 
+                use_container_width=True, 
+                hide_index=True
+            )
 
     # --- ETAPA 4 ---
     elif st.session_state.passo_simulacao == 'payment_flow':
