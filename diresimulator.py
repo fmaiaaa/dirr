@@ -9,7 +9,7 @@ Fluxo Automatizado de Recomendação (Sequencial):
 3. Etapa 4: Fechamento Financeiro.
 5. Etapa 5: Resumo da Compra e Exportação PDF.
 
-Versão: 39.0 (Ajuste de Tipografia no Resumo de Venda)
+Versão: 40.0 (Resumo Executivo Premium)
 =============================================================================
 """
 
@@ -343,27 +343,58 @@ def configurar_layout():
             font-weight: 500; 
         }}
         
+        /* DESIGN DO RESUMO PREMIUM */
         .summary-header {{ 
             font-family: 'Montserrat', sans-serif;
-            background: {COR_AZUL_ESC}; 
-            color: #ffffff !important; 
-            padding: 20px; 
-            border-radius: 16px 16px 0 0; 
-            font-weight: 700; 
-            text-align: center; 
+            background: #f1f5f9; 
+            color: {COR_AZUL_ESC} !important; 
+            padding: 12px 24px; 
+            border-radius: 12px; 
+            font-weight: 800; 
+            text-align: left; 
             text-transform: uppercase;
-            letter-spacing: 2px;
+            letter-spacing: 1.5px;
+            font-size: 0.9rem;
+            margin-bottom: 20px;
+            border-left: 5px solid {COR_AZUL_ESC};
         }}
-        .summary-header * {{ color: #ffffff !important; }}
         .summary-body {{ 
             background: #ffffff; 
-            padding: 35px; 
-            border: 1px solid #e2e8f0; 
-            border-radius: 0 0 16px 16px; 
+            padding: 0px; 
+            border-radius: 16px; 
             margin-bottom: 40px; 
-            color: {COR_AZUL_ESC}; 
-            box-shadow: 0 15px 40px rgba(0,0,0,0.04);
         }}
+        
+        .summary-tile {{
+            background: #ffffff;
+            padding: 20px;
+            border-radius: 16px;
+            border: 1px solid #f1f5f9;
+            text-align: left;
+            height: 100%;
+        }}
+        .summary-tile-label {{
+            color: #64748b;
+            font-size: 0.8rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            margin-bottom: 4px;
+        }}
+        .summary-tile-value {{
+            color: {COR_AZUL_ESC};
+            font-size: 1.15rem;
+            font-weight: 700;
+            font-family: 'Montserrat', sans-serif;
+        }}
+
+        .summary-row-item {{
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 14px 0;
+            border-bottom: 1px solid #f1f5f9;
+        }}
+        .summary-row-item:last-child {{ border-bottom: none; }}
         
         .custom-alert {{ 
             background-color: {COR_AZUL_ESC}; 
@@ -449,7 +480,6 @@ def gerar_resumo_pdf(d):
                     pdf.ln(8)
                     continue
 
-                # AJUSTE: Valor em destaque mantém o tamanho 11 do resto da tabela
                 if destaque_vermelho and i == len(linhas) - 1:
                     pdf.set_text_color(*VERMELHO_RGB)
                     pdf.set_font("Helvetica", 'B', 11)
@@ -765,41 +795,67 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
         d = st.session_state.dados_cliente
         st.markdown(f"### Resumo da Simulação - {d.get('nome', 'Cliente')}")
         
+        # --- BOTÃO DE EXPORTAÇÃO NO TOPO ---
         if PDF_ENABLED:
             pdf_data = gerar_resumo_pdf(d)
             if pdf_data:
                 _, col_btn_center, _ = st.columns([1, 1.2, 1])
                 with col_btn_center:
                     st.download_button(
-                        label="Baixar Resumo em PDF", 
+                        label="📄 Exportar Resumo Profissional (PDF)", 
                         data=pdf_data, 
-                        file_name=f"Resumo de Compra - {d.get('nome', 'Cliente')}.pdf", 
+                        file_name=f"Resumo Direcional - {d.get('nome', 'Cliente')}.pdf", 
                         mime="application/pdf",
                         use_container_width=True,
-                        key="btn_download_pdf_final"
+                        key="btn_download_pdf_v40"
                     )
-        else:
-            st.warning("Função de PDF indisponível.")
 
-        st.markdown(f'<div class="summary-header">DADOS DO IMÓVEL</div>', unsafe_allow_html=True)
-        # AJUSTE: O valor de venda agora usa o mesmo tamanho do texto adjacente, apenas com cor e negrito.
-        st.markdown(f"""<div class="summary-body"><b>Empreendimento:</b> {d.get('empreendimento_nome')}<br>
-            <b>Unidade:</b> {d.get('unidade_id')}<br><b>Valor de Venda:</b> <span style="color: {COR_VERMELHO}; font-weight: 700;">R$ {d.get('imovel_valor', 0):,.2f}</span></div>""", unsafe_allow_html=True)
+        # --- SEÇÃO 1: VISÃO GERAL DO INVESTIMENTO ---
+        st.markdown('<div class="summary-header">Visão Geral do Investimento</div>', unsafe_allow_html=True)
+        c1, c2, c3 = st.columns(3)
+        with c1:
+            st.markdown(f"""<div class="summary-tile"><p class="summary-tile-label">Empreendimento</p><p class="summary-tile-value">{d.get('empreendimento_nome')}</p></div>""", unsafe_allow_html=True)
+        with c2:
+            st.markdown(f"""<div class="summary-tile"><p class="summary-tile-label">Unidade</p><p class="summary-tile-value">{d.get('unidade_id')}</p></div>""", unsafe_allow_html=True)
+        with c3:
+            st.markdown(f"""<div class="summary-tile"><p class="summary-tile-label">Valor de Venda</p><p class="summary-tile-value" style="color:{COR_VERMELHO}">R$ {d.get('imovel_valor', 0):,.2f}</p></div>""", unsafe_allow_html=True)
 
-        st.markdown(f'<div class="summary-header">PLANO DE FINANCIAMENTO</div>', unsafe_allow_html=True)
-        st.markdown(f"""<div class="summary-body"><b>Financiamento Bancário:</b> R$ {d.get('finan_usado', 0):,.2f}<br>
-            <b>FGTS + Subsídio:</b> R$ {d.get('fgts_sub_usado', 0):,.2f}<br>
-            <b>Pro Soluto Total:</b> R$ {d.get('ps_usado', 0):,.2f} ({d.get('ps_parcelas')}x de R$ {d.get('ps_mensal', 0):,.2f})</div>""", unsafe_allow_html=True)
+        # --- SEÇÃO 2: COMPOSIÇÃO FINANCEIRA ---
+        st.markdown('<div class="summary-header">Engenharia Financeira</div>', unsafe_allow_html=True)
+        cf1, cf2 = st.columns(2)
+        with cf1:
+            st.markdown(f"""
+                <div class="summary-tile">
+                    <div class="summary-row-item"><span>Financiamento Bancário</span><b>R$ {d.get('finan_usado', 0):,.2f}</b></div>
+                    <div class="summary-row-item"><span>FGTS + Subsídio</span><b>R$ {d.get('fgts_sub_usado', 0):,.2f}</b></div>
+                    <div class="summary-row-item"><span>Pro Soluto Direcional</span><b>R$ {d.get('ps_usado', 0):,.2f}</b></div>
+                </div>
+            """, unsafe_allow_html=True)
+        with cf2:
+            st.markdown(f"""
+                <div class="summary-tile">
+                    <p class="summary-tile-label">Mensalidade Pro Soluto</p>
+                    <p class="summary-tile-value">{d.get('ps_parcelas')} parcelas de R$ {d.get('ps_mensal', 0):,.2f}</p>
+                    <p style="font-size: 0.85rem; color: #64748b; margin-top: 10px;">Parcelamento fixo em tabela Direcional.</p>
+                </div>
+            """, unsafe_allow_html=True)
 
-        st.markdown(f'<div class="summary-header">FLUXO DE ENTRADA (ATO)</div>', unsafe_allow_html=True)
-        st.markdown(f"""<div class="summary-body"><b>Total de Entrada:</b> R$ {d.get('entrada_total', 0):,.2f}<br><hr style="border: 0; border-top: 1px solid #e2e8f0; margin: 10px 0;">
-            <b>Ato:</b> R$ {d.get('ato_final', 0):,.2f}<br><b>Ato 30 Dias:</b> R$ {d.get('ato_30', 0):,.2f}<br>
-            <b>Ato 60 Dias:</b> R$ {d.get('ato_60', 0):,.2f}<br><b>Ato 90 Dias:</b> R$ {d.get('ato_90', 0):,.2f}</div>""", unsafe_allow_html=True)
+        # --- SEÇÃO 3: FLUXO DE CAIXA DE ENTRADA ---
+        st.markdown('<div class="summary-header">Plano de Entrada e Fluxo de Caixa</div>', unsafe_allow_html=True)
+        st.markdown(f"""
+            <div class="summary-tile">
+                <div class="summary-row-item"><span style="font-weight:700;">VALOR TOTAL DE ENTRADA</span><b style="color:{COR_AZUL_ESC}; font-size:1.3rem;">R$ {d.get('entrada_total', 0):,.2f}</b></div>
+                <div class="summary-row-item"><span>Parcela de Ato (Imediato)</span><b>R$ {d.get('ato_final', 0):,.2f}</b></div>
+                <div class="summary-row-item"><span>Entrada em 30 Dias</span><b>R$ {d.get('ato_30', 0):,.2f}</b></div>
+                <div class="summary-row-item"><span>Entrada em 60 Dias</span><b>R$ {d.get('ato_60', 0):,.2f}</b></div>
+                <div class="summary-row-item"><span>Entrada em 90 Dias</span><b>R$ {d.get('ato_90', 0):,.2f}</b></div>
+            </div>
+        """, unsafe_allow_html=True)
 
         st.markdown("---")
-        if st.button("Iniciar Novo Cliente", type="primary", use_container_width=True, key="btn_new_client_summary"): 
+        if st.button("Simular Novo Cliente", type="primary", use_container_width=True, key="btn_new_client_summary"): 
             st.session_state.dados_cliente = {}; st.session_state.passo_simulacao = 'input'; st.rerun()
-        if st.button("Editar Fechamento Financeiro", use_container_width=True, key="btn_edit_fin_summary"):
+        if st.button("Ajustar Valores Financeiros", use_container_width=True, key="btn_edit_fin_summary"):
             st.session_state.passo_simulacao = 'payment_flow'; st.rerun()
 
 def main():
