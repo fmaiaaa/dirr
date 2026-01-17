@@ -601,7 +601,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
         
         df_viaveis = df_disp_total[df_disp_total['Viavel']].copy()
         
-        st.markdown("#### Resumo de Ofertas Ativas")
+        st.markdown("#### Empreendimentos Viáveis")
         if df_viaveis.empty:
             st.info("Sem produtos viaveis no perfil selecionado.")
         else:
@@ -634,9 +634,9 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
                 if not df_filt_rec.empty:
                     r100, r90, r75 = df_filt_rec.iloc[0], df_filt_rec.iloc[len(df_filt_rec)//2], df_filt_rec.iloc[-1]
                     c1, c2, c3 = st.columns(3)
-                    with c1: st.markdown(f'<div class="recommendation-card" style="border-top: 4px solid {COR_AZUL_ESC};"><b>PERFIL IDEAL</b><br><small>{r100["Empreendimento"]}</small><br>{r100["Identificador"]}<br><span class="price-tag">R$ {r100["Valor de Venda"]:,.2f}</span></div>', unsafe_allow_html=True)
-                    with c2: st.markdown(f'<div class="recommendation-card" style="border-top: 4px solid {COR_VERMELHO};"><b>OPCAO SEGURA</b><br><small>{r90["Empreendimento"]}</small><br>{r90["Identificador"]}<br><span class="price-tag">R$ {r90["Valor de Venda"]:,.2f}</span></div>', unsafe_allow_html=True)
-                    with c3: st.markdown(f'<div class="recommendation-card" style="border-top: 4px solid {COR_AZUL_ESC};"><b>MAIOR FACILIDADE</b><br><small>{r75["Empreendimento"]}</small><br>{r75["Identificador"]}<br><span class="price-tag">R$ {r75["Valor de Venda"]:,.2f}</span></div>', unsafe_allow_html=True)
+                    with c1: st.markdown(f'<div class="recommendation-card" style="border-top: 4px solid {COR_AZUL_ESC};"><b>IDEAL</b><br><small>{r100["Empreendimento"]}</small><br>{r100["Identificador"]}<br><span class="price-tag">R$ {r100["Valor de Venda"]:,.2f}</span></div>', unsafe_allow_html=True)
+                    with c2: st.markdown(f'<div class="recommendation-card" style="border-top: 4px solid {COR_VERMELHO};"><b>SEGURO</b><br><small>{r90["Empreendimento"]}</small><br>{r90["Identificador"]}<br><span class="price-tag">R$ {r90["Valor de Venda"]:,.2f}</span></div>', unsafe_allow_html=True)
+                    with c3: st.markdown(f'<div class="recommendation-card" style="border-top: 4px solid {COR_AZUL_ESC};"><b>FACILITADO</b><br><small>{r75["Empreendimento"]}</small><br>{r75["Identificador"]}<br><span class="price-tag">R$ {r75["Valor de Venda"]:,.2f}</span></div>', unsafe_allow_html=True)
 
         with tab_list:
             f1, f2, f3, f4, f5, f6 = st.columns([1.2, 1, 0.7, 1.1, 0.9, 0.8])
@@ -726,17 +726,17 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
             
             # Inputs com referências solicitadas
             f_u = st.number_input("Financiamento Bancário", value=float(d['finan_estimado']), step=1000.0, key="fin_u_v23")
-            st.markdown(f'<p class="inline-ref">Referência Aprovada: R$ {d["finan_estimado"]:,.2f}</p>', unsafe_allow_html=True)
+            st.markdown(f'<p class="inline-ref">Financiamento Aprovado: R$ {d["finan_estimado"]:,.2f}</p>', unsafe_allow_html=True)
             
             fgts_u = st.number_input("FGTS + Subsídio", value=float(d['fgts_sub']), step=1000.0, key="fgt_u_v23")
-            st.markdown(f'<p class="inline-ref">Referência Aprovada: R$ {d["fgts_sub"]:,.2f}</p>', unsafe_allow_html=True)
+            st.markdown(f'<p class="inline-ref">Subsídio Aprovado: R$ {d["fgts_sub"]:,.2f}</p>', unsafe_allow_html=True)
             
             ps_max_real = u['Valor de Venda'] * d['perc_ps']
             ps_u = st.number_input("Pro Soluto Direcional", value=float(ps_max_real), step=1000.0, key="ps_u_v23")
-            st.markdown(f'<p class="inline-ref">Máximo Permitido ({int(d["perc_ps"]*100)}%): R$ {ps_max_real:,.2f}</p>', unsafe_allow_html=True)
+            st.markdown(f'<p class="inline-ref">PS Máximo ({int(d["perc_ps"]*100)}%): R$ {ps_max_real:,.2f}</p>', unsafe_allow_html=True)
             
             parc = st.number_input("Número de Parcelas Pro Soluto", min_value=1, max_value=d['prazo_ps_max'], value=d['prazo_ps_max'], key="parc_u_v23")
-            st.markdown(f'<p class="inline-ref">Limite de Parcelamento: {d["prazo_ps_max"]}x</p>', unsafe_allow_html=True)
+            st.markdown(f'<p class="inline-ref">Parcelamento Máximo: {d["prazo_ps_max"]}x</p>', unsafe_allow_html=True)
             
             v_parc = ps_u / parc
             comp_r = (v_parc / d['renda'])
@@ -781,7 +781,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
             })
         
         st.markdown("---")
-        if st.button("Obter Resumo de Compra", type="primary", use_container_width=True, key="btn_to_summary"):
+        if st.button("Avançar para Resumo de Compra", type="primary", use_container_width=True, key="btn_to_summary"):
             st.session_state.passo_simulacao = 'summary'
             st.rerun()
         if st.button("Voltar para Seleção de Imóvel", use_container_width=True, key="btn_back_to_guide"): 
