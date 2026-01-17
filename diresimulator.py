@@ -10,7 +10,7 @@ Fluxo Automatizado de Recomendação (Sequencial):
 4. Etapa 4: Fechamento Financeiro.
 5. Etapa 5: Resumo da Compra e Exportação PDF.
 
-Versão: 29.3 (Cores Customizadas: Azul #002c5d e Vermelho #b11116)
+Versão: 29.4 (Design Clean: Fundo Branco com Destaques Azul/Vermelho)
 =============================================================================
 """
 
@@ -187,14 +187,14 @@ def configurar_layout():
         <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap');
         * {{ font-family: 'Inter', sans-serif; }}
-        /* Fundo branco para a aplicação principal */
+        /* Fundo branco total */
         .main {{ background-color: #ffffff; }}
         .block-container {{ max-width: 1200px !important; padding: 1rem !important; margin: auto !important; }}
         
-        /* Header: Azul Escuro #002c5d com borda Vermelha #b11116 */
-        .header-container {{ text-align: center; padding: 35px 0; background: {COR_AZUL_ESC}; border-bottom: 5px solid {COR_VERMELHO}; margin-bottom: 25px; border-radius: 0 0 15px 15px; color: #ffffff; }}
-        .header-title {{ color: #ffffff; font-size: 2.2rem; font-weight: 800; margin: 0; text-transform: uppercase; letter-spacing: 1px; }}
-        .header-subtitle {{ color: #ffffff; font-size: 1rem; font-weight: 400; margin-top: 8px; opacity: 0.9; }}
+        /* Header: Fundo Branco com borda Vermelha e títulos em Azul Escuro */
+        .header-container {{ text-align: center; padding: 35px 0; background: #ffffff; border-bottom: 5px solid {COR_VERMELHO}; margin-bottom: 25px; border-radius: 0 0 15px 15px; color: {COR_AZUL_ESC}; }}
+        .header-title {{ color: {COR_AZUL_ESC}; font-size: 2.2rem; font-weight: 800; margin: 0; text-transform: uppercase; letter-spacing: 1px; }}
+        .header-subtitle {{ color: #64748b; font-size: 1rem; font-weight: 400; margin-top: 8px; }}
         
         /* Cards: Fundo branco, títulos em Azul Escuro */
         .card {{ background: white; padding: 25px; border-radius: 12px; border: 1px solid #e2e8f0; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); margin-bottom: 20px; min-height: 130px; display: flex; flex-direction: column; justify-content: center; }}
@@ -217,15 +217,15 @@ def configurar_layout():
         /* Títulos das Etapas: Azul Escuro */
         h1, h2, h3, h4 {{ text-align: center !important; width: 100%; color: {COR_AZUL_ESC}; font-weight: 700; }}
         
-        /* Caixas Financeiras: Borda Vermelha no destaque de entrada */
-        .fin-box {{ text-align: center; padding: 20px; border-radius: 12px; border: 1px solid #e2e8f0; margin-bottom: 15px; width: 100%; color: #000000; }}
+        /* Caixas Financeiras: Fundo Branco */
+        .fin-box {{ text-align: center; padding: 20px; border-radius: 12px; border: 1px solid #e2e8f0; margin-bottom: 15px; width: 100%; color: #000000; background: #ffffff; }}
         .inline-ref {{ font-size: 0.85rem; color: #475569; margin-top: -12px; margin-bottom: 14px; font-weight: 500; text-align: left; background: #f8f9fa; padding: 6px 10px; border-radius: 4px; border-left: 3px solid {COR_VERMELHO}; }}
         div[data-baseweb="tab-list"] {{ justify-content: center !important; display: flex !important; }}
         
-        /* Rodapé: Azul Escuro */
-        .footer {{ text-align: center; padding: 30px 0; color: #ffffff; font-size: 0.85rem; border-top: 5px solid {COR_VERMELHO}; margin-top: 50px; font-weight: 400; background: {COR_AZUL_ESC}; }}
+        /* Rodapé: Fundo Branco com borda superior Vermelha */
+        .footer {{ text-align: center; padding: 30px 0; color: #64748b; font-size: 0.85rem; border-top: 5px solid {COR_VERMELHO}; margin-top: 50px; font-weight: 400; background: #ffffff; }}
         
-        /* Resumo: Cabeçalho Azul Escuro */
+        /* Resumo: Cabeçalho Azul Escuro, Corpo Branco */
         .summary-header {{ background: {COR_AZUL_ESC}; color: white; padding: 15px; border-radius: 10px 10px 0 0; font-weight: 600; text-align: center; margin-bottom: 0px; }}
         .summary-body {{ background: white; padding: 20px; border: 1px solid #e2e8f0; border-radius: 0 0 10px 10px; margin-bottom: 20px; color: #000000; }}
         .download-container {{ display: flex; justify-content: center; margin-bottom: 20px; }}
@@ -245,35 +245,53 @@ def gerar_resumo_pdf(d):
         pdf.add_page()
         pdf.set_auto_page_break(auto=True, margin=15)
         
-        # Cabeçalho do Documento em Azul Escuro #002c5d
-        pdf.set_fill_color(0, 44, 93) # RGB aproximado de #002c5d
+        # Cabeçalho do Documento: Fundo Branco com detalhes em Azul e Vermelho
+        pdf.set_fill_color(255, 255, 255)
         pdf.rect(0, 0, 210, 40, 'F')
-        pdf.set_text_color(255, 255, 255) # Branco
+        
+        # Linha Vermelha decorativa no topo
+        pdf.set_fill_color(177, 17, 22) # Vermelho
+        pdf.rect(0, 0, 210, 3, 'F')
+        
+        pdf.set_text_color(0, 44, 93) # Azul Escuro
         pdf.set_font("Helvetica", 'B', 18)
+        pdf.ln(10)
         pdf.cell(0, 12, "SIMULADOR IMOBILIARIO DV", ln=True, align='C')
+        pdf.set_text_color(100, 116, 139) # Cinza
         pdf.set_font("Helvetica", '', 10)
         pdf.cell(0, 8, "Resumo de Compra e Viabilidade Financeira", ln=True, align='C')
+        
+        # Linha Azul decorativa pós-título
+        pdf.set_draw_color(0, 44, 93)
+        pdf.line(60, 35, 150, 35)
         pdf.ln(15)
 
-        # Informações do Cliente em Azul Escuro
+        # Informações do Cliente
         pdf.set_text_color(0, 44, 93)
         pdf.set_font("Helvetica", 'B', 12)
         pdf.cell(0, 10, f"Cliente: {d.get('nome', 'Não informado')}", ln=True)
+        pdf.set_text_color(0, 0, 0)
         pdf.set_font("Helvetica", '', 11)
         pdf.cell(0, 8, f"Renda Familiar: R$ {d.get('renda', 0):,.2f}", ln=True)
         pdf.ln(10)
 
         def criar_bloco_pdf(titulo, conteudo):
-            pdf.set_fill_color(0, 44, 93) # Azul Escuro
-            pdf.set_text_color(255, 255, 255) # Branco
+            # Cabeçalho do Bloco: Azul Escuro
+            pdf.set_fill_color(0, 44, 93)
+            pdf.set_text_color(255, 255, 255)
             pdf.set_font("Helvetica", 'B', 11)
             pdf.cell(0, 10, f"  {titulo}", ln=True, fill=True)
-            pdf.set_text_color(0, 0, 0) # Preto
+            
+            # Corpo do Bloco: Branco com bordas cinzas
+            pdf.set_text_color(0, 0, 0)
             pdf.set_font("Helvetica", '', 10.5)
-            pdf.set_fill_color(255, 255, 255) # Branco
+            pdf.set_fill_color(255, 255, 255)
+            pdf.set_draw_color(226, 232, 240)
             pdf.ln(2)
             for linha in conteudo:
                 pdf.cell(0, 8, f"    {linha}", ln=True, border='LR')
+            
+            # Rodapé do bloco com detalhe vermelho se for entrada
             pdf.cell(0, 2, "", ln=True, border='LRB')
             pdf.ln(12)
 
@@ -303,7 +321,7 @@ def gerar_resumo_pdf(d):
 
         pdf.set_y(-25)
         pdf.set_font("Helvetica", 'I', 8)
-        pdf.set_text_color(177, 17, 22) # Vermelho #b11116 para aviso
+        pdf.set_text_color(177, 17, 22)
         pdf.cell(0, 10, "Este documento é uma simulação sujeita a análise de crédito.", ln=True, align='C')
 
         return bytes(pdf.output())
@@ -387,7 +405,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
         with m4: st.markdown(f'<div class="card"><p class="metric-label">Capacidade de Entrada</p><p class="metric-value">R$ {dobro_renda:,.2f}</p></div>', unsafe_allow_html=True)
 
         st.markdown(f"""
-            <div class="card" style="border-top: 5px solid {COR_AZUL_ESC}; text-align: center; background: #f8f9fa; min-height: auto; padding: 30px;">
+            <div class="card" style="border-top: 5px solid {COR_AZUL_ESC}; text-align: center; background: #ffffff; min-height: auto; padding: 30px;">
                 <p class="metric-label" style="color: {COR_AZUL_ESC}; font-size: 1.1rem;">Valor Potencial de Compra Estimado</p>
                 <p class="metric-value" style="font-size: 2.2rem; color: {COR_AZUL_ESC}; margin-bottom:5px;">R$ {pot_min:,.2f} a R$ {pot_max:,.2f}</p>
             </div>
@@ -545,7 +563,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
             if comp_r > d['limit_ps_renda']:
                 st.warning(f"Atenção: Parcela ultrapassa o limite de {d['limit_ps_renda']*100:.0f}% da renda.")
 
-            st.markdown(f'<div class="fin-box" style="background:#fff1f2; border-top: 5px solid {COR_VERMELHO};"><b>Saldo Entrada Restante:</b> R$ {max(0, saldo_e):,.2f}</div>', unsafe_allow_html=True)
+            st.markdown(f'<div class="fin-box" style="background:#ffffff; border-top: 5px solid {COR_VERMELHO};"><b>Saldo Entrada Restante:</b> R$ {max(0, saldo_e):,.2f}</div>', unsafe_allow_html=True)
             
             if saldo_e > 0:
                 st.markdown("#### Parcelamento da Entrada")
@@ -583,6 +601,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
         if PDF_ENABLED:
             pdf_data = gerar_resumo_pdf(d)
             if pdf_data:
+                # Centralização do botão de download
                 _, col_btn_center, _ = st.columns([1, 1.2, 1])
                 with col_btn_center:
                     st.download_button(
@@ -622,9 +641,11 @@ def main():
     if df_finan.empty or df_estoque.empty:
         st.warning("Carregando dados privados...")
         st.stop()
-    st.markdown(f'<div class="header-container" style="background:{COR_AZUL_ESC}; border-bottom:5px solid {COR_VERMELHO};"><div class="header-title">SIMULADOR IMOBILIÁRIO DV</div><div class="header-subtitle">Sistema de Gestão de Vendas e Viabilidade Imobiliária</div></div>', unsafe_allow_html=True)
+    # Títulos e Subtítulos em cores de marca sobre fundo branco
+    st.markdown(f'<div class="header-container"><div class="header-title">SIMULADOR IMOBILIÁRIO DV</div><div class="header-subtitle">Sistema de Gestão de Vendas e Viabilidade Imobiliária</div></div>', unsafe_allow_html=True)
     aba_simulador_automacao(df_finan, df_estoque, df_politicas)
-    st.markdown(f'<div class="footer" style="background:{COR_AZUL_ESC}; border-top:5px solid {COR_VERMELHO};">Desenvolvido por Lucas Maia</div>', unsafe_allow_html=True)
+    # Rodapé em branco com borda vermelha
+    st.markdown(f'<div class="footer">Desenvolvido por Lucas Maia</div>', unsafe_allow_html=True)
 
 if __name__ == "__main__":
     main()
