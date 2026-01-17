@@ -10,7 +10,7 @@ Fluxo Automatizado de Recomendação (Sequencial):
 4. Etapa 4: Fechamento Financeiro.
 5. Etapa 5: Resumo da Compra e Exportação PDF.
 
-Versão: 33.0 (Design Profissional Premium, Tipografia Montserrat/Inter)
+Versão: 34.0 (Cartões Padronizados com Mesma Altura e Largura)
 =============================================================================
 """
 
@@ -195,7 +195,7 @@ def configurar_layout():
             line-height: 1.6;
         }}
         
-        /* Títulos de alta performance visual */
+        /* Títulos */
         h1, h2, h3, h4 {{
             font-family: 'Montserrat', sans-serif !important;
             text-align: center !important; 
@@ -206,11 +206,11 @@ def configurar_layout():
             margin-bottom: 1.5rem !important;
         }}
 
-        /* Fundo branco sofisticado */
+        /* Fundo branco total */
         .main {{ background-color: #ffffff; }}
         .block-container {{ max-width: 1100px !important; padding: 2rem !important; margin: auto !important; }}
         
-        /* Header minimalista e elegante */
+        /* Header */
         .header-container {{ 
             text-align: center; 
             padding: 40px 0; 
@@ -237,30 +237,22 @@ def configurar_layout():
             letter-spacing: 0.5px;
         }}
         
-        /* Cards unificados e modernos */
-        .card {{ 
+        /* PADRONIZAÇÃO DE CARTÕES: Mesma Altura e Largura */
+        .card, .fin-box, .recommendation-card {{ 
             background: white; 
-            padding: 30px; 
+            padding: 25px; 
             border-radius: 16px; 
             border: 1px solid #f1f5f9; 
             box-shadow: 0 4px 20px rgba(0,0,0,0.04); 
             margin-bottom: 25px; 
-            transition: transform 0.2s ease;
-        }}
-        
-        .fin-box, .recommendation-card {{ 
-            text-align: center; 
-            padding: 25px; 
-            border-radius: 14px; 
-            border: 1px solid #e2e8f0; 
-            margin-bottom: 20px; 
-            width: 100%; 
-            background: #ffffff; 
-            color: {COR_AZUL_ESC}; 
-            box-shadow: 0 4px 12px rgba(0,0,0,0.03);
+            min-height: 180px; /* Altura padronizada para todos */
+            height: 100%;
             display: flex;
             flex-direction: column;
             justify-content: center;
+            align-items: center;
+            text-align: center;
+            width: 100%;
         }}
         
         .thin-card {{ 
@@ -293,27 +285,13 @@ def configurar_layout():
             transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
         }}
 
-        .stButton button:active {{ transform: scale(0.98); }}
-
-        /* Botão Primário (Avançar) */
-        .stButton button[kind="primary"] {{ 
-            background-color: {COR_VERMELHO} !important; 
-        }}
-        .stButton button[kind="primary"]:hover {{ 
-            background-color: #c40a10 !important; 
-            box-shadow: 0 8px 20px rgba(227, 6, 19, 0.2); 
-        }}
+        .stButton button[kind="primary"] {{ background-color: {COR_VERMELHO} !important; }}
+        .stButton button[kind="primary"]:hover {{ background-color: #c40a10 !important; box-shadow: 0 8px 20px rgba(227, 6, 19, 0.2); }}
         
-        /* Botão Padrão (Voltar) */
-        .stButton button {{ 
-            background-color: {COR_AZUL_ESC} !important; 
-        }}
-        .stButton button:hover {{ 
-            background-color: #001a3d !important; 
-            box-shadow: 0 8px 20px rgba(0, 44, 93, 0.2); 
-        }}
+        .stButton button {{ background-color: {COR_AZUL_ESC} !important; }}
+        .stButton button:hover {{ background-color: #001a3d !important; box-shadow: 0 8px 20px rgba(0, 44, 93, 0.2); }}
         
-        /* Rodapé de Luxo */
+        /* Rodapé */
         .footer {{ 
             text-align: center; 
             padding: 40px 0; 
@@ -325,7 +303,7 @@ def configurar_layout():
             background: #ffffff; 
         }}
         
-        /* Resumo - Consistência Visual */
+        /* Resumo */
         .summary-header {{ 
             font-family: 'Montserrat', sans-serif;
             background: {COR_AZUL_ESC}; 
@@ -348,7 +326,6 @@ def configurar_layout():
             box-shadow: 0 4px 15px rgba(0,0,0,0.03);
         }}
         
-        /* Alertas */
         .custom-alert {{ 
             background-color: {COR_AZUL_ESC}; 
             padding: 20px; 
@@ -357,20 +334,16 @@ def configurar_layout():
             text-align: center; 
             font-weight: 600; 
             color: #ffffff !important; 
-            box-shadow: 0 10px 25px rgba(0, 44, 93, 0.1);
         }}
         .custom-alert * {{ color: #ffffff !important; }}
 
         /* Tabs Profissionais */
         div[data-baseweb="tab-list"] {{ justify-content: center !important; display: flex !important; gap: 30px; margin-bottom: 20px; }}
-        button[data-baseweb="tab"] p {{ 
-            color: {COR_AZUL_ESC} !important; 
-            font-weight: 700 !important; 
-            font-family: 'Montserrat', sans-serif !important;
-            font-size: 1.05rem !important;
-        }}
+        button[data-baseweb="tab"] p {{ color: {COR_AZUL_ESC} !important; font-weight: 700 !important; font-family: 'Montserrat', sans-serif !important; font-size: 1.05rem !important; }}
         button[data-baseweb="tab"][aria-selected="true"] p {{ color: {COR_VERMELHO} !important; }}
         div[data-baseweb="tab-highlight"] {{ background-color: {COR_VERMELHO} !important; height: 4px !important; }}
+
+        div[data-testid="stToggle"] div[aria-checked="true"] {{ background-color: {COR_VERMELHO} !important; }}
         </style>
     """, unsafe_allow_html=True)
 
@@ -387,16 +360,12 @@ def gerar_resumo_pdf(d):
         pdf.add_page()
         pdf.set_auto_page_break(auto=True, margin=15)
         
-        # Cores Direcional (RGB)
         AZUL_RGB = (0, 44, 93)
         VERMELHO_RGB = (227, 6, 19)
         BRANCO_RGB = (255, 255, 255)
 
-        # Cabeçalho do Documento
         pdf.set_fill_color(*BRANCO_RGB)
         pdf.rect(0, 0, 210, 45, 'F')
-        
-        # Barra Vermelha no Topo
         pdf.set_fill_color(*VERMELHO_RGB)
         pdf.rect(0, 0, 210, 4, 'F')
         
@@ -408,24 +377,20 @@ def gerar_resumo_pdf(d):
         pdf.cell(0, 6, "Resumo de Compra e Viabilidade Financeira", ln=True, align='C')
         pdf.ln(10)
 
-        # Informações do Cliente (Corrigido para Azul conforme pedido)
         pdf.set_text_color(*AZUL_RGB)
         pdf.set_font("Helvetica", 'B', 12)
         pdf.cell(0, 10, f"Cliente: {d.get('nome', 'Nao informado')}", ln=True)
-        
-        pdf.set_text_color(*AZUL_RGB) # Renda Familiar agora em Azul
+        pdf.set_text_color(*AZUL_RGB)
         pdf.set_font("Helvetica", '', 11)
         pdf.cell(0, 8, f"Renda Familiar: R$ {d.get('renda', 0):,.2f}", ln=True)
         pdf.ln(8)
 
         def criar_card_pdf(titulo, linhas, destaque_vermelho=False):
-            # Cabeçalho do Card
             pdf.set_fill_color(*AZUL_RGB)
             pdf.set_text_color(*BRANCO_RGB)
             pdf.set_font("Helvetica", 'B', 11)
             pdf.cell(0, 10, f"   {titulo}", ln=True, fill=True)
             
-            # Conteúdo do Card
             pdf.set_fill_color(*BRANCO_RGB)
             pdf.set_text_color(*AZUL_RGB)
             pdf.set_draw_color(226, 232, 240)
@@ -444,32 +409,26 @@ def gerar_resumo_pdf(d):
             pdf.cell(0, 2, "", ln=True, border='LRB')
             pdf.ln(10)
 
-        # 1. Dados do Imóvel
-        imovel_dados = [
+        criar_card_pdf("DADOS DO IMOVEL", [
             f"Empreendimento: {d.get('empreendimento_nome')}",
             f"Unidade: {d.get('unidade_id')}",
             f"Valor de Venda: R$ {d.get('imovel_valor', 0):,.2f}"
-        ]
-        criar_card_pdf("DADOS DO IMOVEL", imovel_dados, destaque_vermelho=True)
+        ], destaque_vermelho=True)
 
-        # 2. Plano de Financiamento
-        finan_dados = [
+        criar_card_pdf("PLANO DE FINANCIAMENTO", [
             f"Financiamento Bancario: R$ {d.get('finan_usado', 0):,.2f}",
             f"FGTS + Subsidio: R$ {d.get('fgts_sub_usado', 0):,.2f}",
             f"Pro Soluto Total: R$ {d.get('ps_usado', 0):,.2f} ({d.get('ps_parcelas')}x de R$ {d.get('ps_mensal', 0):,.2f})"
-        ]
-        criar_card_pdf("PLANO DE FINANCIAMENTO", finan_dados)
+        ])
 
-        # 3. Fluxo de Entrada
-        entrada_dados = [
+        criar_card_pdf("FLUXO DE ENTRADA (ATO)", [
             f"Total de Entrada: R$ {d.get('entrada_total', 0):,.2f}",
             "-----------------------------------------------------------------------------------------",
             f"Ato: R$ {d.get('ato_final', 0):,.2f}",
             f"Ato 30 Dias: R$ {d.get('ato_30', 0):,.2f}",
             f"Ato 60 Dias: R$ {d.get('ato_60', 0):,.2f}",
             f"Ato 90 Dias: R$ {d.get('ato_90', 0):,.2f}"
-        ]
-        criar_card_pdf("FLUXO DE ENTRADA (ATO)", entrada_dados)
+        ])
 
         pdf.set_y(-25)
         pdf.set_font("Helvetica", 'I', 8)
@@ -557,7 +516,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
         with m4: st.markdown(f'<div class="card"><p class="metric-label">Capacidade de Entrada</p><p class="metric-value">R$ {dobro_renda:,.2f}</p></div>', unsafe_allow_html=True)
 
         st.markdown(f"""
-            <div class="card" style="border-top: 5px solid {COR_AZUL_ESC}; text-align: center; background: #ffffff; min-height: auto; padding: 30px;">
+            <div class="card" style="border-top: 8px solid {COR_AZUL_ESC}; background: #ffffff;">
                 <p class="metric-label" style="color: {COR_AZUL_ESC}; font-size: 1.1rem;">Valor Potencial de Compra Estimado</p>
                 <p class="metric-value" style="font-size: 2.2rem; color: {COR_AZUL_ESC}; margin-bottom:5px;">R$ {pot_min:,.2f} a R$ {pot_max:,.2f}</p>
             </div>
@@ -604,9 +563,10 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
                 if not df_filt_rec.empty:
                     r100, r90, r75 = df_filt_rec.iloc[0], df_filt_rec.iloc[len(df_filt_rec)//2], df_filt_rec.iloc[-1]
                     c1, c2, c3 = st.columns(3)
-                    with c1: st.markdown(f'<div class="recommendation-card" style="border-top: 5px solid {COR_AZUL_ESC};"><b>IDEAL</b><br><small>{r100["Empreendimento"]}</small><br>{r100["Identificador"]}<br><span class="price-tag">R$ {r100["Valor de Venda"]:,.2f}</span></div>', unsafe_allow_html=True)
-                    with c2: st.markdown(f'<div class="recommendation-card" style="border-top: 5px solid {COR_VERMELHO};"><b>SEGURA</b><br><small>{r90["Empreendimento"]}</small><br>{r90["Identificador"]}<br><span class="price-tag">R$ {r90["Valor de Venda"]:,.2f}</span></div>', unsafe_allow_html=True)
-                    with c3: st.markdown(f'<div class="recommendation-card" style="border-top: 5px solid {COR_AZUL_ESC};"><b>FACILITADA</b><br><small>{r75["Empreendimento"]}</small><br>{r75["Identificador"]}<br><span class="price-tag">R$ {r75["Valor de Venda"]:,.2f}</span></div>', unsafe_allow_html=True)
+                    # RECOMENDAÇÕES PADRONIZADAS (Azul - Vermelho - Azul)
+                    with c1: st.markdown(f'<div class="recommendation-card" style="border-top: 8px solid {COR_AZUL_ESC};"><b>IDEAL</b><br><small>{r100["Empreendimento"]}</small><br>{r100["Identificador"]}<br><span class="price-tag">R$ {r100["Valor de Venda"]:,.2f}</span></div>', unsafe_allow_html=True)
+                    with c2: st.markdown(f'<div class="recommendation-card" style="border-top: 8px solid {COR_VERMELHO};"><b>SEGURA</b><br><small>{r90["Empreendimento"]}</small><br>{r90["Identificador"]}<br><span class="price-tag">R$ {r90["Valor de Venda"]:,.2f}</span></div>', unsafe_allow_html=True)
+                    with c3: st.markdown(f'<div class="recommendation-card" style="border-top: 8px solid {COR_AZUL_ESC};"><b>FACILITADA</b><br><small>{r75["Empreendimento"]}</small><br>{r75["Identificador"]}<br><span class="price-tag">R$ {r75["Valor de Venda"]:,.2f}</span></div>', unsafe_allow_html=True)
 
         with tab_list:
             f1, f2, f3, f4, f5, f6 = st.columns([1.2, 1, 0.7, 1.1, 0.9, 0.8])
@@ -707,16 +667,11 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
                 st.session_state.ato_4 = dist_val
                 st.session_state.last_calc_hash = calc_hash
             
-            # DESTAQUES FINANCEIROS: AZUL - VERMELHO - AZUL (Fundo Branco)
-            st.markdown(f"""
-                <div class="fin-box" style="border-top: 5px solid {COR_AZUL_ESC};"><b>Valor do Imóvel:</b> R$ {u['Valor de Venda']:,.2f}</div>
-                <div class="fin-box" style="border-top: 5px solid {COR_VERMELHO};">
-                    <b>Mensalidade Pro Soluto:</b> R$ {v_parc:,.2f} em {parc}x
-                </div>
-                <div class="fin-box" style="border-top: 5px solid {COR_AZUL_ESC};">
-                    <b>Saldo Entrada Restante:</b> R$ {max(0, saldo_e):,.2f}
-                </div>
-            """, unsafe_allow_html=True)
+            # DESTAQUES FINANCEIROS PADRONIZADOS (Azul - Vermelho - Azul)
+            fin1, fin2, fin3 = st.columns(3)
+            with fin1: st.markdown(f"""<div class="fin-box" style="border-top: 8px solid {COR_AZUL_ESC};"><b>Valor do Imóvel</b><br>R$ {u['Valor de Venda']:,.2f}</div>""", unsafe_allow_html=True)
+            with fin2: st.markdown(f"""<div class="fin-box" style="border-top: 8px solid {COR_VERMELHO};"><b>Mensalidade Pro Soluto</b><br>R$ {v_parc:,.2f} em {parc}x</div>""", unsafe_allow_html=True)
+            with fin3: st.markdown(f"""<div class="fin-box" style="border-top: 8px solid {COR_AZUL_ESC};"><b>Saldo Entrada</b><br>R$ {max(0, saldo_e):,.2f}</div>""", unsafe_allow_html=True)
             
             if comp_r > d['limit_ps_renda']:
                 st.warning(f"Atenção: Parcela ultrapassa o limite de {d['limit_ps_renda']*100:.0f}% da renda.")
@@ -757,7 +712,6 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
         if PDF_ENABLED:
             pdf_data = gerar_resumo_pdf(d)
             if pdf_data:
-                # Centralização do botão de download
                 _, col_btn_center, _ = st.columns([1, 1.2, 1])
                 with col_btn_center:
                     st.download_button(
@@ -771,7 +725,6 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
         else:
             st.warning("Função de PDF indisponível. Verifique o arquivo requirements.txt.")
 
-        # CABEÇALHOS DO RESUMO COM TEXTO EM BRANCO FORÇADO
         st.markdown(f'<div class="summary-header">DADOS DO IMÓVEL</div>', unsafe_allow_html=True)
         st.markdown(f"""<div class="summary-body"><b>Empreendimento:</b> {d.get('empreendimento_nome')}<br>
             <b>Unidade:</b> {d.get('unidade_id')}<br><b>Valor de Venda:</b> <span class="price-tag">R$ {d.get('imovel_valor', 0):,.2f}</span></div>""", unsafe_allow_html=True)
