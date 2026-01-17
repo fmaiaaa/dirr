@@ -10,7 +10,7 @@ Fluxo Automatizado de Recomendação (Sequencial):
 4. Etapa 4: Fechamento Financeiro.
 5. Etapa 5: Resumo da Compra e Exportação PDF.
 
-Versão: 28.4 (Ajuste no Nome do Arquivo de Download do PDF)
+Versão: 28.5 (Scroll ao topo automático e Validação de Nome Obrigatório)
 =============================================================================
 """
 
@@ -20,6 +20,7 @@ import numpy as np
 import re
 from streamlit_gsheets import GSheetsConnection
 import io
+import streamlit.components.v1 as components
 
 # Tenta importar fpdf de forma segura
 try:
@@ -189,7 +190,7 @@ def configurar_layout():
         .footer { text-align: center; padding: 30px 0; color: #64748b; font-size: 0.85rem; border-top: 1px solid #e2e8f0; margin-top: 50px; font-weight: 400; }
         .summary-header { background: #1e293b; color: white; padding: 15px; border-radius: 10px 10px 0 0; font-weight: 600; text-align: center; margin-bottom: 0px; }
         .summary-body { background: white; padding: 20px; border: 1px solid #e2e8f0; border-radius: 0 0 10px 10px; margin-bottom: 20px; }
-        .download-container { display: flex; justify-content: flex-end; margin-bottom: 10px; }
+        .download-container { display: flex; justify-content: center; margin-bottom: 20px; }
         </style>
     """, unsafe_allow_html=True)
 
@@ -224,27 +225,20 @@ def gerar_resumo_pdf(d):
         pdf.cell(0, 8, f"Renda Familiar: R$ {d.get('renda', 0):,.2f}", ln=True)
         pdf.ln(10)
 
-        # Função interna para criar os blocos visuais no PDF
         def criar_bloco_pdf(titulo, conteudo):
             pdf.set_fill_color(30, 41, 59)
             pdf.set_text_color(255, 255, 255)
             pdf.set_font("Helvetica", 'B', 11)
             pdf.cell(0, 10, f"  {titulo}", ln=True, fill=True)
-            
             pdf.set_text_color(30, 41, 59)
             pdf.set_font("Helvetica", '', 10.5)
             pdf.set_fill_color(255, 255, 255)
-            
-            # Espaçamento interno simulado
             pdf.ln(2)
             for linha in conteudo:
                 pdf.cell(0, 8, f"    {linha}", ln=True, border='LR')
-            
-            # Linha de fechamento do bloco
             pdf.cell(0, 2, "", ln=True, border='LRB')
             pdf.ln(12)
 
-        # Conteúdo do Imóvel
         imovel_cont = [
             f"Empreendimento: {d.get('empreendimento_nome')}",
             f"Unidade: {d.get('unidade_id')}",
@@ -252,7 +246,6 @@ def gerar_resumo_pdf(d):
         ]
         criar_bloco_pdf("DADOS DO IMÓVEL", imovel_cont)
 
-        # Conteúdo do Financiamento
         finan_cont = [
             f"Financiamento Bancário: R$ {d.get('finan_usado', 0):,.2f}",
             f"FGTS + Subsídio: R$ {d.get('fgts_sub_usado', 0):,.2f}",
@@ -260,7 +253,6 @@ def gerar_resumo_pdf(d):
         ]
         criar_bloco_pdf("PLANO DE FINANCIAMENTO", finan_cont)
 
-        # Conteúdo da Entrada
         entrada_cont = [
             f"Total de Entrada: R$ {d.get('entrada_total', 0):,.2f}",
             "--------------------------------------------------------------------------------",
@@ -271,15 +263,13 @@ def gerar_resumo_pdf(d):
         ]
         criar_bloco_pdf("FLUXO DE ENTRADA (ATO)", entrada_cont)
 
-        # Rodapé Estilizado
         pdf.set_y(-25)
         pdf.set_font("Helvetica", 'I', 8)
         pdf.set_text_color(150, 150, 150)
         pdf.cell(0, 10, "Este documento é uma simulação sujeita a análise de crédito.", ln=True, align='C')
 
-        # Retorna o PDF como bytes
         return bytes(pdf.output())
-    except Exception as e:
+    except Exception:
         return None
 
 # =============================================================================
@@ -287,6 +277,12 @@ def gerar_resumo_pdf(d):
 # =============================================================================
 
 def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
+    # Componente para forçar scroll ao topo em cada re-renderização de mudança de página
+    components.html(
+        "<script>window.parent.window.scrollTo(0,0);</script>",
+        height=0
+    )
+
     motor = MotorRecomendacao(df_finan, df_estoque, df_politicas)
     
     if 'passo_simulacao' not in st.session_state:
@@ -307,20 +303,24 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
         cotista = st.toggle("Cotista FGTS", value=st.session_state.dados_cliente.get('cotista', True), key="in_cot_v23")
         
         if st.button("Avançar para Valor Potencial de Compra", type="primary", use_container_width=True, key="btn_s1_v23"):
-            finan, sub = motor.obter_enquadramento(renda, social, cotista)
-            class_b = 'EMCASH' if politica_ps == "Emcash" else ranking
-            politica_row = df_politicas[df_politicas['CLASSIFICAÇÃO'] == class_b].iloc[0]
-            limit_ps_r = politica_row['FX_RENDA_1'] if renda < politica_row['FAIXA_RENDA'] else politica_row['FX_RENDA_2']
-            
-            st.session_state.dados_cliente = {
-                'nome': nome, 'renda': renda, 'social': social, 'cotista': cotista,
-                'ranking': ranking, 'politica': politica_ps, 
-                'perc_ps': politica_row['PROSOLUTO'], 
-                'prazo_ps_max': int(politica_row['PARCELAS']),
-                'limit_ps_renda': limit_ps_r, 'finan_estimado': finan, 'fgts_sub': sub
-            }
-            st.session_state.passo_simulacao = 'potential'
-            st.rerun()
+            # VALIDAÇÃO DE NOME OBRIGATÓRIO
+            if not nome.strip():
+                st.warning("Por favor, informe o Nome do Cliente para iniciar a simulação.")
+            else:
+                finan, sub = motor.obter_enquadramento(renda, social, cotista)
+                class_b = 'EMCASH' if politica_ps == "Emcash" else ranking
+                politica_row = df_politicas[df_politicas['CLASSIFICAÇÃO'] == class_b].iloc[0]
+                limit_ps_r = politica_row['FX_RENDA_1'] if renda < politica_row['FAIXA_RENDA'] else politica_row['FX_RENDA_2']
+                
+                st.session_state.dados_cliente = {
+                    'nome': nome, 'renda': renda, 'social': social, 'cotista': cotista,
+                    'ranking': ranking, 'politica': politica_ps, 
+                    'perc_ps': politica_row['PROSOLUTO'], 
+                    'prazo_ps_max': int(politica_row['PARCELAS']),
+                    'limit_ps_renda': limit_ps_r, 'finan_estimado': finan, 'fgts_sub': sub
+                }
+                st.session_state.passo_simulacao = 'potential'
+                st.rerun()
 
     # --- ETAPA 2 ---
     elif st.session_state.passo_simulacao == 'potential':
@@ -411,7 +411,6 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
             
             st.dataframe(df_tab[['Identificador', 'Empreendimento', 'Bairro', 'Andar', 'Valor de Venda', 'Poder_Compra', 'Status Viabilidade']], use_container_width=True, hide_index=True)
 
-        # --- SEÇÃO DE ESCOLHA DEFINITIVA DO IMÓVEL ---
         st.markdown("---")
         st.markdown("### Seleção do Imóvel")
         
@@ -425,14 +424,10 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
             return f"{uid} (R$ {u_row['Valor de Venda']:,.2f})"
 
         emp_names = sorted(df_estoque[df_estoque['Status'] == 'Disponível']['Empreendimento'].unique())
-        
         col_sel1, col_sel2 = st.columns(2)
-        
         with col_sel1:
             emp_escolhido = st.selectbox("Escolha o Empreendimento:", options=emp_names, format_func=label_emp_guide, key="sel_emp_guide_v26")
-        
         unidades_disp = df_estoque[(df_estoque['Empreendimento'] == emp_escolhido) & (df_estoque['Status'] == 'Disponível')]
-        
         with col_sel2:
             if unidades_disp.empty:
                 st.warning("Nenhuma unidade disponível.")
@@ -468,7 +463,6 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
             if st.button("Voltar para Seleção de Imóvel"): st.session_state.passo_simulacao = 'guide'; st.rerun()
         else:
             u = unidades_filtradas.iloc[0]
-            
             st.info(f"Unidade Selecionada: {u['Identificador']} - {u['Empreendimento']} (R$ {u['Valor de Venda']:,.2f})")
             
             f_u = st.number_input("Financiamento", value=float(d['finan_estimado']), key="fin_u_v23")
@@ -543,7 +537,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
         if PDF_ENABLED:
             pdf_data = gerar_resumo_pdf(d)
             if pdf_data:
-                # Centralização do botão de download na tela
+                # Centralização do botão de download
                 _, col_btn_center, _ = st.columns([1, 1.2, 1])
                 with col_btn_center:
                     st.download_button(
