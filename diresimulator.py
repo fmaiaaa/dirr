@@ -10,7 +10,7 @@ Fluxo Automatizado de Recomendação (Sequencial):
 4. Etapa 4: Fechamento Financeiro.
 5. Etapa 5: Resumo da Compra e Exportação PDF.
 
-Versão: 28.3 (Centralização do Botão e Refinamento Estético do PDF)
+Versão: 28.4 (Ajuste no Nome do Arquivo de Download do PDF)
 =============================================================================
 """
 
@@ -271,7 +271,7 @@ def gerar_resumo_pdf(d):
         ]
         criar_bloco_pdf("FLUXO DE ENTRADA (ATO)", entrada_cont)
 
-        # Rodapé Estilizado (Removida a info de desenvolvimento)
+        # Rodapé Estilizado
         pdf.set_y(-25)
         pdf.set_font("Helvetica", 'I', 8)
         pdf.set_text_color(150, 150, 150)
@@ -468,6 +468,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
             if st.button("Voltar para Seleção de Imóvel"): st.session_state.passo_simulacao = 'guide'; st.rerun()
         else:
             u = unidades_filtradas.iloc[0]
+            
             st.info(f"Unidade Selecionada: {u['Identificador']} - {u['Empreendimento']} (R$ {u['Valor de Venda']:,.2f})")
             
             f_u = st.number_input("Financiamento", value=float(d['finan_estimado']), key="fin_u_v23")
@@ -548,7 +549,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
                     st.download_button(
                         label="Baixar Resumo em PDF", 
                         data=pdf_data, 
-                        file_name=f"resumo_direcional_{d.get('nome', 'cliente')}.pdf", 
+                        file_name=f"Resumo de Compra - {d.get('nome', 'Cliente')}.pdf", 
                         mime="application/pdf",
                         use_container_width=True,
                         key="btn_download_pdf_final"
