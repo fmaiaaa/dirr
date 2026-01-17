@@ -415,10 +415,10 @@ def gerar_resumo_pdf(d):
         pdf.ln(15)
         pdf.set_text_color(*AZUL_RGB)
         pdf.set_font("Helvetica", 'B', 22)
-        pdf.cell(0, 12, "RELATORIO DE VIABILIDADE", ln=True, align='C')
+        pdf.cell(0, 12, "RELATÓRIO DE VIABILIDADE", ln=True, align='C')
         pdf.set_text_color(*CINZA_RGB)
         pdf.set_font("Helvetica", '', 9)
-        pdf.cell(0, 6, "SIMULADOR IMOBILIARIO DIRE RIO - DOCUMENTO EXECUTIVO", ln=True, align='C')
+        pdf.cell(0, 6, "SIMULADOR IMOBILIÁRIO DV - DOCUMENTO EXECUTIVO", ln=True, align='C')
         pdf.ln(15)
 
         pdf.set_fill_color(*FUNDO_SECAO)
@@ -455,15 +455,15 @@ def gerar_resumo_pdf(d):
             pdf.set_draw_color(241, 245, 249)
             pdf.line(15, pdf.get_y(), 195, pdf.get_y())
 
-        adicionar_secao_pdf("ESPECIFICACOES DO ATIVO")
+        adicionar_secao_pdf("ESPECIFICAÇÕES DO ATIVO")
         adicionar_linha_detalhe("Empreendimento", d.get('empreendimento_nome'))
         adicionar_linha_detalhe("Unidade Selecionada", d.get('unidade_id'))
         adicionar_linha_detalhe("Valor de Venda do Imovel", f"R$ {d.get('imovel_valor', 0):,.2f}", destaque=True)
         pdf.ln(8)
 
         adicionar_secao_pdf("ENGENHARIA FINANCEIRA")
-        adicionar_linha_detalhe("Financiamento Bancario Estimado", f"R$ {d.get('finan_usado', 0):,.2f}")
-        adicionar_linha_detalhe("Subsidio + FGTS Utilizado", f"R$ {d.get('fgts_sub_usado', 0):,.2f}")
+        adicionar_linha_detalhe("Financiamento Bancário Estimado", f"R$ {d.get('finan_usado', 0):,.2f}")
+        adicionar_linha_detalhe("Subsídio + FGTS Utilizado", f"R$ {d.get('fgts_sub_usado', 0):,.2f}")
         adicionar_linha_detalhe("Pro Soluto Direcional", f"R$ {d.get('ps_usado', 0):,.2f}")
         adicionar_linha_detalhe("Mensalidade Pro Soluto", f"{d.get('ps_parcelas')}x de R$ {d.get('ps_mensal', 0):,.2f}")
         pdf.ln(8)
@@ -478,7 +478,7 @@ def gerar_resumo_pdf(d):
         pdf.set_y(-25)
         pdf.set_font("Helvetica", 'I', 7)
         pdf.set_text_color(*CINZA_RGB)
-        pdf.cell(0, 4, "Simulacao sujeita a aprovacao de credito e alteracao de tabela sem aviso previo.", ln=True, align='C')
+        pdf.cell(0, 4, "Simulação sujeita a aprovação de crédito e alteração de tabela sem aviso prévio.", ln=True, align='C')
         pdf.cell(0, 4, "Direcional Engenharia - Rio de Janeiro", ln=True, align='C')
 
         return bytes(pdf.output())
@@ -560,13 +560,13 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
         
         m1, m2, m3, m4 = st.columns(4)
         with m1: st.markdown(f'<div class="card"><p class="metric-label">Financiamento</p><p class="metric-value">R$ {d["finan_estimado"]:,.2f}</p></div>', unsafe_allow_html=True)
-        with m2: st.markdown(f'<div class="card"><p class="metric-label">FGTS + Subsidio</p><p class="metric-value">R$ {d["fgts_sub"]:,.2f}</p></div>', unsafe_allow_html=True)
+        with m2: st.markdown(f'<div class="card"><p class="metric-label">FGTS + Subsídio</p><p class="metric-value">R$ {d["fgts_sub"]:,.2f}</p></div>', unsafe_allow_html=True)
         with m3: st.markdown(f'<div class="card"><p class="metric-label">Pro Soluto</p><p class="metric-value">R$ {ps_min_total:,.0f} a {ps_max_total:,.0f}</p></div>', unsafe_allow_html=True)
-        with m4: st.markdown(f'<div class="card"><p class="metric-label">Capacidade Entrada</p><p class="metric-value">R$ {dobro_renda:,.2f}</p></div>', unsafe_allow_html=True)
+        with m4: st.markdown(f'<div class="card"><p class="metric-label">Capacidade de Entrada</p><p class="metric-value">R$ {dobro_renda:,.2f}</p></div>', unsafe_allow_html=True)
 
         st.markdown(f"""
             <div class="card" style="border-top: 4px solid {COR_AZUL_ESC}; background: #ffffff; min-height: 120px;">
-                <p class="metric-label" style="color: {COR_AZUL_ESC}; font-size: 0.8rem;">Poder de Aquisicao Estimado</p>
+                <p class="metric-label" style="color: {COR_AZUL_ESC}; font-size: 0.8rem;">Poder de Aquisição Estimado</p>
                 <p class="metric-value" style="font-size: 2.8rem; color: {COR_AZUL_ESC};">R$ {pot_min:,.2f} a R$ {pot_max:,.2f}</p>
             </div>
         """, unsafe_allow_html=True)
@@ -592,7 +592,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
         
         df_viaveis = df_disp_total[df_disp_total['Viavel']].copy()
         
-        st.markdown("#### Resumo de Ofertas Ativas")
+        st.markdown("#### Empreendimentos Viáveis")
         if df_viaveis.empty:
             st.info("Sem produtos viaveis no perfil selecionado.")
         else:
@@ -612,22 +612,22 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
                         """, unsafe_allow_html=True)
 
         st.write("")
-        tab_rec, tab_list = st.tabs(["Sugestoes Estrategicas", "Estoque Geral"])
+        tab_rec, tab_list = st.tabs(["Sugestões de Unidades", "Estoque Geral"])
         
         with tab_rec:
             if df_viaveis.empty:
                 st.info("Nenhuma unidade atende ao poder de compra atual.")
             else:
-                emp_rec = st.selectbox("Refinar Sugestoes:", options=["Todos"] + sorted(df_viaveis['Empreendimento'].unique().tolist()), key="sel_emp_v23")
+                emp_rec = st.selectbox("Refinar Sugestões:", options=["Todos"] + sorted(df_viaveis['Empreendimento'].unique().tolist()), key="sel_emp_v23")
                 df_filt_rec = df_viaveis if emp_rec == "Todos" else df_viaveis[df_viaveis['Empreendimento'] == emp_rec]
                 df_filt_rec = df_filt_rec.sort_values('Valor de Venda', ascending=False)
                 
                 if not df_filt_rec.empty:
                     r100, r90, r75 = df_filt_rec.iloc[0], df_filt_rec.iloc[len(df_filt_rec)//2], df_filt_rec.iloc[-1]
                     c1, c2, c3 = st.columns(3)
-                    with c1: st.markdown(f'<div class="recommendation-card" style="border-top: 4px solid {COR_AZUL_ESC};"><b>PERFIL IDEAL</b><br><small>{r100["Empreendimento"]}</small><br>{r100["Identificador"]}<br><span class="price-tag">R$ {r100["Valor de Venda"]:,.2f}</span></div>', unsafe_allow_html=True)
-                    with c2: st.markdown(f'<div class="recommendation-card" style="border-top: 4px solid {COR_VERMELHO};"><b>OPCAO SEGURA</b><br><small>{r90["Empreendimento"]}</small><br>{r90["Identificador"]}<br><span class="price-tag">R$ {r90["Valor de Venda"]:,.2f}</span></div>', unsafe_allow_html=True)
-                    with c3: st.markdown(f'<div class="recommendation-card" style="border-top: 4px solid {COR_AZUL_ESC};"><b>MAIOR FACILIDADE</b><br><small>{r75["Empreendimento"]}</small><br>{r75["Identificador"]}<br><span class="price-tag">R$ {r75["Valor de Venda"]:,.2f}</span></div>', unsafe_allow_html=True)
+                    with c1: st.markdown(f'<div class="recommendation-card" style="border-top: 4px solid {COR_AZUL_ESC};"><b>IDEAL</b><br><small>{r100["Empreendimento"]}</small><br>{r100["Identificador"]}<br><span class="price-tag">R$ {r100["Valor de Venda"]:,.2f}</span></div>', unsafe_allow_html=True)
+                    with c2: st.markdown(f'<div class="recommendation-card" style="border-top: 4px solid {COR_VERMELHO};"><b>SEGURO</b><br><small>{r90["Empreendimento"]}</small><br>{r90["Identificador"]}<br><span class="price-tag">R$ {r90["Valor de Venda"]:,.2f}</span></div>', unsafe_allow_html=True)
+                    with c3: st.markdown(f'<div class="recommendation-card" style="border-top: 4px solid {COR_AZUL_ESC};"><b>FACILITADO</b><br><small>{r75["Empreendimento"]}</small><br>{r75["Identificador"]}<br><span class="price-tag">R$ {r75["Valor de Venda"]:,.2f}</span></div>', unsafe_allow_html=True)
 
         with tab_list:
             f1, f2, f3, f4, f5, f6 = st.columns([1.2, 1, 0.7, 1.1, 0.9, 0.8])
@@ -662,7 +662,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
             )
 
         st.markdown("---")
-        st.markdown("### Selecao de Ativo")
+        st.markdown("### Unidade Selecionada")
         
         def label_emp_guide(name):
             sub = df_estoque[(df_estoque['Empreendimento'] == name) & (df_estoque['Status'] == 'Disponível')]
@@ -714,7 +714,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
             if st.button("Voltar para Seleção de Imóvel"): st.session_state.passo_simulacao = 'guide'; st.rerun()
         else:
             u = unidades_filtradas.iloc[0]
-            st.markdown(f'<div class="custom-alert">Ativo Selecionado: {u["Identificador"]} - {u["Empreendimento"]} (R$ {u["Valor de Venda"]:,.2f})</div>', unsafe_allow_html=True)
+            st.markdown(f'<div class="custom-alert">Unidade Selecionada: {u["Identificador"]} - {u["Empreendimento"]} (R$ {u["Valor de Venda"]:,.2f})</div>', unsafe_allow_html=True)
             
             f_u = st.number_input("Financiamento Bancário", value=float(d['finan_estimado']), step=1000.0, key="fin_u_v23")
             fgts_u = st.number_input("FGTS + Subsidio", value=float(d['fgts_sub']), step=1000.0, key="fgt_u_v23")
@@ -739,15 +739,15 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
                 st.session_state.last_calc_hash = calc_hash
             
             fin1, fin2, fin3 = st.columns(3)
-            with fin1: st.markdown(f"""<div class="fin-box" style="border-top: 6px solid {COR_AZUL_ESC};"><b>VALOR DO ATIVO</b><br>R$ {u['Valor de Venda']:,.2f}</div>""", unsafe_allow_html=True)
+            with fin1: st.markdown(f"""<div class="fin-box" style="border-top: 6px solid {COR_AZUL_ESC};"><b>VALOR DO IMÓVEL</b><br>R$ {u['Valor de Venda']:,.2f}</div>""", unsafe_allow_html=True)
             with fin2: st.markdown(f"""<div class="fin-box" style="border-top: 6px solid {COR_VERMELHO};"><b>MENSALIDADE PS</b><br>R$ {v_parc:,.2f} ({parc}x)</div>""", unsafe_allow_html=True)
-            with fin3: st.markdown(f"""<div class="fin-box" style="border-top: 6px solid {COR_AZUL_ESC};"><b>SALDO ENTRADA</b><br>R$ {max(0, saldo_e):,.2f}</div>""", unsafe_allow_html=True)
+            with fin3: st.markdown(f"""<div class="fin-box" style="border-top: 6px solid {COR_AZUL_ESC};"><b>SALDO DE ENTRADA</b><br>R$ {max(0, saldo_e):,.2f}</div>""", unsafe_allow_html=True)
             
             if comp_r > d['limit_ps_renda']:
                 st.warning(f"Atencao: Parcela Pro Soluto excede o limite de {d['limit_ps_renda']*100:.0f}% da renda.")
 
             if saldo_e > 0:
-                st.markdown("#### Distribuicao da Entrada")
+                st.markdown("#### Distribuição da Entrada")
                 col_a, col_b = st.columns(2)
                 with col_a:
                     st.session_state.ato_1 = st.number_input("Ato", value=st.session_state.ato_1, key="ato_1_v24")
@@ -769,7 +769,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
         
         st.markdown("---")
         # RESTAURAÇÃO: Nome dos Botões Etapa 4
-        if st.button("Obter Resumo de Compra", type="primary", use_container_width=True, key="btn_to_summary"):
+        if st.button("Avançar para Resumo de Compra", type="primary", use_container_width=True, key="btn_to_summary"):
             st.session_state.passo_simulacao = 'summary'
             st.rerun()
         if st.button("Voltar para Seleção de Imóvel", use_container_width=True, key="btn_back_to_guide"): 
@@ -795,12 +795,12 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
                     )
 
         # Resumo Site (Design V39 Revertido)
-        st.markdown(f'<div class="summary-header">DADOS DO IMOVEL</div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="summary-header">DADOS DO IMÓVEL</div>', unsafe_allow_html=True)
         st.markdown(f"""<div class="summary-body"><b>Empreendimento:</b> {d.get('empreendimento_nome')}<br>
             <b>Unidade:</b> {d.get('unidade_id')}<br><b>Valor de Venda:</b> <span style="color: {COR_VERMELHO}; font-weight: 800;">R$ {d.get('imovel_valor', 0):,.2f}</span></div>""", unsafe_allow_html=True)
 
         st.markdown(f'<div class="summary-header">PLANO DE FINANCIAMENTO</div>', unsafe_allow_html=True)
-        st.markdown(f"""<div class="summary-body"><b>Financiamento Bancario:</b> R$ {d.get('finan_usado', 0):,.2f}<br>
+        st.markdown(f"""<div class="summary-body"><b>Financiamento Bancário:</b> R$ {d.get('finan_usado', 0):,.2f}<br>
             <b>FGTS + Subsidio:</b> R$ {d.get('fgts_sub_usado', 0):,.2f}<br>
             <b>Pro Soluto Total:</b> R$ {d.get('ps_usado', 0):,.2f} ({d.get('ps_parcelas')}x de R$ {d.get('ps_mensal', 0):,.2f})</div>""", unsafe_allow_html=True)
 
@@ -811,9 +811,9 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
 
         st.markdown("---")
         # RESTAURAÇÃO: Nome dos Botões Etapa 5
-        if st.button("Iniciar Novo Cliente", type="primary", use_container_width=True, key="btn_new_client_summary"): 
+        if st.button("Fazer Nova Simulação", type="primary", use_container_width=True, key="btn_new_client_summary"): 
             st.session_state.dados_cliente = {}; st.session_state.passo_simulacao = 'input'; st.rerun()
-        if st.button("Editar Fechamento Financeiro", use_container_width=True, key="btn_edit_fin_summary"):
+        if st.button("Voltar para Fechamento Financeiro", use_container_width=True, key="btn_edit_fin_summary"):
             st.session_state.passo_simulacao = 'payment_flow'; st.rerun()
 
 def main():
@@ -837,7 +837,7 @@ def main():
     st.markdown(f'''
         <div class="header-container">
             <img src="{logo_src}" style="position: absolute; top: 30px; left: 40px; height: 50px;">
-            <div class="header-title">SIMULADOR IMOBILIÁRIO DIRE RIO</div>
+            <div class="header-title">SIMULADOR IMOBILIÁRIO DV</div>
             <div class="header-subtitle">Sistema de Gestão de Vendas e Viabilidade Imobiliária</div>
         </div>
     ''', unsafe_allow_html=True)
