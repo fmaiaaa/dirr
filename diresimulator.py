@@ -10,7 +10,7 @@ Fluxo Automatizado de Recomendação (Sequencial):
 4. Etapa 4: Fechamento Financeiro.
 5. Etapa 5: Resumo da Compra.
 
-Versão: 27.0 (Inclusão de Página de Resumo e Fluxo de Novo Cliente)
+Versão: 27.1 (Remoção de Emojis e Texto de Sucesso Final)
 =============================================================================
 """
 
@@ -40,7 +40,7 @@ URL_ESTOQUE = f"https://docs.google.com/spreadsheets/d/{ID_ESTOQUE}/edit#gid=0"
 def carregar_dados_sistema():
     try:
         if "connections" not in st.secrets:
-            st.error("⚠️ Configuração de 'Secrets' não encontrada.")
+            st.error("Aviso: Configuração de 'Secrets' não encontrada.")
             return pd.DataFrame(), pd.DataFrame(), pd.DataFrame()
 
         conn = st.connection("gsheets", type=GSheetsConnection)
@@ -115,7 +115,7 @@ def carregar_dados_sistema():
         return df_finan, df_estoque, df_politicas
     
     except Exception as e:
-        st.error(f"🚨 Erro de conexão: {e}")
+        st.error(f"Erro de conexão: {e}")
         return pd.DataFrame(), pd.DataFrame(), pd.DataFrame()
 
 # =============================================================================
@@ -157,7 +157,7 @@ class MotorRecomendacao:
 # =============================================================================
 
 def configurar_layout():
-    st.set_page_config(page_title="Simulador Direcional", page_icon="🏠", layout="wide")
+    st.set_page_config(page_title="Simulador Direcional", page_icon="house", layout="wide")
     st.markdown("""
         <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap');
@@ -265,7 +265,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
         df_disp_total['Poder_Compra'] = [x[0] for x in res]
         df_disp_total['PS_Unidade'] = [x[1] for x in res]
         df_disp_total['Viavel'] = df_disp_total['Valor de Venda'] <= df_disp_total['Poder_Compra']
-        df_disp_total['Status Viabilidade'] = df_disp_total['Viavel'].apply(lambda x: "✅ Viável" if x else "❌ Inviável")
+        df_disp_total['Status Viabilidade'] = df_disp_total['Viavel'].apply(lambda x: "Viável" if x else "Inviável")
         
         df_viaveis = df_disp_total[df_disp_total['Viavel']].copy()
         
@@ -299,7 +299,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
             with f1: f_emp = st.multiselect("Empreendimento:", options=sorted(df_disp_total['Empreendimento'].unique()), key="f_emp_tab_v25")
             with f2: f_bairro = st.multiselect("Bairro:", options=sorted(df_disp_total['Bairro'].unique()), key="f_bairro_tab_v25")
             with f3: f_andar = st.multiselect("Andar:", options=sorted(df_disp_total['Andar'].unique()), key="f_andar_tab_v25")
-            with f4: f_status_v = st.multiselect("Viabilidade:", options=["✅ Viável", "❌ Inviável"], key="f_status_tab_v25")
+            with f4: f_status_v = st.multiselect("Viabilidade:", options=["Viável", "Inviável"], key="f_status_tab_v25")
             with f5: f_ordem = st.selectbox("Ordenar Preço:", ["Maior Preço", "Menor Preço"], key="f_ordem_tab_v25")
             with f6: f_pmax = st.number_input("Preço Máx:", value=float(df_disp_total['Valor de Venda'].max()), key="f_pmax_tab_v25")
             
@@ -371,7 +371,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
         else:
             u = unidades_filtradas.iloc[0]
             
-            st.info(f"**Unidade Selecionada:** {u['Identificador']} - {u['Empreendimento']} (R$ {u['Valor de Venda']:,.2f})")
+            st.info(f"Unidade Selecionada: {u['Identificador']} - {u['Empreendimento']} (R$ {u['Valor de Venda']:,.2f})")
             
             f_u = st.number_input("Financiamento", value=float(d['finan_estimado']), key="fin_u_v23")
             st.markdown(f'<p class="inline-ref">Referência Aprovada: R$ {d["finan_estimado"]:,.2f}</p>', unsafe_allow_html=True)
@@ -405,7 +405,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
             """, unsafe_allow_html=True)
             
             if comp_r > d['limit_ps_renda']:
-                st.warning(f"⚠️ Atenção: Parcela ultrapassa o limite de {d['limit_ps_renda']*100:.0f}% da renda.")
+                st.warning(f"Atenção: Parcela ultrapassa o limite de {d['limit_ps_renda']*100:.0f}% da renda.")
 
             st.markdown(f'<div class="fin-box" style="background:#fff1f2; border-top: 5px solid #e11d48;"><b>Saldo Entrada Restante:</b> R$ {max(0, saldo_e):,.2f}</div>', unsafe_allow_html=True)
             
@@ -421,7 +421,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
                 
                 soma_entrada = st.session_state.ato_1 + st.session_state.ato_2 + st.session_state.ato_3 + st.session_state.ato_4
                 if abs(soma_entrada - saldo_e) > 0.01:
-                    st.error(f"⚠️ A soma das parcelas (R$ {soma_entrada:,.2f}) não confere com o Saldo de Entrada (R$ {saldo_e:,.2f}).")
+                    st.error(f"A soma das parcelas (R$ {soma_entrada:,.2f}) não confere com o Saldo de Entrada (R$ {saldo_e:,.2f}).")
             
             # SALVANDO DADOS FINAIS PARA O RESUMO
             st.session_state.dados_cliente.update({
@@ -439,7 +439,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
             })
         
         st.markdown("---")
-        if st.button("📄 Gerar Resumo de Compra", type="primary", use_container_width=True, key="btn_to_summary"):
+        if st.button("Obter Resumo de Compra", type="primary", use_container_width=True, key="btn_to_summary"):
             st.session_state.passo_simulacao = 'summary'
             st.rerun()
 
@@ -449,7 +449,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
     # --- NOIVA ETAPA 5: RESUMO ---
     elif st.session_state.passo_simulacao == 'summary':
         d = st.session_state.dados_cliente
-        st.markdown(f"### 📋 Resumo da Simulação - {d.get('nome', 'Cliente')}")
+        st.markdown(f"### Resumo da Simulação - {d.get('nome', 'Cliente')}")
         
         st.markdown('<div class="summary-header">DADOS DO IMÓVEL</div>', unsafe_allow_html=True)
         st.markdown(f"""
@@ -480,15 +480,13 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
             </div>
         """, unsafe_allow_html=True)
 
-        st.success("✅ Simulação finalizada com sucesso!")
-        
         st.markdown("---")
-        if st.button("👤 Iniciar Novo Cliente", type="primary", use_container_width=True, key="btn_new_c_summary"): 
+        if st.button("Iniciar Novo Cliente", type="primary", use_container_width=True, key="btn_new_c_summary"): 
             st.session_state.dados_cliente = {}
             st.session_state.passo_simulacao = 'input'
             st.rerun()
             
-        if st.button("⬅️ Editar Fechamento Financeiro", use_container_width=True, key="btn_back_from_summary"):
+        if st.button("Editar Fechamento Financeiro", use_container_width=True, key="btn_back_from_summary"):
             st.session_state.passo_simulacao = 'payment_flow'
             st.rerun()
 
@@ -496,7 +494,7 @@ def main():
     configurar_layout()
     df_finan, df_estoque, df_politicas = carregar_dados_sistema()
     if df_finan.empty or df_estoque.empty:
-        st.warning("⚠️ Carregando dados privados...")
+        st.warning("Carregando dados privados...")
         st.stop()
     st.markdown('<div class="header-container"><div class="header-title">SIMULADOR IMOBILIÁRIO DV</div><div class="header-subtitle">Sistema de Gestão de Vendas e Viabilidade Imobiliária</div></div>', unsafe_allow_html=True)
     
