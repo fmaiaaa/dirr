@@ -438,7 +438,7 @@ def main():
     if df_finan.empty or df_estoque.empty:
         st.warning("⚠️ Carregando dados privados...")
         st.stop()
-    st.markdown('<div class="header-container"><div class="header-title">SIMULADOR DIRECIONAL V2</div></div>', unsafe_allow_html=True)
+    st.markdown('<div class="header-container"><div class="header-title">SIMULADOR DE COMPRA - DIRECIONAL ENGENHARIA</div></div>', unsafe_allow_html=True)
     aba_simulador_automacao(df_finan, df_estoque, df_politicas)
 
 if __name__ == "__main__":
