@@ -8,9 +8,9 @@ Fluxo Automatizado de Recomendação (Sequencial):
 2. Etapa 2: Valor Potencial de Compra.
 3. Etapa 3: Guia de Viabilidade (Seleção do Produto).
 4. Etapa 4: Fechamento Financeiro.
-5. Etapa 5: Resumo da Compra.
+5. Etapa 5: Resumo da Compra e Exportação PDF.
 
-Versão: 27.1 (Remoção de Emojis e Texto de Sucesso Final)
+Versão: 28.0 (Exportação de Resumo para PDF com Design de Cartões)
 =============================================================================
 """
 
@@ -19,6 +19,8 @@ import pandas as pd
 import numpy as np
 import re
 from streamlit_gsheets import GSheetsConnection
+from fpdf import FPDF
+import io
 
 # =============================================================================
 # 0. CONSTANTES DE ACESSO (IDs DAS PLANILHAS REAIS)
@@ -181,11 +183,93 @@ def configurar_layout():
         .footer { text-align: center; padding: 30px 0; color: #64748b; font-size: 0.85rem; border-top: 1px solid #e2e8f0; margin-top: 50px; font-weight: 400; }
         .summary-header { background: #1e293b; color: white; padding: 15px; border-radius: 10px 10px 0 0; font-weight: 600; text-align: center; margin-bottom: 0px; }
         .summary-body { background: white; padding: 20px; border: 1px solid #e2e8f0; border-radius: 0 0 10px 10px; margin-bottom: 20px; }
+        .download-container { display: flex; justify-content: flex-end; margin-bottom: 10px; }
         </style>
     """, unsafe_allow_html=True)
 
 # =============================================================================
-# 4. COMPONENTES DE INTERAÇÃO
+# 4. FUNÇÃO PARA GERAR PDF
+# =============================================================================
+
+def gerar_resumo_pdf(d):
+    pdf = FPDF()
+    pdf.add_page()
+    pdf.set_auto_page_break(auto=True, margin=15)
+    
+    # Cabeçalho
+    pdf.set_fill_color(30, 41, 59) # #1e293b
+    pdf.rect(0, 0, 210, 40, 'F')
+    pdf.set_text_color(255, 255, 255)
+    pdf.set_font("Arial", 'B', 16)
+    pdf.cell(0, 10, "SIMULADOR IMOBILIARIO DV", ln=True, align='C')
+    pdf.set_font("Arial", '', 10)
+    pdf.cell(0, 10, "Resumo de Compra e Viabilidade Financeira", ln=True, align='C')
+    pdf.ln(20)
+
+    # Dados do Cliente
+    pdf.set_text_color(30, 41, 59)
+    pdf.set_font("Arial", 'B', 12)
+    pdf.cell(0, 10, f"Cliente: {d.get('nome', 'Nao informado')}", ln=True)
+    pdf.set_font("Arial", '', 10)
+    pdf.cell(0, 8, f"Renda Familiar: R$ {d.get('renda', 0):,.2f}", ln=True)
+    pdf.ln(5)
+
+    # Função para criar seção tipo "card"
+    def criar_secao_pdf(titulo, conteudo):
+        pdf.set_fill_color(30, 41, 59)
+        pdf.set_text_color(255, 255, 255)
+        pdf.set_font("Arial", 'B', 11)
+        pdf.cell(0, 10, titulo, ln=True, fill=True, align='C')
+        
+        pdf.set_fill_color(255, 255, 255)
+        pdf.set_text_color(30, 41, 59)
+        pdf.set_font("Arial", '', 10)
+        
+        # Início da borda do corpo
+        x_start = pdf.get_x()
+        y_start = pdf.get_y()
+        
+        for linha in conteudo:
+            pdf.cell(0, 8, linha, ln=True, border='LR')
+        
+        pdf.cell(0, 2, "", ln=True, border='LRB') # Fecha fundo
+        pdf.ln(10)
+
+    # Seção Imóvel
+    imovel_cont = [
+        f"Empreendimento: {d.get('empreendimento_nome')}",
+        f"Unidade: {d.get('unidade_id')}",
+        f"Valor de Venda: R$ {d.get('imovel_valor', 0):,.2f}"
+    ]
+    criar_secao_pdf("DADOS DO IMOVEL", imovel_cont)
+
+    # Seção Financiamento
+    finan_cont = [
+        f"Financiamento Bancario: R$ {d.get('finan_usado', 0):,.2f}",
+        f"FGTS + Subsidio: R$ {d.get('fgts_sub_usado', 0):,.2f}",
+        f"Pro Soluto Total: R$ {d.get('ps_usado', 0):,.2f} ({d.get('ps_parcelas')}x de R$ {d.get('ps_mensal', 0):,.2f})"
+    ]
+    criar_secao_pdf("PLANO DE FINANCIAMENTO", finan_cont)
+
+    # Seção Entrada
+    entrada_cont = [
+        f"Total de Entrada: R$ {d.get('entrada_total', 0):,.2f}",
+        "--------------------------------------------------------------------------------",
+        f"Ato: R$ {d.get('ato_final', 0):,.2f}",
+        f"Ato 30 Dias: R$ {d.get('ato_30', 0):,.2f}",
+        f"Ato 60 Dias: R$ {d.get('ato_60', 0):,.2f}",
+        f"Ato 90 Dias: R$ {d.get('ato_90', 0):,.2f}"
+    ]
+    criar_secao_pdf("FLUXO DE ENTRADA (ATO)", entrada_cont)
+
+    pdf.set_font("Arial", 'I', 8)
+    pdf.set_text_color(100, 116, 139)
+    pdf.cell(0, 10, "Desenvolvido por Lucas Maia", ln=True, align='C')
+
+    return pdf.output()
+
+# =============================================================================
+# 5. COMPONENTES DE INTERAÇÃO
 # =============================================================================
 
 def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
@@ -446,11 +530,31 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
         if st.button("Voltar para Seleção de Imóvel", use_container_width=True, key="btn_v_guide_v23"): 
             st.session_state.passo_simulacao = 'guide'; st.rerun()
 
-    # --- NOIVA ETAPA 5: RESUMO ---
+    # --- ETAPA 5 ---
     elif st.session_state.passo_simulacao == 'summary':
         d = st.session_state.dados_cliente
+        
+        # Botão de Download com ícone SVG
+        pdf_data = gerar_resumo_pdf(d)
+        
         st.markdown(f"### Resumo da Simulação - {d.get('nome', 'Cliente')}")
         
+        # Layout para o ícone de download
+        st.markdown("""
+            <div class="download-container">
+                <p style="margin-right:10px; font-size:0.9rem; color:#64748b; align-self:center;">Baixar PDF</p>
+            </div>
+        """, unsafe_allow_html=True)
+        
+        st.download_button(
+            label="Baixar PDF",
+            data=pdf_data,
+            file_name=f"resumo_direcional_{d.get('nome', 'cliente')}.pdf",
+            mime="application/pdf",
+            key="btn_download_pdf",
+            use_container_width=False
+        )
+
         st.markdown('<div class="summary-header">DADOS DO IMÓVEL</div>', unsafe_allow_html=True)
         st.markdown(f"""
             <div class="summary-body">
@@ -486,7 +590,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
             st.session_state.passo_simulacao = 'input'
             st.rerun()
             
-        if st.button("Voltar para Fechamento Financeiro", use_container_width=True, key="btn_back_from_summary"):
+        if st.button("Editar Fechamento Financeiro", use_container_width=True, key="btn_back_from_summary"):
             st.session_state.passo_simulacao = 'payment_flow'
             st.rerun()
 
