@@ -6,11 +6,10 @@ SISTEMA DE SIMULAÇÃO IMOBILIÁRIA - DIRE RIO V2
 Fluxo Automatizado de Recomendação (Sequencial):
 1. Etapa 1: Entrada de dados do cliente.
 2. Etapa 2: Valor Potencial de Compra.
-3. Etapa 3: Guia de Viabilidade (Seleção do Produto).
-4. Etapa 4: Fechamento Financeiro.
+3. Etapa 4: Fechamento Financeiro.
 5. Etapa 5: Resumo da Compra e Exportação PDF.
 
-Versão: 37.0 (Design de Inputs e Tabela Refinados)
+Versão: 38.0 (Inputs Ultra Clean e Tabela Profissional)
 =============================================================================
 """
 
@@ -202,27 +201,32 @@ def configurar_layout():
         .main {{ background-color: #f8fafc; }}
         .block-container {{ max-width: 1200px !important; padding: 2.5rem 1rem !important; margin: auto !important; }}
         
-        /* AJUSTE SOLICITADO: Design Clean para Inputs 
-           Removemos as bordas internas e mantemos apenas o contêiner arredondado 
-        */
+        /* AJUSTE SOLICITADO: Removendo o fundo cinza e a borda interna (o "quadrado") */
         div[data-baseweb="input"] {{
             border-radius: 12px !important;
             border: 1px solid #e2e8f0 !important;
             background-color: #ffffff !important;
             transition: all 0.2s ease-in-out !important;
-            padding: 2px 4px !important;
+            padding: 0px !important;
         }}
+        
         div[data-baseweb="input"]:focus-within {{
             border-color: {COR_AZUL_ESC} !important;
             box-shadow: 0 0 0 1px {COR_AZUL_ESC} !important;
         }}
-        .stTextInput input, .stNumberInput input {{
+
+        /* Garantimos que todos os sub-elementos sejam transparentes e sem bordas extras */
+        .stTextInput input, .stNumberInput input, div[data-baseweb="base-input"], div[data-baseweb="input"] > div {{
             border: none !important;
             background-color: transparent !important;
             box-shadow: none !important;
+            outline: none !important;
             color: {COR_AZUL_ESC} !important;
             font-family: 'Inter', sans-serif !important;
-            padding: 8px 12px !important;
+        }}
+        
+        .stTextInput input, .stNumberInput input {{
+            padding: 12px 16px !important;
         }}
         
         div[data-baseweb="select"] > div {{
@@ -631,7 +635,6 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
             df_tab = df_tab[df_tab['Valor de Venda'] <= f_pmax]
             df_tab = df_tab.sort_values('Valor de Venda', ascending=(f_ordem == "Menor Preço"))
             
-            # AJUSTE SOLICITADO: Tabela mais profissional com formatação de moeda e colunas configuradas
             st.dataframe(
                 df_tab[['Identificador', 'Empreendimento', 'Bairro', 'Andar', 'Valor de Venda', 'Poder_Compra', 'Status Viabilidade']], 
                 use_container_width=True, 
