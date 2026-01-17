@@ -10,7 +10,7 @@ Fluxo Automatizado de Recomendação (Sequencial):
 4. Etapa 4: Fechamento Financeiro.
 5. Etapa 5: Resumo da Compra e Exportação PDF.
 
-Versão: 30.1 (Contraste no Resumo e Personalização de Abas em Vermelho)
+Versão: 30.2 (Destaque nos Toggles e Refinamento de Cores Direcional)
 =============================================================================
 """
 
@@ -228,7 +228,7 @@ def configurar_layout():
         .metric-label {{ color: #64748b !important; font-size: 0.85rem; font-weight: 600; text-transform: uppercase; text-align: center; }}
         .metric-value {{ color: {COR_AZUL_ESC} !important; font-size: 1.4rem; font-weight: 700; text-align: center; }}
         
-        /* Estilização de Botões */
+        /* Estilização de Botões (Garantindo Letra Branca) */
         .stButton button {{ 
             border-radius: 8px !important; 
             padding: 12px !important; 
@@ -283,7 +283,7 @@ def configurar_layout():
         .custom-alert {{ background-color: {COR_AZUL_ESC}; padding: 15px; border-radius: 10px; margin-bottom: 20px; text-align: center; font-weight: 600; }}
         .custom-alert, .custom-alert b, .custom-alert span, .custom-alert p {{ color: white !important; }}
 
-        /* Personalização das Abas (Tabs) */
+        /* Personalização das Abas (Tabs) Centralizadas e com destaque Vermelho */
         div[data-baseweb="tab-list"] {{ 
             justify-content: center !important; 
             display: flex !important; 
@@ -301,6 +301,11 @@ def configurar_layout():
             color: {COR_VERMELHO} !important;
         }}
         div[data-baseweb="tab-highlight"] {{
+            background-color: {COR_VERMELHO} !important;
+        }}
+
+        /* Destaque de ATIVADO nos Toggles (Switch) no Vermelho Direcional */
+        div[data-testid="stToggle"] div[aria-checked="true"] {{
             background-color: {COR_VERMELHO} !important;
         }}
         </style>
@@ -691,7 +696,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
         else:
             st.warning("Função de PDF indisponível. Verifique o arquivo requirements.txt.")
 
-        # CABEÇALHOS DO RESUMO AGORA COM TEXTO EM BRANCO CORRIGIDO
+        # CABEÇALHOS DO RESUMO COM TEXTO EM BRANCO FORÇADO
         st.markdown(f'<div class="summary-header">DADOS DO IMÓVEL</div>', unsafe_allow_html=True)
         st.markdown(f"""<div class="summary-body"><b>Empreendimento:</b> {d.get('empreendimento_nome')}<br>
             <b>Unidade:</b> {d.get('unidade_id')}<br><b>Valor de Venda:</b> <span class="price-tag">R$ {d.get('imovel_valor', 0):,.2f}</span></div>""", unsafe_allow_html=True)
