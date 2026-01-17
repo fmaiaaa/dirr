@@ -9,7 +9,7 @@ Fluxo Automatizado de Recomendação (Sequencial):
 3. Etapa 4: Fechamento Financeiro.
 5. Etapa 5: Resumo da Compra e Exportação PDF Profissional.
 
-Versão: 48.0 (Ícone Direcional Integrado e Design Elite Tecnológica)
+Versão: 49.0 (Ícone Superior Esquerdo Integrado na Web e PDF - Elite Tecnológica)
 =============================================================================
 """
 
@@ -44,7 +44,6 @@ URL_FINAN = f"https://docs.google.com/spreadsheets/d/{ID_FINAN}/edit#gid=0"
 URL_RANKING = f"https://docs.google.com/spreadsheets/d/{ID_RANKING}/edit#gid=0"
 URL_ESTOQUE = f"https://docs.google.com/spreadsheets/d/{ID_ESTOQUE}/edit#gid=0"
 
-# Link de reserva da Direcional
 URL_FAVICON_RESERVA = "https://direcional.com.br/wp-content/uploads/2021/04/cropped-favicon-direcional-32x32.png"
 
 # Cores Oficiais Direcional - Elite Tecnológica
@@ -175,7 +174,7 @@ class MotorRecomendacao:
 # =============================================================================
 
 def configurar_layout():
-    # ALTERAÇÃO: Define o favicon.png do repositório Git como o ícone da página
+    # Define o favicon.png como ícone da página
     favicon_path = "favicon.png"
     if not os.path.exists(favicon_path):
         favicon_path = URL_FAVICON_RESERVA
@@ -247,6 +246,7 @@ def configurar_layout():
             border-radius: 0 0 40px 40px; 
             border-bottom: 1px solid {COR_BORDA};
             box-shadow: 0 15px 35px -20px rgba(0,44,93,0.1);
+            position: relative; /* Para logo em absoluto */
         }}
         .header-title {{ 
             font-family: 'Montserrat', sans-serif;
@@ -420,8 +420,13 @@ def gerar_resumo_pdf(d):
         CINZA_RGB = (100, 116, 139)
         FUNDO_SECAO = (248, 250, 252)
 
+        # Barra de topo Direcional
         pdf.set_fill_color(*AZUL_RGB)
         pdf.rect(0, 0, 210, 3, 'F')
+
+        # INSERÇÃO: Ícone no Canto Superior Esquerdo do PDF
+        if os.path.exists("favicon.png"):
+            pdf.image("favicon.png", 10, 8, 10)
         
         pdf.ln(15)
         pdf.set_text_color(*AZUL_RGB)
@@ -822,7 +827,18 @@ def main():
     if df_finan.empty or df_estoque.empty:
         st.warning("Aguardando conexao com base de dados...")
         st.stop()
-    st.markdown(f'<div class="header-container"><div class="header-title">SIMULADOR ELITE DIRE RIO</div><div class="header-subtitle">Gestao de Vendas Direcional Engenharia v2.0</div></div>', unsafe_allow_html=True)
+    
+    # INSERÇÃO: Logotipo da Direcional no canto superior esquerdo da interface Web
+    # Utilizando o favicon do git ou fallback remoto
+    logo_src = "favicon.png" if os.path.exists("favicon.png") else URL_FAVICON_RESERVA
+    st.markdown(f'''
+        <div class="header-container">
+            <img src="{logo_src}" style="position: absolute; top: 30px; left: 40px; height: 50px;">
+            <div class="header-title">SIMULADOR ELITE DIRE RIO</div>
+            <div class="header-subtitle">Gestao de Vendas Direcional Engenharia v2.0</div>
+        </div>
+    ''', unsafe_allow_html=True)
+    
     aba_simulador_automacao(df_finan, df_estoque, df_politicas)
     st.markdown(f'<div class="footer">Direcional Engenharia - Rio de Janeiro | Developed by Lucas Maia</div>', unsafe_allow_html=True)
 
