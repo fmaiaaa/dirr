@@ -9,7 +9,7 @@ Fluxo Automatizado de Recomendação (Sequencial):
 3. Etapa 4: Fechamento Financeiro.
 5. Etapa 5: Resumo da Compra e Exportação PDF Profissional.
 
-Versão: 52.0 (Referências de Valores no Fechamento e Design Elite)
+Versão: 52.1 (Ajuste de Formatação de Números - Padrão Brasileiro)
 =============================================================================
 """
 
@@ -35,7 +35,7 @@ except ImportError:
     PDF_ENABLED = False
 
 # =============================================================================
-# 0. CONSTANTES DE ACESSO
+# 0. CONSTANTES E UTILITÁRIOS
 # =============================================================================
 ID_FINAN = "1wJD3tXe1e8FxL4mVEfNKGdtaS__Dl4V6-sm1G6qfL0s"
 ID_RANKING = "1N00McOjO1O_MuKyQhp-CVhpAet_9Lfq-VqVm1FmPV00"
@@ -53,6 +53,13 @@ COR_VERMELHO = "#e30613"  # Vermelho Direcional Oficial
 COR_FUNDO = "#fcfdfe"
 COR_BORDA = "#eef2f6"
 COR_TEXTO_MUTED = "#64748b"
+
+def fmt_br(valor):
+    """Formata números para o padrão brasileiro XXX.XXX,XX"""
+    try:
+        return f"{valor:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+    except:
+        return "0,00"
 
 # =============================================================================
 # 1. CARREGAMENTO E TRATAMENTO DE DADOS
@@ -171,7 +178,7 @@ class MotorRecomendacao:
         return estoque_disp[estoque_disp['Viavel']]
 
 # =============================================================================
-# 3. INTERFACE E DESIGN (ELITE TECNOLÓGICA - REFINAMENTO ABSOLUTO)
+# 3. INTERFACE E DESIGN (ELITE TECNOLÓGICA)
 # =============================================================================
 
 def configurar_layout():
@@ -188,7 +195,6 @@ def configurar_layout():
         <style>
         @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800;900&family=Inter:wght@300;400;500;600;700&display=swap');
         
-        /* Elite Interface Core */
         html, body, [data-testid="stAppViewContainer"] {{
             font-family: 'Inter', sans-serif;
             color: #1a1e26;
@@ -205,7 +211,6 @@ def configurar_layout():
 
         .block-container {{ max-width: 1400px !important; padding: 4rem 2rem !important; }}
         
-        /* Inputs Elite (Ultra Minimal) */
         div[data-baseweb="input"] {{
             border-radius: 8px !important;
             border: 1px solid #e2e8f0 !important;
@@ -238,7 +243,6 @@ def configurar_layout():
             border: 1px solid #e2e8f0 !important;
         }}
 
-        /* Header Executivo */
         .header-container {{ 
             text-align: center; 
             padding: 70px 0; 
@@ -267,7 +271,6 @@ def configurar_layout():
             text-transform: uppercase;
         }}
         
-        /* Cards Elite - Centralizados */
         .card, .fin-box, .recommendation-card {{ 
             background: #ffffff; 
             padding: 40px; 
@@ -290,7 +293,6 @@ def configurar_layout():
         .metric-label {{ color: {COR_TEXTO_MUTED} !important; font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.15em; margin-bottom: 12px; }}
         .metric-value {{ color: {COR_AZUL_ESC} !important; font-size: 1.8rem; font-weight: 800; font-family: 'Montserrat', sans-serif; }}
         
-        /* Estilo para referências em linha sob inputs */
         .inline-ref {{
             font-size: 0.78rem;
             color: #64748b;
@@ -301,7 +303,6 @@ def configurar_layout():
             letter-spacing: 0.05em;
         }}
 
-        /* Botões de Alta Performance */
         .stButton button {{ 
             font-family: 'Inter', sans-serif;
             border-radius: 8px !important; 
@@ -351,7 +352,6 @@ def configurar_layout():
             text-transform: uppercase;
         }}
         
-        /* Resumo Executivo Site */
         .summary-header {{ 
             font-family: 'Montserrat', sans-serif;
             background: {COR_AZUL_ESC}; 
@@ -419,7 +419,7 @@ def gerar_resumo_pdf(d):
         pdf.set_fill_color(*AZUL_RGB)
         pdf.rect(0, 0, 210, 3, 'F')
 
-        # Logótipo no PDF (Canto Superior Esquerdo)
+        # Logótipo no PDF
         if os.path.exists("favicon.png"):
             pdf.image("favicon.png", 10, 8, 10)
         
@@ -440,7 +440,7 @@ def gerar_resumo_pdf(d):
         pdf.cell(0, 6, f"CLIENTE: {d.get('nome', 'Nao informado').upper()}", ln=True)
         pdf.set_x(15)
         pdf.set_font("Helvetica", '', 10)
-        pdf.cell(0, 6, f"Renda Familiar Declarada: R$ {d.get('renda', 0):,.2f}", ln=True)
+        pdf.cell(0, 6, f"Renda Familiar Declarada: R$ {fmt_br(d.get('renda', 0))}", ln=True)
         pdf.ln(15)
 
         def adicionar_secao_pdf(titulo):
@@ -469,22 +469,22 @@ def gerar_resumo_pdf(d):
         adicionar_secao_pdf("ESPECIFICAÇÕES DO ATIVO")
         adicionar_linha_detalhe("Empreendimento", d.get('empreendimento_nome'))
         adicionar_linha_detalhe("Unidade Selecionada", d.get('unidade_id'))
-        adicionar_linha_detalhe("Valor de Venda do Imovel", f"R$ {d.get('imovel_valor', 0):,.2f}", destaque=True)
+        adicionar_linha_detalhe("Valor de Venda do Imovel", f"R$ {fmt_br(d.get('imovel_valor', 0))}", destaque=True)
         pdf.ln(8)
 
         adicionar_secao_pdf("ENGENHARIA FINANCEIRA")
-        adicionar_linha_detalhe("Financiamento Bancário Estimado", f"R$ {d.get('finan_usado', 0):,.2f}")
-        adicionar_linha_detalhe("Subsídio + FGTS Utilizado", f"R$ {d.get('fgts_sub_usado', 0):,.2f}")
-        adicionar_linha_detalhe("Pro Soluto Direcional", f"R$ {d.get('ps_usado', 0):,.2f}")
-        adicionar_linha_detalhe("Mensalidade Pro Soluto", f"{d.get('ps_parcelas')}x de R$ {d.get('ps_mensal', 0):,.2f}")
+        adicionar_linha_detalhe("Financiamento Bancário Estimado", f"R$ {fmt_br(d.get('finan_usado', 0))}")
+        adicionar_linha_detalhe("Subsídio + FGTS Utilizado", f"R$ {fmt_br(d.get('fgts_sub_usado', 0))}")
+        adicionar_linha_detalhe("Pro Soluto Direcional", f"R$ {fmt_br(d.get('ps_usado', 0))}")
+        adicionar_linha_detalhe("Mensalidade Pro Soluto", f"{d.get('ps_parcelas')}x de R$ {fmt_br(d.get('ps_mensal', 0))}")
         pdf.ln(8)
 
         adicionar_secao_pdf("PLANO DE ENTRADA (FLUXO DE CAIXA)")
-        adicionar_linha_detalhe("VALOR TOTAL DE ENTRADA", f"R$ {d.get('entrada_total', 0):,.2f}", destaque=True)
-        adicionar_linha_detalhe("Parcela de Ato (Imediato)", f"R$ {d.get('ato_final', 0):,.2f}")
-        adicionar_linha_detalhe("Parcela 30 Dias", f"R$ {d.get('ato_30', 0):,.2f}")
-        adicionar_linha_detalhe("Parcela 60 Dias", f"R$ {d.get('ato_60', 0):,.2f}")
-        adicionar_linha_detalhe("Parcela 90 Dias", f"R$ {d.get('ato_90', 0):,.2f}")
+        adicionar_linha_detalhe("VALOR TOTAL DE ENTRADA", f"R$ {fmt_br(d.get('entrada_total', 0))}", destaque=True)
+        adicionar_linha_detalhe("Parcela de Ato (Imediato)", f"R$ {fmt_br(d.get('ato_final', 0))}")
+        adicionar_linha_detalhe("Parcela 30 Dias", f"R$ {fmt_br(d.get('ato_30', 0))}")
+        adicionar_linha_detalhe("Parcela 60 Dias", f"R$ {fmt_br(d.get('ato_60', 0))}")
+        adicionar_linha_detalhe("Parcela 90 Dias", f"R$ {fmt_br(d.get('ato_90', 0))}")
 
         pdf.set_y(-25)
         pdf.set_font("Helvetica", 'I', 7)
@@ -569,15 +569,15 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
         pot_max = d['finan_estimado'] + d['fgts_sub'] + ps_max_total + dobro_renda
         
         m1, m2, m3, m4 = st.columns(4)
-        with m1: st.markdown(f'<div class="card"><p class="metric-label">Financiamento</p><p class="metric-value">R$ {d["finan_estimado"]:,.2f}</p></div>', unsafe_allow_html=True)
-        with m2: st.markdown(f'<div class="card"><p class="metric-label">FGTS + Subsídio</p><p class="metric-value">R$ {d["fgts_sub"]:,.2f}</p></div>', unsafe_allow_html=True)
-        with m3: st.markdown(f'<div class="card"><p class="metric-label">Pro Soluto</p><p class="metric-value">R$ {ps_min_total:,.0f} a {ps_max_total:,.0f}</p></div>', unsafe_allow_html=True)
-        with m4: st.markdown(f'<div class="card"><p class="metric-label">Capacidade de Entrada</p><p class="metric-value">R$ {dobro_renda:,.2f}</p></div>', unsafe_allow_html=True)
+        with m1: st.markdown(f'<div class="card"><p class="metric-label">Financiamento</p><p class="metric-value">R$ {fmt_br(d["finan_estimado"])}</p></div>', unsafe_allow_html=True)
+        with m2: st.markdown(f'<div class="card"><p class="metric-label">FGTS + Subsídio</p><p class="metric-value">R$ {fmt_br(d["fgts_sub"])}</p></div>', unsafe_allow_html=True)
+        with m3: st.markdown(f'<div class="card"><p class="metric-label">Pro Soluto</p><p class="metric-value">R$ {fmt_br(ps_min_total)} a {fmt_br(ps_max_total)}</p></div>', unsafe_allow_html=True)
+        with m4: st.markdown(f'<div class="card"><p class="metric-label">Capacidade de Entrada</p><p class="metric-value">R$ {fmt_br(dobro_renda)}</p></div>', unsafe_allow_html=True)
 
         st.markdown(f"""
             <div class="card" style="border-top: 4px solid {COR_AZUL_ESC}; background: #ffffff; min-height: 120px;">
                 <p class="metric-label" style="color: {COR_AZUL_ESC}; font-size: 0.8rem;">Poder de Aquisição Estimado</p>
-                <p class="metric-value" style="font-size: 2.8rem; color: {COR_AZUL_ESC};">R$ {pot_min:,.2f} a R$ {pot_max:,.2f}</p>
+                <p class="metric-value" style="font-size: 2.8rem; color: {COR_AZUL_ESC};">R$ {fmt_br(pot_min)} a R$ {fmt_br(pot_max)}</p>
             </div>
         """, unsafe_allow_html=True)
         
@@ -634,9 +634,9 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
                 if not df_filt_rec.empty:
                     r100, r90, r75 = df_filt_rec.iloc[0], df_filt_rec.iloc[len(df_filt_rec)//2], df_filt_rec.iloc[-1]
                     c1, c2, c3 = st.columns(3)
-                    with c1: st.markdown(f'<div class="recommendation-card" style="border-top: 4px solid {COR_AZUL_ESC};"><b>IDEAL</b><br><small>{r100["Empreendimento"]}</small><br>{r100["Identificador"]}<br><span class="price-tag">R$ {r100["Valor de Venda"]:,.2f}</span></div>', unsafe_allow_html=True)
-                    with c2: st.markdown(f'<div class="recommendation-card" style="border-top: 4px solid {COR_VERMELHO};"><b>SEGURO</b><br><small>{r90["Empreendimento"]}</small><br>{r90["Identificador"]}<br><span class="price-tag">R$ {r90["Valor de Venda"]:,.2f}</span></div>', unsafe_allow_html=True)
-                    with c3: st.markdown(f'<div class="recommendation-card" style="border-top: 4px solid {COR_AZUL_ESC};"><b>FACILITADO</b><br><small>{r75["Empreendimento"]}</small><br>{r75["Identificador"]}<br><span class="price-tag">R$ {r75["Valor de Venda"]:,.2f}</span></div>', unsafe_allow_html=True)
+                    with c1: st.markdown(f'<div class="recommendation-card" style="border-top: 4px solid {COR_AZUL_ESC};"><b>IDEAL</b><br><small>{r100["Empreendimento"]}</small><br>{r100["Identificador"]}<br><span class="price-tag">R$ {fmt_br(r100["Valor de Venda"])}</span></div>', unsafe_allow_html=True)
+                    with c2: st.markdown(f'<div class="recommendation-card" style="border-top: 4px solid {COR_VERMELHO};"><b>SEGURO</b><br><small>{r90["Empreendimento"]}</small><br>{r90["Identificador"]}<br><span class="price-tag">R$ {fmt_br(r90["Valor de Venda"])}</span></div>', unsafe_allow_html=True)
+                    with c3: st.markdown(f'<div class="recommendation-card" style="border-top: 4px solid {COR_AZUL_ESC};"><b>FACILITADO</b><br><small>{r75["Empreendimento"]}</small><br>{r75["Identificador"]}<br><span class="price-tag">R$ {fmt_br(r75["Valor de Venda"])}</span></div>', unsafe_allow_html=True)
 
         with tab_list:
             f1, f2, f3, f4, f5, f6 = st.columns([1.2, 1, 0.7, 1.1, 0.9, 0.8])
@@ -655,8 +655,13 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
             df_tab = df_tab[df_tab['Valor de Venda'] <= f_pmax]
             df_tab = df_tab.sort_values('Valor de Venda', ascending=(f_ordem == "Menor Preço"))
             
+            # Aplicando formatação visual para a tabela
+            df_tab_view = df_tab.copy()
+            df_tab_view['Valor de Venda'] = df_tab_view['Valor de Venda'].apply(fmt_br)
+            df_tab_view['Poder_Compra'] = df_tab_view['Poder_Compra'].apply(fmt_br)
+
             st.dataframe(
-                df_tab[['Identificador', 'Empreendimento', 'Bairro', 'Andar', 'Valor de Venda', 'Poder_Compra', 'Status Viabilidade']], 
+                df_tab_view[['Identificador', 'Empreendimento', 'Bairro', 'Andar', 'Valor de Venda', 'Poder_Compra', 'Status Viabilidade']], 
                 use_container_width=True, 
                 hide_index=True,
                 column_config={
@@ -664,8 +669,8 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
                     "Empreendimento": st.column_config.TextColumn("Projeto", width="medium"),
                     "Bairro": st.column_config.TextColumn("Localizacao", width="medium"),
                     "Andar": st.column_config.NumberColumn("Pavimento", format="%dº", width="small"),
-                    "Valor de Venda": st.column_config.NumberColumn("Valor de Tabela", format="R$ %.2f", width="medium"),
-                    "Poder_Compra": st.column_config.NumberColumn("Teto de Aquisicao", format="R$ %.2f", width="medium"),
+                    "Valor de Venda": st.column_config.TextColumn("Valor de Tabela (R$)", width="medium"),
+                    "Poder_Compra": st.column_config.TextColumn("Teto de Aquisicao (R$)", width="medium"),
                     "Status Viabilidade": st.column_config.TextColumn("Viabilidade", width="small")
                 }
             )
@@ -676,11 +681,11 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
         def label_emp_guide(name):
             sub = df_estoque[(df_estoque['Empreendimento'] == name) & (df_estoque['Status'] == 'Disponível')]
             if sub.empty: return name
-            return f"{name} (R$ {sub['Valor de Venda'].min():,.0f} a R$ {sub['Valor de Venda'].max():,.0f})"
+            return f"{name} (R$ {fmt_br(sub['Valor de Venda'].min())} a R$ {fmt_br(sub['Valor de Venda'].max())})"
 
         def label_uni_guide(uid, unidades_context):
             u_row = unidades_context[unidades_context['Identificador'] == uid].iloc[0]
-            return f"{uid} (R$ {u_row['Valor de Venda']:,.2f})"
+            return f"{uid} (R$ {fmt_br(u_row['Valor de Venda'])})"
 
         emp_names = sorted(df_estoque[df_estoque['Status'] == 'Disponível']['Empreendimento'].unique())
         col_sel1, col_sel2 = st.columns(2)
@@ -722,18 +727,18 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
             if st.button("Voltar para Seleção de Imóvel"): st.session_state.passo_simulacao = 'guide'; st.rerun()
         else:
             u = unidades_filtradas.iloc[0]
-            st.markdown(f'<div class="custom-alert">Unidade Selecionada: {u["Identificador"]} - {u["Empreendimento"]} (R$ {u["Valor de Venda"]:,.2f})</div>', unsafe_allow_html=True)
+            st.markdown(f'<div class="custom-alert">Unidade Selecionada: {u["Identificador"]} - {u["Empreendimento"]} (R$ {fmt_br(u["Valor de Venda"])})</div>', unsafe_allow_html=True)
             
             # Inputs com referências solicitadas
             f_u = st.number_input("Financiamento Bancário", value=float(d['finan_estimado']), step=1000.0, key="fin_u_v23")
-            st.markdown(f'<p class="inline-ref">Financiamento Aprovado: R$ {d["finan_estimado"]:,.2f}</p>', unsafe_allow_html=True)
+            st.markdown(f'<p class="inline-ref">Financiamento Aprovado: R$ {fmt_br(d["finan_estimado"])}</p>', unsafe_allow_html=True)
             
             fgts_u = st.number_input("FGTS + Subsídio", value=float(d['fgts_sub']), step=1000.0, key="fgt_u_v23")
-            st.markdown(f'<p class="inline-ref">Subsídio Aprovado: R$ {d["fgts_sub"]:,.2f}</p>', unsafe_allow_html=True)
+            st.markdown(f'<p class="inline-ref">Subsídio Aprovado: R$ {fmt_br(d["fgts_sub"])}</p>', unsafe_allow_html=True)
             
             ps_max_real = u['Valor de Venda'] * d['perc_ps']
             ps_u = st.number_input("Pro Soluto Direcional", value=float(ps_max_real), step=1000.0, key="ps_u_v23")
-            st.markdown(f'<p class="inline-ref">PS Máximo ({int(d["perc_ps"]*100)}%): R$ {ps_max_real:,.2f}</p>', unsafe_allow_html=True)
+            st.markdown(f'<p class="inline-ref">PS Máximo ({int(d["perc_ps"]*100)}%): R$ {fmt_br(ps_max_real)}</p>', unsafe_allow_html=True)
             
             parc = st.number_input("Número de Parcelas Pro Soluto", min_value=1, max_value=d['prazo_ps_max'], value=d['prazo_ps_max'], key="parc_u_v23")
             st.markdown(f'<p class="inline-ref">Parcelamento Máximo: {d["prazo_ps_max"]}x</p>', unsafe_allow_html=True)
@@ -752,9 +757,9 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
                 st.session_state.last_calc_hash = calc_hash
             
             fin1, fin2, fin3 = st.columns(3)
-            with fin1: st.markdown(f"""<div class="fin-box" style="border-top: 6px solid {COR_AZUL_ESC};"><b>VALOR DO IMÓVEL</b><br>R$ {u['Valor de Venda']:,.2f}</div>""", unsafe_allow_html=True)
-            with fin2: st.markdown(f"""<div class="fin-box" style="border-top: 6px solid {COR_VERMELHO};"><b>MENSALIDADE PS</b><br>R$ {v_parc:,.2f} ({parc}x)</div>""", unsafe_allow_html=True)
-            with fin3: st.markdown(f"""<div class="fin-box" style="border-top: 6px solid {COR_AZUL_ESC};"><b>SALDO DE ENTRADA</b><br>R$ {max(0, saldo_e):,.2f}</div>""", unsafe_allow_html=True)
+            with fin1: st.markdown(f"""<div class="fin-box" style="border-top: 6px solid {COR_AZUL_ESC};"><b>VALOR DO IMÓVEL</b><br>R$ {fmt_br(u['Valor de Venda'])}</div>""", unsafe_allow_html=True)
+            with fin2: st.markdown(f"""<div class="fin-box" style="border-top: 6px solid {COR_VERMELHO};"><b>MENSALIDADE PS</b><br>R$ {fmt_br(v_parc)} ({parc}x)</div>""", unsafe_allow_html=True)
+            with fin3: st.markdown(f"""<div class="fin-box" style="border-top: 6px solid {COR_AZUL_ESC};"><b>SALDO DE ENTRADA</b><br>R$ {fmt_br(max(0, saldo_e))}</div>""", unsafe_allow_html=True)
             
             if comp_r > d['limit_ps_renda']:
                 st.warning(f"Atenção: Parcela Pro Soluto excede o limite de {d['limit_ps_renda']*100:.0f}% da renda.")
@@ -771,7 +776,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
                 
                 soma_entrada = st.session_state.ato_1 + st.session_state.ato_2 + st.session_state.ato_3 + st.session_state.ato_4
                 if abs(soma_entrada - saldo_e) > 0.01:
-                    st.error(f"Erro na Distribuição: A soma das parcelas (R$ {soma_entrada:,.2f}) difere do saldo de entrada.")
+                    st.error(f"Erro na Distribuição: A soma das parcelas (R$ {fmt_br(soma_entrada)}) difere do saldo de entrada.")
             
             st.session_state.dados_cliente.update({
                 'imovel_valor': u['Valor de Venda'], 'finan_usado': f_u, 'fgts_sub_usado': fgts_u,
@@ -808,17 +813,17 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
 
         st.markdown(f'<div class="summary-header">DADOS DO IMÓVEL</div>', unsafe_allow_html=True)
         st.markdown(f"""<div class="summary-body"><b>Empreendimento:</b> {d.get('empreendimento_nome')}<br>
-            <b>Unidade:</b> {d.get('unidade_id')}<br><b>Valor de Venda:</b> <span style="color: {COR_VERMELHO}; font-weight: 800;">R$ {d.get('imovel_valor', 0):,.2f}</span></div>""", unsafe_allow_html=True)
+            <b>Unidade:</b> {d.get('unidade_id')}<br><b>Valor de Venda:</b> <span style="color: {COR_VERMELHO}; font-weight: 800;">R$ {fmt_br(d.get('imovel_valor', 0))}</span></div>""", unsafe_allow_html=True)
 
         st.markdown(f'<div class="summary-header">PLANO DE FINANCIAMENTO</div>', unsafe_allow_html=True)
-        st.markdown(f"""<div class="summary-body"><b>Financiamento Bancário:</b> R$ {d.get('finan_usado', 0):,.2f}<br>
-            <b>FGTS + Subsídio:</b> R$ {d.get('fgts_sub_usado', 0):,.2f}<br>
-            <b>Pro Soluto Total:</b> R$ {d.get('ps_usado', 0):,.2f} ({d.get('ps_parcelas')}x de R$ {d.get('ps_mensal', 0):,.2f})</div>""", unsafe_allow_html=True)
+        st.markdown(f"""<div class="summary-body"><b>Financiamento Bancário:</b> R$ {fmt_br(d.get('finan_usado', 0))}<br>
+            <b>FGTS + Subsídio:</b> R$ {fmt_br(d.get('fgts_sub_usado', 0))}<br>
+            <b>Pro Soluto Total:</b> R$ {fmt_br(d.get('ps_usado', 0))} ({d.get('ps_parcelas')}x de R$ {fmt_br(d.get('ps_mensal', 0))})</div>""", unsafe_allow_html=True)
 
         st.markdown(f'<div class="summary-header">FLUXO DE ENTRADA (ATO)</div>', unsafe_allow_html=True)
-        st.markdown(f"""<div class="summary-body"><b>Total de Entrada:</b> R$ {d.get('entrada_total', 0):,.2f}<br><hr style="border: 0; border-top: 1px solid #e2e8f0; margin: 10px 0;">
-            <b>Ato:</b> R$ {d.get('ato_final', 0):,.2f}<br><b>Ato 30 Dias:</b> R$ {d.get('ato_30', 0):,.2f}<br>
-            <b>Ato 60 Dias:</b> R$ {d.get('ato_60', 0):,.2f}<br><b>Ato 90 Dias:</b> R$ {d.get('ato_90', 0):,.2f}</div>""", unsafe_allow_html=True)
+        st.markdown(f"""<div class="summary-body"><b>Total de Entrada:</b> R$ {fmt_br(d.get('entrada_total', 0))}<br><hr style="border: 0; border-top: 1px solid #e2e8f0; margin: 10px 0;">
+            <b>Ato:</b> R$ {fmt_br(d.get('ato_final', 0))}<br><b>Ato 30 Dias:</b> R$ {fmt_br(d.get('ato_30', 0))}<br>
+            <b>Ato 60 Dias:</b> R$ {fmt_br(d.get('ato_60', 0))}<br><b>Ato 90 Dias:</b> R$ {fmt_br(d.get('ato_90', 0))}</div>""", unsafe_allow_html=True)
 
         st.markdown("---")
         if st.button("Fazer Nova Simulação", type="primary", use_container_width=True, key="btn_new_client_summary"): 
