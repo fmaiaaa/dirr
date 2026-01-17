@@ -10,7 +10,7 @@ Fluxo Automatizado de Recomendação (Sequencial):
 4. Etapa 4: Fechamento Financeiro.
 5. Etapa 5: Resumo da Compra e Exportação PDF.
 
-Versão: 30.0 (Padronização de Estilo e Lógica de Cores Azul-Vermelho-Azul)
+Versão: 30.1 (Contraste no Resumo e Personalização de Abas em Vermelho)
 =============================================================================
 """
 
@@ -266,14 +266,43 @@ def configurar_layout():
         /* Rodapé */
         .footer {{ text-align: center; padding: 30px 0; color: {COR_AZUL_ESC} !important; font-size: 0.85rem; border-top: 1px solid {COR_VERMELHO}; margin-top: 50px; font-weight: 400; background: #ffffff; }}
         
-        /* Resumo */
-        .summary-header {{ background: {COR_AZUL_ESC}; padding: 15px; border-radius: 10px 10px 0 0; font-weight: 600; text-align: center; margin-bottom: 0px; }}
+        /* Resumo - CORREÇÃO DE TEXTO BRANCO NO HEADER */
+        .summary-header {{ 
+            background: {COR_AZUL_ESC}; 
+            color: white !important; 
+            padding: 15px; 
+            border-radius: 10px 10px 0 0; 
+            font-weight: 600; 
+            text-align: center; 
+            margin-bottom: 0px; 
+        }}
         .summary-header b, .summary-header span, .summary-header div {{ color: white !important; }}
         .summary-body {{ background: white; padding: 20px; border: 1px solid #e2e8f0; border-radius: 0 0 10px 10px; margin-bottom: 20px; color: {COR_AZUL_ESC}; }}
         
         /* Custom Alert / Info Box (Texto Branco sobre Azul) */
         .custom-alert {{ background-color: {COR_AZUL_ESC}; padding: 15px; border-radius: 10px; margin-bottom: 20px; text-align: center; font-weight: 600; }}
         .custom-alert, .custom-alert b, .custom-alert span, .custom-alert p {{ color: white !important; }}
+
+        /* Personalização das Abas (Tabs) */
+        div[data-baseweb="tab-list"] {{ 
+            justify-content: center !important; 
+            display: flex !important; 
+            gap: 20px;
+        }}
+        button[data-baseweb="tab"] {{
+            border-bottom-width: 3px !important;
+        }}
+        button[data-baseweb="tab"] p {{
+            color: {COR_AZUL_ESC} !important;
+            font-weight: 600 !important;
+            font-size: 1rem !important;
+        }}
+        button[data-baseweb="tab"][aria-selected="true"] p {{
+            color: {COR_VERMELHO} !important;
+        }}
+        div[data-baseweb="tab-highlight"] {{
+            background-color: {COR_VERMELHO} !important;
+        }}
         </style>
     """, unsafe_allow_html=True)
 
@@ -494,7 +523,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
                 if not df_filt_rec.empty:
                     r100, r90, r75 = df_filt_rec.iloc[0], df_filt_rec.iloc[len(df_filt_rec)//2], df_filt_rec.iloc[-1]
                     c1, c2, c3 = st.columns(3)
-                    # RECOMENDAÇÕES NO ESTILO DAS OUTRAS CAIXAS (Azul - Vermelho - Azul)
+                    # RECOMENDAÇÕES PADRONIZADAS (Azul - Vermelho - Azul)
                     with c1: st.markdown(f'<div class="recommendation-card" style="border-top: 5px solid {COR_AZUL_ESC};"><b>IDEAL</b><br><small>{r100["Empreendimento"]}</small><br>{r100["Identificador"]}<br><span class="price-tag">R$ {r100["Valor de Venda"]:,.2f}</span></div>', unsafe_allow_html=True)
                     with c2: st.markdown(f'<div class="recommendation-card" style="border-top: 5px solid {COR_VERMELHO};"><b>SEGURA</b><br><small>{r90["Empreendimento"]}</small><br>{r90["Identificador"]}<br><span class="price-tag">R$ {r90["Valor de Venda"]:,.2f}</span></div>', unsafe_allow_html=True)
                     with c3: st.markdown(f'<div class="recommendation-card" style="border-top: 5px solid {COR_AZUL_ESC};"><b>FACILITADA</b><br><small>{r75["Empreendimento"]}</small><br>{r75["Identificador"]}<br><span class="price-tag">R$ {r75["Valor de Venda"]:,.2f}</span></div>', unsafe_allow_html=True)
@@ -662,6 +691,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
         else:
             st.warning("Função de PDF indisponível. Verifique o arquivo requirements.txt.")
 
+        # CABEÇALHOS DO RESUMO AGORA COM TEXTO EM BRANCO CORRIGIDO
         st.markdown(f'<div class="summary-header">DADOS DO IMÓVEL</div>', unsafe_allow_html=True)
         st.markdown(f"""<div class="summary-body"><b>Empreendimento:</b> {d.get('empreendimento_nome')}<br>
             <b>Unidade:</b> {d.get('unidade_id')}<br><b>Valor de Venda:</b> <span class="price-tag">R$ {d.get('imovel_valor', 0):,.2f}</span></div>""", unsafe_allow_html=True)
