@@ -10,7 +10,7 @@ Fluxo Automatizado de Recomendação (Sequencial):
 4. Etapa 4: Fechamento Financeiro.
 5. Etapa 5: Resumo da Compra e Exportação PDF.
 
-Versão: 28.2 (Correção de StreamlitAPIException no Download de PDF)
+Versão: 28.3 (Centralização do Botão e Refinamento Estético do PDF)
 =============================================================================
 """
 
@@ -206,50 +206,61 @@ def gerar_resumo_pdf(d):
         pdf.add_page()
         pdf.set_auto_page_break(auto=True, margin=15)
         
-        # Cabeçalho
+        # Cabeçalho do Documento
         pdf.set_fill_color(30, 41, 59)
         pdf.rect(0, 0, 210, 40, 'F')
         pdf.set_text_color(255, 255, 255)
-        pdf.set_font("Arial", 'B', 16)
-        pdf.cell(0, 10, "SIMULADOR IMOBILIARIO DV", ln=True, align='C')
-        pdf.set_font("Arial", '', 10)
-        pdf.cell(0, 10, "Resumo de Compra e Viabilidade Financeira", ln=True, align='C')
-        pdf.ln(20)
+        pdf.set_font("Helvetica", 'B', 18)
+        pdf.cell(0, 12, "SIMULADOR IMOBILIARIO DV", ln=True, align='C')
+        pdf.set_font("Helvetica", '', 10)
+        pdf.cell(0, 8, "Resumo de Compra e Viabilidade Financeira", ln=True, align='C')
+        pdf.ln(15)
 
-        # Dados do Cliente
+        # Informações do Cliente (Seção Principal)
         pdf.set_text_color(30, 41, 59)
-        pdf.set_font("Arial", 'B', 12)
-        pdf.cell(0, 10, f"Cliente: {d.get('nome', 'Nao informado')}", ln=True)
-        pdf.set_font("Arial", '', 10)
+        pdf.set_font("Helvetica", 'B', 12)
+        pdf.cell(0, 10, f"Cliente: {d.get('nome', 'Não informado')}", ln=True)
+        pdf.set_font("Helvetica", '', 11)
         pdf.cell(0, 8, f"Renda Familiar: R$ {d.get('renda', 0):,.2f}", ln=True)
-        pdf.ln(5)
+        pdf.ln(10)
 
-        def criar_secao_pdf(titulo, conteudo):
+        # Função interna para criar os blocos visuais no PDF
+        def criar_bloco_pdf(titulo, conteudo):
             pdf.set_fill_color(30, 41, 59)
             pdf.set_text_color(255, 255, 255)
-            pdf.set_font("Arial", 'B', 11)
-            pdf.cell(0, 10, titulo, ln=True, fill=True, align='C')
+            pdf.set_font("Helvetica", 'B', 11)
+            pdf.cell(0, 10, f"  {titulo}", ln=True, fill=True)
+            
             pdf.set_text_color(30, 41, 59)
-            pdf.set_font("Arial", '', 10)
+            pdf.set_font("Helvetica", '', 10.5)
+            pdf.set_fill_color(255, 255, 255)
+            
+            # Espaçamento interno simulado
+            pdf.ln(2)
             for linha in conteudo:
-                pdf.cell(0, 8, linha, ln=True, border='LR')
+                pdf.cell(0, 8, f"    {linha}", ln=True, border='LR')
+            
+            # Linha de fechamento do bloco
             pdf.cell(0, 2, "", ln=True, border='LRB')
-            pdf.ln(10)
+            pdf.ln(12)
 
+        # Conteúdo do Imóvel
         imovel_cont = [
             f"Empreendimento: {d.get('empreendimento_nome')}",
             f"Unidade: {d.get('unidade_id')}",
             f"Valor de Venda: R$ {d.get('imovel_valor', 0):,.2f}"
         ]
-        criar_secao_pdf("DADOS DO IMOVEL", imovel_cont)
+        criar_bloco_pdf("DADOS DO IMÓVEL", imovel_cont)
 
+        # Conteúdo do Financiamento
         finan_cont = [
-            f"Financiamento Bancario: R$ {d.get('finan_usado', 0):,.2f}",
-            f"FGTS + Subsidio: R$ {d.get('fgts_sub_usado', 0):,.2f}",
+            f"Financiamento Bancário: R$ {d.get('finan_usado', 0):,.2f}",
+            f"FGTS + Subsídio: R$ {d.get('fgts_sub_usado', 0):,.2f}",
             f"Pro Soluto Total: R$ {d.get('ps_usado', 0):,.2f} ({d.get('ps_parcelas')}x de R$ {d.get('ps_mensal', 0):,.2f})"
         ]
-        criar_secao_pdf("PLANO DE FINANCIAMENTO", finan_cont)
+        criar_bloco_pdf("PLANO DE FINANCIAMENTO", finan_cont)
 
+        # Conteúdo da Entrada
         entrada_cont = [
             f"Total de Entrada: R$ {d.get('entrada_total', 0):,.2f}",
             "--------------------------------------------------------------------------------",
@@ -258,11 +269,13 @@ def gerar_resumo_pdf(d):
             f"Ato 60 Dias: R$ {d.get('ato_60', 0):,.2f}",
             f"Ato 90 Dias: R$ {d.get('ato_90', 0):,.2f}"
         ]
-        criar_secao_pdf("FLUXO DE ENTRADA (ATO)", entrada_cont)
+        criar_bloco_pdf("FLUXO DE ENTRADA (ATO)", entrada_cont)
 
-        pdf.set_font("Arial", 'I', 8)
-        pdf.set_text_color(100, 116, 139)
-        pdf.cell(0, 10, "Desenvolvido por Lucas Maia", ln=True, align='C')
+        # Rodapé Estilizado (Removida a info de desenvolvimento)
+        pdf.set_y(-25)
+        pdf.set_font("Helvetica", 'I', 8)
+        pdf.set_text_color(150, 150, 150)
+        pdf.cell(0, 10, "Este documento é uma simulação sujeita a análise de crédito.", ln=True, align='C')
 
         # Retorna o PDF como bytes
         return bytes(pdf.output())
@@ -529,8 +542,17 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
         if PDF_ENABLED:
             pdf_data = gerar_resumo_pdf(d)
             if pdf_data:
-                st.download_button(label="Baixar Resumo em PDF", data=pdf_data, 
-                                   file_name=f"resumo_direcional_{d.get('nome', 'cliente')}.pdf", mime="application/pdf")
+                # Centralização do botão de download na tela
+                _, col_btn_center, _ = st.columns([1, 1.2, 1])
+                with col_btn_center:
+                    st.download_button(
+                        label="Baixar Resumo em PDF", 
+                        data=pdf_data, 
+                        file_name=f"resumo_direcional_{d.get('nome', 'cliente')}.pdf", 
+                        mime="application/pdf",
+                        use_container_width=True,
+                        key="btn_download_pdf_final"
+                    )
         else:
             st.warning("Função de PDF indisponível. Verifique o arquivo requirements.txt.")
 
