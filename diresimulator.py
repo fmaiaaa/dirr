@@ -9,7 +9,7 @@ Fluxo Automatizado de Recomendação (Sequencial):
 3. Etapa 4: Fechamento Financeiro.
 5. Etapa 5: Resumo da Compra e Exportação PDF Profissional.
 
-Versão: 43.0 (Elite da Elite - Design Minimalista e Sem Emojis)
+Versão: 45.0 (Elite Tecnológica - Design Minimalista Superior e Sem Emojis)
 =============================================================================
 """
 
@@ -34,25 +34,23 @@ except ImportError:
     PDF_ENABLED = False
 
 # =============================================================================
-# 0. CONSTANTES DE ACESSO (IDs DAS PLANILHAS REAIS)
+# 0. CONSTANTES DE ACESSO
 # =============================================================================
 ID_FINAN = "1wJD3tXe1e8FxL4mVEfNKGdtaS__Dl4V6-sm1G6qfL0s"
 ID_RANKING = "1N00McOjO1O_MuKyQhp-CVhpAet_9Lfq-VqVm1FmPV00"
 ID_ESTOQUE = "1VG-hgBkddyssN1OXgIA33CVsKGAdqT-5kwbgizxWDZQ"
 
-# URLs oficiais para o conector privado
 URL_FINAN = f"https://docs.google.com/spreadsheets/d/{ID_FINAN}/edit#gid=0"
 URL_RANKING = f"https://docs.google.com/spreadsheets/d/{ID_RANKING}/edit#gid=0"
 URL_ESTOQUE = f"https://docs.google.com/spreadsheets/d/{ID_ESTOQUE}/edit#gid=0"
 
-# Link de reserva
 URL_FAVICON_RESERVA = "https://direcional.com.br/wp-content/uploads/2021/04/cropped-favicon-direcional-32x32.png"
 
-# Cores Oficiais Direcional - Refinadas para o Nível Elite
+# Cores Oficiais Direcional - Elite
 COR_AZUL_ESC = "#002c5d"
-COR_VERMELHO = "#e30613"
+COR_VERMELHO = "#e30613"  # Vermelho Direcional Padrão
 COR_FUNDO = "#fcfdfe"
-COR_BORDA = "#f1f5f9"
+COR_BORDA = "#eef2f6"
 COR_TEXTO_MUTED = "#64748b"
 
 # =============================================================================
@@ -172,7 +170,7 @@ class MotorRecomendacao:
         return estoque_disp[estoque_disp['Viavel']]
 
 # =============================================================================
-# 3. INTERFACE E DESIGN (MODERNO/ELITE - SEM EMOJIS)
+# 3. INTERFACE E DESIGN (ELITE TECNOLÓGICA)
 # =============================================================================
 
 def configurar_layout():
@@ -181,198 +179,208 @@ def configurar_layout():
         <style>
         @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800;900&family=Inter:wght@300;400;500;600;700&display=swap');
         
-        /* Reset e Base */
+        /* Elite Interface Core */
         html, body, [data-testid="stAppViewContainer"] {{
             font-family: 'Inter', sans-serif;
             color: #1a1e26;
             background-color: {COR_FUNDO};
-            letter-spacing: -0.01em;
         }}
         
-        /* Títulos Superiores */
         h1, h2, h3, h4 {{
             font-family: 'Montserrat', sans-serif !important;
             text-align: center !important; 
             color: {COR_AZUL_ESC} !important; 
             font-weight: 800;
             letter-spacing: -0.04em;
-            margin-bottom: 2.5rem !important;
         }}
 
-        .block-container {{ max-width: 1400px !important; padding: 4rem 2rem !important; margin: auto !important; }}
+        .block-container {{ max-width: 1400px !important; padding: 4rem 2rem !important; }}
         
-        /* Inputs Elite Ultra-Clean */
+        /* Inputs Elite (Ultra Minimal) */
         div[data-baseweb="input"] {{
-            border-radius: 10px !important;
-            border: 1.5px solid #eef2f6 !important;
+            border-radius: 8px !important;
+            border: 1px solid #e2e8f0 !important;
             background-color: #ffffff !important;
-            transition: all 0.25s ease-in-out !important;
+            transition: all 0.2s ease-in-out !important;
         }}
         
         div[data-baseweb="input"]:focus-within {{
-            border-color: {COR_AZUL_ESC} !important;
-            box-shadow: 0 0 0 1px {COR_AZUL_ESC} !important;
+            border-color: {COR_VERMELHO} !important;
+            box-shadow: 0 0 0 1px {COR_VERMELHO} !important;
         }}
 
         .stTextInput input, .stNumberInput input {{
-            padding: 16px 20px !important;
-            font-weight: 500 !important;
+            padding: 14px 18px !important;
+            color: {COR_AZUL_ESC} !important;
+        }}
+        
+        /* Custom Styling for Number Input Step Buttons */
+        div[data-testid="stNumberInput"] button:hover {{
+            background-color: {COR_VERMELHO} !important;
+            color: #ffffff !important;
+            border-color: {COR_VERMELHO} !important;
+        }}
+
+        /* Toggle Slider Color (Official Red) */
+        div[data-testid="stToggle"] div[aria-checked="true"] {{
+            background-color: {COR_VERMELHO} !important;
         }}
         
         div[data-baseweb="select"] > div {{
-            border-radius: 10px !important;
-            border: 1.5px solid #eef2f6 !important;
+            border-radius: 8px !important;
+            border: 1px solid #e2e8f0 !important;
         }}
 
         /* Header Executivo */
         .header-container {{ 
             text-align: center; 
-            padding: 80px 0; 
+            padding: 70px 0; 
             background: #ffffff; 
-            margin-bottom: 60px; 
+            margin-bottom: 50px; 
             border-radius: 0 0 40px 40px; 
-            box-shadow: 0 1px 3px rgba(0,0,0,0.02), 0 20px 40px -20px rgba(0,44,93,0.08);
             border-bottom: 1px solid {COR_BORDA};
+            box-shadow: 0 15px 35px -20px rgba(0,44,93,0.1);
         }}
         .header-title {{ 
             font-family: 'Montserrat', sans-serif;
             color: {COR_AZUL_ESC}; 
-            font-size: 3.2rem; 
+            font-size: 3rem; 
             font-weight: 900; 
             margin: 0; 
             text-transform: uppercase; 
-            letter-spacing: 0.15em; 
+            letter-spacing: 0.2em; 
         }}
         .header-subtitle {{ 
             color: {COR_TEXTO_MUTED}; 
-            font-size: 1.15rem; 
-            font-weight: 500; 
+            font-size: 1rem; 
+            font-weight: 600; 
             margin-top: 15px; 
-            letter-spacing: 0.05em;
+            letter-spacing: 0.1em;
             text-transform: uppercase;
         }}
         
-        /* Cards com Design de Profundidade */
+        /* Cards Elite - Centralizados */
         .card, .fin-box, .recommendation-card {{ 
             background: #ffffff; 
             padding: 40px; 
-            border-radius: 20px; 
+            border-radius: 16px; 
             border: 1px solid {COR_BORDA}; 
-            box-shadow: 0 4px 6px rgba(0,0,0,0.01); 
+            text-align: center;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
             transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
         }}
         
         .card:hover, .fin-box:hover, .recommendation-card:hover {{
-            transform: translateY(-5px);
-            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.05);
-            border-color: {COR_AZUL_ESC};
+            transform: translateY(-4px);
+            border-color: {COR_VERMELHO};
+            box-shadow: 0 10px 30px -10px rgba(227,6,19,0.1);
         }}
         
-        .metric-label {{ color: {COR_TEXTO_MUTED} !important; font-size: 0.8rem; font-weight: 700; text-transform: uppercase; text-align: center; letter-spacing: 0.12em; margin-bottom: 15px; }}
-        .metric-value {{ color: {COR_AZUL_ESC} !important; font-size: 1.9rem; font-weight: 800; text-align: center; font-family: 'Montserrat', sans-serif; letter-spacing: -0.03em; }}
+        .metric-label {{ color: {COR_TEXTO_MUTED} !important; font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.15em; margin-bottom: 12px; }}
+        .metric-value {{ color: {COR_AZUL_ESC} !important; font-size: 1.8rem; font-weight: 800; font-family: 'Montserrat', sans-serif; }}
         
-        /* Botões Estilo High-End */
+        /* Botões de Alta Performance */
         .stButton button {{ 
             font-family: 'Inter', sans-serif;
-            border-radius: 12px !important; 
-            padding: 24px 48px !important; 
+            border-radius: 8px !important; 
+            padding: 20px 40px !important; 
             font-weight: 700 !important; 
             text-transform: uppercase;
             letter-spacing: 0.1em;
-            font-size: 0.85rem !important;
+            font-size: 0.8rem !important;
             transition: all 0.2s ease !important;
         }}
 
         .stButton button[kind="primary"] {{ 
-            background: {COR_AZUL_ESC} !important; 
+            background: {COR_VERMELHO} !important; 
             color: #ffffff !important;
             border: none !important;
         }}
         .stButton button[kind="primary"]:hover {{ 
-            background: #001f42 !important;
-            box-shadow: 0 10px 20px -5px rgba(0, 44, 93, 0.3) !important;
+            background: #c40510 !important;
+            box-shadow: 0 8px 20px -5px rgba(227, 6, 19, 0.4) !important;
         }}
         
         .stButton button:not([kind="primary"]) {{ 
             background: #ffffff !important; 
             color: {COR_AZUL_ESC} !important;
-            border: 2px solid {COR_AZUL_ESC} !important;
+            border: 1px solid {COR_AZUL_ESC} !important;
+        }}
+        .stButton button:not([kind="primary"]):hover {{
+            border-color: {COR_VERMELHO} !important;
+            color: {COR_VERMELHO} !important;
         }}
         
-        /* Tabelas com Configuração Profissional */
+        /* Tabela Elite Profissional */
         [data-testid="stDataFrame"] {{
             border: none !important;
-            border-radius: 20px;
-            overflow: hidden;
-            box-shadow: 0 0 0 1px {COR_BORDA}, 0 20px 25px -5px rgba(0,0,0,0.03);
+            background: #ffffff;
+            padding: 10px;
+            border-radius: 12px;
+            box-shadow: 0 4px 20px -10px rgba(0,0,0,0.05);
         }}
 
         .footer {{ 
             text-align: center; 
             padding: 80px 0; 
             color: {COR_TEXTO_MUTED} !important; 
-            font-size: 0.85rem; 
-            font-weight: 600;
-            letter-spacing: 0.05em;
+            font-size: 0.8rem; 
+            font-weight: 700;
+            letter-spacing: 0.1em;
             text-transform: uppercase;
         }}
         
-        /* Resumo Estilo Corporativo */
+        /* Resumo Executivo */
         .summary-header {{ 
             font-family: 'Montserrat', sans-serif;
-            background: #ffffff; 
-            color: {COR_AZUL_ESC} !important; 
-            padding: 25px; 
-            border-radius: 16px 16px 0 0; 
+            background: {COR_AZUL_ESC}; 
+            color: #ffffff !important; 
+            padding: 20px; 
+            border-radius: 12px 12px 0 0; 
             font-weight: 800; 
-            text-align: left; 
+            text-align: center; 
             text-transform: uppercase;
-            letter-spacing: 0.1em;
-            font-size: 1rem;
-            border-left: 6px solid {COR_AZUL_ESC};
-            border-bottom: 1px solid {COR_BORDA};
+            letter-spacing: 0.15em;
+            font-size: 0.9rem;
         }}
         .summary-body {{ 
             background: #ffffff; 
             padding: 40px; 
             border: 1px solid {COR_BORDA}; 
-            border-radius: 0 0 16px 16px; 
-            margin-bottom: 50px; 
+            border-radius: 0 0 12px 12px; 
+            margin-bottom: 40px; 
             color: {COR_AZUL_ESC}; 
         }}
         
         .custom-alert {{ 
             background-color: {COR_AZUL_ESC}; 
             padding: 25px; 
-            border-radius: 12px; 
-            margin-bottom: 40px; 
+            border-radius: 10px; 
+            margin-bottom: 30px; 
             text-align: center; 
             font-weight: 700; 
             color: #ffffff !important; 
-            letter-spacing: 0.02em;
         }}
 
-        div[data-baseweb="tab-list"] {{ justify-content: center !important; gap: 60px; margin-bottom: 50px; border-bottom: 1.5px solid {COR_BORDA} !important; }}
+        div[data-baseweb="tab-list"] {{ justify-content: center !important; gap: 40px; margin-bottom: 40px; }}
         button[data-baseweb="tab"] p {{ 
             color: {COR_TEXTO_MUTED} !important; 
             font-weight: 700 !important; 
             font-family: 'Montserrat', sans-serif !important; 
-            font-size: 1rem !important; 
+            font-size: 0.9rem !important; 
             text-transform: uppercase;
-            letter-spacing: 0.05em;
+            letter-spacing: 0.1em;
         }}
         button[data-baseweb="tab"][aria-selected="true"] p {{ color: {COR_AZUL_ESC} !important; }}
         div[data-baseweb="tab-highlight"] {{ background-color: {COR_VERMELHO} !important; height: 3px !important; }}
-
-        div[data-testid="stToggle"] div[aria-checked="true"] {{ background-color: {COR_AZUL_ESC} !important; }}
-        
-        /* Estilo da Tabela Refinada */
-        .stDataFrame table {{ border-radius: 16px !important; }}
         </style>
     """, unsafe_allow_html=True)
 
 # =============================================================================
-# 4. FUNÇÃO PARA GERAR PDF (ESTILO PREMIUM EXECUTIVO REFINADO)
+# 4. FUNÇÃO PARA GERAR PDF (ESTILO PREMIUM EXECUTIVO)
 # =============================================================================
 
 def gerar_resumo_pdf(d):
@@ -390,11 +398,9 @@ def gerar_resumo_pdf(d):
         CINZA_RGB = (100, 116, 139)
         FUNDO_SECAO = (248, 250, 252)
 
-        # Barra de topo Direcional
         pdf.set_fill_color(*AZUL_RGB)
         pdf.rect(0, 0, 210, 3, 'F')
         
-        # Cabeçalho Centralizado
         pdf.ln(15)
         pdf.set_text_color(*AZUL_RGB)
         pdf.set_font("Helvetica", 'B', 22)
@@ -404,7 +410,6 @@ def gerar_resumo_pdf(d):
         pdf.cell(0, 6, "SIMULADOR IMOBILIARIO DIRE RIO - DOCUMENTO EXECUTIVO", ln=True, align='C')
         pdf.ln(15)
 
-        # Dados do Cliente
         pdf.set_fill_color(*FUNDO_SECAO)
         pdf.rect(10, pdf.get_y(), 190, 24, 'F')
         pdf.set_xy(15, pdf.get_y() + 6)
@@ -439,7 +444,6 @@ def gerar_resumo_pdf(d):
             pdf.set_draw_color(241, 245, 249)
             pdf.line(15, pdf.get_y(), 195, pdf.get_y())
 
-        # Seções
         adicionar_secao_pdf("ESPECIFICACOES DO ATIVO")
         adicionar_linha_detalhe("Empreendimento", d.get('empreendimento_nome'))
         adicionar_linha_detalhe("Unidade Selecionada", d.get('unidade_id'))
@@ -460,7 +464,6 @@ def gerar_resumo_pdf(d):
         adicionar_linha_detalhe("Parcela 60 Dias", f"R$ {d.get('ato_60', 0):,.2f}")
         adicionar_linha_detalhe("Parcela 90 Dias", f"R$ {d.get('ato_90', 0):,.2f}")
 
-        # Rodapé
         pdf.set_y(-25)
         pdf.set_font("Helvetica", 'I', 7)
         pdf.set_text_color(*CINZA_RGB)
@@ -513,7 +516,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
             if not nome.strip():
                 st.markdown(f'<div class="custom-alert">Por favor, informe o Nome do Cliente para continuar.</div>', unsafe_allow_html=True)
             elif any(char.isdigit() for char in nome):
-                st.markdown(f'<div class="custom-alert">Nome Inválido. Por favor, insira um nome válido sem números.</div>', unsafe_allow_html=True)
+                st.markdown(f'<div class="custom-alert">Nome Invalido. Por favor, insira um nome valido sem numeros.</div>', unsafe_allow_html=True)
             else:
                 finan, sub = motor.obter_enquadramento(renda, social, cotista)
                 class_b = 'EMCASH' if politica_ps == "Emcash" else ranking
@@ -543,18 +546,18 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
         
         m1, m2, m3, m4 = st.columns(4)
         with m1: st.markdown(f'<div class="card"><p class="metric-label">Financiamento</p><p class="metric-value">R$ {d["finan_estimado"]:,.2f}</p></div>', unsafe_allow_html=True)
-        with m2: st.markdown(f'<div class="card"><p class="metric-label">FGTS + Subsídio</p><p class="metric-value">R$ {d["fgts_sub"]:,.2f}</p></div>', unsafe_allow_html=True)
+        with m2: st.markdown(f'<div class="card"><p class="metric-label">FGTS + Subsidio</p><p class="metric-value">R$ {d["fgts_sub"]:,.2f}</p></div>', unsafe_allow_html=True)
         with m3: st.markdown(f'<div class="card"><p class="metric-label">Pro Soluto</p><p class="metric-value">R$ {ps_min_total:,.0f} a {ps_max_total:,.0f}</p></div>', unsafe_allow_html=True)
         with m4: st.markdown(f'<div class="card"><p class="metric-label">Capacidade Entrada</p><p class="metric-value">R$ {dobro_renda:,.2f}</p></div>', unsafe_allow_html=True)
 
         st.markdown(f"""
-            <div class="card" style="border-top: 5px solid {COR_AZUL_ESC}; background: #ffffff; min-height: 120px;">
-                <p class="metric-label" style="color: {COR_AZUL_ESC}; font-size: 0.9rem;">Poder de Aquisição Estimado</p>
+            <div class="card" style="border-top: 4px solid {COR_AZUL_ESC}; background: #ffffff; min-height: 120px;">
+                <p class="metric-label" style="color: {COR_AZUL_ESC}; font-size: 0.8rem;">Poder de Aquisicao Estimado</p>
                 <p class="metric-value" style="font-size: 2.8rem; color: {COR_AZUL_ESC};">R$ {pot_min:,.2f} a R$ {pot_max:,.2f}</p>
             </div>
         """, unsafe_allow_html=True)
         
-        if st.button("Explorar Produtos Viáveis", type="primary", use_container_width=True, key="btn_s2_v23"):
+        if st.button("Explorar Produtos Viaveis", type="primary", use_container_width=True, key="btn_s2_v23"):
             st.session_state.passo_simulacao = 'guide'; st.rerun()
         st.write("")
         if st.button("Ajustar Dados do Cliente", use_container_width=True, key="btn_edit_v23"):
@@ -562,40 +565,41 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
 
     elif st.session_state.passo_simulacao == 'guide':
         d = st.session_state.dados_cliente
-        st.markdown(f"### Catálogo de Viabilidade")
+        st.markdown(f"### Catalogo de Viabilidade")
         
         df_disp_total = df_estoque[df_estoque['Status'] == 'Disponível'].copy()
         res = df_disp_total['Valor de Venda'].apply(lambda vv: motor.calcular_poder_compra(d['renda'], d['finan_estimado'], d['fgts_sub'], d['perc_ps'], vv))
         df_disp_total['Poder_Compra'] = [x[0] for x in res]
         df_disp_total['PS_Unidade'] = [x[1] for x in res]
         df_disp_total['Viavel'] = df_disp_total['Valor de Venda'] <= df_disp_total['Poder_Compra']
-        df_disp_total['Status Viabilidade'] = df_disp_total['Viavel'].apply(lambda x: "Viável" if x else "Inviável")
+        df_disp_total['Status Viabilidade'] = df_disp_total['Viavel'].apply(lambda x: "Viavel" if x else "Inviavel")
         
         df_viaveis = df_disp_total[df_disp_total['Viavel']].copy()
         
         with st.expander("Resumo de Ofertas Ativas", expanded=False):
             if df_viaveis.empty:
-                st.write("Sem produtos viáveis no perfil selecionado.")
+                st.write("Sem produtos viaveis no perfil selecionado.")
             else:
                 emp_counts = df_viaveis.groupby('Empreendimento').size().to_dict()
                 for emp, qtd in emp_counts.items():
                     st.markdown(f'<div class="thin-card"><div><b>{emp}</b></div><div>{qtd} unidades</div></div>', unsafe_allow_html=True)
 
-        tab_rec, tab_list = st.tabs(["Sugestões Estratégicas", "Estoque Geral"])
+        tab_rec, tab_list = st.tabs(["Sugestoes Estrategicas", "Estoque Geral"])
         
         with tab_rec:
             if df_viaveis.empty:
                 st.info("Nenhuma unidade atende ao poder de compra atual.")
             else:
-                emp_rec = st.selectbox("Refinar Sugestões:", options=["Todos"] + sorted(df_viaveis['Empreendimento'].unique().tolist()), key="sel_emp_v23")
+                emp_rec = st.selectbox("Refinar Sugestoes:", options=["Todos"] + sorted(df_viaveis['Empreendimento'].unique().tolist()), key="sel_emp_v23")
                 df_filt_rec = df_viaveis if emp_rec == "Todos" else df_viaveis[df_viaveis['Empreendimento'] == emp_rec]
                 df_filt_rec = df_filt_rec.sort_values('Valor de Venda', ascending=False)
                 
                 if not df_filt_rec.empty:
                     r100, r90, r75 = df_filt_rec.iloc[0], df_filt_rec.iloc[len(df_filt_rec)//2], df_filt_rec.iloc[-1]
                     c1, c2, c3 = st.columns(3)
+                    # Textos CENTRALIZADOS e SEM EMOJIS
                     with c1: st.markdown(f'<div class="recommendation-card" style="border-top: 4px solid {COR_AZUL_ESC};"><b>PERFIL IDEAL</b><br><small>{r100["Empreendimento"]}</small><br>{r100["Identificador"]}<br><span class="price-tag">R$ {r100["Valor de Venda"]:,.2f}</span></div>', unsafe_allow_html=True)
-                    with c2: st.markdown(f'<div class="recommendation-card" style="border-top: 4px solid {COR_VERMELHO};"><b>OPÇÃO SEGURA</b><br><small>{r90["Empreendimento"]}</small><br>{r90["Identificador"]}<br><span class="price-tag">R$ {r90["Valor de Venda"]:,.2f}</span></div>', unsafe_allow_html=True)
+                    with c2: st.markdown(f'<div class="recommendation-card" style="border-top: 4px solid {COR_VERMELHO};"><b>OPCAO SEGURA</b><br><small>{r90["Empreendimento"]}</small><br>{r90["Identificador"]}<br><span class="price-tag">R$ {r90["Valor de Venda"]:,.2f}</span></div>', unsafe_allow_html=True)
                     with c3: st.markdown(f'<div class="recommendation-card" style="border-top: 4px solid {COR_AZUL_ESC};"><b>MAIOR FACILIDADE</b><br><small>{r75["Empreendimento"]}</small><br>{r75["Identificador"]}<br><span class="price-tag">R$ {r75["Valor de Venda"]:,.2f}</span></div>', unsafe_allow_html=True)
 
         with tab_list:
@@ -603,7 +607,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
             with f1: f_emp = st.multiselect("Empreendimento:", options=sorted(df_disp_total['Empreendimento'].unique()), key="f_emp_tab_v25")
             with f2: f_bairro = st.multiselect("Bairro:", options=sorted(df_disp_total['Bairro'].unique()), key="f_bairro_tab_v25")
             with f3: f_andar = st.multiselect("Andar:", options=sorted(df_disp_total['Andar'].unique()), key="f_andar_tab_v25")
-            with f4: f_status_v = st.multiselect("Viabilidade:", options=["Viável", "Inviável"], key="f_status_tab_v25")
+            with f4: f_status_v = st.multiselect("Viabilidade:", options=["Viavel", "Inviavel"], key="f_status_tab_v25")
             with f5: f_ordem = st.selectbox("Ordem:", ["Maior Preço", "Menor Preço"], key="f_ordem_tab_v25")
             with f6: f_pmax = st.number_input("Preço Máx:", value=float(df_disp_total['Valor de Venda'].max()), key="f_pmax_tab_v25")
             
@@ -615,22 +619,23 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
             df_tab = df_tab[df_tab['Valor de Venda'] <= f_pmax]
             df_tab = df_tab.sort_values('Valor de Venda', ascending=(f_ordem == "Menor Preço"))
             
-            # Tabela de Unidades Completa Refinada
+            # Tabela Elite - Configuração Profissional Superior
             st.dataframe(
                 df_tab[['Identificador', 'Empreendimento', 'Bairro', 'Andar', 'Valor de Venda', 'Poder_Compra', 'Status Viabilidade']], 
                 use_container_width=True, 
                 hide_index=True,
                 column_config={
                     "Identificador": st.column_config.TextColumn("ID Unidade"),
-                    "Valor de Venda": st.column_config.NumberColumn("Valor de Venda", format="R$ %.2f", width="medium"),
-                    "Poder_Compra": st.column_config.NumberColumn("Poder de Compra", format="R$ %.2f", width="medium"),
-                    "Andar": st.column_config.NumberColumn("Andar", format="%dº", width="small"),
-                    "Status Viabilidade": st.column_config.TextColumn("Status", width="small")
+                    "Empreendimento": st.column_config.TextColumn("Projeto"),
+                    "Valor de Venda": st.column_config.NumberColumn("Preço de Tabela", format="R$ %.2f", width="medium"),
+                    "Poder_Compra": st.column_config.NumberColumn("Teto de Compra", format="R$ %.2f", width="medium"),
+                    "Andar": st.column_config.NumberColumn("Andar", format="%d"),
+                    "Status Viabilidade": st.column_config.TextColumn("Viabilidade")
                 }
             )
 
         st.markdown("---")
-        st.markdown("### Seleção de Ativo")
+        st.markdown("### Selecao de Ativo")
         
         def label_emp_guide(name):
             sub = df_estoque[(df_estoque['Empreendimento'] == name) & (df_estoque['Status'] == 'Disponível')]
@@ -648,14 +653,14 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
         unidades_disp = df_estoque[(df_estoque['Empreendimento'] == emp_escolhido) & (df_estoque['Status'] == 'Disponível')]
         with col_sel2:
             if unidades_disp.empty:
-                st.warning("Sem estoque disponível.")
+                st.warning("Sem estoque disponivel.")
                 uni_escolhida_id = None
             else:
                 uni_escolhida_id = st.selectbox("Escolha a Unidade:", options=unidades_disp['Identificador'].unique(), 
                                                format_func=lambda x: label_uni_guide(x, unidades_disp), key="sel_uni_guide_v26")
 
         st.write("")
-        if st.button("Avançar para Montagem de Fluxo", type="primary", use_container_width=True, key="btn_fech_v26"):
+        if st.button("Avancar para Montagem de Fluxo", type="primary", use_container_width=True, key="btn_fech_v26"):
             if uni_escolhida_id:
                 st.session_state.dados_cliente['unidade_id'] = uni_escolhida_id
                 st.session_state.dados_cliente['empreendimento_nome'] = emp_escolhido
@@ -677,19 +682,19 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
         
         if unidades_filtradas.empty:
             st.error("Falha ao recuperar unidade.")
-            if st.button("Voltar ao Catálogo"): st.session_state.passo_simulacao = 'guide'; st.rerun()
+            if st.button("Voltar ao Catalogo"): st.session_state.passo_simulacao = 'guide'; st.rerun()
         else:
             u = unidades_filtradas.iloc[0]
             st.markdown(f'<div class="custom-alert">Ativo Selecionado: {u["Identificador"]} - {u["Empreendimento"]} (R$ {u["Valor de Venda"]:,.2f})</div>', unsafe_allow_html=True)
             
-            f_u = st.number_input("Financiamento Bancário", value=float(d['finan_estimado']), key="fin_u_v23")
-            fgts_u = st.number_input("FGTS + Subsídio", value=float(d['fgts_sub']), key="fgt_u_v23")
+            f_u = st.number_input("Financiamento Bancário", value=float(d['finan_estimado']), step=1000.0, key="fin_u_v23")
+            fgts_u = st.number_input("FGTS + Subsidio", value=float(d['fgts_sub']), step=1000.0, key="fgt_u_v23")
             
             ps_max_real = u['Valor de Venda'] * d['perc_ps']
-            ps_u = st.number_input("Pro Soluto Direcional", value=float(ps_max_real), key="ps_u_v23")
-            st.markdown(f'<p style="font-size:0.8rem; color:{COR_TEXTO_MUTED}; margin-top:-15px; margin-bottom:15px; font-weight:600;">LIMITE DIRECIONAL ({int(d["perc_ps"]*100)}%): R$ {ps_max_real:,.2f}</p>', unsafe_allow_html=True)
+            ps_u = st.number_input("Pro Soluto Direcional", value=float(ps_max_real), step=1000.0, key="ps_u_v23")
+            st.markdown(f'<p style="font-size:0.75rem; color:{COR_TEXTO_MUTED}; margin-top:-15px; margin-bottom:15px; font-weight:700; text-transform:uppercase;">LIMITE DIRECIONAL ({int(d["perc_ps"]*100)}%): R$ {ps_max_real:,.2f}</p>', unsafe_allow_html=True)
             
-            parc = st.number_input("Número de Parcelas Pro Soluto", min_value=1, max_value=d['prazo_ps_max'], value=d['prazo_ps_max'], key="parc_u_v23")
+            parc = st.number_input("Numero de Parcelas Pro Soluto", min_value=1, max_value=d['prazo_ps_max'], value=d['prazo_ps_max'], key="parc_u_v23")
             
             v_parc = ps_u / parc
             comp_r = (v_parc / d['renda'])
@@ -705,15 +710,15 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
                 st.session_state.last_calc_hash = calc_hash
             
             fin1, fin2, fin3 = st.columns(3)
-            with fin1: st.markdown(f"""<div class="fin-box" style="border-top: 6px solid {COR_AZUL_ESC};"><b>VALOR DO ATIVO</b><br>R$ {u['Valor de Venda']:,.2f}</div>""", unsafe_allow_html=True)
-            with fin2: st.markdown(f"""<div class="fin-box" style="border-top: 6px solid {COR_VERMELHO};"><b>MENSALIDADE PS</b><br>R$ {v_parc:,.2f} ({parc}x)</div>""", unsafe_allow_html=True)
-            with fin3: st.markdown(f"""<div class="fin-box" style="border-top: 6px solid {COR_AZUL_ESC};"><b>SALDO ENTRADA</b><br>R$ {max(0, saldo_e):,.2f}</div>""", unsafe_allow_html=True)
+            with fin1: st.markdown(f"""<div class="fin-box" style="border-top: 5px solid {COR_AZUL_ESC};"><b>VALOR DO ATIVO</b><br>R$ {u['Valor de Venda']:,.2f}</div>""", unsafe_allow_html=True)
+            with fin2: st.markdown(f"""<div class="fin-box" style="border-top: 5px solid {COR_VERMELHO};"><b>MENSALIDADE PS</b><br>R$ {v_parc:,.2f} ({parc}x)</div>""", unsafe_allow_html=True)
+            with fin3: st.markdown(f"""<div class="fin-box" style="border-top: 5px solid {COR_AZUL_ESC};"><b>SALDO ENTRADA</b><br>R$ {max(0, saldo_e):,.2f}</div>""", unsafe_allow_html=True)
             
             if comp_r > d['limit_ps_renda']:
-                st.warning(f"Atenção: Parcela Pro Soluto excede o limite de {d['limit_ps_renda']*100:.0f}% da renda.")
+                st.warning(f"Atencao: Parcela Pro Soluto excede o limite de {d['limit_ps_renda']*100:.0f}% da renda.")
 
             if saldo_e > 0:
-                st.markdown("#### Distribuição da Entrada")
+                st.markdown("#### Distribuicao da Entrada")
                 col_a, col_b = st.columns(2)
                 with col_a:
                     st.session_state.ato_1 = st.number_input("Ato", value=st.session_state.ato_1, key="ato_1_v24")
@@ -724,7 +729,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
                 
                 soma_entrada = st.session_state.ato_1 + st.session_state.ato_2 + st.session_state.ato_3 + st.session_state.ato_4
                 if abs(soma_entrada - saldo_e) > 0.01:
-                    st.error(f"Erro na Distribuição: A soma das parcelas (R$ {soma_entrada:,.2f}) difere do saldo de entrada.")
+                    st.error(f"Erro na Distribuicao: A soma das parcelas (R$ {soma_entrada:,.2f}) difere do saldo de entrada.")
             
             st.session_state.dados_cliente.update({
                 'imovel_valor': u['Valor de Venda'], 'finan_usado': f_u, 'fgts_sub_usado': fgts_u,
@@ -737,12 +742,12 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
         if st.button("Finalizar e Ver Resumo", type="primary", use_container_width=True, key="btn_to_summary"):
             st.session_state.passo_simulacao = 'summary'
             st.rerun()
-        if st.button("Voltar ao Catálogo", use_container_width=True, key="btn_back_to_guide"): 
+        if st.button("Voltar ao Catalogo", use_container_width=True, key="btn_back_to_guide"): 
             st.session_state.passo_simulacao = 'guide'; st.rerun()
 
     elif st.session_state.passo_simulacao == 'summary':
         d = st.session_state.dados_cliente
-        st.markdown(f"### Resumo Final da Operação - {d.get('nome', 'Cliente')}")
+        st.markdown(f"### Resumo Final da Operacao - {d.get('nome', 'Cliente')}")
         
         if PDF_ENABLED:
             pdf_data = gerar_resumo_pdf(d)
@@ -750,7 +755,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
                 _, col_btn_center, _ = st.columns([1, 1.2, 1])
                 with col_btn_center:
                     st.download_button(
-                        label="Exportar Relatório Executivo (PDF)", 
+                        label="Exportar Relatorio Executivo (PDF)", 
                         data=pdf_data, 
                         file_name=f"Resumo Direcional - {d.get('nome', 'Cliente')}.pdf", 
                         mime="application/pdf",
@@ -758,14 +763,13 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
                         key="btn_download_pdf_final"
                     )
 
-        # Resumo Site (Design V39 Revertido)
-        st.markdown(f'<div class="summary-header">DADOS DO IMÓVEL</div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="summary-header">DADOS DO IMOVEL</div>', unsafe_allow_html=True)
         st.markdown(f"""<div class="summary-body"><b>Empreendimento:</b> {d.get('empreendimento_nome')}<br>
-            <b>Unidade:</b> {d.get('unidade_id')}<br><b>Valor de Venda:</b> <span style="color: {COR_VERMELHO}; font-weight: 700;">R$ {d.get('imovel_valor', 0):,.2f}</span></div>""", unsafe_allow_html=True)
+            <b>Unidade:</b> {d.get('unidade_id')}<br><b>Valor de Venda:</b> <span style="color: {COR_VERMELHO}; font-weight: 800;">R$ {d.get('imovel_valor', 0):,.2f}</span></div>""", unsafe_allow_html=True)
 
         st.markdown(f'<div class="summary-header">PLANO DE FINANCIAMENTO</div>', unsafe_allow_html=True)
-        st.markdown(f"""<div class="summary-body"><b>Financiamento Bancário:</b> R$ {d.get('finan_usado', 0):,.2f}<br>
-            <b>FGTS + Subsídio:</b> R$ {d.get('fgts_sub_usado', 0):,.2f}<br>
+        st.markdown(f"""<div class="summary-body"><b>Financiamento Bancario:</b> R$ {d.get('finan_usado', 0):,.2f}<br>
+            <b>FGTS + Subsidio:</b> R$ {d.get('fgts_sub_usado', 0):,.2f}<br>
             <b>Pro Soluto Total:</b> R$ {d.get('ps_usado', 0):,.2f} ({d.get('ps_parcelas')}x de R$ {d.get('ps_mensal', 0):,.2f})</div>""", unsafe_allow_html=True)
 
         st.markdown(f'<div class="summary-header">FLUXO DE ENTRADA (ATO)</div>', unsafe_allow_html=True)
@@ -783,9 +787,9 @@ def main():
     configurar_layout()
     df_finan, df_estoque, df_politicas = carregar_dados_sistema()
     if df_finan.empty or df_estoque.empty:
-        st.warning("Aguardando conexão com base de dados...")
+        st.warning("Aguardando conexao com base de dados...")
         st.stop()
-    st.markdown(f'<div class="header-container"><div class="header-title">SIMULADOR ELITE DIRE RIO</div><div class="header-subtitle">Gestão de Vendas Direcional Engenharia v2.0</div></div>', unsafe_allow_html=True)
+    st.markdown(f'<div class="header-container"><div class="header-title">SIMULADOR ELITE DIRE RIO</div><div class="header-subtitle">Gestao de Vendas Direcional Engenharia v2.0</div></div>', unsafe_allow_html=True)
     aba_simulador_automacao(df_finan, df_estoque, df_politicas)
     st.markdown(f'<div class="footer">Direcional Engenharia - Rio de Janeiro | Developed by Lucas Maia</div>', unsafe_allow_html=True)
 
