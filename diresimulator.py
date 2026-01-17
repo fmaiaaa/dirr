@@ -10,7 +10,7 @@ Fluxo Automatizado de Recomendação (Sequencial):
 4. Etapa 4: Fechamento Financeiro.
 5. Etapa 5: Resumo da Compra e Exportação PDF.
 
-Versão: 28.6 (Favicon Direcional e Scroll Automático Reforçado)
+Versão: 29.0 (Correção TypeError, Favicon Direcional e Scroll Automático)
 =============================================================================
 """
 
@@ -281,17 +281,21 @@ def gerar_resumo_pdf(d):
 # =============================================================================
 
 def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
-    # Componente para forçar scroll ao topo com KEY dinâmica para garantir execução na mudança de estado
+    # Componente para forçar scroll ao topo
+    # Usamos uma string de comentário única para forçar o re-render a cada etapa
+    passo_atual = st.session_state.get('passo_simulacao', 'init')
     components.html(
         f"""
+        <!-- Step ID: {passo_atual} -->
         <script>
-            var mainContent = window.parent.document.querySelector('.main');
-            if (mainContent) mainContent.scrollTo(0,0);
             window.parent.window.scrollTo(0,0);
+            var mainContainer = window.parent.document.querySelector('.main');
+            if (mainContainer) {{
+                mainContainer.scrollTo(0,0);
+            }}
         </script>
         """,
-        height=0,
-        key=f"scroll_handler_{st.session_state.get('passo_simulacao', 'init')}"
+        height=0
     )
 
     motor = MotorRecomendacao(df_finan, df_estoque, df_politicas)
@@ -548,6 +552,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
         if PDF_ENABLED:
             pdf_data = gerar_resumo_pdf(d)
             if pdf_data:
+                # Centralização do botão de download
                 _, col_btn_center, _ = st.columns([1, 1.2, 1])
                 with col_btn_center:
                     st.download_button(
