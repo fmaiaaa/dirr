@@ -8,8 +8,9 @@ Fluxo Automatizado de Recomendação (Sequencial):
 2. Etapa 2: Valor Potencial de Compra.
 3. Etapa 3: Guia de Viabilidade (Seleção do Produto).
 4. Etapa 4: Fechamento Financeiro.
+5. Etapa 5: Resumo da Compra.
 
-Versão: 26.3 (Inclusão de Assinatura no Rodapé)
+Versão: 27.0 (Inclusão de Página de Resumo e Fluxo de Novo Cliente)
 =============================================================================
 """
 
@@ -178,6 +179,8 @@ def configurar_layout():
         .inline-ref { font-size: 0.85rem; color: #475569; margin-top: -12px; margin-bottom: 14px; font-weight: 500; text-align: left; background: #f1f5f9; padding: 4px 8px; border-radius: 4px; border-left: 3px solid #2563eb; }
         div[data-baseweb="tab-list"] { justify-content: center !important; display: flex !important; }
         .footer { text-align: center; padding: 30px 0; color: #64748b; font-size: 0.85rem; border-top: 1px solid #e2e8f0; margin-top: 50px; font-weight: 400; }
+        .summary-header { background: #1e293b; color: white; padding: 15px; border-radius: 10px 10px 0 0; font-weight: 600; text-align: center; margin-bottom: 0px; }
+        .summary-body { background: white; padding: 20px; border: 1px solid #e2e8f0; border-radius: 0 0 10px 10px; margin-bottom: 20px; }
         </style>
     """, unsafe_allow_html=True)
 
@@ -419,12 +422,75 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
                 soma_entrada = st.session_state.ato_1 + st.session_state.ato_2 + st.session_state.ato_3 + st.session_state.ato_4
                 if abs(soma_entrada - saldo_e) > 0.01:
                     st.error(f"⚠️ A soma das parcelas (R$ {soma_entrada:,.2f}) não confere com o Saldo de Entrada (R$ {saldo_e:,.2f}).")
+            
+            # SALVANDO DADOS FINAIS PARA O RESUMO
+            st.session_state.dados_cliente.update({
+                'imovel_valor': u['Valor de Venda'],
+                'finan_usado': f_u,
+                'fgts_sub_usado': fgts_u,
+                'ps_usado': ps_u,
+                'ps_parcelas': parc,
+                'ps_mensal': v_parc,
+                'entrada_total': saldo_e,
+                'ato_final': st.session_state.ato_1,
+                'ato_30': st.session_state.ato_2,
+                'ato_60': st.session_state.ato_3,
+                'ato_90': st.session_state.ato_4
+            })
         
         st.markdown("---")
+        if st.button("📄 Gerar Resumo de Compra", type="primary", use_container_width=True, key="btn_to_summary"):
+            st.session_state.passo_simulacao = 'summary'
+            st.rerun()
+
         if st.button("Voltar para Seleção de Imóvel", use_container_width=True, key="btn_v_guide_v23"): 
             st.session_state.passo_simulacao = 'guide'; st.rerun()
-        if st.button("Novo Cliente", use_container_width=True, key="btn_new_c_v23"): 
-            st.session_state.passo_simulacao = 'input'; st.rerun()
+
+    # --- NOIVA ETAPA 5: RESUMO ---
+    elif st.session_state.passo_simulacao == 'summary':
+        d = st.session_state.dados_cliente
+        st.markdown(f"### 📋 Resumo da Simulação - {d.get('nome', 'Cliente')}")
+        
+        st.markdown('<div class="summary-header">DADOS DO IMÓVEL</div>', unsafe_allow_html=True)
+        st.markdown(f"""
+            <div class="summary-body">
+                <b>Empreendimento:</b> {d.get('empreendimento_nome')}<br>
+                <b>Unidade:</b> {d.get('unidade_id')}<br>
+                <b>Valor de Venda:</b> R$ {d.get('imovel_valor', 0):,.2f}
+            </div>
+        """, unsafe_allow_html=True)
+
+        st.markdown('<div class="summary-header">PLANO DE FINANCIAMENTO</div>', unsafe_allow_html=True)
+        st.markdown(f"""
+            <div class="summary-body">
+                <b>Financiamento Bancário:</b> R$ {d.get('finan_usado', 0):,.2f}<br>
+                <b>FGTS + Subsídio:</b> R$ {d.get('fgts_sub_usado', 0):,.2f}<br>
+                <b>Pro Soluto Total:</b> R$ {d.get('ps_usado', 0):,.2f} ({d.get('ps_parcelas')}x de R$ {d.get('ps_mensal', 0):,.2f})
+            </div>
+        """, unsafe_allow_html=True)
+
+        st.markdown('<div class="summary-header">FLUXO DE ENTRADA (ATO)</div>', unsafe_allow_html=True)
+        st.markdown(f"""
+            <div class="summary-body">
+                <b>Total de Entrada:</b> R$ {d.get('entrada_total', 0):,.2f}<br><hr>
+                <b>Ato:</b> R$ {d.get('ato_final', 0):,.2f}<br>
+                <b>Ato 30 Dias:</b> R$ {d.get('ato_30', 0):,.2f}<br>
+                <b>Ato 60 Dias:</b> R$ {d.get('ato_60', 0):,.2f}<br>
+                <b>Ato 90 Dias:</b> R$ {d.get('ato_90', 0):,.2f}
+            </div>
+        """, unsafe_allow_html=True)
+
+        st.success("✅ Simulação finalizada com sucesso!")
+        
+        st.markdown("---")
+        if st.button("👤 Iniciar Novo Cliente", type="primary", use_container_width=True, key="btn_new_c_summary"): 
+            st.session_state.dados_cliente = {}
+            st.session_state.passo_simulacao = 'input'
+            st.rerun()
+            
+        if st.button("⬅️ Editar Fechamento Financeiro", use_container_width=True, key="btn_back_from_summary"):
+            st.session_state.passo_simulacao = 'payment_flow'
+            st.rerun()
 
 def main():
     configurar_layout()
