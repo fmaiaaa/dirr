@@ -10,7 +10,7 @@ Fluxo Automatizado de Recomendação (Sequencial):
 4. Etapa 4: Fechamento Financeiro.
 5. Etapa 5: Resumo da Compra e Exportação PDF.
 
-Versão: 34.0 (Cartões Padronizados com Mesma Altura e Largura)
+Versão: 35.0 (Design Ultra-Profissional, Efeito de Profundidade e Refinamento PDF)
 =============================================================================
 """
 
@@ -195,7 +195,7 @@ def configurar_layout():
             line-height: 1.6;
         }}
         
-        /* Títulos */
+        /* Títulos Modernos */
         h1, h2, h3, h4 {{
             font-family: 'Montserrat', sans-serif !important;
             text-align: center !important; 
@@ -203,49 +203,49 @@ def configurar_layout():
             color: {COR_AZUL_ESC} !important; 
             font-weight: 800;
             letter-spacing: -0.5px;
-            margin-bottom: 1.5rem !important;
+            margin-bottom: 1.8rem !important;
         }}
 
-        /* Fundo branco total */
-        .main {{ background-color: #ffffff; }}
-        .block-container {{ max-width: 1100px !important; padding: 2rem !important; margin: auto !important; }}
+        /* Fundo principal cinza claro para criar contraste com os cards brancos */
+        .main {{ background-color: #f8fafc; }}
+        .block-container {{ max-width: 1200px !important; padding: 2.5rem 1rem !important; margin: auto !important; }}
         
-        /* Header */
+        /* Header Flutuante */
         .header-container {{ 
             text-align: center; 
-            padding: 40px 0; 
+            padding: 45px 0; 
             background: #ffffff; 
             border-bottom: 6px solid {COR_VERMELHO}; 
-            margin-bottom: 40px; 
-            border-radius: 0 0 20px 20px; 
-            box-shadow: 0 10px 30px rgba(0,0,0,0.02);
+            margin-bottom: 45px; 
+            border-radius: 0 0 24px 24px; 
+            box-shadow: 0 10px 40px rgba(0, 44, 93, 0.05);
         }}
         .header-title {{ 
             font-family: 'Montserrat', sans-serif;
             color: {COR_AZUL_ESC}; 
-            font-size: 2.4rem; 
+            font-size: 2.6rem; 
             font-weight: 800; 
             margin: 0; 
             text-transform: uppercase; 
-            letter-spacing: 2px; 
+            letter-spacing: 3px; 
         }}
         .header-subtitle {{ 
             color: #64748b; 
-            font-size: 1.1rem; 
+            font-size: 1.2rem; 
             font-weight: 400; 
-            margin-top: 10px; 
+            margin-top: 12px; 
             letter-spacing: 0.5px;
         }}
         
-        /* PADRONIZAÇÃO DE CARTÕES: Mesma Altura e Largura */
+        /* PADRONIZAÇÃO DE CARTÕES: Mesma Altura e Design Limpo */
         .card, .fin-box, .recommendation-card {{ 
-            background: white; 
-            padding: 25px; 
-            border-radius: 16px; 
-            border: 1px solid #f1f5f9; 
-            box-shadow: 0 4px 20px rgba(0,0,0,0.04); 
-            margin-bottom: 25px; 
-            min-height: 180px; /* Altura padronizada para todos */
+            background: #ffffff; 
+            padding: 30px; 
+            border-radius: 20px; 
+            border: 1px solid #edf2f7; 
+            box-shadow: 0 8px 30px rgba(0,0,0,0.02); 
+            margin-bottom: 30px; 
+            min-height: 200px;
             height: 100%;
             display: flex;
             flex-direction: column;
@@ -253,102 +253,134 @@ def configurar_layout():
             align-items: center;
             text-align: center;
             width: 100%;
+            transition: all 0.3s ease;
+        }}
+        
+        .card:hover, .fin-box:hover, .recommendation-card:hover {{
+            box-shadow: 0 12px 40px rgba(0, 44, 93, 0.06);
+            transform: translateY(-2px);
         }}
         
         .thin-card {{ 
-            background: white; 
-            padding: 18px 24px; 
-            border-radius: 10px; 
-            border: 1px solid #f1f5f9; 
-            border-left: 6px solid {COR_VERMELHO}; 
-            margin-bottom: 12px; 
+            background: #ffffff; 
+            padding: 20px 28px; 
+            border-radius: 12px; 
+            border: 1px solid #edf2f7; 
+            border-left: 8px solid {COR_VERMELHO}; 
+            margin-bottom: 14px; 
             display: flex; 
             justify-content: space-between; 
             align-items: center;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.02);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.01);
         }}
         
         /* Destaques Numéricos */
-        .price-tag {{ color: {COR_VERMELHO} !important; font-weight: 800; font-size: 1.3rem; font-family: 'Montserrat', sans-serif; }}
-        .metric-label {{ color: #94a3b8 !important; font-size: 0.9rem; font-weight: 600; text-transform: uppercase; text-align: center; letter-spacing: 1px; }}
-        .metric-value {{ color: {COR_AZUL_ESC} !important; font-size: 1.5rem; font-weight: 800; text-align: center; font-family: 'Montserrat', sans-serif; }}
+        .price-tag {{ color: {COR_VERMELHO} !important; font-weight: 800; font-size: 1.4rem; font-family: 'Montserrat', sans-serif; }}
+        .metric-label {{ color: #94a3b8 !important; font-size: 0.95rem; font-weight: 600; text-transform: uppercase; text-align: center; letter-spacing: 1.2px; margin-bottom: 8px; }}
+        .metric-value {{ color: {COR_AZUL_ESC} !important; font-size: 1.6rem; font-weight: 800; text-align: center; font-family: 'Montserrat', sans-serif; }}
         
-        /* Botões Enterprise */
+        /* Botões Enterprise de Alta Precisão */
         .stButton button {{ 
             font-family: 'Inter', sans-serif;
-            border-radius: 10px !important; 
-            padding: 14px 28px !important; 
+            border-radius: 12px !important; 
+            padding: 16px 32px !important; 
             font-weight: 600 !important; 
             color: #ffffff !important; 
             border: none !important; 
-            letter-spacing: 0.5px;
-            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
+            letter-spacing: 0.8px;
+            text-transform: uppercase;
+            font-size: 0.95rem !important;
+            transition: all 0.4s cubic-bezier(0.165, 0.84, 0.44, 1) !important;
         }}
 
-        .stButton button[kind="primary"] {{ background-color: {COR_VERMELHO} !important; }}
-        .stButton button[kind="primary"]:hover {{ background-color: #c40a10 !important; box-shadow: 0 8px 20px rgba(227, 6, 19, 0.2); }}
-        
-        .stButton button {{ background-color: {COR_AZUL_ESC} !important; }}
-        .stButton button:hover {{ background-color: #001a3d !important; box-shadow: 0 8px 20px rgba(0, 44, 93, 0.2); }}
-        
-        /* Rodapé */
-        .footer {{ 
-            text-align: center; 
-            padding: 40px 0; 
-            color: #94a3b8 !important; 
-            font-size: 0.9rem; 
-            border-top: 1px solid #f1f5f9; 
-            margin-top: 60px; 
-            font-weight: 500; 
-            background: #ffffff; 
+        /* Avançar (Vermelho) */
+        .stButton button[kind="primary"] {{ 
+            background-color: {COR_VERMELHO} !important; 
+        }}
+        .stButton button[kind="primary"]:hover {{ 
+            background-color: #c40a10 !important; 
+            box-shadow: 0 10px 25px rgba(227, 6, 19, 0.25); 
+            transform: translateY(-1px);
         }}
         
-        /* Resumo */
+        /* Voltar (Azul) */
+        .stButton button {{ 
+            background-color: {COR_AZUL_ESC} !important; 
+        }}
+        .stButton button:hover {{ 
+            background-color: #001a3d !important; 
+            box-shadow: 0 10px 25px rgba(0, 44, 93, 0.2); 
+            transform: translateY(-1px);
+        }}
+        
+        /* Rodapé Minimalista */
+        .footer {{ 
+            text-align: center; 
+            padding: 50px 0; 
+            color: #94a3b8 !important; 
+            font-size: 0.95rem; 
+            border-top: 1px solid #e2e8f0; 
+            margin-top: 80px; 
+            font-weight: 500; 
+            background: transparent; 
+        }}
+        
+        /* Resumo - Estilo "Paper" */
         .summary-header {{ 
             font-family: 'Montserrat', sans-serif;
             background: {COR_AZUL_ESC}; 
             color: #ffffff !important; 
-            padding: 18px; 
-            border-radius: 12px 12px 0 0; 
+            padding: 20px; 
+            border-radius: 16px 16px 0 0; 
             font-weight: 700; 
             text-align: center; 
             text-transform: uppercase;
-            letter-spacing: 1.5px;
+            letter-spacing: 2px;
         }}
         .summary-header * {{ color: #ffffff !important; }}
         .summary-body {{ 
-            background: white; 
-            padding: 25px; 
+            background: #ffffff; 
+            padding: 35px; 
             border: 1px solid #e2e8f0; 
-            border-radius: 0 0 12px 12px; 
-            margin-bottom: 30px; 
+            border-radius: 0 0 16px 16px; 
+            margin-bottom: 40px; 
             color: {COR_AZUL_ESC}; 
-            box-shadow: 0 4px 15px rgba(0,0,0,0.03);
+            box-shadow: 0 15px 40px rgba(0,0,0,0.04);
         }}
         
+        /* Alertas Premium */
         .custom-alert {{ 
             background-color: {COR_AZUL_ESC}; 
-            padding: 20px; 
-            border-radius: 12px; 
-            margin-bottom: 25px; 
+            padding: 25px; 
+            border-radius: 16px; 
+            margin-bottom: 30px; 
             text-align: center; 
             font-weight: 600; 
             color: #ffffff !important; 
+            box-shadow: 0 12px 35px rgba(0, 44, 93, 0.15);
         }}
         .custom-alert * {{ color: #ffffff !important; }}
 
-        /* Tabs Profissionais */
-        div[data-baseweb="tab-list"] {{ justify-content: center !important; display: flex !important; gap: 30px; margin-bottom: 20px; }}
-        button[data-baseweb="tab"] p {{ color: {COR_AZUL_ESC} !important; font-weight: 700 !important; font-family: 'Montserrat', sans-serif !important; font-size: 1.05rem !important; }}
+        /* Tabs de Alto Nível */
+        div[data-baseweb="tab-list"] {{ justify-content: center !important; display: flex !important; gap: 40px; margin-bottom: 30px; border-bottom: 2px solid #e2e8f0 !important; }}
+        button[data-baseweb="tab"] {{ border-bottom: none !important; }}
+        button[data-baseweb="tab"] p {{ 
+            color: #64748b !important; 
+            font-weight: 700 !important; 
+            font-family: 'Montserrat', sans-serif !important; 
+            font-size: 1.1rem !important; 
+            transition: color 0.3s ease;
+        }}
         button[data-baseweb="tab"][aria-selected="true"] p {{ color: {COR_VERMELHO} !important; }}
-        div[data-baseweb="tab-highlight"] {{ background-color: {COR_VERMELHO} !important; height: 4px !important; }}
+        div[data-baseweb="tab-highlight"] {{ background-color: {COR_VERMELHO} !important; height: 5px !important; border-radius: 5px 5px 0 0; }}
 
+        /* Toggles Ativados em Vermelho */
         div[data-testid="stToggle"] div[aria-checked="true"] {{ background-color: {COR_VERMELHO} !important; }}
         </style>
     """, unsafe_allow_html=True)
 
 # =============================================================================
-# 4. FUNÇÃO PARA GERAR PDF (ESTILO PREMIUM)
+# 4. FUNÇÃO PARA GERAR PDF (ESTILO PREMIUM EXECUTIVO)
 # =============================================================================
 
 def gerar_resumo_pdf(d):
@@ -363,34 +395,44 @@ def gerar_resumo_pdf(d):
         AZUL_RGB = (0, 44, 93)
         VERMELHO_RGB = (227, 6, 19)
         BRANCO_RGB = (255, 255, 255)
+        CINZA_RGB = (100, 116, 139)
 
+        # Cabeçalho do Documento
         pdf.set_fill_color(*BRANCO_RGB)
         pdf.rect(0, 0, 210, 45, 'F')
+        
+        # Barra Vermelha no Topo
         pdf.set_fill_color(*VERMELHO_RGB)
         pdf.rect(0, 0, 210, 4, 'F')
         
         pdf.set_text_color(*AZUL_RGB)
-        pdf.set_font("Helvetica", 'B', 20)
-        pdf.ln(12)
+        pdf.set_font("Helvetica", 'B', 22)
+        pdf.ln(15)
         pdf.cell(0, 10, "SIMULADOR IMOBILIARIO DV", ln=True, align='C')
-        pdf.set_font("Helvetica", '', 10)
-        pdf.cell(0, 6, "Resumo de Compra e Viabilidade Financeira", ln=True, align='C')
+        pdf.set_text_color(*CINZA_RGB)
+        pdf.set_font("Helvetica", '', 11)
+        pdf.cell(0, 6, "Relatorio Executivo de Viabilidade Financeira", ln=True, align='C')
+        pdf.ln(15)
+
+        # Informações do Cliente em Azul
+        pdf.set_text_color(*AZUL_RGB)
+        pdf.set_font("Helvetica", 'B', 13)
+        pdf.cell(0, 10, f"CLIENTE: {d.get('nome', 'Nao informado').upper()}", ln=True)
+        
+        # Renda Familiar em Azul conforme pedido
+        pdf.set_text_color(*AZUL_RGB)
+        pdf.set_font("Helvetica", '', 12)
+        pdf.cell(0, 8, f"Renda Familiar: R$ {d.get('renda', 0):,.2f}", ln=True)
         pdf.ln(10)
 
-        pdf.set_text_color(*AZUL_RGB)
-        pdf.set_font("Helvetica", 'B', 12)
-        pdf.cell(0, 10, f"Cliente: {d.get('nome', 'Nao informado')}", ln=True)
-        pdf.set_text_color(*AZUL_RGB)
-        pdf.set_font("Helvetica", '', 11)
-        pdf.cell(0, 8, f"Renda Familiar: R$ {d.get('renda', 0):,.2f}", ln=True)
-        pdf.ln(8)
-
         def criar_card_pdf(titulo, linhas, destaque_vermelho=False):
+            # Cabeçalho do Card
             pdf.set_fill_color(*AZUL_RGB)
             pdf.set_text_color(*BRANCO_RGB)
-            pdf.set_font("Helvetica", 'B', 11)
-            pdf.cell(0, 10, f"   {titulo}", ln=True, fill=True)
+            pdf.set_font("Helvetica", 'B', 12)
+            pdf.cell(0, 12, f"   {titulo}", ln=True, fill=True)
             
+            # Conteúdo do Card
             pdf.set_fill_color(*BRANCO_RGB)
             pdf.set_text_color(*AZUL_RGB)
             pdf.set_draw_color(226, 232, 240)
@@ -399,41 +441,43 @@ def gerar_resumo_pdf(d):
             for i, texto in enumerate(linhas):
                 if destaque_vermelho and i == len(linhas) - 1:
                     pdf.set_text_color(*VERMELHO_RGB)
-                    pdf.set_font("Helvetica", 'B', 11)
+                    pdf.set_font("Helvetica", 'B', 12)
                 else:
                     pdf.set_text_color(*AZUL_RGB)
-                    pdf.set_font("Helvetica", '', 10.5)
+                    pdf.set_font("Helvetica", '', 11)
                 
-                pdf.cell(0, 8, f"     {texto}", ln=True, border='LR')
+                pdf.cell(0, 9, f"      {texto}", ln=True, border='LR')
             
-            pdf.cell(0, 2, "", ln=True, border='LRB')
-            pdf.ln(10)
+            pdf.cell(0, 3, "", ln=True, border='LRB')
+            pdf.ln(12)
 
+        # Seções do Relatório
         criar_card_pdf("DADOS DO IMOVEL", [
             f"Empreendimento: {d.get('empreendimento_nome')}",
             f"Unidade: {d.get('unidade_id')}",
-            f"Valor de Venda: R$ {d.get('imovel_valor', 0):,.2f}"
+            f"Valor de Venda do Ativo: R$ {d.get('imovel_valor', 0):,.2f}"
         ], destaque_vermelho=True)
 
         criar_card_pdf("PLANO DE FINANCIAMENTO", [
-            f"Financiamento Bancario: R$ {d.get('finan_usado', 0):,.2f}",
-            f"FGTS + Subsidio: R$ {d.get('fgts_sub_usado', 0):,.2f}",
-            f"Pro Soluto Total: R$ {d.get('ps_usado', 0):,.2f} ({d.get('ps_parcelas')}x de R$ {d.get('ps_mensal', 0):,.2f})"
+            f"Financiamento Bancario Estimado: R$ {d.get('finan_usado', 0):,.2f}",
+            f"Composicao FGTS + Subsidio: R$ {d.get('fgts_sub_usado', 0):,.2f}",
+            f"Pro Soluto Total: R$ {d.get('ps_usado', 0):,.2f} ({d.get('ps_parcelas')} parcelas de R$ {d.get('ps_mensal', 0):,.2f})"
         ])
 
         criar_card_pdf("FLUXO DE ENTRADA (ATO)", [
-            f"Total de Entrada: R$ {d.get('entrada_total', 0):,.2f}",
-            "-----------------------------------------------------------------------------------------",
-            f"Ato: R$ {d.get('ato_final', 0):,.2f}",
+            f"Valor Total de Entrada: R$ {d.get('entrada_total', 0):,.2f}",
+            "------------------------------------------------------------------------------------------------------",
+            f"Parcela de Ato: R$ {d.get('ato_final', 0):,.2f}",
             f"Ato 30 Dias: R$ {d.get('ato_30', 0):,.2f}",
             f"Ato 60 Dias: R$ {d.get('ato_60', 0):,.2f}",
             f"Ato 90 Dias: R$ {d.get('ato_90', 0):,.2f}"
         ])
 
+        # Rodapé
         pdf.set_y(-25)
-        pdf.set_font("Helvetica", 'I', 8)
-        pdf.set_text_color(100, 116, 139)
-        pdf.cell(0, 10, "Este documento e uma simulacao sujeita a analise de credito.", ln=True, align='C')
+        pdf.set_font("Helvetica", 'I', 9)
+        pdf.set_text_color(*CINZA_RGB)
+        pdf.cell(0, 10, "Este documento e uma simulacao informativa sujeita a analise de credito oficial.", ln=True, align='C')
 
         return bytes(pdf.output())
     except Exception:
@@ -517,8 +561,8 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
 
         st.markdown(f"""
             <div class="card" style="border-top: 8px solid {COR_AZUL_ESC}; background: #ffffff;">
-                <p class="metric-label" style="color: {COR_AZUL_ESC}; font-size: 1.1rem;">Valor Potencial de Compra Estimado</p>
-                <p class="metric-value" style="font-size: 2.2rem; color: {COR_AZUL_ESC}; margin-bottom:5px;">R$ {pot_min:,.2f} a R$ {pot_max:,.2f}</p>
+                <p class="metric-label" style="color: {COR_AZUL_ESC}; font-size: 1.2rem;">Valor Potencial de Compra Estimado</p>
+                <p class="metric-value" style="font-size: 2.4rem; color: {COR_AZUL_ESC}; margin-bottom:5px;">R$ {pot_min:,.2f} a R$ {pot_max:,.2f}</p>
             </div>
         """, unsafe_allow_html=True)
         
@@ -563,7 +607,6 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
                 if not df_filt_rec.empty:
                     r100, r90, r75 = df_filt_rec.iloc[0], df_filt_rec.iloc[len(df_filt_rec)//2], df_filt_rec.iloc[-1]
                     c1, c2, c3 = st.columns(3)
-                    # RECOMENDAÇÕES PADRONIZADAS (Azul - Vermelho - Azul)
                     with c1: st.markdown(f'<div class="recommendation-card" style="border-top: 8px solid {COR_AZUL_ESC};"><b>IDEAL</b><br><small>{r100["Empreendimento"]}</small><br>{r100["Identificador"]}<br><span class="price-tag">R$ {r100["Valor de Venda"]:,.2f}</span></div>', unsafe_allow_html=True)
                     with c2: st.markdown(f'<div class="recommendation-card" style="border-top: 8px solid {COR_VERMELHO};"><b>SEGURA</b><br><small>{r90["Empreendimento"]}</small><br>{r90["Identificador"]}<br><span class="price-tag">R$ {r90["Valor de Venda"]:,.2f}</span></div>', unsafe_allow_html=True)
                     with c3: st.markdown(f'<div class="recommendation-card" style="border-top: 8px solid {COR_AZUL_ESC};"><b>FACILITADA</b><br><small>{r75["Empreendimento"]}</small><br>{r75["Identificador"]}<br><span class="price-tag">R$ {r75["Valor de Venda"]:,.2f}</span></div>', unsafe_allow_html=True)
@@ -688,7 +731,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
                 
                 soma_entrada = st.session_state.ato_1 + st.session_state.ato_2 + st.session_state.ato_3 + st.session_state.ato_4
                 if abs(soma_entrada - saldo_e) > 0.01:
-                    st.error(f"A some das parcelas não confere com o Saldo de Entrada.")
+                    st.error(f"A soma das parcelas não confere com o Saldo de Entrada.")
             
             st.session_state.dados_cliente.update({
                 'imovel_valor': u['Valor de Venda'], 'finan_usado': f_u, 'fgts_sub_usado': fgts_u,
