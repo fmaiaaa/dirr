@@ -10,7 +10,7 @@ Fluxo Automatizado de Recomendação (Sequencial):
 4. Etapa 4: Fechamento Financeiro.
 5. Etapa 5: Resumo da Compra e Exportação PDF.
 
-Versão: 36.0 (Inputs Profissionais, Tabelas Refinadas e PDF Executivo Corrigido)
+Versão: 38.0 (Inputs Clean, Tabelas Executivas e PDF de Alta Fidelidade)
 =============================================================================
 """
 
@@ -185,17 +185,14 @@ def configurar_layout():
     st.set_page_config(page_title="Simulador Direcional", page_icon=icone_final, layout="wide")
     st.markdown(f"""
         <style>
-        /* Importação de fontes premium */
         @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&family=Inter:wght@300;400;500;600&display=swap');
         
-        /* Reset de tipografia e cor base */
         html, body, [data-testid="stAppViewContainer"] {{
             font-family: 'Inter', sans-serif;
             color: {COR_AZUL_ESC};
             line-height: 1.6;
         }}
         
-        /* Títulos Modernos */
         h1, h2, h3, h4 {{
             font-family: 'Montserrat', sans-serif !important;
             text-align: center !important; 
@@ -206,32 +203,43 @@ def configurar_layout():
             margin-bottom: 1.8rem !important;
         }}
 
-        /* Fundo principal cinza claro */
         .main {{ background-color: #f8fafc; }}
         .block-container {{ max-width: 1200px !important; padding: 2.5rem 1rem !important; margin: auto !important; }}
         
-        /* Estilização de Inputs e Widgets para look Profissional */
+        /* ESTILIZAÇÃO "CLEAN" DE INPUTS - Remove o visual de botões de incremento */
         div[data-baseweb="input"], .stTextInput input, .stNumberInput input {{
-            border-radius: 12px !important;
-            border: 1px solid #e2e8f0 !important;
-            padding: 2px 4px !important;
+            border-radius: 25px !important; /* Visual puramente oval/circular externo */
+            border: 1.5px solid #e2e8f0 !important;
+            padding: 10px 20px !important;
             background-color: #ffffff !important;
             transition: all 0.3s ease !important;
             color: {COR_AZUL_ESC} !important;
-        }}
-        .stTextInput input:focus, .stNumberInput input:focus {{
-            border-color: {COR_AZUL_ESC} !important;
-            box-shadow: 0 0 0 2px rgba(0, 44, 93, 0.1) !important;
+            font-weight: 600 !important;
         }}
         
-        /* Estilização de Seletores (Selectbox) */
+        /* Remove botões de Step (setinhas) para um visual limpo */
+        input::-webkit-outer-spin-button,
+        input::-webkit-inner-spin-button {{
+            -webkit-appearance: none;
+            margin: 0;
+        }}
+        input[type=number] {{
+            -moz-appearance: textfield;
+        }}
+
+        .stTextInput input:focus, .stNumberInput input:focus {{
+            border-color: {COR_AZUL_ESC} !important;
+            box-shadow: 0 0 0 4px rgba(0, 44, 93, 0.08) !important;
+        }}
+        
+        /* Selectbox Profissional */
         div[data-baseweb="select"] > div {{
-            border-radius: 12px !important;
-            border: 1px solid #e2e8f0 !important;
+            border-radius: 20px !important;
+            border: 1.5px solid #e2e8f0 !important;
             background-color: #ffffff !important;
         }}
 
-        /* Header Flutuante */
+        /* Header */
         .header-container {{ 
             text-align: center; 
             padding: 45px 0; 
@@ -250,15 +258,8 @@ def configurar_layout():
             text-transform: uppercase; 
             letter-spacing: 3px; 
         }}
-        .header-subtitle {{ 
-            color: #64748b; 
-            font-size: 1.2rem; 
-            font-weight: 400; 
-            margin-top: 12px; 
-            letter-spacing: 0.5px;
-        }}
         
-        /* PADRONIZAÇÃO DE CARTÕES */
+        /* Cartões */
         .card, .fin-box, .recommendation-card {{ 
             background: #ffffff; 
             padding: 30px; 
@@ -266,7 +267,7 @@ def configurar_layout():
             border: 1px solid #edf2f7; 
             box-shadow: 0 8px 30px rgba(0,0,0,0.02); 
             margin-bottom: 30px; 
-            min-height: 200px;
+            min-height: 180px;
             height: 100%;
             display: flex;
             flex-direction: column;
@@ -274,68 +275,34 @@ def configurar_layout():
             align-items: center;
             text-align: center;
             width: 100%;
-            transition: all 0.3s ease;
         }}
         
-        .card:hover, .fin-box:hover, .recommendation-card:hover {{
-            box-shadow: 0 12px 40px rgba(0, 44, 93, 0.06);
-            transform: translateY(-2px);
-        }}
+        .price-tag {{ color: {COR_VERMELHO} !important; font-weight: 800; font-size: 1.3rem; font-family: 'Montserrat', sans-serif; }}
+        .metric-label {{ color: #94a3b8 !important; font-size: 0.9rem; font-weight: 600; text-transform: uppercase; text-align: center; letter-spacing: 1.2px; margin-bottom: 8px; }}
+        .metric-value {{ color: {COR_AZUL_ESC} !important; font-size: 1.35rem; font-weight: 800; text-align: center; font-family: 'Montserrat', sans-serif; }}
         
-        .thin-card {{ 
-            background: #ffffff; 
-            padding: 20px 28px; 
-            border-radius: 12px; 
-            border: 1px solid #edf2f7; 
-            border-left: 8px solid {COR_VERMELHO}; 
-            margin-bottom: 14px; 
-            display: flex; 
-            justify-content: space-between; 
-            align-items: center;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.01);
-        }}
-        
-        /* Destaques Numéricos */
-        .price-tag {{ color: {COR_VERMELHO} !important; font-weight: 800; font-size: 1.4rem; font-family: 'Montserrat', sans-serif; }}
-        .metric-label {{ color: #94a3b8 !important; font-size: 0.95rem; font-weight: 600; text-transform: uppercase; text-align: center; letter-spacing: 1.2px; margin-bottom: 8px; }}
-        .metric-value {{ color: {COR_AZUL_ESC} !important; font-size: 1.6rem; font-weight: 800; text-align: center; font-family: 'Montserrat', sans-serif; }}
-        
-        /* Botões Enterprise */
+        /* Botões */
         .stButton button {{ 
             font-family: 'Inter', sans-serif;
             border-radius: 12px !important; 
             padding: 16px 32px !important; 
             font-weight: 600 !important; 
             color: #ffffff !important; 
-            border: none !important; 
-            letter-spacing: 0.8px;
             text-transform: uppercase;
-            font-size: 0.95rem !important;
             transition: all 0.4s cubic-bezier(0.165, 0.84, 0.44, 1) !important;
         }}
 
-        .stButton button[kind="primary"] {{ 
-            background-color: {COR_VERMELHO} !important; 
-        }}
-        .stButton button[kind="primary"]:hover {{ 
-            background-color: #c40a10 !important; 
-            box-shadow: 0 10px 25px rgba(227, 6, 19, 0.25); 
-        }}
-        
-        .stButton button {{ 
-            background-color: {COR_AZUL_ESC} !important; 
-        }}
-        .stButton button:hover {{ 
-            background-color: #001a3d !important; 
-            box-shadow: 0 10px 25px rgba(0, 44, 93, 0.2); 
-        }}
+        .stButton button[kind="primary"] {{ background-color: {COR_VERMELHO} !important; }}
+        .stButton button {{ background-color: {COR_AZUL_ESC} !important; }}
         
         /* Tabelas Refinadas */
         [data-testid="stDataFrame"] {{
-            border: 1px solid #edf2f7;
             border-radius: 16px;
+            border: 1px solid #e2e8f0;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.03);
             overflow: hidden;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.03);
+            background: white;
+            padding: 5px;
         }}
 
         /* Rodapé */
@@ -348,53 +315,6 @@ def configurar_layout():
             margin-top: 80px; 
             font-weight: 500; 
         }}
-        
-        /* Resumo */
-        .summary-header {{ 
-            font-family: 'Montserrat', sans-serif;
-            background: {COR_AZUL_ESC}; 
-            color: #ffffff !important; 
-            padding: 20px; 
-            border-radius: 16px 16px 0 0; 
-            font-weight: 700; 
-            text-align: center; 
-            text-transform: uppercase;
-            letter-spacing: 2px;
-        }}
-        .summary-header * {{ color: #ffffff !important; }}
-        .summary-body {{ 
-            background: #ffffff; 
-            padding: 35px; 
-            border: 1px solid #e2e8f0; 
-            border-radius: 0 0 16px 16px; 
-            margin-bottom: 40px; 
-            color: {COR_AZUL_ESC}; 
-            box-shadow: 0 15px 40px rgba(0,0,0,0.04);
-        }}
-        
-        .custom-alert {{ 
-            background-color: {COR_AZUL_ESC}; 
-            padding: 25px; 
-            border-radius: 16px; 
-            margin-bottom: 30px; 
-            text-align: center; 
-            font-weight: 600; 
-            color: #ffffff !important; 
-        }}
-        .custom-alert * {{ color: #ffffff !important; }}
-
-        /* Tabs */
-        div[data-baseweb="tab-list"] {{ justify-content: center !important; display: flex !important; gap: 40px; margin-bottom: 30px; border-bottom: 2px solid #e2e8f0 !important; }}
-        button[data-baseweb="tab"] p {{ 
-            color: #64748b !important; 
-            font-weight: 700 !important; 
-            font-family: 'Montserrat', sans-serif !important; 
-            font-size: 1.1rem !important; 
-        }}
-        button[data-baseweb="tab"][aria-selected="true"] p {{ color: {COR_VERMELHO} !important; }}
-        div[data-baseweb="tab-highlight"] {{ background-color: {COR_VERMELHO} !important; height: 5px !important; }}
-
-        div[data-testid="stToggle"] div[aria-checked="true"] {{ background-color: {COR_VERMELHO} !important; }}
         </style>
     """, unsafe_allow_html=True)
 
@@ -416,11 +336,9 @@ def gerar_resumo_pdf(d):
         BRANCO_RGB = (255, 255, 255)
         CINZA_RGB = (100, 116, 139)
 
-        # Cabeçalho do Documento
+        # Cabeçalho
         pdf.set_fill_color(*BRANCO_RGB)
         pdf.rect(0, 0, 210, 45, 'F')
-        
-        # Barra Vermelha no Topo
         pdf.set_fill_color(*VERMELHO_RGB)
         pdf.rect(0, 0, 210, 4, 'F')
         
@@ -433,35 +351,30 @@ def gerar_resumo_pdf(d):
         pdf.cell(0, 6, "Relatorio Executivo de Viabilidade Financeira", ln=True, align='C')
         pdf.ln(15)
 
-        # Informações do Cliente em Azul
         pdf.set_text_color(*AZUL_RGB)
         pdf.set_font("Helvetica", 'B', 13)
         pdf.cell(0, 10, f"CLIENTE: {d.get('nome', 'Nao informado').upper()}", ln=True)
-        
-        # Renda Familiar em Azul
         pdf.set_text_color(*AZUL_RGB)
         pdf.set_font("Helvetica", '', 12)
         pdf.cell(0, 8, f"Renda Familiar: R$ {d.get('renda', 0):,.2f}", ln=True)
         pdf.ln(10)
 
-        def criar_card_pdf(titulo, linhas, destaque_vermelho=False, separador=False):
-            # Cabeçalho do Card
+        def criar_card_pdf(titulo, linhas, destaque_vermelho=False):
             pdf.set_fill_color(*AZUL_RGB)
             pdf.set_text_color(*BRANCO_RGB)
             pdf.set_font("Helvetica", 'B', 12)
             pdf.cell(0, 12, f"   {titulo}", ln=True, fill=True)
             
-            # Conteúdo do Card
             pdf.set_fill_color(*BRANCO_RGB)
             pdf.set_draw_color(226, 232, 240)
             
             pdf.ln(2)
             for i, texto in enumerate(linhas):
-                # Detecção de linha de separador solicitada (substitui os traços manuais)
                 if texto == "SEPARATOR":
+                    # LINHA GRÁFICA REAL EM VEZ DE TRAÇOS DE TEXTO
                     pdf.set_draw_color(226, 232, 240)
-                    # Desenha uma linha real no PDF em vez de caracteres
-                    pdf.line(pdf.get_x() + 5, pdf.get_y() + 4, pdf.get_x() + 185, pdf.get_y() + 4)
+                    y_pos = pdf.get_y() + 4
+                    pdf.line(20, y_pos, 190, y_pos)
                     pdf.ln(8)
                     continue
 
@@ -477,21 +390,18 @@ def gerar_resumo_pdf(d):
             pdf.cell(0, 3, "", ln=True, border='LRB')
             pdf.ln(12)
 
-        # 1. Dados do Imóvel
         criar_card_pdf("DADOS DO IMOVEL", [
             f"Empreendimento: {d.get('empreendimento_nome')}",
             f"Unidade: {d.get('unidade_id')}",
             f"Valor de Venda do Ativo: R$ {d.get('imovel_valor', 0):,.2f}"
         ], destaque_vermelho=True)
 
-        # 2. Plano de Financiamento
         criar_card_pdf("PLANO DE FINANCIAMENTO", [
             f"Financiamento Bancario Estimado: R$ {d.get('finan_usado', 0):,.2f}",
             f"Composicao FGTS + Subsidio: R$ {d.get('fgts_sub_usado', 0):,.2f}",
             f"Pro Soluto Total: R$ {d.get('ps_usado', 0):,.2f} ({d.get('ps_parcelas')} parcelas de R$ {d.get('ps_mensal', 0):,.2f})"
         ])
 
-        # 3. Fluxo de Entrada (Corrigido os traços por SEPARATOR real)
         criar_card_pdf("FLUXO DE ENTRADA (ATO)", [
             f"Valor Total de Entrada: R$ {d.get('entrada_total', 0):,.2f}",
             "SEPARATOR",
@@ -501,7 +411,6 @@ def gerar_resumo_pdf(d):
             f"Ato 90 Dias: R$ {d.get('ato_90', 0):,.2f}"
         ])
 
-        # Rodapé
         pdf.set_y(-25)
         pdf.set_font("Helvetica", 'I', 9)
         pdf.set_text_color(*CINZA_RGB)
@@ -555,25 +464,22 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
                 st.markdown(f'<div class="custom-alert">Por favor, informe o Nome do Cliente para iniciar a simulação.</div>', unsafe_allow_html=True)
             else:
                 finan, sub = motor.obter_enquadramento(renda, social, cotista)
+                st.session_state.dados_cliente.update({
+                    'nome': nome, 'renda': renda, 'social': social, 'cotista': cotista,
+                    'ranking': ranking, 'politica': politica_ps, 'finan_estimado': finan, 'fgts_sub': sub
+                })
                 class_b = 'EMCASH' if politica_ps == "Emcash" else ranking
                 politica_row = df_politicas[df_politicas['CLASSIFICAÇÃO'] == class_b].iloc[0]
-                limit_ps_r = politica_row['FX_RENDA_1'] if renda < politica_row['FAIXA_RENDA'] else politica_row['FX_RENDA_2']
-                
-                st.session_state.dados_cliente = {
-                    'nome': nome, 'renda': renda, 'social': social, 'cotista': cotista,
-                    'ranking': ranking, 'politica': politica_ps, 
-                    'perc_ps': politica_row['PROSOLUTO'], 
-                    'prazo_ps_max': int(politica_row['PARCELAS']),
-                    'limit_ps_renda': limit_ps_r, 'finan_estimado': finan, 'fgts_sub': sub
-                }
-                st.session_state.passo_simulacao = 'potential'
-                st.rerun()
+                st.session_state.dados_cliente.update({
+                    'perc_ps': politica_row['PROSOLUTO'], 'prazo_ps_max': int(politica_row['PARCELAS']),
+                    'limit_ps_renda': politica_row['FX_RENDA_1'] if renda < politica_row['FAIXA_RENDA'] else politica_row['FX_RENDA_2']
+                })
+                st.session_state.passo_simulacao = 'potential'; st.rerun()
 
     # --- ETAPA 2 ---
     elif st.session_state.passo_simulacao == 'potential':
         d = st.session_state.dados_cliente
         st.markdown(f"### Valor Potencial de Compra - {d['nome'] or 'Cliente'}")
-        
         df_pot = df_estoque[df_estoque['Status'] == 'Disponível']
         ps_min_total = df_pot['Valor de Venda'].min() * d['perc_ps']
         ps_max_total = df_pot['Valor de Venda'].max() * d['perc_ps']
@@ -582,21 +488,15 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
         pot_max = d['finan_estimado'] + d['fgts_sub'] + ps_max_total + dobro_renda
         
         m1, m2, m3, m4 = st.columns(4)
-        with m1: st.markdown(f'<div class="card"><p class="metric-label">Financiamento</p><p class="metric-value">R$ {d["finan_estimado"]:,.2f}</p></div>', unsafe_allow_html=True)
-        with m2: st.markdown(f'<div class="card"><p class="metric-label">FGTS + Subsídio</p><p class="metric-value">R$ {d["fgts_sub"]:,.2f}</p></div>', unsafe_allow_html=True)
-        with m3: st.markdown(f'<div class="card"><p class="metric-label">Pro Soluto</p><p class="metric-value">R$ {ps_min_total:,.0f} a {ps_max_total:,.0f}</p></div>', unsafe_allow_html=True)
-        with m4: st.markdown(f'<div class="card"><p class="metric-label">Capacidade de Entrada</p><p class="metric-value">R$ {dobro_renda:,.2f}</p></div>', unsafe_allow_html=True)
+        with m1: st.markdown(f'<div class="card"><div class="metric-label">Financiamento</div><div class="metric-value">R$ {d["finan_estimado"]:,.2f}</div></div>', unsafe_allow_html=True)
+        with m2: st.markdown(f'<div class="card"><div class="metric-label">FGTS + Subsídio</div><div class="metric-value">R$ {d["fgts_sub"]:,.2f}</div></div>', unsafe_allow_html=True)
+        with m3: st.markdown(f'<div class="card"><div class="metric-label">Pro Soluto</div><div class="metric-value">R$ {ps_min_total:,.0f} a {ps_max_total:,.0f}</div></div>', unsafe_allow_html=True)
+        with m4: st.markdown(f'<div class="card"><div class="metric-label">Entrada Limite</div><div class="metric-value">R$ {dobro_renda:,.2f}</div></div>', unsafe_allow_html=True)
 
-        st.markdown(f"""
-            <div class="card" style="border-top: 8px solid {COR_AZUL_ESC}; background: #ffffff;">
-                <p class="metric-label" style="color: {COR_AZUL_ESC}; font-size: 1.2rem;">Valor Potencial de Compra Estimado</p>
-                <p class="metric-value" style="font-size: 2.4rem; color: {COR_AZUL_ESC}; margin-bottom:5px;">R$ {pot_min:,.2f} a R$ {pot_max:,.2f}</p>
-            </div>
-        """, unsafe_allow_html=True)
+        st.markdown(f"""<div class="card" style="border-top: 8px solid {COR_AZUL_ESC}; background: #ffffff;"><div class="metric-label">Valor Potencial de Compra Estimado</div><div class="metric-value" style="font-size: 2rem;">R$ {pot_min:,.2f} a R$ {pot_max:,.2f}</div></div>""", unsafe_allow_html=True)
         
         if st.button("Avançar para Seleção de Imóvel", type="primary", use_container_width=True, key="btn_s2_v23"):
             st.session_state.passo_simulacao = 'guide'; st.rerun()
-        st.write("")
         if st.button("Voltar para Dados do Cliente", use_container_width=True, key="btn_edit_v23"):
             st.session_state.passo_simulacao = 'input'; st.rerun()
 
@@ -604,227 +504,112 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
     elif st.session_state.passo_simulacao == 'guide':
         d = st.session_state.dados_cliente
         st.markdown(f"### Seleção de Imóvel")
-        
         df_disp_total = df_estoque[df_estoque['Status'] == 'Disponível'].copy()
         res = df_disp_total['Valor de Venda'].apply(lambda vv: motor.calcular_poder_compra(d['renda'], d['finan_estimado'], d['fgts_sub'], d['perc_ps'], vv))
         df_disp_total['Poder_Compra'] = [x[0] for x in res]
-        df_disp_total['PS_Unidade'] = [x[1] for x in res]
-        df_disp_total['Viavel'] = df_disp_total['Valor de Venda'] <= df_disp_total['Poder_Compra']
-        df_disp_total['Status Viabilidade'] = df_disp_total['Viavel'].apply(lambda x: "Viável" if x else "Inviável")
+        df_disp_total['Status Viabilidade'] = df_disp_total['Valor de Venda'].apply(lambda vv: "Viável" if vv <= motor.calcular_poder_compra(d['renda'], d['finan_estimado'], d['fgts_sub'], d['perc_ps'], vv)[0] else "Inviável")
         
-        df_viaveis = df_disp_total[df_disp_total['Viavel']].copy()
-        
-        with st.expander("Empreendimentos viáveis", expanded=False):
-            if df_viaveis.empty:
-                st.write("Sem produtos viáveis no momento.")
-            else:
-                emp_counts = df_viaveis.groupby('Empreendimento').size().to_dict()
-                for emp, qtd in emp_counts.items():
-                    st.markdown(f'<div class="thin-card"><div><b>{emp}</b></div><div>{qtd} unid. viáveis</div></div>', unsafe_allow_html=True)
-
         tab_rec, tab_list = st.tabs(["Recomendações de Unidades", "Estoque Completo"])
         
         with tab_rec:
+            df_viaveis = df_disp_total[df_disp_total['Status Viabilidade'] == "Viável"]
             if df_viaveis.empty:
-                st.info("Atualmente, o cliente não possui unidades viáveis.")
+                st.info("Nenhuma unidade viável com esta renda.")
             else:
                 emp_rec = st.selectbox("Filtrar Recomendações por Empreendimento:", options=["Todos"] + sorted(df_viaveis['Empreendimento'].unique().tolist()), key="sel_emp_v23")
                 df_filt_rec = df_viaveis if emp_rec == "Todos" else df_viaveis[df_viaveis['Empreendimento'] == emp_rec]
                 df_filt_rec = df_filt_rec.sort_values('Valor de Venda', ascending=False)
-                
                 if not df_filt_rec.empty:
                     r100, r90, r75 = df_filt_rec.iloc[0], df_filt_rec.iloc[len(df_filt_rec)//2], df_filt_rec.iloc[-1]
                     c1, c2, c3 = st.columns(3)
-                    with c1: st.markdown(f'<div class="recommendation-card" style="border-top: 8px solid {COR_AZUL_ESC};"><b>IDEAL</b><br><small>{r100["Empreendimento"]}</small><br>{r100["Identificador"]}<br><span class="price-tag">R$ {r100["Valor de Venda"]:,.2f}</span></div>', unsafe_allow_html=True)
-                    with c2: st.markdown(f'<div class="recommendation-card" style="border-top: 8px solid {COR_VERMELHO};"><b>SEGURA</b><br><small>{r90["Empreendimento"]}</small><br>{r90["Identificador"]}<br><span class="price-tag">R$ {r90["Valor de Venda"]:,.2f}</span></div>', unsafe_allow_html=True)
-                    with c3: st.markdown(f'<div class="recommendation-card" style="border-top: 8px solid {COR_AZUL_ESC};"><b>FACILITADA</b><br><small>{r75["Empreendimento"]}</small><br>{r75["Identificador"]}<br><span class="price-tag">R$ {r75["Valor de Venda"]:,.2f}</span></div>', unsafe_allow_html=True)
+                    with c1: st.markdown(f'<div class="recommendation-card" style="border-top: 8px solid {COR_AZUL_ESC};"><div class="metric-label">IDEAL</div><div class="metric-value">{r100["Identificador"]}</div><div class="price-tag">R$ {r100["Valor de Venda"]:,.2f}</div></div>', unsafe_allow_html=True)
+                    with c2: st.markdown(f'<div class="recommendation-card" style="border-top: 8px solid {COR_VERMELHO};"><div class="metric-label">SEGURA</div><div class="metric-value">{r90["Identificador"]}</div><div class="price-tag">R$ {r90["Valor de Venda"]:,.2f}</div></div>', unsafe_allow_html=True)
+                    with c3: st.markdown(f'<div class="recommendation-card" style="border-top: 8px solid {COR_AZUL_ESC};"><div class="metric-label">FACILITADA</div><div class="metric-value">{r75["Identificador"]}</div><div class="price-tag">R$ {r75["Valor de Venda"]:,.2f}</div></div>', unsafe_allow_html=True)
 
         with tab_list:
-            f1, f2, f3, f4, f5, f6 = st.columns([1.2, 1, 0.7, 1.1, 0.9, 0.8])
-            with f1: f_emp = st.multiselect("Empreendimento:", options=sorted(df_disp_total['Empreendimento'].unique()), key="f_emp_tab_v25")
-            with f2: f_bairro = st.multiselect("Bairro:", options=sorted(df_disp_total['Bairro'].unique()), key="f_bairro_tab_v25")
-            with f3: f_andar = st.multiselect("Andar:", options=sorted(df_disp_total['Andar'].unique()), key="f_andar_tab_v25")
-            with f4: f_status_v = st.multiselect("Viabilidade:", options=["Viável", "Inviável"], key="f_status_tab_v25")
-            with f5: f_ordem = st.selectbox("Ordenar Preço:", ["Maior Preço", "Menor Preço"], key="f_ordem_tab_v25")
-            with f6: f_pmax = st.number_input("Preço Máx:", value=float(df_disp_total['Valor de Venda'].max()), key="f_pmax_tab_v25")
-            
-            df_tab = df_disp_total.copy()
-            if f_emp: df_tab = df_tab[df_tab['Empreendimento'].isin(f_emp)]
-            if f_bairro: df_tab = df_tab[df_tab['Bairro'].isin(f_bairro)]
-            if f_andar: df_tab = df_tab[df_tab['Andar'].isin(f_andar)]
-            if f_status_v: df_tab = df_tab[df_tab['Status Viabilidade'].isin(f_status_v)]
-            df_tab = df_tab[df_tab['Valor de Venda'] <= f_pmax]
-            df_tab = df_tab.sort_values('Valor de Venda', ascending=(f_ordem == "Menor Preço"))
-            
-            st.dataframe(df_tab[['Identificador', 'Empreendimento', 'Bairro', 'Andar', 'Valor de Venda', 'Poder_Compra', 'Status Viabilidade']], use_container_width=True, hide_index=True)
+            # TABELA PROFISSIONAL COM COLUMN_CONFIG
+            st.dataframe(
+                df_disp_total[['Identificador', 'Empreendimento', 'Bairro', 'Andar', 'Valor de Venda', 'Poder_Compra', 'Status Viabilidade']],
+                use_container_width=True, hide_index=True,
+                column_config={
+                    "Valor de Venda": st.column_config.NumberColumn("Preço de Venda", format="R$ %.2f"),
+                    "Poder_Compra": st.column_config.NumberColumn("Potencial de Compra", format="R$ %.2f"),
+                    "Status Viabilidade": st.column_config.StatusColumn("Viabilidade")
+                }
+            )
 
         st.markdown("---")
-        st.markdown("### Seleção do Imóvel")
-        
-        def label_emp_guide(name):
-            sub = df_estoque[(df_estoque['Empreendimento'] == name) & (df_estoque['Status'] == 'Disponível')]
-            if sub.empty: return name
-            return f"{name} (R$ {sub['Valor de Venda'].min():,.0f} a R$ {sub['Valor de Venda'].max():,.0f})"
-
-        def label_uni_guide(uid, unidades_context):
-            u_row = unidades_context[unidades_context['Identificador'] == uid].iloc[0]
-            return f"{uid} (R$ {u_row['Valor de Venda']:,.2f})"
-
+        st.markdown("### Seleção do Imóvel para Fechamento")
         emp_names = sorted(df_estoque[df_estoque['Status'] == 'Disponível']['Empreendimento'].unique())
         col_sel1, col_sel2 = st.columns(2)
-        with col_sel1:
-            emp_escolhido = st.selectbox("Escolha o Empreendimento:", options=emp_names, format_func=label_emp_guide, key="sel_emp_guide_v26")
+        with col_sel1: emp_escolhido = st.selectbox("Empreendimento:", options=emp_names, key="sel_emp_g")
         unidades_disp = df_estoque[(df_estoque['Empreendimento'] == emp_escolhido) & (df_estoque['Status'] == 'Disponível')]
-        with col_sel2:
-            if unidades_disp.empty:
-                st.warning("Nenhuma unidade disponível.")
-                uni_escolhida_id = None
-            else:
-                uni_escolhida_id = st.selectbox("Escolha a Unidade:", options=unidades_disp['Identificador'].unique(), 
-                                               format_func=lambda x: label_uni_guide(x, unidades_disp), key="sel_uni_guide_v26")
+        with col_sel2: uni_escolhida_id = st.selectbox("Unidade:", options=unidades_disp['Identificador'].unique(), key="sel_uni_g")
 
-        st.write("")
-        if st.button("Avançar para Fechamento Financeiro", type="primary", use_container_width=True, key="btn_fech_v26"):
-            if uni_escolhida_id:
-                st.session_state.dados_cliente['unidade_id'] = uni_escolhida_id
-                st.session_state.dados_cliente['empreendimento_nome'] = emp_escolhido
-                st.session_state.passo_simulacao = 'payment_flow'
-                st.rerun()
-            else:
-                st.error("Por favor, selecione uma unidade válida.")
-        
-        if st.button("Voltar para Valor Potencial de Compra", use_container_width=True, key="btn_pot_v23"): 
+        if st.button("Avançar para Fechamento Financeiro", type="primary", use_container_width=True):
+            st.session_state.dados_cliente.update({'unidade_id': uni_escolhida_id, 'empreendimento_nome': emp_escolhido})
+            st.session_state.passo_simulacao = 'payment_flow'; st.rerun()
+        if st.button("Voltar para Valor Potencial", use_container_width=True): 
             st.session_state.passo_simulacao = 'potential'; st.rerun()
 
     # --- ETAPA 4 ---
     elif st.session_state.passo_simulacao == 'payment_flow':
         d = st.session_state.dados_cliente
         st.markdown(f"### Fechamento Financeiro")
+        u = df_estoque[(df_estoque['Empreendimento'] == d['empreendimento_nome']) & (df_estoque['Identificador'] == d['unidade_id'])].iloc[0]
+        st.markdown(f'<div class="custom-alert">Unidade: {u["Identificador"]} - {u["Empreendimento"]} (R$ {u["Valor de Venda"]:,.2f})</div>', unsafe_allow_html=True)
         
-        u_id = d.get('unidade_id')
-        emp_name = d.get('empreendimento_nome')
-        unidades_filtradas = df_estoque[(df_estoque['Empreendimento'] == emp_name) & (df_estoque['Identificador'] == u_id)]
+        f_u = st.number_input("Financiamento", value=float(d['finan_estimado']), key="fin_u")
+        fgts_u = st.number_input("FGTS + Subsídio", value=float(d['fgts_sub']), key="fgt_u")
+        ps_u = st.number_input("Pro Soluto", value=float(u['Valor de Venda'] * d['perc_ps']), key="ps_u")
+        parc = st.number_input("Parcelas PS", min_value=1, max_value=d['prazo_ps_max'], value=d['prazo_ps_max'], key="parc_u")
         
-        if unidades_filtradas.empty:
-            st.error("Erro ao recuperar unidade selecionada.")
-            if st.button("Voltar para Seleção de Imóvel"): st.session_state.passo_simulacao = 'guide'; st.rerun()
-        else:
-            u = unidades_filtradas.iloc[0]
-            st.markdown(f'<div class="custom-alert">Unidade Selecionada: {u["Identificador"]} - {u["Empreendimento"]} (R$ {u["Valor de Venda"]:,.2f})</div>', unsafe_allow_html=True)
-            
-            f_u = st.number_input("Financiamento", value=float(d['finan_estimado']), key="fin_u_v23")
-            st.markdown(f'<p class="inline-ref">Referência Aprovada: R$ {d["finan_estimado"]:,.2f}</p>', unsafe_allow_html=True)
-            
-            fgts_u = st.number_input("FGTS + Subsídio", value=float(d['fgts_sub']), key="fgt_u_v23")
-            st.markdown(f'<p class="inline-ref">Referência Estimada: R$ {d["fgts_sub"]:,.2f}</p>', unsafe_allow_html=True)
-            
-            ps_max_real = u['Valor de Venda'] * d['perc_ps']
-            ps_u = st.number_input("Pro Soluto", value=float(ps_max_real), key="ps_u_v23")
-            st.markdown(f'<p class="inline-ref">Máximo Permitido ({int(d["perc_ps"]*100)}%): R$ {ps_max_real:,.2f}</p>', unsafe_allow_html=True)
-            
-            parc = st.number_input("Quantidade de Parcelas do Pro Soluto", min_value=1, max_value=d['prazo_ps_max'], value=d['prazo_ps_max'], key="parc_u_v23")
-            st.markdown(f'<p class="inline-ref">Limite de Parcelamento: {d["prazo_ps_max"]}x</p>', unsafe_allow_html=True)
-            
-            v_parc = ps_u / parc
-            comp_r = (v_parc / d['renda'])
-            saldo_e = u['Valor de Venda'] - f_u - fgts_u - ps_u
+        v_parc = ps_u / parc
+        saldo_e = u['Valor de Venda'] - f_u - fgts_u - ps_u
 
-            calc_hash = f"{f_u}-{fgts_u}-{ps_u}-{u_id}"
-            if 'last_calc_hash' not in st.session_state or st.session_state.last_calc_hash != calc_hash:
-                dist_val = max(0.0, saldo_e / 4)
-                st.session_state.ato_1 = dist_val
-                st.session_state.ato_2 = dist_val
-                st.session_state.ato_3 = dist_val
-                st.session_state.ato_4 = dist_val
-                st.session_state.last_calc_hash = calc_hash
-            
-            # DESTAQUES FINANCEIROS PADRONIZADOS
-            fin1, fin2, fin3 = st.columns(3)
-            with fin1: st.markdown(f"""<div class="fin-box" style="border-top: 10px solid {COR_AZUL_ESC};"><b>Valor do Imóvel</b><br>R$ {u['Valor de Venda']:,.2f}</div>""", unsafe_allow_html=True)
-            with fin2: st.markdown(f"""<div class="fin-box" style="border-top: 10px solid {COR_VERMELHO};"><b>Mensalidade Pro Soluto</b><br>R$ {v_parc:,.2f} em {parc}x</div>""", unsafe_allow_html=True)
-            with fin3: st.markdown(f"""<div class="fin-box" style="border-top: 10px solid {COR_AZUL_ESC};"><b>Saldo Entrada</b><br>R$ {max(0, saldo_e):,.2f}</div>""", unsafe_allow_html=True)
-            
-            if comp_r > d['limit_ps_renda']:
-                st.warning(f"Atenção: Parcela ultrapassa o limite de {d['limit_ps_renda']*100:.0f}% da renda.")
+        fin1, fin2, fin3 = st.columns(3)
+        with fin1: st.markdown(f'<div class="fin-box" style="border-top: 10px solid {COR_AZUL_ESC};"><div class="metric-label">Valor do Imóvel</div><div class="metric-value">R$ {u["Valor de Venda"]:,.2f}</div></div>', unsafe_allow_html=True)
+        with fin2: st.markdown(f'<div class="fin-box" style="border-top: 10px solid {COR_VERMELHO};"><div class="metric-label">Mensalidade PS</div><div class="metric-value">R$ {v_parc:,.2f} ({parc}x)</div></div>', unsafe_allow_html=True)
+        with fin3: st.markdown(f'<div class="fin-box" style="border-top: 10px solid {COR_AZUL_ESC};"><div class="metric-label">Saldo Entrada</div><div class="metric-value">R$ {max(0, saldo_e):,.2f}</div></div>', unsafe_allow_html=True)
 
-            if saldo_e > 0:
-                st.markdown("#### Parcelamento da Entrada")
-                col_a, col_b = st.columns(2)
-                with col_a:
-                    st.session_state.ato_1 = st.number_input("Ato", value=st.session_state.ato_1, key="ato_1_v24")
-                    st.session_state.ato_3 = st.number_input("Ato 60", value=st.session_state.ato_3, key="ato_3_v24")
-                with col_b:
-                    st.session_state.ato_2 = st.number_input("Ato 30", value=st.session_state.ato_2, key="ato_2_v24")
-                    st.session_state.ato_4 = st.number_input("Ato 90", value=st.session_state.ato_4, key="ato_4_v24")
-                
-                soma_entrada = st.session_state.ato_1 + st.session_state.ato_2 + st.session_state.ato_3 + st.session_state.ato_4
-                if abs(soma_entrada - saldo_e) > 0.01:
-                    st.error(f"A soma das parcelas não confere com o Saldo de Entrada.")
-            
-            st.session_state.dados_cliente.update({
-                'imovel_valor': u['Valor de Venda'], 'finan_usado': f_u, 'fgts_sub_usado': fgts_u,
-                'ps_usado': ps_u, 'ps_parcelas': parc, 'ps_mensal': v_parc, 'entrada_total': saldo_e,
-                'ato_final': st.session_state.ato_1, 'ato_30': st.session_state.ato_2,
-                'ato_60': st.session_state.ato_3, 'ato_90': st.session_state.ato_4
-            })
+        if saldo_e > 0:
+            st.markdown("#### Fluxo de Entrada")
+            dist = max(0.0, saldo_e / 4)
+            c1, c2 = st.columns(2)
+            with c1:
+                ato1 = st.number_input("Ato", value=dist, key="ato1")
+                ato3 = st.number_input("Ato 60", value=dist, key="ato3")
+            with c2:
+                ato2 = st.number_input("Ato 30", value=dist, key="ato2")
+                ato4 = st.number_input("Ato 90", value=dist, key="ato4")
+            st.session_state.dados_cliente.update({'ato_final': ato1, 'ato_30': ato2, 'ato_60': ato3, 'ato_90': ato4})
+
+        st.session_state.dados_cliente.update({'imovel_valor': u['Valor de Venda'], 'finan_usado': f_u, 'fgts_sub_usado': fgts_u, 'ps_usado': ps_u, 'ps_parcelas': parc, 'ps_mensal': v_parc, 'entrada_total': saldo_e})
         
-        st.markdown("---")
-        if st.button("Obter Resumo de Compra", type="primary", use_container_width=True, key="btn_to_summary"):
-            st.session_state.passo_simulacao = 'summary'
-            st.rerun()
-        if st.button("Voltar para Seleção de Imóvel", use_container_width=True, key="btn_back_to_guide"): 
-            st.session_state.passo_simulacao = 'guide'; st.rerun()
+        if st.button("Obter Resumo", type="primary", use_container_width=True): st.session_state.passo_simulacao = 'summary'; st.rerun()
+        if st.button("Voltar", use_container_width=True): st.session_state.passo_simulacao = 'guide'; st.rerun()
 
     # --- ETAPA 5 ---
     elif st.session_state.passo_simulacao == 'summary':
         d = st.session_state.dados_cliente
         st.markdown(f"### Resumo da Simulação - {d.get('nome', 'Cliente')}")
-        
         if PDF_ENABLED:
             pdf_data = gerar_resumo_pdf(d)
             if pdf_data:
-                _, col_btn_center, _ = st.columns([1, 1.2, 1])
-                with col_btn_center:
-                    st.download_button(
-                        label="Baixar Resumo em PDF", 
-                        data=pdf_data, 
-                        file_name=f"Resumo de Compra - {d.get('nome', 'Cliente')}.pdf", 
-                        mime="application/pdf",
-                        use_container_width=True,
-                        key="btn_download_pdf_final"
-                    )
-        else:
-            st.warning("Função de PDF indisponível. Verifique o arquivo requirements.txt.")
+                st.download_button("Baixar PDF Oficial", data=pdf_data, file_name=f"Resumo Direcional - {d['nome']}.pdf", mime="application/pdf", use_container_width=True)
 
-        st.markdown(f'<div class="summary-header">DADOS DO IMÓVEL</div>', unsafe_allow_html=True)
-        st.markdown(f"""<div class="summary-body"><b>Empreendimento:</b> {d.get('empreendimento_nome')}<br>
-            <b>Unidade:</b> {d.get('unidade_id')}<br><b>Valor de Venda:</b> <span class="price-tag">R$ {d.get('imovel_valor', 0):,.2f}</span></div>""", unsafe_allow_html=True)
-
-        st.markdown(f'<div class="summary-header">PLANO DE FINANCIAMENTO</div>', unsafe_allow_html=True)
-        st.markdown(f"""<div class="summary-body"><b>Financiamento Bancário:</b> R$ {d.get('finan_usado', 0):,.2f}<br>
-            <b>FGTS + Subsídio:</b> R$ {d.get('fgts_sub_usado', 0):,.2f}<br>
-            <b>Pro Soluto Total:</b> R$ {d.get('ps_usado', 0):,.2f} ({d.get('ps_parcelas')}x de R$ {d.get('ps_mensal', 0):,.2f})</div>""", unsafe_allow_html=True)
-
-        st.markdown(f'<div class="summary-header">FLUXO DE ENTRADA (ATO)</div>', unsafe_allow_html=True)
-        st.markdown(f"""<div class="summary-body"><b>Total de Entrada:</b> R$ {d.get('entrada_total', 0):,.2f}<br><hr style="border: 0; border-top: 1px solid #e2e8f0; margin: 10px 0;">
-            <b>Ato:</b> R$ {d.get('ato_final', 0):,.2f}<br><b>Ato 30 Dias:</b> R$ {d.get('ato_30', 0):,.2f}<br>
-            <b>Ato 60 Dias:</b> R$ {d.get('ato_60', 0):,.2f}<br><b>Ato 90 Dias:</b> R$ {d.get('ato_90', 0):,.2f}</div>""", unsafe_allow_html=True)
-
-        st.markdown("---")
-        if st.button("Iniciar Novo Cliente", type="primary", use_container_width=True, key="btn_new_client_summary"): 
-            st.session_state.dados_cliente = {}; st.session_state.passo_simulacao = 'input'; st.rerun()
-        if st.button("Editar Fechamento Financeiro", use_container_width=True, key="btn_edit_fin_summary"):
-            st.session_state.passo_simulacao = 'payment_flow'; st.rerun()
+        st.markdown(f'<div class="summary-header">DADOS DO IMÓVEL</div><div class="summary-body"><b>Empreendimento:</b> {d["empreendimento_nome"]}<br><b>Unidade:</b> {d["unidade_id"]}<br><b>Valor:</b> <span class="price-tag">R$ {d["imovel_valor"]:,.2f}</span></div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="summary-header">PLANO FINANCEIRO</div><div class="summary-body"><b>Financiamento:</b> R$ {d["finan_usado"]:,.2f}<br><b>Pro Soluto:</b> R$ {d["ps_usado"]:,.2f} ({d["ps_parcelas"]}x R$ {d["ps_mensal"]:,.2f})</div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="summary-header">FLUXO DE ATO</div><div class="summary-body"><b>Entrada:</b> R$ {d["entrada_total"]:,.2f}<hr style="border-top: 1px solid #e2e8f0;"><b>Ato:</b> R$ {d.get("ato_final",0):,.2f} | <b>30d:</b> R$ {d.get("ato_30",0):,.2f} | <b>60d:</b> R$ {d.get("ato_60",0):,.2f} | <b>90d:</b> R$ {d.get("ato_90",0):,.2f}</div>', unsafe_allow_html=True)
+        if st.button("Novo Cliente", type="primary", use_container_width=True): st.session_state.dados_cliente = {}; st.session_state.passo_simulacao = 'input'; st.rerun()
 
 def main():
     configurar_layout()
     df_finan, df_estoque, df_politicas = carregar_dados_sistema()
-    if df_finan.empty or df_estoque.empty:
-        st.warning("Carregando dados privados...")
-        st.stop()
-    st.markdown(f'<div class="header-container"><div class="header-title">SIMULADOR IMOBILIÁRIO DV</div><div class="header-subtitle">Sistema de Gestão de Vendas e Viabilidade Imobiliária</div></div>', unsafe_allow_html=True)
+    if df_finan.empty or df_estoque.empty: st.warning("Aguarde o carregamento..."); st.stop()
+    st.markdown(f'<div class="header-container"><div class="header-title">SIMULADOR IMOBILIÁRIO DV</div><div class="header-subtitle">Gestão de Viabilidade e Fechamento Direcional</div></div>', unsafe_allow_html=True)
     aba_simulador_automacao(df_finan, df_estoque, df_politicas)
-    st.markdown(f'<div class="footer">Desenvolvido por Lucas Maia</div>', unsafe_allow_html=True)
+    st.markdown(f'<div class="footer">Desenvolvido para Direcional Rio | Por Lucas Maia</div>', unsafe_allow_html=True)
 
 if __name__ == "__main__":
     main()
