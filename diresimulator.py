@@ -10,7 +10,7 @@ Fluxo Automatizado de Recomendação (Sequencial):
 4. Etapa 4: Fechamento Financeiro.
 5. Etapa 5: Resumo da Compra e Exportação PDF.
 
-Versão: 29.9 (Correção de Contraste: Texto Branco em Fundos Azul e Vermelho)
+Versão: 30.0 (Padronização de Estilo e Lógica de Cores Azul-Vermelho-Azul)
 =============================================================================
 """
 
@@ -202,9 +202,24 @@ def configurar_layout():
         .header-title {{ color: {COR_AZUL_ESC}; font-size: 2.2rem; font-weight: 800; margin: 0; text-transform: uppercase; letter-spacing: 1px; }}
         .header-subtitle {{ color: #64748b; font-size: 1rem; font-weight: 400; margin-top: 8px; }}
         
-        /* Cards */
+        /* Cards Padronizados */
         .card {{ background: white; padding: 25px; border-radius: 12px; border: 1px solid #e2e8f0; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); margin-bottom: 20px; min-height: 130px; display: flex; flex-direction: column; justify-content: center; }}
-        .recommendation-card {{ background: #ffffff; padding: 20px; border: 1px solid #e2e8f0; border-radius: 12px; margin-bottom: 15px; text-align: center; min-height: 160px; display: flex; flex-direction: column; justify-content: center; box-shadow: 0 2px 4px rgba(0,0,0,0.02); }}
+        
+        /* Estilo unificado para recomendações e caixas financeiras */
+        .fin-box, .recommendation-card {{ 
+            text-align: center; 
+            padding: 20px; 
+            border-radius: 12px; 
+            border: 1px solid #e2e8f0; 
+            margin-bottom: 15px; 
+            width: 100%; 
+            background: #ffffff; 
+            color: {COR_AZUL_ESC}; 
+            box-shadow: 0 2px 4px rgba(0,0,0,0.02);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+        }}
         
         .thin-card {{ background: white; padding: 15px 20px; border-radius: 8px; border: 1px solid #e2e8f0; border-left: 5px solid {COR_VERMELHO}; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; }}
         
@@ -213,7 +228,7 @@ def configurar_layout():
         .metric-label {{ color: #64748b !important; font-size: 0.85rem; font-weight: 600; text-transform: uppercase; text-align: center; }}
         .metric-value {{ color: {COR_AZUL_ESC} !important; font-size: 1.4rem; font-weight: 700; text-align: center; }}
         
-        /* Estilização de Botões (CORREÇÃO DE TEXTO BRANCO) */
+        /* Estilização de Botões */
         .stButton button {{ 
             border-radius: 8px !important; 
             padding: 12px !important; 
@@ -245,30 +260,20 @@ def configurar_layout():
         /* Títulos */
         h1, h2, h3, h4 {{ text-align: center !important; width: 100%; color: {COR_AZUL_ESC} !important; font-weight: 700; }}
         
-        /* Caixas Financeiras */
-        .fin-box {{ text-align: center; padding: 20px; border-radius: 12px; border: 1px solid #e2e8f0; margin-bottom: 15px; width: 100%; background: #ffffff; color: {COR_AZUL_ESC}; }}
+        /* Linha de Referência */
         .inline-ref {{ font-size: 0.85rem; color: #475569 !important; margin-top: -12px; margin-bottom: 14px; font-weight: 500; text-align: left; background: #f8f9fa; padding: 6px 10px; border-radius: 4px; border-left: 3px solid {COR_VERMELHO}; }}
         
         /* Rodapé */
         .footer {{ text-align: center; padding: 30px 0; color: {COR_AZUL_ESC} !important; font-size: 0.85rem; border-top: 1px solid {COR_VERMELHO}; margin-top: 50px; font-weight: 400; background: #ffffff; }}
         
-        /* Resumo (CORREÇÃO DE TEXTO BRANCO NO HEADER) */
+        /* Resumo */
         .summary-header {{ background: {COR_AZUL_ESC}; padding: 15px; border-radius: 10px 10px 0 0; font-weight: 600; text-align: center; margin-bottom: 0px; }}
         .summary-header b, .summary-header span, .summary-header div {{ color: white !important; }}
         .summary-body {{ background: white; padding: 20px; border: 1px solid #e2e8f0; border-radius: 0 0 10px 10px; margin-bottom: 20px; color: {COR_AZUL_ESC}; }}
         
-        /* Custom Alert / Info Box (CORREÇÃO DE TEXTO BRANCO) */
+        /* Custom Alert / Info Box (Texto Branco sobre Azul) */
         .custom-alert {{ background-color: {COR_AZUL_ESC}; padding: 15px; border-radius: 10px; margin-bottom: 20px; text-align: center; font-weight: 600; }}
         .custom-alert, .custom-alert b, .custom-alert span, .custom-alert p {{ color: white !important; }}
-        
-        /* Correção específica para a caixa de mensalidade azul */
-        .blue-box-white-text {{ 
-            background-color: {COR_AZUL_ESC} !important; 
-            color: white !important; 
-        }}
-        .blue-box-white-text b, .blue-box-white-text span {{
-            color: white !important;
-        }}
         </style>
     """, unsafe_allow_html=True)
 
@@ -369,6 +374,7 @@ def gerar_resumo_pdf(d):
 # =============================================================================
 
 def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
+    # Componente para forçar scroll ao topo
     passo_atual = st.session_state.get('passo_simulacao', 'init')
     components.html(
         f"""
@@ -488,9 +494,10 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
                 if not df_filt_rec.empty:
                     r100, r90, r75 = df_filt_rec.iloc[0], df_filt_rec.iloc[len(df_filt_rec)//2], df_filt_rec.iloc[-1]
                     c1, c2, c3 = st.columns(3)
-                    with c1: st.markdown(f'<div class="recommendation-card" style="border-top-color:{COR_AZUL_ESC};"><b>IDEAL</b><br><small>{r100["Empreendimento"]}</small><br>{r100["Identificador"]}<br><span class="price-tag">R$ {r100["Valor de Venda"]:,.2f}</span></div>', unsafe_allow_html=True)
-                    with c2: st.markdown(f'<div class="recommendation-card" style="border-top-color:{COR_VERMELHO};"><b>SEGURA</b><br><small>{r90["Empreendimento"]}</small><br>{r90["Identificador"]}<br><span class="price-tag">R$ {r90["Valor de Venda"]:,.2f}</span></div>', unsafe_allow_html=True)
-                    with c3: st.markdown(f'<div class="recommendation-card" style="border-top-color:{COR_AZUL_ESC};"><b>FACILITADA</b><br><small>{r75["Empreendimento"]}</small><br>{r75["Identificador"]}<br><span class="price-tag">R$ {r75["Valor de Venda"]:,.2f}</span></div>', unsafe_allow_html=True)
+                    # RECOMENDAÇÕES NO ESTILO DAS OUTRAS CAIXAS (Azul - Vermelho - Azul)
+                    with c1: st.markdown(f'<div class="recommendation-card" style="border-top: 5px solid {COR_AZUL_ESC};"><b>IDEAL</b><br><small>{r100["Empreendimento"]}</small><br>{r100["Identificador"]}<br><span class="price-tag">R$ {r100["Valor de Venda"]:,.2f}</span></div>', unsafe_allow_html=True)
+                    with c2: st.markdown(f'<div class="recommendation-card" style="border-top: 5px solid {COR_VERMELHO};"><b>SEGURA</b><br><small>{r90["Empreendimento"]}</small><br>{r90["Identificador"]}<br><span class="price-tag">R$ {r90["Valor de Venda"]:,.2f}</span></div>', unsafe_allow_html=True)
+                    with c3: st.markdown(f'<div class="recommendation-card" style="border-top: 5px solid {COR_AZUL_ESC};"><b>FACILITADA</b><br><small>{r75["Empreendimento"]}</small><br>{r75["Identificador"]}<br><span class="price-tag">R$ {r75["Valor de Venda"]:,.2f}</span></div>', unsafe_allow_html=True)
 
         with tab_list:
             f1, f2, f3, f4, f5, f6 = st.columns([1.2, 1, 0.7, 1.1, 0.9, 0.8])
@@ -591,18 +598,20 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
                 st.session_state.ato_4 = dist_val
                 st.session_state.last_calc_hash = calc_hash
             
+            # DESTAQUES FINANCEIROS: AZUL - VERMELHO - AZUL (Fundo Branco)
             st.markdown(f"""
                 <div class="fin-box" style="border-top: 5px solid {COR_AZUL_ESC};"><b>Valor do Imóvel:</b> R$ {u['Valor de Venda']:,.2f}</div>
-                <div class="fin-box blue-box-white-text" style="border-top: 5px solid {COR_AZUL_ESC};">
+                <div class="fin-box" style="border-top: 5px solid {COR_VERMELHO};">
                     <b>Mensalidade Pro Soluto:</b> R$ {v_parc:,.2f} em {parc}x
+                </div>
+                <div class="fin-box" style="border-top: 5px solid {COR_AZUL_ESC};">
+                    <b>Saldo Entrada Restante:</b> R$ {max(0, saldo_e):,.2f}
                 </div>
             """, unsafe_allow_html=True)
             
             if comp_r > d['limit_ps_renda']:
                 st.warning(f"Atenção: Parcela ultrapassa o limite de {d['limit_ps_renda']*100:.0f}% da renda.")
 
-            st.markdown(f'<div class="fin-box" style="background:#ffffff; border-top: 5px solid {COR_VERMELHO};"><b>Saldo Entrada Restante:</b> R$ {max(0, saldo_e):,.2f}</div>', unsafe_allow_html=True)
-            
             if saldo_e > 0:
                 st.markdown("#### Parcelamento da Entrada")
                 col_a, col_b = st.columns(2)
@@ -639,6 +648,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
         if PDF_ENABLED:
             pdf_data = gerar_resumo_pdf(d)
             if pdf_data:
+                # Centralização do botão de download
                 _, col_btn_center, _ = st.columns([1, 1.2, 1])
                 with col_btn_center:
                     st.download_button(
