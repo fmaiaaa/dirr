@@ -9,7 +9,7 @@ Fluxo Automatizado de Recomendação (Sequencial):
 3. Etapa 3: Guia de Viabilidade (Seleção do Produto).
 4. Etapa 4: Fechamento Financeiro.
 
-Versão: 26.2 (Inclusão de Subtítulo no Cabeçalho conforme solicitado)
+Versão: 26.3 (Inclusão de Assinatura no Rodapé)
 =============================================================================
 """
 
@@ -177,6 +177,7 @@ def configurar_layout():
         .fin-box { text-align: center; padding: 20px; border-radius: 15px; border: 1px solid #e2e8f0; margin-bottom: 15px; width: 100%; }
         .inline-ref { font-size: 0.85rem; color: #475569; margin-top: -12px; margin-bottom: 14px; font-weight: 500; text-align: left; background: #f1f5f9; padding: 4px 8px; border-radius: 4px; border-left: 3px solid #2563eb; }
         div[data-baseweb="tab-list"] { justify-content: center !important; display: flex !important; }
+        .footer { text-align: center; padding: 30px 0; color: #64748b; font-size: 0.85rem; border-top: 1px solid #e2e8f0; margin-top: 50px; font-weight: 400; }
         </style>
     """, unsafe_allow_html=True)
 
@@ -432,7 +433,11 @@ def main():
         st.warning("⚠️ Carregando dados privados...")
         st.stop()
     st.markdown('<div class="header-container"><div class="header-title">SIMULADOR DE COMPRA - DIRECIONAL ENGENHARIA</div><div class="header-subtitle">Gestão de Vendas e Viabilidade Imobiliária</div></div>', unsafe_allow_html=True)
+    
     aba_simulador_automacao(df_finan, df_estoque, df_politicas)
+
+    # Rodapé com assinatura
+    st.markdown('<div class="footer">Desenvolvido por Lucas Maia</div>', unsafe_allow_html=True)
 
 if __name__ == "__main__":
     main()
