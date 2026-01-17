@@ -9,7 +9,7 @@ Fluxo Automatizado de Recomendação (Sequencial):
 3. Etapa 4: Fechamento Financeiro.
 5. Etapa 5: Resumo da Compra e Exportação PDF.
 
-Versão: 38.0 (Inputs Ultra Clean e Tabela Profissional)
+Versão: 39.0 (Ajuste de Tipografia no Resumo de Venda)
 =============================================================================
 """
 
@@ -201,7 +201,6 @@ def configurar_layout():
         .main {{ background-color: #f8fafc; }}
         .block-container {{ max-width: 1200px !important; padding: 2.5rem 1rem !important; margin: auto !important; }}
         
-        /* AJUSTE SOLICITADO: Removendo o fundo cinza e a borda interna (o "quadrado") */
         div[data-baseweb="input"] {{
             border-radius: 12px !important;
             border: 1px solid #e2e8f0 !important;
@@ -215,7 +214,6 @@ def configurar_layout():
             box-shadow: 0 0 0 1px {COR_AZUL_ESC} !important;
         }}
 
-        /* Garantimos que todos os sub-elementos sejam transparentes e sem bordas extras */
         .stTextInput input, .stNumberInput input, div[data-baseweb="base-input"], div[data-baseweb="input"] > div {{
             border: none !important;
             background-color: transparent !important;
@@ -451,9 +449,10 @@ def gerar_resumo_pdf(d):
                     pdf.ln(8)
                     continue
 
+                # AJUSTE: Valor em destaque mantém o tamanho 11 do resto da tabela
                 if destaque_vermelho and i == len(linhas) - 1:
                     pdf.set_text_color(*VERMELHO_RGB)
-                    pdf.set_font("Helvetica", 'B', 12)
+                    pdf.set_font("Helvetica", 'B', 11)
                 else:
                     pdf.set_text_color(*AZUL_RGB)
                     pdf.set_font("Helvetica", '', 11)
@@ -783,8 +782,9 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
             st.warning("Função de PDF indisponível.")
 
         st.markdown(f'<div class="summary-header">DADOS DO IMÓVEL</div>', unsafe_allow_html=True)
+        # AJUSTE: O valor de venda agora usa o mesmo tamanho do texto adjacente, apenas com cor e negrito.
         st.markdown(f"""<div class="summary-body"><b>Empreendimento:</b> {d.get('empreendimento_nome')}<br>
-            <b>Unidade:</b> {d.get('unidade_id')}<br><b>Valor de Venda:</b> <span class="price-tag">R$ {d.get('imovel_valor', 0):,.2f}</span></div>""", unsafe_allow_html=True)
+            <b>Unidade:</b> {d.get('unidade_id')}<br><b>Valor de Venda:</b> <span style="color: {COR_VERMELHO}; font-weight: 700;">R$ {d.get('imovel_valor', 0):,.2f}</span></div>""", unsafe_allow_html=True)
 
         st.markdown(f'<div class="summary-header">PLANO DE FINANCIAMENTO</div>', unsafe_allow_html=True)
         st.markdown(f"""<div class="summary-body"><b>Financiamento Bancário:</b> R$ {d.get('finan_usado', 0):,.2f}<br>
