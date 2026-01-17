@@ -10,7 +10,7 @@ Fluxo Automatizado de Recomendação (Sequencial):
 4. Etapa 4: Fechamento Financeiro.
 5. Etapa 5: Resumo da Compra e Exportação PDF.
 
-Versão: 29.8 (Legibilidade: Letras Brancas em Fundos Coloridos)
+Versão: 29.9 (Correção de Contraste: Texto Branco em Fundos Azul e Vermelho)
 =============================================================================
 """
 
@@ -186,54 +186,56 @@ def configurar_layout():
     st.markdown(f"""
         <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap');
-        * {{ font-family: 'Inter', sans-serif; color: {COR_AZUL_ESC}; }}
+        
+        /* Cor de texto padrão para o corpo e elementos comuns */
+        html, body, [data-testid="stAppViewContainer"] {{
+            font-family: 'Inter', sans-serif;
+            color: {COR_AZUL_ESC};
+        }}
         
         /* Fundo branco total */
         .main {{ background-color: #ffffff; }}
         .block-container {{ max-width: 1200px !important; padding: 1rem !important; margin: auto !important; }}
         
-        /* Header: Limpo, fundo branco e letras Azul Direcional */
+        /* Header */
         .header-container {{ text-align: center; padding: 35px 0; background: #ffffff; border-bottom: 5px solid {COR_VERMELHO}; margin-bottom: 25px; border-radius: 0 0 15px 15px; }}
         .header-title {{ color: {COR_AZUL_ESC}; font-size: 2.2rem; font-weight: 800; margin: 0; text-transform: uppercase; letter-spacing: 1px; }}
         .header-subtitle {{ color: #64748b; font-size: 1rem; font-weight: 400; margin-top: 8px; }}
         
-        /* Cards: Bordas e Sombras suaves */
+        /* Cards */
         .card {{ background: white; padding: 25px; border-radius: 12px; border: 1px solid #e2e8f0; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); margin-bottom: 20px; min-height: 130px; display: flex; flex-direction: column; justify-content: center; }}
         .recommendation-card {{ background: #ffffff; padding: 20px; border: 1px solid #e2e8f0; border-radius: 12px; margin-bottom: 15px; text-align: center; min-height: 160px; display: flex; flex-direction: column; justify-content: center; box-shadow: 0 2px 4px rgba(0,0,0,0.02); }}
         
-        /* Cards Finos: Borda lateral Vermelha */
         .thin-card {{ background: white; padding: 15px 20px; border-radius: 8px; border: 1px solid #e2e8f0; border-left: 5px solid {COR_VERMELHO}; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; }}
         
-        /* Destaques de Preço em Vermelho Direcional */
+        /* Destaques */
         .price-tag {{ color: {COR_VERMELHO} !important; font-weight: 700; font-size: 1.2rem; }}
-        
-        /* Métricas */
         .metric-label {{ color: #64748b !important; font-size: 0.85rem; font-weight: 600; text-transform: uppercase; text-align: center; }}
         .metric-value {{ color: {COR_AZUL_ESC} !important; font-size: 1.4rem; font-weight: 700; text-align: center; }}
         
-        /* Estilização de Botões */
+        /* Estilização de Botões (CORREÇÃO DE TEXTO BRANCO) */
         .stButton button {{ 
             border-radius: 8px !important; 
             padding: 12px !important; 
             font-weight: 600 !important; 
-            color: #ffffff !important; /* FORÇAR LETRA BRANCA */
+            color: #ffffff !important; 
             border: none !important; 
         }}
 
-        /* Botão de VOLTAR: Azul Escuro Direcional */
+        /* Botão de VOLTAR: Azul Escuro */
         .stButton button {{ 
             background-color: {COR_AZUL_ESC} !important; 
-            color: #ffffff !important;
+            color: white !important;
         }}
         .stButton button:hover {{ 
             background-color: #001a3d !important; 
             box-shadow: 0 4px 8px rgba(0,0,0,0.1); 
         }}
         
-        /* Botão de AVANÇAR (primary): Vermelho Direcional */
+        /* Botão de AVANÇAR: Vermelho */
         .stButton button[kind="primary"] {{ 
             background-color: {COR_VERMELHO} !important; 
-            color: #ffffff !important;
+            color: white !important;
         }}
         .stButton button[kind="primary"]:hover {{ 
             background-color: #c40a10 !important; 
@@ -244,22 +246,29 @@ def configurar_layout():
         h1, h2, h3, h4 {{ text-align: center !important; width: 100%; color: {COR_AZUL_ESC} !important; font-weight: 700; }}
         
         /* Caixas Financeiras */
-        .fin-box {{ text-align: center; padding: 20px; border-radius: 12px; border: 1px solid #e2e8f0; margin-bottom: 15px; width: 100%; background: #ffffff; }}
+        .fin-box {{ text-align: center; padding: 20px; border-radius: 12px; border: 1px solid #e2e8f0; margin-bottom: 15px; width: 100%; background: #ffffff; color: {COR_AZUL_ESC}; }}
         .inline-ref {{ font-size: 0.85rem; color: #475569 !important; margin-top: -12px; margin-bottom: 14px; font-weight: 500; text-align: left; background: #f8f9fa; padding: 6px 10px; border-radius: 4px; border-left: 3px solid {COR_VERMELHO}; }}
-        div[data-baseweb="tab-list"] {{ justify-content: center !important; display: flex !important; }}
         
         /* Rodapé */
         .footer {{ text-align: center; padding: 30px 0; color: {COR_AZUL_ESC} !important; font-size: 0.85rem; border-top: 1px solid {COR_VERMELHO}; margin-top: 50px; font-weight: 400; background: #ffffff; }}
         
-        /* Resumo */
-        .summary-header {{ background: {COR_AZUL_ESC}; color: white !important; padding: 15px; border-radius: 10px 10px 0 0; font-weight: 600; text-align: center; margin-bottom: 0px; }}
-        .summary-header span, .summary-header b {{ color: white !important; }}
-        .summary-body {{ background: white; padding: 20px; border: 1px solid #e2e8f0; border-radius: 0 0 10px 10px; margin-bottom: 20px; }}
-        .download-container {{ display: flex; justify-content: center; margin-bottom: 20px; }}
+        /* Resumo (CORREÇÃO DE TEXTO BRANCO NO HEADER) */
+        .summary-header {{ background: {COR_AZUL_ESC}; padding: 15px; border-radius: 10px 10px 0 0; font-weight: 600; text-align: center; margin-bottom: 0px; }}
+        .summary-header b, .summary-header span, .summary-header div {{ color: white !important; }}
+        .summary-body {{ background: white; padding: 20px; border: 1px solid #e2e8f0; border-radius: 0 0 10px 10px; margin-bottom: 20px; color: {COR_AZUL_ESC}; }}
         
-        /* Custom Alert / Info Box (FORÇAR BRANCO) */
-        .custom-alert {{ background-color: {COR_AZUL_ESC}; color: white !important; padding: 15px; border-radius: 10px; margin-bottom: 20px; text-align: center; font-weight: 600; }}
-        .custom-alert b, .custom-alert span, .custom-alert p {{ color: white !important; }}
+        /* Custom Alert / Info Box (CORREÇÃO DE TEXTO BRANCO) */
+        .custom-alert {{ background-color: {COR_AZUL_ESC}; padding: 15px; border-radius: 10px; margin-bottom: 20px; text-align: center; font-weight: 600; }}
+        .custom-alert, .custom-alert b, .custom-alert span, .custom-alert p {{ color: white !important; }}
+        
+        /* Correção específica para a caixa de mensalidade azul */
+        .blue-box-white-text {{ 
+            background-color: {COR_AZUL_ESC} !important; 
+            color: white !important; 
+        }}
+        .blue-box-white-text b, .blue-box-white-text span {{
+            color: white !important;
+        }}
         </style>
     """, unsafe_allow_html=True)
 
@@ -360,7 +369,6 @@ def gerar_resumo_pdf(d):
 # =============================================================================
 
 def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
-    # Componente para forçar scroll ao topo
     passo_atual = st.session_state.get('passo_simulacao', 'init')
     components.html(
         f"""
@@ -397,7 +405,6 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
         
         if st.button("Avançar para Valor Potencial de Compra", type="primary", use_container_width=True, key="btn_s1_v23"):
             if not nome.strip():
-                # AVISO DO NOME EM BOX AZUL COM LETRA BRANCA
                 st.markdown(f'<div class="custom-alert">Por favor, informe o Nome do Cliente para iniciar a simulação.</div>', unsafe_allow_html=True)
             else:
                 finan, sub = motor.obter_enquadramento(renda, social, cotista)
@@ -481,7 +488,6 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
                 if not df_filt_rec.empty:
                     r100, r90, r75 = df_filt_rec.iloc[0], df_filt_rec.iloc[len(df_filt_rec)//2], df_filt_rec.iloc[-1]
                     c1, c2, c3 = st.columns(3)
-                    # DESTAQUE: AZUL - VERMELHO - AZUL
                     with c1: st.markdown(f'<div class="recommendation-card" style="border-top-color:{COR_AZUL_ESC};"><b>IDEAL</b><br><small>{r100["Empreendimento"]}</small><br>{r100["Identificador"]}<br><span class="price-tag">R$ {r100["Valor de Venda"]:,.2f}</span></div>', unsafe_allow_html=True)
                     with c2: st.markdown(f'<div class="recommendation-card" style="border-top-color:{COR_VERMELHO};"><b>SEGURA</b><br><small>{r90["Empreendimento"]}</small><br>{r90["Identificador"]}<br><span class="price-tag">R$ {r90["Valor de Venda"]:,.2f}</span></div>', unsafe_allow_html=True)
                     with c3: st.markdown(f'<div class="recommendation-card" style="border-top-color:{COR_AZUL_ESC};"><b>FACILITADA</b><br><small>{r75["Empreendimento"]}</small><br>{r75["Identificador"]}<br><span class="price-tag">R$ {r75["Valor de Venda"]:,.2f}</span></div>', unsafe_allow_html=True)
@@ -557,7 +563,6 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
             if st.button("Voltar para Seleção de Imóvel"): st.session_state.passo_simulacao = 'guide'; st.rerun()
         else:
             u = unidades_filtradas.iloc[0]
-            # INFORMATIVO DA UNIDADE EM BOX AZUL COM LETRA BRANCA
             st.markdown(f'<div class="custom-alert">Unidade Selecionada: {u["Identificador"]} - {u["Empreendimento"]} (R$ {u["Valor de Venda"]:,.2f})</div>', unsafe_allow_html=True)
             
             f_u = st.number_input("Financiamento", value=float(d['finan_estimado']), key="fin_u_v23")
@@ -586,12 +591,10 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
                 st.session_state.ato_4 = dist_val
                 st.session_state.last_calc_hash = calc_hash
             
-            # MENSALIDADE PRO SOLUTO EM AZUL COM LETRA BRANCA (ESTILO REFORÇADO)
             st.markdown(f"""
                 <div class="fin-box" style="border-top: 5px solid {COR_AZUL_ESC};"><b>Valor do Imóvel:</b> R$ {u['Valor de Venda']:,.2f}</div>
-                <div class="fin-box" style="background:{COR_AZUL_ESC}; color: white !important; border-top: 5px solid {COR_AZUL_ESC};">
-                    <b style="color: white !important;">Mensalidade Pro Soluto:</b> 
-                    <span style="color: white !important;">R$ {v_parc:,.2f} em {parc}x</span>
+                <div class="fin-box blue-box-white-text" style="border-top: 5px solid {COR_AZUL_ESC};">
+                    <b>Mensalidade Pro Soluto:</b> R$ {v_parc:,.2f} em {parc}x
                 </div>
             """, unsafe_allow_html=True)
             
@@ -636,7 +639,6 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
         if PDF_ENABLED:
             pdf_data = gerar_resumo_pdf(d)
             if pdf_data:
-                # Centralização do botão de download
                 _, col_btn_center, _ = st.columns([1, 1.2, 1])
                 with col_btn_center:
                     st.download_button(
@@ -650,16 +652,16 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
         else:
             st.warning("Função de PDF indisponível. Verifique o arquivo requirements.txt.")
 
-        st.markdown(f'<div class="summary-header" style="background:{COR_AZUL_ESC};">DADOS DO IMÓVEL</div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="summary-header">DADOS DO IMÓVEL</div>', unsafe_allow_html=True)
         st.markdown(f"""<div class="summary-body"><b>Empreendimento:</b> {d.get('empreendimento_nome')}<br>
             <b>Unidade:</b> {d.get('unidade_id')}<br><b>Valor de Venda:</b> <span class="price-tag">R$ {d.get('imovel_valor', 0):,.2f}</span></div>""", unsafe_allow_html=True)
 
-        st.markdown(f'<div class="summary-header" style="background:{COR_AZUL_ESC};">PLANO DE FINANCIAMENTO</div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="summary-header">PLANO DE FINANCIAMENTO</div>', unsafe_allow_html=True)
         st.markdown(f"""<div class="summary-body"><b>Financiamento Bancário:</b> R$ {d.get('finan_usado', 0):,.2f}<br>
             <b>FGTS + Subsídio:</b> R$ {d.get('fgts_sub_usado', 0):,.2f}<br>
             <b>Pro Soluto Total:</b> R$ {d.get('ps_usado', 0):,.2f} ({d.get('ps_parcelas')}x de R$ {d.get('ps_mensal', 0):,.2f})</div>""", unsafe_allow_html=True)
 
-        st.markdown(f'<div class="summary-header" style="background:{COR_AZUL_ESC};">FLUXO DE ENTRADA (ATO)</div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="summary-header">FLUXO DE ENTRADA (ATO)</div>', unsafe_allow_html=True)
         st.markdown(f"""<div class="summary-body"><b>Total de Entrada:</b> R$ {d.get('entrada_total', 0):,.2f}<br><hr style="border: 0; border-top: 1px solid #e2e8f0; margin: 10px 0;">
             <b>Ato:</b> R$ {d.get('ato_final', 0):,.2f}<br><b>Ato 30 Dias:</b> R$ {d.get('ato_30', 0):,.2f}<br>
             <b>Ato 60 Dias:</b> R$ {d.get('ato_60', 0):,.2f}<br><b>Ato 90 Dias:</b> R$ {d.get('ato_90', 0):,.2f}</div>""", unsafe_allow_html=True)
@@ -676,10 +678,8 @@ def main():
     if df_finan.empty or df_estoque.empty:
         st.warning("Carregando dados privados...")
         st.stop()
-    # Títulos e Subtítulos em cores de marca sobre fundo branco
     st.markdown(f'<div class="header-container"><div class="header-title">SIMULADOR IMOBILIÁRIO DV</div><div class="header-subtitle">Sistema de Gestão de Vendas e Viabilidade Imobiliária</div></div>', unsafe_allow_html=True)
     aba_simulador_automacao(df_finan, df_estoque, df_politicas)
-    # Rodapé em branco com borda vermelha
     st.markdown(f'<div class="footer">Desenvolvido por Lucas Maia</div>', unsafe_allow_html=True)
 
 if __name__ == "__main__":
