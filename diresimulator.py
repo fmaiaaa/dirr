@@ -10,7 +10,7 @@ Fluxo Automatizado de Recomendação (Sequencial):
 4. Etapa 4: Fechamento Financeiro.
 5. Etapa 5: Resumo da Compra e Exportação PDF.
 
-Versão: 36.0 (Inputs Profissionais, Tabelas Refinadas e PDF Executivo Corrigido)
+Versão: 37.0 (Design de Inputs e Tabela Refinados)
 =============================================================================
 """
 
@@ -48,7 +48,7 @@ URL_FAVICON_RESERVA = "https://direcional.com.br/wp-content/uploads/2021/04/crop
 
 # Cores Oficiais Direcional
 COR_AZUL_ESC = "#002c5d"
-COR_VERMELHO = "#e30613" # Vermelho Direcional padrão
+COR_VERMELHO = "#e30613"
 
 # =============================================================================
 # 1. CARREGAMENTO E TRATAMENTO DE DADOS
@@ -63,7 +63,6 @@ def carregar_dados_sistema():
 
         conn = st.connection("gsheets", type=GSheetsConnection)
 
-        # --- 1.1 Funções Auxiliares ---
         def limpar_porcentagem(val):
             if isinstance(val, str):
                 v = val.replace('%', '').replace(',', '.').strip()
@@ -81,7 +80,6 @@ def carregar_dados_sistema():
                 return num if num > 0 else 0.0
             except: return 0.0
 
-        # --- 1.2 Carregar Ranking ---
         try:
             df_politicas = conn.read(spreadsheet=URL_RANKING)
             df_politicas = df_politicas.rename(columns={
@@ -95,13 +93,11 @@ def carregar_dados_sistema():
         except Exception:
             df_politicas = pd.DataFrame()
 
-        # --- 1.3 Carregar Financiamento ---
         try:
             df_finan = conn.read(spreadsheet=URL_FINAN)
         except Exception:
             df_finan = pd.DataFrame()
 
-        # --- 1.4 Carregar Estoque ---
         try:
             df_raw = conn.read(spreadsheet=URL_ESTOQUE)
             df_estoque = df_raw.rename(columns={
@@ -185,17 +181,14 @@ def configurar_layout():
     st.set_page_config(page_title="Simulador Direcional", page_icon=icone_final, layout="wide")
     st.markdown(f"""
         <style>
-        /* Importação de fontes premium */
         @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&family=Inter:wght@300;400;500;600&display=swap');
         
-        /* Reset de tipografia e cor base */
         html, body, [data-testid="stAppViewContainer"] {{
             font-family: 'Inter', sans-serif;
             color: {COR_AZUL_ESC};
             line-height: 1.6;
         }}
         
-        /* Títulos Modernos */
         h1, h2, h3, h4 {{
             font-family: 'Montserrat', sans-serif !important;
             text-align: center !important; 
@@ -206,32 +199,38 @@ def configurar_layout():
             margin-bottom: 1.8rem !important;
         }}
 
-        /* Fundo principal cinza claro */
         .main {{ background-color: #f8fafc; }}
         .block-container {{ max-width: 1200px !important; padding: 2.5rem 1rem !important; margin: auto !important; }}
         
-        /* Estilização de Inputs e Widgets para look Profissional */
-        div[data-baseweb="input"], .stTextInput input, .stNumberInput input {{
+        /* AJUSTE SOLICITADO: Design Clean para Inputs 
+           Removemos as bordas internas e mantemos apenas o contêiner arredondado 
+        */
+        div[data-baseweb="input"] {{
             border-radius: 12px !important;
             border: 1px solid #e2e8f0 !important;
-            padding: 2px 4px !important;
             background-color: #ffffff !important;
-            transition: all 0.3s ease !important;
-            color: {COR_AZUL_ESC} !important;
+            transition: all 0.2s ease-in-out !important;
+            padding: 2px 4px !important;
         }}
-        .stTextInput input:focus, .stNumberInput input:focus {{
+        div[data-baseweb="input"]:focus-within {{
             border-color: {COR_AZUL_ESC} !important;
-            box-shadow: 0 0 0 2px rgba(0, 44, 93, 0.1) !important;
+            box-shadow: 0 0 0 1px {COR_AZUL_ESC} !important;
+        }}
+        .stTextInput input, .stNumberInput input {{
+            border: none !important;
+            background-color: transparent !important;
+            box-shadow: none !important;
+            color: {COR_AZUL_ESC} !important;
+            font-family: 'Inter', sans-serif !important;
+            padding: 8px 12px !important;
         }}
         
-        /* Estilização de Seletores (Selectbox) */
         div[data-baseweb="select"] > div {{
             border-radius: 12px !important;
             border: 1px solid #e2e8f0 !important;
             background-color: #ffffff !important;
         }}
 
-        /* Header Flutuante */
         .header-container {{ 
             text-align: center; 
             padding: 45px 0; 
@@ -258,7 +257,6 @@ def configurar_layout():
             letter-spacing: 0.5px;
         }}
         
-        /* PADRONIZAÇÃO DE CARTÕES */
         .card, .fin-box, .recommendation-card {{ 
             background: #ffffff; 
             padding: 30px; 
@@ -295,12 +293,10 @@ def configurar_layout():
             box-shadow: 0 4px 12px rgba(0,0,0,0.01);
         }}
         
-        /* Destaques Numéricos */
         .price-tag {{ color: {COR_VERMELHO} !important; font-weight: 800; font-size: 1.4rem; font-family: 'Montserrat', sans-serif; }}
         .metric-label {{ color: #94a3b8 !important; font-size: 0.95rem; font-weight: 600; text-transform: uppercase; text-align: center; letter-spacing: 1.2px; margin-bottom: 8px; }}
         .metric-value {{ color: {COR_AZUL_ESC} !important; font-size: 1.6rem; font-weight: 800; text-align: center; font-family: 'Montserrat', sans-serif; }}
         
-        /* Botões Enterprise */
         .stButton button {{ 
             font-family: 'Inter', sans-serif;
             border-radius: 12px !important; 
@@ -314,17 +310,13 @@ def configurar_layout():
             transition: all 0.4s cubic-bezier(0.165, 0.84, 0.44, 1) !important;
         }}
 
-        .stButton button[kind="primary"] {{ 
-            background-color: {COR_VERMELHO} !important; 
-        }}
+        .stButton button[kind="primary"] {{ background-color: {COR_VERMELHO} !important; }}
         .stButton button[kind="primary"]:hover {{ 
             background-color: #c40a10 !important; 
             box-shadow: 0 10px 25px rgba(227, 6, 19, 0.25); 
         }}
         
-        .stButton button {{ 
-            background-color: {COR_AZUL_ESC} !important; 
-        }}
+        .stButton button {{ background-color: {COR_AZUL_ESC} !important; }}
         .stButton button:hover {{ 
             background-color: #001a3d !important; 
             box-shadow: 0 10px 25px rgba(0, 44, 93, 0.2); 
@@ -336,9 +328,9 @@ def configurar_layout():
             border-radius: 16px;
             overflow: hidden;
             box-shadow: 0 4px 15px rgba(0,0,0,0.03);
+            background: #ffffff;
         }}
 
-        /* Rodapé */
         .footer {{ 
             text-align: center; 
             padding: 50px 0; 
@@ -349,7 +341,6 @@ def configurar_layout():
             font-weight: 500; 
         }}
         
-        /* Resumo */
         .summary-header {{ 
             font-family: 'Montserrat', sans-serif;
             background: {COR_AZUL_ESC}; 
@@ -383,7 +374,6 @@ def configurar_layout():
         }}
         .custom-alert * {{ color: #ffffff !important; }}
 
-        /* Tabs */
         div[data-baseweb="tab-list"] {{ justify-content: center !important; display: flex !important; gap: 40px; margin-bottom: 30px; border-bottom: 2px solid #e2e8f0 !important; }}
         button[data-baseweb="tab"] p {{ 
             color: #64748b !important; 
@@ -416,11 +406,9 @@ def gerar_resumo_pdf(d):
         BRANCO_RGB = (255, 255, 255)
         CINZA_RGB = (100, 116, 139)
 
-        # Cabeçalho do Documento
         pdf.set_fill_color(*BRANCO_RGB)
         pdf.rect(0, 0, 210, 45, 'F')
         
-        # Barra Vermelha no Topo
         pdf.set_fill_color(*VERMELHO_RGB)
         pdf.rect(0, 0, 210, 4, 'F')
         
@@ -433,34 +421,28 @@ def gerar_resumo_pdf(d):
         pdf.cell(0, 6, "Relatorio Executivo de Viabilidade Financeira", ln=True, align='C')
         pdf.ln(15)
 
-        # Informações do Cliente em Azul
         pdf.set_text_color(*AZUL_RGB)
         pdf.set_font("Helvetica", 'B', 13)
         pdf.cell(0, 10, f"CLIENTE: {d.get('nome', 'Nao informado').upper()}", ln=True)
         
-        # Renda Familiar em Azul
         pdf.set_text_color(*AZUL_RGB)
         pdf.set_font("Helvetica", '', 12)
         pdf.cell(0, 8, f"Renda Familiar: R$ {d.get('renda', 0):,.2f}", ln=True)
         pdf.ln(10)
 
-        def criar_card_pdf(titulo, linhas, destaque_vermelho=False, separador=False):
-            # Cabeçalho do Card
+        def criar_card_pdf(titulo, linhas, destaque_vermelho=False):
             pdf.set_fill_color(*AZUL_RGB)
             pdf.set_text_color(*BRANCO_RGB)
             pdf.set_font("Helvetica", 'B', 12)
             pdf.cell(0, 12, f"   {titulo}", ln=True, fill=True)
             
-            # Conteúdo do Card
             pdf.set_fill_color(*BRANCO_RGB)
             pdf.set_draw_color(226, 232, 240)
             
             pdf.ln(2)
             for i, texto in enumerate(linhas):
-                # Detecção de linha de separador solicitada (substitui os traços manuais)
                 if texto == "SEPARATOR":
                     pdf.set_draw_color(226, 232, 240)
-                    # Desenha uma linha real no PDF em vez de caracteres
                     pdf.line(pdf.get_x() + 5, pdf.get_y() + 4, pdf.get_x() + 185, pdf.get_y() + 4)
                     pdf.ln(8)
                     continue
@@ -477,21 +459,18 @@ def gerar_resumo_pdf(d):
             pdf.cell(0, 3, "", ln=True, border='LRB')
             pdf.ln(12)
 
-        # 1. Dados do Imóvel
         criar_card_pdf("DADOS DO IMOVEL", [
             f"Empreendimento: {d.get('empreendimento_nome')}",
             f"Unidade: {d.get('unidade_id')}",
             f"Valor de Venda do Ativo: R$ {d.get('imovel_valor', 0):,.2f}"
         ], destaque_vermelho=True)
 
-        # 2. Plano de Financiamento
         criar_card_pdf("PLANO DE FINANCIAMENTO", [
             f"Financiamento Bancario Estimado: R$ {d.get('finan_usado', 0):,.2f}",
             f"Composicao FGTS + Subsidio: R$ {d.get('fgts_sub_usado', 0):,.2f}",
             f"Pro Soluto Total: R$ {d.get('ps_usado', 0):,.2f} ({d.get('ps_parcelas')} parcelas de R$ {d.get('ps_mensal', 0):,.2f})"
         ])
 
-        # 3. Fluxo de Entrada (Corrigido os traços por SEPARATOR real)
         criar_card_pdf("FLUXO DE ENTRADA (ATO)", [
             f"Valor Total de Entrada: R$ {d.get('entrada_total', 0):,.2f}",
             "SEPARATOR",
@@ -501,7 +480,6 @@ def gerar_resumo_pdf(d):
             f"Ato 90 Dias: R$ {d.get('ato_90', 0):,.2f}"
         ])
 
-        # Rodapé
         pdf.set_y(-25)
         pdf.set_font("Helvetica", 'I', 9)
         pdf.set_text_color(*CINZA_RGB)
@@ -538,7 +516,6 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
     if 'dados_cliente' not in st.session_state:
         st.session_state.dados_cliente = {}
 
-    # --- ETAPA 1 ---
     if st.session_state.passo_simulacao == 'input':
         st.markdown("### Dados do Cliente")
         nome = st.text_input("Nome do Cliente", value=st.session_state.dados_cliente.get('nome', ""), key="in_nome_v23")
@@ -569,7 +546,6 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
                 st.session_state.passo_simulacao = 'potential'
                 st.rerun()
 
-    # --- ETAPA 2 ---
     elif st.session_state.passo_simulacao == 'potential':
         d = st.session_state.dados_cliente
         st.markdown(f"### Valor Potencial de Compra - {d['nome'] or 'Cliente'}")
@@ -600,7 +576,6 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
         if st.button("Voltar para Dados do Cliente", use_container_width=True, key="btn_edit_v23"):
             st.session_state.passo_simulacao = 'input'; st.rerun()
 
-    # --- ETAPA 3 ---
     elif st.session_state.passo_simulacao == 'guide':
         d = st.session_state.dados_cliente
         st.markdown(f"### Seleção de Imóvel")
@@ -610,7 +585,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
         df_disp_total['Poder_Compra'] = [x[0] for x in res]
         df_disp_total['PS_Unidade'] = [x[1] for x in res]
         df_disp_total['Viavel'] = df_disp_total['Valor de Venda'] <= df_disp_total['Poder_Compra']
-        df_disp_total['Status Viabilidade'] = df_disp_total['Viavel'].apply(lambda x: "Viável" if x else "Inviável")
+        df_disp_total['Status Viabilidade'] = df_disp_total['Viavel'].apply(lambda x: "✅ Viável" if x else "❌ Inviável")
         
         df_viaveis = df_disp_total[df_disp_total['Viavel']].copy()
         
@@ -644,7 +619,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
             with f1: f_emp = st.multiselect("Empreendimento:", options=sorted(df_disp_total['Empreendimento'].unique()), key="f_emp_tab_v25")
             with f2: f_bairro = st.multiselect("Bairro:", options=sorted(df_disp_total['Bairro'].unique()), key="f_bairro_tab_v25")
             with f3: f_andar = st.multiselect("Andar:", options=sorted(df_disp_total['Andar'].unique()), key="f_andar_tab_v25")
-            with f4: f_status_v = st.multiselect("Viabilidade:", options=["Viável", "Inviável"], key="f_status_tab_v25")
+            with f4: f_status_v = st.multiselect("Viabilidade:", options=["✅ Viável", "❌ Inviável"], key="f_status_tab_v25")
             with f5: f_ordem = st.selectbox("Ordenar Preço:", ["Maior Preço", "Menor Preço"], key="f_ordem_tab_v25")
             with f6: f_pmax = st.number_input("Preço Máx:", value=float(df_disp_total['Valor de Venda'].max()), key="f_pmax_tab_v25")
             
@@ -656,7 +631,18 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
             df_tab = df_tab[df_tab['Valor de Venda'] <= f_pmax]
             df_tab = df_tab.sort_values('Valor de Venda', ascending=(f_ordem == "Menor Preço"))
             
-            st.dataframe(df_tab[['Identificador', 'Empreendimento', 'Bairro', 'Andar', 'Valor de Venda', 'Poder_Compra', 'Status Viabilidade']], use_container_width=True, hide_index=True)
+            # AJUSTE SOLICITADO: Tabela mais profissional com formatação de moeda e colunas configuradas
+            st.dataframe(
+                df_tab[['Identificador', 'Empreendimento', 'Bairro', 'Andar', 'Valor de Venda', 'Poder_Compra', 'Status Viabilidade']], 
+                use_container_width=True, 
+                hide_index=True,
+                column_config={
+                    "Valor de Venda": st.column_config.NumberColumn("Valor de Venda", format="R$ %.2f"),
+                    "Poder_Compra": st.column_config.NumberColumn("Poder de Compra", format="R$ %.2f"),
+                    "Andar": st.column_config.NumberColumn("Andar", format="%dº"),
+                    "Status Viabilidade": st.column_config.TextColumn("Status Viabilidade")
+                }
+            )
 
         st.markdown("---")
         st.markdown("### Seleção do Imóvel")
@@ -696,7 +682,6 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
         if st.button("Voltar para Valor Potencial de Compra", use_container_width=True, key="btn_pot_v23"): 
             st.session_state.passo_simulacao = 'potential'; st.rerun()
 
-    # --- ETAPA 4 ---
     elif st.session_state.passo_simulacao == 'payment_flow':
         d = st.session_state.dados_cliente
         st.markdown(f"### Fechamento Financeiro")
@@ -738,7 +723,6 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
                 st.session_state.ato_4 = dist_val
                 st.session_state.last_calc_hash = calc_hash
             
-            # DESTAQUES FINANCEIROS PADRONIZADOS
             fin1, fin2, fin3 = st.columns(3)
             with fin1: st.markdown(f"""<div class="fin-box" style="border-top: 10px solid {COR_AZUL_ESC};"><b>Valor do Imóvel</b><br>R$ {u['Valor de Venda']:,.2f}</div>""", unsafe_allow_html=True)
             with fin2: st.markdown(f"""<div class="fin-box" style="border-top: 10px solid {COR_VERMELHO};"><b>Mensalidade Pro Soluto</b><br>R$ {v_parc:,.2f} em {parc}x</div>""", unsafe_allow_html=True)
@@ -775,7 +759,6 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
         if st.button("Voltar para Seleção de Imóvel", use_container_width=True, key="btn_back_to_guide"): 
             st.session_state.passo_simulacao = 'guide'; st.rerun()
 
-    # --- ETAPA 5 ---
     elif st.session_state.passo_simulacao == 'summary':
         d = st.session_state.dados_cliente
         st.markdown(f"### Resumo da Simulação - {d.get('nome', 'Cliente')}")
@@ -794,7 +777,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
                         key="btn_download_pdf_final"
                     )
         else:
-            st.warning("Função de PDF indisponível. Verifique o arquivo requirements.txt.")
+            st.warning("Função de PDF indisponível.")
 
         st.markdown(f'<div class="summary-header">DADOS DO IMÓVEL</div>', unsafe_allow_html=True)
         st.markdown(f"""<div class="summary-body"><b>Empreendimento:</b> {d.get('empreendimento_nome')}<br>
