@@ -10,7 +10,7 @@ Fluxo Automatizado de Recomendação (Sequencial):
 4. Etapa 4: Fechamento Financeiro.
 5. Etapa 5: Resumo da Compra e Exportação PDF.
 
-Versão: 30.2 (Destaque nos Toggles e Refinamento de Cores Direcional)
+Versão: 31.0 (PDF Premium e Sincronização Visual DV)
 =============================================================================
 """
 
@@ -187,13 +187,13 @@ def configurar_layout():
         <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap');
         
-        /* Cor de texto padrão para o corpo e elementos comuns */
+        /* Cor de texto padrão */
         html, body, [data-testid="stAppViewContainer"] {{
             font-family: 'Inter', sans-serif;
             color: {COR_AZUL_ESC};
         }}
         
-        /* Fundo branco total */
+        /* Fundo branco */
         .main {{ background-color: #ffffff; }}
         .block-container {{ max-width: 1200px !important; padding: 1rem !important; margin: auto !important; }}
         
@@ -205,7 +205,6 @@ def configurar_layout():
         /* Cards Padronizados */
         .card {{ background: white; padding: 25px; border-radius: 12px; border: 1px solid #e2e8f0; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); margin-bottom: 20px; min-height: 130px; display: flex; flex-direction: column; justify-content: center; }}
         
-        /* Estilo unificado para recomendações e caixas financeiras */
         .fin-box, .recommendation-card {{ 
             text-align: center; 
             padding: 20px; 
@@ -228,7 +227,7 @@ def configurar_layout():
         .metric-label {{ color: #64748b !important; font-size: 0.85rem; font-weight: 600; text-transform: uppercase; text-align: center; }}
         .metric-value {{ color: {COR_AZUL_ESC} !important; font-size: 1.4rem; font-weight: 700; text-align: center; }}
         
-        /* Estilização de Botões (Garantindo Letra Branca) */
+        /* Botões */
         .stButton button {{ 
             border-radius: 8px !important; 
             padding: 12px !important; 
@@ -238,81 +237,49 @@ def configurar_layout():
         }}
 
         /* Botão de VOLTAR: Azul Escuro */
-        .stButton button {{ 
-            background-color: {COR_AZUL_ESC} !important; 
-            color: white !important;
-        }}
-        .stButton button:hover {{ 
-            background-color: #001a3d !important; 
-            box-shadow: 0 4px 8px rgba(0,0,0,0.1); 
-        }}
+        .stButton button {{ background-color: {COR_AZUL_ESC} !important; color: white !important; }}
+        .stButton button:hover {{ background-color: #001a3d !important; box-shadow: 0 4px 8px rgba(0,0,0,0.1); }}
         
         /* Botão de AVANÇAR: Vermelho */
-        .stButton button[kind="primary"] {{ 
-            background-color: {COR_VERMELHO} !important; 
-            color: white !important;
-        }}
-        .stButton button[kind="primary"]:hover {{ 
-            background-color: #c40a10 !important; 
-            box-shadow: 0 4px 8px rgba(0,0,0,0.1); 
-        }}
+        .stButton button[kind="primary"] {{ background-color: {COR_VERMELHO} !important; color: white !important; }}
+        .stButton button[kind="primary"]:hover {{ background-color: #c40a10 !important; box-shadow: 0 4px 8px rgba(0,0,0,0.1); }}
         
         /* Títulos */
         h1, h2, h3, h4 {{ text-align: center !important; width: 100%; color: {COR_AZUL_ESC} !important; font-weight: 700; }}
         
-        /* Linha de Referência */
-        .inline-ref {{ font-size: 0.85rem; color: #475569 !important; margin-top: -12px; margin-bottom: 14px; font-weight: 500; text-align: left; background: #f8f9fa; padding: 6px 10px; border-radius: 4px; border-left: 3px solid {COR_VERMELHO}; }}
-        
         /* Rodapé */
         .footer {{ text-align: center; padding: 30px 0; color: {COR_AZUL_ESC} !important; font-size: 0.85rem; border-top: 1px solid {COR_VERMELHO}; margin-top: 50px; font-weight: 400; background: #ffffff; }}
         
-        /* Resumo - CORREÇÃO DE TEXTO BRANCO NO HEADER */
+        /* Resumo - Cabeçalhos com Texto Branco */
         .summary-header {{ 
             background: {COR_AZUL_ESC}; 
-            color: white !important; 
+            color: #ffffff !important; 
             padding: 15px; 
             border-radius: 10px 10px 0 0; 
             font-weight: 600; 
             text-align: center; 
             margin-bottom: 0px; 
         }}
-        .summary-header b, .summary-header span, .summary-header div {{ color: white !important; }}
+        .summary-header b, .summary-header span, .summary-header div {{ color: #ffffff !important; }}
         .summary-body {{ background: white; padding: 20px; border: 1px solid #e2e8f0; border-radius: 0 0 10px 10px; margin-bottom: 20px; color: {COR_AZUL_ESC}; }}
         
-        /* Custom Alert / Info Box (Texto Branco sobre Azul) */
-        .custom-alert {{ background-color: {COR_AZUL_ESC}; padding: 15px; border-radius: 10px; margin-bottom: 20px; text-align: center; font-weight: 600; }}
-        .custom-alert, .custom-alert b, .custom-alert span, .custom-alert p {{ color: white !important; }}
+        /* Alertas com Texto Branco */
+        .custom-alert {{ background-color: {COR_AZUL_ESC}; padding: 15px; border-radius: 10px; margin-bottom: 20px; text-align: center; font-weight: 600; color: #ffffff !important; }}
+        .custom-alert b, .custom-alert span, .custom-alert p {{ color: #ffffff !important; }}
 
-        /* Personalização das Abas (Tabs) Centralizadas e com destaque Vermelho */
-        div[data-baseweb="tab-list"] {{ 
-            justify-content: center !important; 
-            display: flex !important; 
-            gap: 20px;
-        }}
-        button[data-baseweb="tab"] {{
-            border-bottom-width: 3px !important;
-        }}
-        button[data-baseweb="tab"] p {{
-            color: {COR_AZUL_ESC} !important;
-            font-weight: 600 !important;
-            font-size: 1rem !important;
-        }}
-        button[data-baseweb="tab"][aria-selected="true"] p {{
-            color: {COR_VERMELHO} !important;
-        }}
-        div[data-baseweb="tab-highlight"] {{
-            background-color: {COR_VERMELHO} !important;
-        }}
+        /* Tabs Centralizadas */
+        div[data-baseweb="tab-list"] {{ justify-content: center !important; display: flex !important; gap: 20px; }}
+        button[data-baseweb="tab"] p {{ color: {COR_AZUL_ESC} !important; font-weight: 600 !important; }}
+        button[data-baseweb="tab"][aria-selected="true"] p {{ color: {COR_VERMELHO} !important; }}
+        div[data-baseweb="tab-highlight"] {{ background-color: {COR_VERMELHO} !important; }}
 
-        /* Destaque de ATIVADO nos Toggles (Switch) no Vermelho Direcional */
-        div[data-testid="stToggle"] div[aria-checked="true"] {{
-            background-color: {COR_VERMELHO} !important;
-        }}
+        /* Toggles Ativados em Vermelho */
+        div[data-testid="stToggle"] div[aria-checked="true"] {{ background-color: {COR_VERMELHO} !important; }}
         </style>
     """, unsafe_allow_html=True)
 
 # =============================================================================
-# 4. FUNÇÃO PARA GERAR PDF
+# 4. FUNÇÃO PARA GERAR PDF (ESTILO PREMIUM)
 # =============================================================================
 
 def gerar_resumo_pdf(d):
@@ -324,83 +291,99 @@ def gerar_resumo_pdf(d):
         pdf.add_page()
         pdf.set_auto_page_break(auto=True, margin=15)
         
+        # Cores Direcional (RGB)
+        AZUL_RGB = (0, 44, 93)
+        VERMELHO_RGB = (227, 6, 19)
+        BRANCO_RGB = (255, 255, 255)
+        TEXTO_BASE = (15, 23, 42)
+
         # Cabeçalho do Documento
-        pdf.set_fill_color(255, 255, 255)
-        pdf.rect(0, 0, 210, 40, 'F')
+        pdf.set_fill_color(*BRANCO_RGB)
+        pdf.rect(0, 0, 210, 45, 'F')
         
-        # Linha Vermelha Direcional no topo
-        pdf.set_fill_color(227, 6, 19) 
-        pdf.rect(0, 0, 210, 3, 'F')
+        # Barra Vermelha no Topo
+        pdf.set_fill_color(*VERMELHO_RGB)
+        pdf.rect(0, 0, 210, 4, 'F')
         
-        pdf.set_text_color(0, 44, 93) # Azul Escuro
-        pdf.set_font("Helvetica", 'B', 18)
-        pdf.ln(10)
-        pdf.cell(0, 12, "SIMULADOR IMOBILIARIO DV", ln=True, align='C')
-        pdf.set_text_color(100, 116, 139) # Cinza
+        pdf.set_text_color(*AZUL_RGB)
+        pdf.set_font("Helvetica", 'B', 20)
+        pdf.ln(12)
+        pdf.cell(0, 10, "SIMULADOR IMOBILIARIO DV", ln=True, align='C')
         pdf.set_font("Helvetica", '', 10)
-        pdf.cell(0, 8, "Resumo de Compra e Viabilidade Financeira", ln=True, align='C')
-        
-        pdf.set_draw_color(0, 44, 93)
-        pdf.line(60, 35, 150, 35)
-        pdf.ln(15)
+        pdf.cell(0, 6, "Resumo de Compra e Viabilidade Financeira", ln=True, align='C')
+        pdf.ln(10)
 
         # Informações do Cliente
-        pdf.set_text_color(0, 44, 93)
+        pdf.set_text_color(*AZUL_RGB)
         pdf.set_font("Helvetica", 'B', 12)
-        pdf.cell(0, 10, f"Cliente: {d.get('nome', 'Não informado')}", ln=True)
-        pdf.set_text_color(0, 0, 0)
+        pdf.cell(0, 10, f"Cliente: {d.get('nome', 'Nao informado')}", ln=True)
+        pdf.set_text_color(*TEXTO_BASE)
         pdf.set_font("Helvetica", '', 11)
         pdf.cell(0, 8, f"Renda Familiar: R$ {d.get('renda', 0):,.2f}", ln=True)
-        pdf.ln(10)
+        pdf.ln(8)
 
-        def criar_bloco_pdf(titulo, conteudo):
-            pdf.set_fill_color(0, 44, 93)
-            pdf.set_text_color(255, 255, 255)
+        # Função para criar blocos estalizados tipo "Card"
+        def criar_card_pdf(titulo, linhas, destaque_vermelho=False):
+            # Cabeçalho do Card (Fundo Azul, Letra Branca)
+            pdf.set_fill_color(*AZUL_RGB)
+            pdf.set_text_color(*BRANCO_RGB)
             pdf.set_font("Helvetica", 'B', 11)
-            pdf.cell(0, 10, f"  {titulo}", ln=True, fill=True)
+            pdf.cell(0, 10, f"   {titulo}", ln=True, fill=True)
             
-            pdf.set_text_color(0, 44, 93) # Letras internas em azul escuro
+            # Conteúdo do Card (Fundo Branco, Letra Azul)
+            pdf.set_fill_color(*BRANCO_RGB)
+            pdf.set_text_color(*AZUL_RGB)
             pdf.set_font("Helvetica", '', 10.5)
-            pdf.set_fill_color(255, 255, 255)
             pdf.set_draw_color(226, 232, 240)
-            pdf.ln(2)
-            for linha in conteudo:
-                pdf.cell(0, 8, f"    {linha}", ln=True, border='LR')
             
+            pdf.ln(2)
+            for i, texto in enumerate(linhas):
+                # Se for a última linha de 'DADOS DO IMÓVEL' e destaque_vermelho, pinta de vermelho
+                if destaque_vermelho and i == len(linhas) - 1:
+                    pdf.set_text_color(*VERMELHO_RGB)
+                    pdf.set_font("Helvetica", 'B', 11)
+                
+                pdf.cell(0, 8, f"     {texto}", ln=True, border='LR')
+            
+            # Fecha Borda Inferior
             pdf.cell(0, 2, "", ln=True, border='LRB')
-            pdf.ln(12)
+            pdf.ln(10)
 
-        imovel_cont = [
+        # 1. Dados do Imóvel
+        imovel_dados = [
             f"Empreendimento: {d.get('empreendimento_nome')}",
             f"Unidade: {d.get('unidade_id')}",
             f"Valor de Venda: R$ {d.get('imovel_valor', 0):,.2f}"
         ]
-        criar_bloco_pdf("DADOS DO IMÓVEL", imovel_cont)
+        criar_card_pdf("DADOS DO IMÓVEL", imovel_dados, destaque_vermelho=True)
 
-        finan_cont = [
-            f"Financiamento Bancário: R$ {d.get('finan_usado', 0):,.2f}",
-            f"FGTS + Subsídio: R$ {d.get('fgts_sub_usado', 0):,.2f}",
+        # 2. Plano de Financiamento
+        finan_dados = [
+            f"Financiamento Bancario: R$ {d.get('finan_usado', 0):,.2f}",
+            f"FGTS + Subsidio: R$ {d.get('fgts_sub_usado', 0):,.2f}",
             f"Pro Soluto Total: R$ {d.get('ps_usado', 0):,.2f} ({d.get('ps_parcelas')}x de R$ {d.get('ps_mensal', 0):,.2f})"
         ]
-        criar_bloco_pdf("PLANO DE FINANCIAMENTO", finan_cont)
+        criar_card_pdf("PLANO DE FINANCIAMENTO", finan_dados)
 
-        entrada_cont = [
+        # 3. Fluxo de Entrada
+        entrada_dados = [
             f"Total de Entrada: R$ {d.get('entrada_total', 0):,.2f}",
-            "--------------------------------------------------------------------------------",
+            "-----------------------------------------------------------------------------------------",
             f"Ato: R$ {d.get('ato_final', 0):,.2f}",
             f"Ato 30 Dias: R$ {d.get('ato_30', 0):,.2f}",
             f"Ato 60 Dias: R$ {d.get('ato_60', 0):,.2f}",
             f"Ato 90 Dias: R$ {d.get('ato_90', 0):,.2f}"
         ]
-        criar_bloco_pdf("FLUXO DE ENTRADA (ATO)", entrada_cont)
+        criar_card_pdf("FLUXO DE ENTRADA (ATO)", entrada_dados)
 
+        # Nota de Rodapé
         pdf.set_y(-25)
         pdf.set_font("Helvetica", 'I', 8)
-        pdf.set_text_color(227, 6, 19)
-        pdf.cell(0, 10, "Este documento é uma simulação sujeita a análise de crédito.", ln=True, align='C')
+        pdf.set_text_color(100, 116, 139)
+        pdf.cell(0, 10, "Este documento e uma simulacao sujeita a analise de credito.", ln=True, align='C')
 
         return bytes(pdf.output())
-    except Exception:
+    except Exception as e:
         return None
 
 # =============================================================================
@@ -408,7 +391,6 @@ def gerar_resumo_pdf(d):
 # =============================================================================
 
 def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
-    # Componente para forçar scroll ao topo
     passo_atual = st.session_state.get('passo_simulacao', 'init')
     components.html(
         f"""
@@ -528,7 +510,6 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
                 if not df_filt_rec.empty:
                     r100, r90, r75 = df_filt_rec.iloc[0], df_filt_rec.iloc[len(df_filt_rec)//2], df_filt_rec.iloc[-1]
                     c1, c2, c3 = st.columns(3)
-                    # RECOMENDAÇÕES PADRONIZADAS (Azul - Vermelho - Azul)
                     with c1: st.markdown(f'<div class="recommendation-card" style="border-top: 5px solid {COR_AZUL_ESC};"><b>IDEAL</b><br><small>{r100["Empreendimento"]}</small><br>{r100["Identificador"]}<br><span class="price-tag">R$ {r100["Valor de Venda"]:,.2f}</span></div>', unsafe_allow_html=True)
                     with c2: st.markdown(f'<div class="recommendation-card" style="border-top: 5px solid {COR_VERMELHO};"><b>SEGURA</b><br><small>{r90["Empreendimento"]}</small><br>{r90["Identificador"]}<br><span class="price-tag">R$ {r90["Valor de Venda"]:,.2f}</span></div>', unsafe_allow_html=True)
                     with c3: st.markdown(f'<div class="recommendation-card" style="border-top: 5px solid {COR_AZUL_ESC};"><b>FACILITADA</b><br><small>{r75["Empreendimento"]}</small><br>{r75["Identificador"]}<br><span class="price-tag">R$ {r75["Valor de Venda"]:,.2f}</span></div>', unsafe_allow_html=True)
@@ -696,7 +677,6 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
         else:
             st.warning("Função de PDF indisponível. Verifique o arquivo requirements.txt.")
 
-        # CABEÇALHOS DO RESUMO COM TEXTO EM BRANCO FORÇADO
         st.markdown(f'<div class="summary-header">DADOS DO IMÓVEL</div>', unsafe_allow_html=True)
         st.markdown(f"""<div class="summary-body"><b>Empreendimento:</b> {d.get('empreendimento_nome')}<br>
             <b>Unidade:</b> {d.get('unidade_id')}<br><b>Valor de Venda:</b> <span class="price-tag">R$ {d.get('imovel_valor', 0):,.2f}</span></div>""", unsafe_allow_html=True)
