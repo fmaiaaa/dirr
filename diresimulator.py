@@ -10,7 +10,7 @@ Fluxo Automatizado de Recomendação (Sequencial):
 4. Etapa 4: Fechamento Financeiro.
 5. Etapa 5: Resumo da Compra e Exportação PDF.
 
-Versão: 29.6 (Identidade Direcional: Azul #002c5d, Vermelho #e30613 e Destaques Sequenciais)
+Versão: 29.7 (Aviso com Box Azul/Branco e Padronização de Caixas Financeiras)
 =============================================================================
 """
 
@@ -254,6 +254,10 @@ def configurar_layout():
         .summary-header span {{ color: white !important; }}
         .summary-body {{ background: white; padding: 20px; border: 1px solid #e2e8f0; border-radius: 0 0 10px 10px; margin-bottom: 20px; }}
         .download-container {{ display: flex; justify-content: center; margin-bottom: 20px; }}
+        
+        /* Custom Alert / Info Box */
+        .custom-alert {{ background-color: {COR_AZUL_ESC}; color: white !important; padding: 15px; border-radius: 10px; margin-bottom: 20px; text-align: center; font-weight: 600; }}
+        .custom-alert * {{ color: white !important; }}
         </style>
     """, unsafe_allow_html=True)
 
@@ -390,7 +394,8 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
         
         if st.button("Avançar para Valor Potencial de Compra", type="primary", use_container_width=True, key="btn_s1_v23"):
             if not nome.strip():
-                st.warning("Por favor, informe o Nome do Cliente para iniciar a simulação.")
+                # AVISO DO NOME EM BOX AZUL COM LETRA BRANCA
+                st.markdown(f'<div class="custom-alert">Por favor, informe o Nome do Cliente para iniciar a simulação.</div>', unsafe_allow_html=True)
             else:
                 finan, sub = motor.obter_enquadramento(renda, social, cotista)
                 class_b = 'EMCASH' if politica_ps == "Emcash" else ranking
@@ -549,7 +554,8 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
             if st.button("Voltar para Seleção de Imóvel"): st.session_state.passo_simulacao = 'guide'; st.rerun()
         else:
             u = unidades_filtradas.iloc[0]
-            st.info(f"Unidade Selecionada: {u['Identificador']} - {u['Empreendimento']} (R$ {u['Valor de Venda']:,.2f})")
+            # INFORMATIVO DA UNIDADE EM BOX AZUL COM LETRA BRANCA
+            st.markdown(f'<div class="custom-alert">Unidade Selecionada: {u["Identificador"]} - {u["Empreendimento"]} (R$ {u["Valor de Venda"]:,.2f})</div>', unsafe_allow_html=True)
             
             f_u = st.number_input("Financiamento", value=float(d['finan_estimado']), key="fin_u_v23")
             st.markdown(f'<p class="inline-ref">Referência Aprovada: R$ {d["finan_estimado"]:,.2f}</p>', unsafe_allow_html=True)
@@ -577,9 +583,12 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
                 st.session_state.ato_4 = dist_val
                 st.session_state.last_calc_hash = calc_hash
             
+            # FBOX AZUL COM LETRA BRANCA PARA MENSALIDADE
             st.markdown(f"""
                 <div class="fin-box" style="border-top: 5px solid {COR_AZUL_ESC};"><b>Valor do Imóvel:</b> R$ {u['Valor de Venda']:,.2f}</div>
-                <div class="fin-box" style="background:#f0f7ff; border-top: 5px solid {COR_AZUL_ESC};"><b>Mensalidade Pro Soluto:</b> R$ {v_parc:,.2f} em {parc}x</div>
+                <div class="fin-box" style="background:{COR_AZUL_ESC}; color: white; border-top: 5px solid {COR_AZUL_ESC};">
+                    <span style="color: white !important;"><b>Mensalidade Pro Soluto:</b> R$ {v_parc:,.2f} em {parc}x</span>
+                </div>
             """, unsafe_allow_html=True)
             
             if comp_r > d['limit_ps_renda']:
@@ -599,7 +608,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
                 
                 soma_entrada = st.session_state.ato_1 + st.session_state.ato_2 + st.session_state.ato_3 + st.session_state.ato_4
                 if abs(soma_entrada - saldo_e) > 0.01:
-                    st.error(f"A soma das parcelas não confere com o Saldo de Entrada.")
+                    st.error(f"A some das parcelas não confere com o Saldo de Entrada.")
             
             st.session_state.dados_cliente.update({
                 'imovel_valor': u['Valor de Venda'], 'finan_usado': f_u, 'fgts_sub_usado': fgts_u,
