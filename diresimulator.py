@@ -440,7 +440,7 @@ def gerar_resumo_pdf(d):
         pdf.cell(0, 6, f"CLIENTE: {d.get('nome', 'Nao informado').upper()}", ln=True)
         pdf.set_x(15)
         pdf.set_font("Helvetica", '', 10)
-        pdf.cell(0, 6, f"Renda Familiar Declarada: R$ {fmt_br(d.get('renda', 0))}", ln=True)
+        pdf.cell(0, 6, f"Renda Familiar: R$ {fmt_br(d.get('renda', 0))}", ln=True)
         pdf.ln(15)
 
         def adicionar_secao_pdf(titulo):
