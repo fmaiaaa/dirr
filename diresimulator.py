@@ -10,7 +10,7 @@ Fluxo Automatizado de Recomendação (Sequencial):
 4. Etapa 4: Fechamento Financeiro.
 5. Etapa 5: Resumo da Compra e Exportação PDF.
 
-Versão: 29.5 (Botões Coloridos: Avançar em Vermelho e Voltar em Azul)
+Versão: 29.6 (Identidade Direcional: Azul #002c5d, Vermelho #e30613 e Destaques Sequenciais)
 =============================================================================
 """
 
@@ -46,9 +46,9 @@ URL_ESTOQUE = f"https://docs.google.com/spreadsheets/d/{ID_ESTOQUE}/edit#gid=0"
 # Link de reserva (caso o ícone descarregado não esteja na pasta)
 URL_FAVICON_RESERVA = "https://direcional.com.br/wp-content/uploads/2021/04/cropped-favicon-direcional-32x32.png"
 
-# Cores da Marca
+# Cores Oficiais Direcional
 COR_AZUL_ESC = "#002c5d"
-COR_VERMELHO = "#b11116"
+COR_VERMELHO = "#e30613" # Vermelho Direcional padrão
 
 # =============================================================================
 # 1. CARREGAMENTO E TRATAMENTO DE DADOS
@@ -186,31 +186,32 @@ def configurar_layout():
     st.markdown(f"""
         <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap');
-        * {{ font-family: 'Inter', sans-serif; }}
+        * {{ font-family: 'Inter', sans-serif; color: {COR_AZUL_ESC}; }}
+        
         /* Fundo branco total */
         .main {{ background-color: #ffffff; }}
         .block-container {{ max-width: 1200px !important; padding: 1rem !important; margin: auto !important; }}
         
-        /* Header: Fundo Branco com borda Vermelha e títulos em Azul Escuro */
-        .header-container {{ text-align: center; padding: 35px 0; background: #ffffff; border-bottom: 5px solid {COR_VERMELHO}; margin-bottom: 25px; border-radius: 0 0 15px 15px; color: {COR_AZUL_ESC}; }}
+        /* Header: Limpo, fundo branco e letras Azul Direcional */
+        .header-container {{ text-align: center; padding: 35px 0; background: #ffffff; border-bottom: 5px solid {COR_VERMELHO}; margin-bottom: 25px; border-radius: 0 0 15px 15px; }}
         .header-title {{ color: {COR_AZUL_ESC}; font-size: 2.2rem; font-weight: 800; margin: 0; text-transform: uppercase; letter-spacing: 1px; }}
         .header-subtitle {{ color: #64748b; font-size: 1rem; font-weight: 400; margin-top: 8px; }}
         
-        /* Cards: Fundo branco, títulos em Azul Escuro */
+        /* Cards: Bordas e Sombras suaves */
         .card {{ background: white; padding: 25px; border-radius: 12px; border: 1px solid #e2e8f0; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); margin-bottom: 20px; min-height: 130px; display: flex; flex-direction: column; justify-content: center; }}
-        .recommendation-card {{ background: #ffffff; padding: 20px; border: 1px solid #e2e8f0; border-top: 5px solid {COR_AZUL_ESC}; border-radius: 12px; margin-bottom: 15px; text-align: center; min-height: 160px; display: flex; flex-direction: column; justify-content: center; box-shadow: 0 2px 4px rgba(0,0,0,0.02); }}
+        .recommendation-card {{ background: #ffffff; padding: 20px; border: 1px solid #e2e8f0; border-radius: 12px; margin-bottom: 15px; text-align: center; min-height: 160px; display: flex; flex-direction: column; justify-content: center; box-shadow: 0 2px 4px rgba(0,0,0,0.02); }}
         
         /* Cards Finos: Borda lateral Vermelha */
-        .thin-card {{ background: white; padding: 15px 20px; border-radius: 8px; border: 1px solid #e2e8f0; border-left: 5px solid {COR_VERMELHO}; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; color: #000000; }}
+        .thin-card {{ background: white; padding: 15px 20px; border-radius: 8px; border: 1px solid #e2e8f0; border-left: 5px solid {COR_VERMELHO}; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; }}
         
-        /* Preço: Vermelho para destaque */
-        .price-tag {{ color: {COR_VERMELHO}; font-weight: 700; font-size: 1.2rem; }}
+        /* Destaques de Preço em Vermelho Direcional */
+        .price-tag {{ color: {COR_VERMELHO} !important; font-weight: 700; font-size: 1.2rem; }}
         
-        /* Métricas: Valores em Azul Escuro */
-        .metric-label {{ color: #64748b; font-size: 0.85rem; font-weight: 600; text-transform: uppercase; text-align: center; }}
-        .metric-value {{ color: {COR_AZUL_ESC}; font-size: 1.4rem; font-weight: 700; text-align: center; }}
+        /* Métricas */
+        .metric-label {{ color: #64748b !important; font-size: 0.85rem; font-weight: 600; text-transform: uppercase; text-align: center; }}
+        .metric-value {{ color: {COR_AZUL_ESC} !important; font-size: 1.4rem; font-weight: 700; text-align: center; }}
         
-        /* Estilização Geral de Botões */
+        /* Estilização de Botões */
         .stButton button {{ 
             border-radius: 8px !important; 
             padding: 12px !important; 
@@ -219,7 +220,7 @@ def configurar_layout():
             border: none !important; 
         }}
 
-        /* Botão de VOLTAR (Padrão): Azul Escuro #002c5d */
+        /* Botão de VOLTAR: Azul Escuro Direcional */
         .stButton button {{ 
             background-color: {COR_AZUL_ESC} !important; 
         }}
@@ -228,29 +229,30 @@ def configurar_layout():
             box-shadow: 0 4px 8px rgba(0,0,0,0.1); 
         }}
         
-        /* Botão de AVANÇAR (Primário): Vermelho #b11116 */
+        /* Botão de AVANÇAR (primary): Vermelho Direcional */
         .stButton button[kind="primary"] {{ 
             background-color: {COR_VERMELHO} !important; 
         }}
         .stButton button[kind="primary"]:hover {{ 
-            background-color: #8c0d11 !important; 
+            background-color: #c40a10 !important; 
             box-shadow: 0 4px 8px rgba(0,0,0,0.1); 
         }}
         
-        /* Títulos das Etapas: Azul Escuro */
-        h1, h2, h3, h4 {{ text-align: center !important; width: 100%; color: {COR_AZUL_ESC}; font-weight: 700; }}
+        /* Títulos */
+        h1, h2, h3, h4 {{ text-align: center !important; width: 100%; color: {COR_AZUL_ESC} !important; font-weight: 700; }}
         
-        /* Caixas Financeiras: Fundo Branco */
-        .fin-box {{ text-align: center; padding: 20px; border-radius: 12px; border: 1px solid #e2e8f0; margin-bottom: 15px; width: 100%; color: #000000; background: #ffffff; }}
-        .inline-ref {{ font-size: 0.85rem; color: #475569; margin-top: -12px; margin-bottom: 14px; font-weight: 500; text-align: left; background: #f8f9fa; padding: 6px 10px; border-radius: 4px; border-left: 3px solid {COR_VERMELHO}; }}
+        /* Caixas Financeiras */
+        .fin-box {{ text-align: center; padding: 20px; border-radius: 12px; border: 1px solid #e2e8f0; margin-bottom: 15px; width: 100%; background: #ffffff; }}
+        .inline-ref {{ font-size: 0.85rem; color: #475569 !important; margin-top: -12px; margin-bottom: 14px; font-weight: 500; text-align: left; background: #f8f9fa; padding: 6px 10px; border-radius: 4px; border-left: 3px solid {COR_VERMELHO}; }}
         div[data-baseweb="tab-list"] {{ justify-content: center !important; display: flex !important; }}
         
-        /* Rodapé: Fundo Branco com borda superior Vermelha */
-        .footer {{ text-align: center; padding: 30px 0; color: #64748b; font-size: 0.85rem; border-top: 1px solid {COR_VERMELHO}; margin-top: 50px; font-weight: 400; background: #ffffff; }}
+        /* Rodapé */
+        .footer {{ text-align: center; padding: 30px 0; color: {COR_AZUL_ESC} !important; font-size: 0.85rem; border-top: 1px solid {COR_VERMELHO}; margin-top: 50px; font-weight: 400; background: #ffffff; }}
         
-        /* Resumo: Cabeçalho Azul Escuro, Corpo Branco */
-        .summary-header {{ background: {COR_AZUL_ESC}; color: white; padding: 15px; border-radius: 10px 10px 0 0; font-weight: 600; text-align: center; margin-bottom: 0px; }}
-        .summary-body {{ background: white; padding: 20px; border: 1px solid #e2e8f0; border-radius: 0 0 10px 10px; margin-bottom: 20px; color: #000000; }}
+        /* Resumo */
+        .summary-header {{ background: {COR_AZUL_ESC}; color: white !important; padding: 15px; border-radius: 10px 10px 0 0; font-weight: 600; text-align: center; margin-bottom: 0px; }}
+        .summary-header span {{ color: white !important; }}
+        .summary-body {{ background: white; padding: 20px; border: 1px solid #e2e8f0; border-radius: 0 0 10px 10px; margin-bottom: 20px; }}
         .download-container {{ display: flex; justify-content: center; margin-bottom: 20px; }}
         </style>
     """, unsafe_allow_html=True)
@@ -268,12 +270,12 @@ def gerar_resumo_pdf(d):
         pdf.add_page()
         pdf.set_auto_page_break(auto=True, margin=15)
         
-        # Cabeçalho do Documento: Fundo Branco com detalhes em Azul e Vermelho
+        # Cabeçalho do Documento
         pdf.set_fill_color(255, 255, 255)
         pdf.rect(0, 0, 210, 40, 'F')
         
-        # Linha Vermelha decorativa no topo
-        pdf.set_fill_color(177, 17, 22) # Vermelho
+        # Linha Vermelha Direcional no topo
+        pdf.set_fill_color(227, 6, 19) 
         pdf.rect(0, 0, 210, 3, 'F')
         
         pdf.set_text_color(0, 44, 93) # Azul Escuro
@@ -284,7 +286,6 @@ def gerar_resumo_pdf(d):
         pdf.set_font("Helvetica", '', 10)
         pdf.cell(0, 8, "Resumo de Compra e Viabilidade Financeira", ln=True, align='C')
         
-        # Linha Azul decorativa pós-título
         pdf.set_draw_color(0, 44, 93)
         pdf.line(60, 35, 150, 35)
         pdf.ln(15)
@@ -299,14 +300,12 @@ def gerar_resumo_pdf(d):
         pdf.ln(10)
 
         def criar_bloco_pdf(titulo, conteudo):
-            # Cabeçalho do Bloco: Azul Escuro
             pdf.set_fill_color(0, 44, 93)
             pdf.set_text_color(255, 255, 255)
             pdf.set_font("Helvetica", 'B', 11)
             pdf.cell(0, 10, f"  {titulo}", ln=True, fill=True)
             
-            # Corpo do Bloco: Branco com bordas cinzas
-            pdf.set_text_color(0, 0, 0)
+            pdf.set_text_color(0, 44, 93) # Letras internas em azul escuro
             pdf.set_font("Helvetica", '', 10.5)
             pdf.set_fill_color(255, 255, 255)
             pdf.set_draw_color(226, 232, 240)
@@ -314,7 +313,6 @@ def gerar_resumo_pdf(d):
             for linha in conteudo:
                 pdf.cell(0, 8, f"    {linha}", ln=True, border='LR')
             
-            # Rodapé do bloco
             pdf.cell(0, 2, "", ln=True, border='LRB')
             pdf.ln(12)
 
@@ -344,7 +342,7 @@ def gerar_resumo_pdf(d):
 
         pdf.set_y(-25)
         pdf.set_font("Helvetica", 'I', 8)
-        pdf.set_text_color(177, 17, 22)
+        pdf.set_text_color(227, 6, 19)
         pdf.cell(0, 10, "Este documento é uma simulação sujeita a análise de crédito.", ln=True, align='C')
 
         return bytes(pdf.output())
@@ -356,7 +354,6 @@ def gerar_resumo_pdf(d):
 # =============================================================================
 
 def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
-    # Componente para forçar scroll ao topo
     passo_atual = st.session_state.get('passo_simulacao', 'init')
     components.html(
         f"""
@@ -392,7 +389,6 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
         cotista = st.toggle("Cotista FGTS", value=st.session_state.dados_cliente.get('cotista', True), key="in_cot_v23")
         
         if st.button("Avançar para Valor Potencial de Compra", type="primary", use_container_width=True, key="btn_s1_v23"):
-            # VALIDAÇÃO DE NOME OBRIGATÓRIO
             if not nome.strip():
                 st.warning("Por favor, informe o Nome do Cliente para iniciar a simulação.")
             else:
@@ -436,11 +432,9 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
             </div>
         """, unsafe_allow_html=True)
         
-        # Botão de Avançar (Vermelho)
         if st.button("Avançar para Seleção de Imóvel", type="primary", use_container_width=True, key="btn_s2_v23"):
             st.session_state.passo_simulacao = 'guide'; st.rerun()
         st.write("")
-        # Botão de Voltar (Azul)
         if st.button("Voltar para Dados do Cliente", use_container_width=True, key="btn_edit_v23"):
             st.session_state.passo_simulacao = 'input'; st.rerun()
 
@@ -479,9 +473,10 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
                 if not df_filt_rec.empty:
                     r100, r90, r75 = df_filt_rec.iloc[0], df_filt_rec.iloc[len(df_filt_rec)//2], df_filt_rec.iloc[-1]
                     c1, c2, c3 = st.columns(3)
+                    # DESTAQUE: AZUL - VERMELHO - AZUL
                     with c1: st.markdown(f'<div class="recommendation-card" style="border-top-color:{COR_AZUL_ESC};"><b>IDEAL</b><br><small>{r100["Empreendimento"]}</small><br>{r100["Identificador"]}<br><span class="price-tag">R$ {r100["Valor de Venda"]:,.2f}</span></div>', unsafe_allow_html=True)
-                    with c2: st.markdown(f'<div class="recommendation-card" style="border-top-color:#f59e0b;"><b>SEGURA</b><br><small>{r90["Empreendimento"]}</small><br>{r90["Identificador"]}<br><span class="price-tag">R$ {r90["Valor de Venda"]:,.2f}</span></div>', unsafe_allow_html=True)
-                    with c3: st.markdown(f'<div class="recommendation-card" style="border-top-color:#10b981;"><b>FACILITADA</b><br><small>{r75["Empreendimento"]}</small><br>{r75["Identificador"]}<br><span class="price-tag">R$ {r75["Valor de Venda"]:,.2f}</span></div>', unsafe_allow_html=True)
+                    with c2: st.markdown(f'<div class="recommendation-card" style="border-top-color:{COR_VERMELHO};"><b>SEGURA</b><br><small>{r90["Empreendimento"]}</small><br>{r90["Identificador"]}<br><span class="price-tag">R$ {r90["Valor de Venda"]:,.2f}</span></div>', unsafe_allow_html=True)
+                    with c3: st.markdown(f'<div class="recommendation-card" style="border-top-color:{COR_AZUL_ESC};"><b>FACILITADA</b><br><small>{r75["Empreendimento"]}</small><br>{r75["Identificador"]}<br><span class="price-tag">R$ {r75["Valor de Venda"]:,.2f}</span></div>', unsafe_allow_html=True)
 
         with tab_list:
             f1, f2, f3, f4, f5, f6 = st.columns([1.2, 1, 0.7, 1.1, 0.9, 0.8])
@@ -528,7 +523,6 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
                                                format_func=lambda x: label_uni_guide(x, unidades_disp), key="sel_uni_guide_v26")
 
         st.write("")
-        # Botão de Avançar (Vermelho)
         if st.button("Avançar para Fechamento Financeiro", type="primary", use_container_width=True, key="btn_fech_v26"):
             if uni_escolhida_id:
                 st.session_state.dados_cliente['unidade_id'] = uni_escolhida_id
@@ -538,7 +532,6 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
             else:
                 st.error("Por favor, selecione uma unidade válida.")
         
-        # Botão de Voltar (Azul)
         if st.button("Voltar para Valor Potencial de Compra", use_container_width=True, key="btn_pot_v23"): 
             st.session_state.passo_simulacao = 'potential'; st.rerun()
 
@@ -553,7 +546,6 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
         
         if unidades_filtradas.empty:
             st.error("Erro ao recuperar unidade selecionada.")
-            # Botão de Voltar (Azul)
             if st.button("Voltar para Seleção de Imóvel"): st.session_state.passo_simulacao = 'guide'; st.rerun()
         else:
             u = unidades_filtradas.iloc[0]
@@ -617,11 +609,9 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
             })
         
         st.markdown("---")
-        # Botão de Avançar (Vermelho)
         if st.button("Obter Resumo de Compra", type="primary", use_container_width=True, key="btn_to_summary"):
             st.session_state.passo_simulacao = 'summary'
             st.rerun()
-        # Botão de Voltar (Azul)
         if st.button("Voltar para Seleção de Imóvel", use_container_width=True, key="btn_back_to_guide"): 
             st.session_state.passo_simulacao = 'guide'; st.rerun()
 
@@ -649,7 +639,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
 
         st.markdown(f'<div class="summary-header" style="background:{COR_AZUL_ESC};">DADOS DO IMÓVEL</div>', unsafe_allow_html=True)
         st.markdown(f"""<div class="summary-body"><b>Empreendimento:</b> {d.get('empreendimento_nome')}<br>
-            <b>Unidade:</b> {d.get('unidade_id')}<br><b>Valor de Venda:</b> R$ {d.get('imovel_valor', 0):,.2f}</div>""", unsafe_allow_html=True)
+            <b>Unidade:</b> {d.get('unidade_id')}<br><b>Valor de Venda:</b> <span class="price-tag">R$ {d.get('imovel_valor', 0):,.2f}</span></div>""", unsafe_allow_html=True)
 
         st.markdown(f'<div class="summary-header" style="background:{COR_AZUL_ESC};">PLANO DE FINANCIAMENTO</div>', unsafe_allow_html=True)
         st.markdown(f"""<div class="summary-body"><b>Financiamento Bancário:</b> R$ {d.get('finan_usado', 0):,.2f}<br>
@@ -662,10 +652,8 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
             <b>Ato 60 Dias:</b> R$ {d.get('ato_60', 0):,.2f}<br><b>Ato 90 Dias:</b> R$ {d.get('ato_90', 0):,.2f}</div>""", unsafe_allow_html=True)
 
         st.markdown("---")
-        # Botão de Avançar (Vermelho)
         if st.button("Iniciar Novo Cliente", type="primary", use_container_width=True, key="btn_new_client_summary"): 
             st.session_state.dados_cliente = {}; st.session_state.passo_simulacao = 'input'; st.rerun()
-        # Botão de Voltar (Azul)
         if st.button("Editar Fechamento Financeiro", use_container_width=True, key="btn_edit_fin_summary"):
             st.session_state.passo_simulacao = 'payment_flow'; st.rerun()
 
