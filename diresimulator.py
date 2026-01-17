@@ -10,7 +10,7 @@ Fluxo Automatizado de Recomendação (Sequencial):
 4. Etapa 4: Fechamento Financeiro.
 5. Etapa 5: Resumo da Compra e Exportação PDF.
 
-Versão: 35.0 (Design Ultra-Profissional, Efeito de Profundidade e Refinamento PDF)
+Versão: 36.0 (Inputs Profissionais, Tabelas Refinadas e PDF Executivo Corrigido)
 =============================================================================
 """
 
@@ -206,10 +206,31 @@ def configurar_layout():
             margin-bottom: 1.8rem !important;
         }}
 
-        /* Fundo principal cinza claro para criar contraste com os cards brancos */
+        /* Fundo principal cinza claro */
         .main {{ background-color: #f8fafc; }}
         .block-container {{ max-width: 1200px !important; padding: 2.5rem 1rem !important; margin: auto !important; }}
         
+        /* Estilização de Inputs e Widgets para look Profissional */
+        div[data-baseweb="input"], .stTextInput input, .stNumberInput input {{
+            border-radius: 12px !important;
+            border: 1px solid #e2e8f0 !important;
+            padding: 2px 4px !important;
+            background-color: #ffffff !important;
+            transition: all 0.3s ease !important;
+            color: {COR_AZUL_ESC} !important;
+        }}
+        .stTextInput input:focus, .stNumberInput input:focus {{
+            border-color: {COR_AZUL_ESC} !important;
+            box-shadow: 0 0 0 2px rgba(0, 44, 93, 0.1) !important;
+        }}
+        
+        /* Estilização de Seletores (Selectbox) */
+        div[data-baseweb="select"] > div {{
+            border-radius: 12px !important;
+            border: 1px solid #e2e8f0 !important;
+            background-color: #ffffff !important;
+        }}
+
         /* Header Flutuante */
         .header-container {{ 
             text-align: center; 
@@ -237,7 +258,7 @@ def configurar_layout():
             letter-spacing: 0.5px;
         }}
         
-        /* PADRONIZAÇÃO DE CARTÕES: Mesma Altura e Design Limpo */
+        /* PADRONIZAÇÃO DE CARTÕES */
         .card, .fin-box, .recommendation-card {{ 
             background: #ffffff; 
             padding: 30px; 
@@ -279,7 +300,7 @@ def configurar_layout():
         .metric-label {{ color: #94a3b8 !important; font-size: 0.95rem; font-weight: 600; text-transform: uppercase; text-align: center; letter-spacing: 1.2px; margin-bottom: 8px; }}
         .metric-value {{ color: {COR_AZUL_ESC} !important; font-size: 1.6rem; font-weight: 800; text-align: center; font-family: 'Montserrat', sans-serif; }}
         
-        /* Botões Enterprise de Alta Precisão */
+        /* Botões Enterprise */
         .stButton button {{ 
             font-family: 'Inter', sans-serif;
             border-radius: 12px !important; 
@@ -293,27 +314,31 @@ def configurar_layout():
             transition: all 0.4s cubic-bezier(0.165, 0.84, 0.44, 1) !important;
         }}
 
-        /* Avançar (Vermelho) */
         .stButton button[kind="primary"] {{ 
             background-color: {COR_VERMELHO} !important; 
         }}
         .stButton button[kind="primary"]:hover {{ 
             background-color: #c40a10 !important; 
             box-shadow: 0 10px 25px rgba(227, 6, 19, 0.25); 
-            transform: translateY(-1px);
         }}
         
-        /* Voltar (Azul) */
         .stButton button {{ 
             background-color: {COR_AZUL_ESC} !important; 
         }}
         .stButton button:hover {{ 
             background-color: #001a3d !important; 
             box-shadow: 0 10px 25px rgba(0, 44, 93, 0.2); 
-            transform: translateY(-1px);
         }}
         
-        /* Rodapé Minimalista */
+        /* Tabelas Refinadas */
+        [data-testid="stDataFrame"] {{
+            border: 1px solid #edf2f7;
+            border-radius: 16px;
+            overflow: hidden;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.03);
+        }}
+
+        /* Rodapé */
         .footer {{ 
             text-align: center; 
             padding: 50px 0; 
@@ -322,10 +347,9 @@ def configurar_layout():
             border-top: 1px solid #e2e8f0; 
             margin-top: 80px; 
             font-weight: 500; 
-            background: transparent; 
         }}
         
-        /* Resumo - Estilo "Paper" */
+        /* Resumo */
         .summary-header {{ 
             font-family: 'Montserrat', sans-serif;
             background: {COR_AZUL_ESC}; 
@@ -348,7 +372,6 @@ def configurar_layout():
             box-shadow: 0 15px 40px rgba(0,0,0,0.04);
         }}
         
-        /* Alertas Premium */
         .custom-alert {{ 
             background-color: {COR_AZUL_ESC}; 
             padding: 25px; 
@@ -357,24 +380,20 @@ def configurar_layout():
             text-align: center; 
             font-weight: 600; 
             color: #ffffff !important; 
-            box-shadow: 0 12px 35px rgba(0, 44, 93, 0.15);
         }}
         .custom-alert * {{ color: #ffffff !important; }}
 
-        /* Tabs de Alto Nível */
+        /* Tabs */
         div[data-baseweb="tab-list"] {{ justify-content: center !important; display: flex !important; gap: 40px; margin-bottom: 30px; border-bottom: 2px solid #e2e8f0 !important; }}
-        button[data-baseweb="tab"] {{ border-bottom: none !important; }}
         button[data-baseweb="tab"] p {{ 
             color: #64748b !important; 
             font-weight: 700 !important; 
             font-family: 'Montserrat', sans-serif !important; 
             font-size: 1.1rem !important; 
-            transition: color 0.3s ease;
         }}
         button[data-baseweb="tab"][aria-selected="true"] p {{ color: {COR_VERMELHO} !important; }}
-        div[data-baseweb="tab-highlight"] {{ background-color: {COR_VERMELHO} !important; height: 5px !important; border-radius: 5px 5px 0 0; }}
+        div[data-baseweb="tab-highlight"] {{ background-color: {COR_VERMELHO} !important; height: 5px !important; }}
 
-        /* Toggles Ativados em Vermelho */
         div[data-testid="stToggle"] div[aria-checked="true"] {{ background-color: {COR_VERMELHO} !important; }}
         </style>
     """, unsafe_allow_html=True)
@@ -419,13 +438,13 @@ def gerar_resumo_pdf(d):
         pdf.set_font("Helvetica", 'B', 13)
         pdf.cell(0, 10, f"CLIENTE: {d.get('nome', 'Nao informado').upper()}", ln=True)
         
-        # Renda Familiar em Azul conforme pedido
+        # Renda Familiar em Azul
         pdf.set_text_color(*AZUL_RGB)
         pdf.set_font("Helvetica", '', 12)
         pdf.cell(0, 8, f"Renda Familiar: R$ {d.get('renda', 0):,.2f}", ln=True)
         pdf.ln(10)
 
-        def criar_card_pdf(titulo, linhas, destaque_vermelho=False):
+        def criar_card_pdf(titulo, linhas, destaque_vermelho=False, separador=False):
             # Cabeçalho do Card
             pdf.set_fill_color(*AZUL_RGB)
             pdf.set_text_color(*BRANCO_RGB)
@@ -434,11 +453,18 @@ def gerar_resumo_pdf(d):
             
             # Conteúdo do Card
             pdf.set_fill_color(*BRANCO_RGB)
-            pdf.set_text_color(*AZUL_RGB)
             pdf.set_draw_color(226, 232, 240)
             
             pdf.ln(2)
             for i, texto in enumerate(linhas):
+                # Detecção de linha de separador solicitada (substitui os traços manuais)
+                if texto == "SEPARATOR":
+                    pdf.set_draw_color(226, 232, 240)
+                    # Desenha uma linha real no PDF em vez de caracteres
+                    pdf.line(pdf.get_x() + 5, pdf.get_y() + 4, pdf.get_x() + 185, pdf.get_y() + 4)
+                    pdf.ln(8)
+                    continue
+
                 if destaque_vermelho and i == len(linhas) - 1:
                     pdf.set_text_color(*VERMELHO_RGB)
                     pdf.set_font("Helvetica", 'B', 12)
@@ -451,22 +477,24 @@ def gerar_resumo_pdf(d):
             pdf.cell(0, 3, "", ln=True, border='LRB')
             pdf.ln(12)
 
-        # Seções do Relatório
+        # 1. Dados do Imóvel
         criar_card_pdf("DADOS DO IMOVEL", [
             f"Empreendimento: {d.get('empreendimento_nome')}",
             f"Unidade: {d.get('unidade_id')}",
             f"Valor de Venda do Ativo: R$ {d.get('imovel_valor', 0):,.2f}"
         ], destaque_vermelho=True)
 
+        # 2. Plano de Financiamento
         criar_card_pdf("PLANO DE FINANCIAMENTO", [
             f"Financiamento Bancario Estimado: R$ {d.get('finan_usado', 0):,.2f}",
             f"Composicao FGTS + Subsidio: R$ {d.get('fgts_sub_usado', 0):,.2f}",
             f"Pro Soluto Total: R$ {d.get('ps_usado', 0):,.2f} ({d.get('ps_parcelas')} parcelas de R$ {d.get('ps_mensal', 0):,.2f})"
         ])
 
+        # 3. Fluxo de Entrada (Corrigido os traços por SEPARATOR real)
         criar_card_pdf("FLUXO DE ENTRADA (ATO)", [
             f"Valor Total de Entrada: R$ {d.get('entrada_total', 0):,.2f}",
-            "------------------------------------------------------------------------------------------------------",
+            "SEPARATOR",
             f"Parcela de Ato: R$ {d.get('ato_final', 0):,.2f}",
             f"Ato 30 Dias: R$ {d.get('ato_30', 0):,.2f}",
             f"Ato 60 Dias: R$ {d.get('ato_60', 0):,.2f}",
@@ -710,11 +738,11 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
                 st.session_state.ato_4 = dist_val
                 st.session_state.last_calc_hash = calc_hash
             
-            # DESTAQUES FINANCEIROS PADRONIZADOS (Azul - Vermelho - Azul)
+            # DESTAQUES FINANCEIROS PADRONIZADOS
             fin1, fin2, fin3 = st.columns(3)
-            with fin1: st.markdown(f"""<div class="fin-box" style="border-top: 8px solid {COR_AZUL_ESC};"><b>Valor do Imóvel</b><br>R$ {u['Valor de Venda']:,.2f}</div>""", unsafe_allow_html=True)
-            with fin2: st.markdown(f"""<div class="fin-box" style="border-top: 8px solid {COR_VERMELHO};"><b>Mensalidade Pro Soluto</b><br>R$ {v_parc:,.2f} em {parc}x</div>""", unsafe_allow_html=True)
-            with fin3: st.markdown(f"""<div class="fin-box" style="border-top: 8px solid {COR_AZUL_ESC};"><b>Saldo Entrada</b><br>R$ {max(0, saldo_e):,.2f}</div>""", unsafe_allow_html=True)
+            with fin1: st.markdown(f"""<div class="fin-box" style="border-top: 10px solid {COR_AZUL_ESC};"><b>Valor do Imóvel</b><br>R$ {u['Valor de Venda']:,.2f}</div>""", unsafe_allow_html=True)
+            with fin2: st.markdown(f"""<div class="fin-box" style="border-top: 10px solid {COR_VERMELHO};"><b>Mensalidade Pro Soluto</b><br>R$ {v_parc:,.2f} em {parc}x</div>""", unsafe_allow_html=True)
+            with fin3: st.markdown(f"""<div class="fin-box" style="border-top: 10px solid {COR_AZUL_ESC};"><b>Saldo Entrada</b><br>R$ {max(0, saldo_e):,.2f}</div>""", unsafe_allow_html=True)
             
             if comp_r > d['limit_ps_renda']:
                 st.warning(f"Atenção: Parcela ultrapassa o limite de {d['limit_ps_renda']*100:.0f}% da renda.")
