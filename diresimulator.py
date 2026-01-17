@@ -10,7 +10,7 @@ Fluxo Automatizado de Recomendação (Sequencial):
 4. Etapa 4: Fechamento Financeiro.
 5. Etapa 5: Resumo da Compra e Exportação PDF.
 
-Versão: 28.5 (Scroll ao topo automático e Validação de Nome Obrigatório)
+Versão: 28.6 (Favicon Direcional e Scroll Automático Reforçado)
 =============================================================================
 """
 
@@ -40,6 +40,9 @@ ID_ESTOQUE = "1VG-hgBkddyssN1OXgIA33CVsKGAdqT-5kwbgizxWDZQ"
 URL_FINAN = f"https://docs.google.com/spreadsheets/d/{ID_FINAN}/edit#gid=0"
 URL_RANKING = f"https://docs.google.com/spreadsheets/d/{ID_RANKING}/edit#gid=0"
 URL_ESTOQUE = f"https://docs.google.com/spreadsheets/d/{ID_ESTOQUE}/edit#gid=0"
+
+# Link do ícone oficial da Direcional para a aba do navegador
+FAVICON_DIRECIONAL = "https://direcional.com.br/wp-content/uploads/2021/04/cropped-favicon-direcional-32x32.png"
 
 # =============================================================================
 # 1. CARREGAMENTO E TRATAMENTO DE DADOS
@@ -166,7 +169,8 @@ class MotorRecomendacao:
 # =============================================================================
 
 def configurar_layout():
-    st.set_page_config(page_title="Simulador Direcional", page_icon="house", layout="wide")
+    # Atualizado com o favicon da Direcional
+    st.set_page_config(page_title="Simulador Direcional", page_icon=FAVICON_DIRECIONAL, layout="wide")
     st.markdown("""
         <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap');
@@ -277,10 +281,17 @@ def gerar_resumo_pdf(d):
 # =============================================================================
 
 def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
-    # Componente para forçar scroll ao topo em cada re-renderização de mudança de página
+    # Componente para forçar scroll ao topo com KEY dinâmica para garantir execução na mudança de estado
     components.html(
-        "<script>window.parent.window.scrollTo(0,0);</script>",
-        height=0
+        f"""
+        <script>
+            var mainContent = window.parent.document.querySelector('.main');
+            if (mainContent) mainContent.scrollTo(0,0);
+            window.parent.window.scrollTo(0,0);
+        </script>
+        """,
+        height=0,
+        key=f"scroll_handler_{st.session_state.get('passo_simulacao', 'init')}"
     )
 
     motor = MotorRecomendacao(df_finan, df_estoque, df_politicas)
@@ -523,7 +534,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
             })
         
         st.markdown("---")
-        if st.button("Avançar para Resumo de Compra", type="primary", use_container_width=True, key="btn_to_summary"):
+        if st.button("Obter Resumo de Compra", type="primary", use_container_width=True, key="btn_to_summary"):
             st.session_state.passo_simulacao = 'summary'
             st.rerun()
         if st.button("Voltar para Seleção de Imóvel", use_container_width=True): 
@@ -537,7 +548,6 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
         if PDF_ENABLED:
             pdf_data = gerar_resumo_pdf(d)
             if pdf_data:
-                # Centralização do botão de download
                 _, col_btn_center, _ = st.columns([1, 1.2, 1])
                 with col_btn_center:
                     st.download_button(
@@ -568,7 +578,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
         st.markdown("---")
         if st.button("Iniciar Novo Cliente", type="primary", use_container_width=True): 
             st.session_state.dados_cliente = {}; st.session_state.passo_simulacao = 'input'; st.rerun()
-        if st.button("Voltar para Fechamento Financeiro", use_container_width=True):
+        if st.button("Editar Fechamento Financeiro", use_container_width=True):
             st.session_state.passo_simulacao = 'payment_flow'; st.rerun()
 
 def main():
