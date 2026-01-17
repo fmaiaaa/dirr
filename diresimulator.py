@@ -466,7 +466,7 @@ def gerar_resumo_pdf(d):
             pdf.set_draw_color(241, 245, 249)
             pdf.line(15, pdf.get_y(), 195, pdf.get_y())
 
-        adicionar_secao_pdf("ESPECIFICAÇÕES DO ATIVO")
+        adicionar_secao_pdf("DADOS DO IMÓVEL")
         adicionar_linha_detalhe("Empreendimento", d.get('empreendimento_nome'))
         adicionar_linha_detalhe("Unidade Selecionada", d.get('unidade_id'))
         adicionar_linha_detalhe("Valor de Venda do Imovel", f"R$ {fmt_br(d.get('imovel_valor', 0))}", destaque=True)
