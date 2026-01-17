@@ -10,7 +10,7 @@ Fluxo Automatizado de Recomendação (Sequencial):
 4. Etapa 4: Fechamento Financeiro.
 5. Etapa 5: Resumo da Compra e Exportação PDF.
 
-Versão: 32.0 (Fontes Profissionais e Ajuste de Cores no Resumo)
+Versão: 33.0 (Design Profissional Premium, Tipografia Montserrat/Inter)
 =============================================================================
 """
 
@@ -185,113 +185,192 @@ def configurar_layout():
     st.set_page_config(page_title="Simulador Direcional", page_icon=icone_final, layout="wide")
     st.markdown(f"""
         <style>
-        /* Importação de fontes profissionais */
-        @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;700;800&family=Inter:wght@300;400;600&display=swap');
+        /* Importação de fontes premium */
+        @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&family=Inter:wght@300;400;500;600&display=swap');
         
-        /* Cor de texto padrão e fonte do corpo */
+        /* Reset de tipografia e cor base */
         html, body, [data-testid="stAppViewContainer"] {{
             font-family: 'Inter', sans-serif;
             color: {COR_AZUL_ESC};
+            line-height: 1.6;
         }}
         
-        /* Títulos com fonte Montserrat para maior impacto e profissionalismo */
+        /* Títulos de alta performance visual */
         h1, h2, h3, h4 {{
             font-family: 'Montserrat', sans-serif !important;
             text-align: center !important; 
             width: 100%; 
             color: {COR_AZUL_ESC} !important; 
-            font-weight: 700;
+            font-weight: 800;
+            letter-spacing: -0.5px;
+            margin-bottom: 1.5rem !important;
         }}
 
-        /* Fundo branco */
+        /* Fundo branco sofisticado */
         .main {{ background-color: #ffffff; }}
-        .block-container {{ max-width: 1200px !important; padding: 1rem !important; margin: auto !important; }}
+        .block-container {{ max-width: 1100px !important; padding: 2rem !important; margin: auto !important; }}
         
-        /* Header */
-        .header-container {{ text-align: center; padding: 35px 0; background: #ffffff; border-bottom: 5px solid {COR_VERMELHO}; margin-bottom: 25px; border-radius: 0 0 15px 15px; }}
+        /* Header minimalista e elegante */
+        .header-container {{ 
+            text-align: center; 
+            padding: 40px 0; 
+            background: #ffffff; 
+            border-bottom: 6px solid {COR_VERMELHO}; 
+            margin-bottom: 40px; 
+            border-radius: 0 0 20px 20px; 
+            box-shadow: 0 10px 30px rgba(0,0,0,0.02);
+        }}
         .header-title {{ 
             font-family: 'Montserrat', sans-serif;
             color: {COR_AZUL_ESC}; 
-            font-size: 2.2rem; 
+            font-size: 2.4rem; 
             font-weight: 800; 
             margin: 0; 
             text-transform: uppercase; 
-            letter-spacing: 1px; 
+            letter-spacing: 2px; 
         }}
-        .header-subtitle {{ color: #64748b; font-size: 1rem; font-weight: 400; margin-top: 8px; }}
+        .header-subtitle {{ 
+            color: #64748b; 
+            font-size: 1.1rem; 
+            font-weight: 400; 
+            margin-top: 10px; 
+            letter-spacing: 0.5px;
+        }}
         
-        /* Cards Padronizados */
-        .card {{ background: white; padding: 25px; border-radius: 12px; border: 1px solid #e2e8f0; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); margin-bottom: 20px; min-height: 130px; display: flex; flex-direction: column; justify-content: center; }}
+        /* Cards unificados e modernos */
+        .card {{ 
+            background: white; 
+            padding: 30px; 
+            border-radius: 16px; 
+            border: 1px solid #f1f5f9; 
+            box-shadow: 0 4px 20px rgba(0,0,0,0.04); 
+            margin-bottom: 25px; 
+            transition: transform 0.2s ease;
+        }}
         
         .fin-box, .recommendation-card {{ 
             text-align: center; 
-            padding: 20px; 
-            border-radius: 12px; 
+            padding: 25px; 
+            border-radius: 14px; 
             border: 1px solid #e2e8f0; 
-            margin-bottom: 15px; 
+            margin-bottom: 20px; 
             width: 100%; 
             background: #ffffff; 
             color: {COR_AZUL_ESC}; 
-            box-shadow: 0 2px 4px rgba(0,0,0,0.02);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.03);
             display: flex;
             flex-direction: column;
             justify-content: center;
         }}
         
-        .thin-card {{ background: white; padding: 15px 20px; border-radius: 8px; border: 1px solid #e2e8f0; border-left: 5px solid {COR_VERMELHO}; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; }}
+        .thin-card {{ 
+            background: white; 
+            padding: 18px 24px; 
+            border-radius: 10px; 
+            border: 1px solid #f1f5f9; 
+            border-left: 6px solid {COR_VERMELHO}; 
+            margin-bottom: 12px; 
+            display: flex; 
+            justify-content: space-between; 
+            align-items: center;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.02);
+        }}
         
-        /* Destaques */
-        .price-tag {{ color: {COR_VERMELHO} !important; font-weight: 700; font-size: 1.2rem; }}
-        .metric-label {{ color: #64748b !important; font-size: 0.85rem; font-weight: 600; text-transform: uppercase; text-align: center; }}
-        .metric-value {{ color: {COR_AZUL_ESC} !important; font-size: 1.4rem; font-weight: 700; text-align: center; }}
+        /* Destaques Numéricos */
+        .price-tag {{ color: {COR_VERMELHO} !important; font-weight: 800; font-size: 1.3rem; font-family: 'Montserrat', sans-serif; }}
+        .metric-label {{ color: #94a3b8 !important; font-size: 0.9rem; font-weight: 600; text-transform: uppercase; text-align: center; letter-spacing: 1px; }}
+        .metric-value {{ color: {COR_AZUL_ESC} !important; font-size: 1.5rem; font-weight: 800; text-align: center; font-family: 'Montserrat', sans-serif; }}
         
-        /* Botões */
+        /* Botões Enterprise */
         .stButton button {{ 
-            font-family: 'Montserrat', sans-serif;
-            border-radius: 8px !important; 
-            padding: 12px !important; 
-            font-weight: 700 !important; 
+            font-family: 'Inter', sans-serif;
+            border-radius: 10px !important; 
+            padding: 14px 28px !important; 
+            font-weight: 600 !important; 
             color: #ffffff !important; 
             border: none !important; 
+            letter-spacing: 0.5px;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
         }}
 
-        /* Botão de VOLTAR: Azul Escuro */
-        .stButton button {{ background-color: {COR_AZUL_ESC} !important; color: white !important; }}
-        .stButton button:hover {{ background-color: #001a3d !important; box-shadow: 0 4px 8px rgba(0,0,0,0.1); }}
+        .stButton button:active {{ transform: scale(0.98); }}
+
+        /* Botão Primário (Avançar) */
+        .stButton button[kind="primary"] {{ 
+            background-color: {COR_VERMELHO} !important; 
+        }}
+        .stButton button[kind="primary"]:hover {{ 
+            background-color: #c40a10 !important; 
+            box-shadow: 0 8px 20px rgba(227, 6, 19, 0.2); 
+        }}
         
-        /* Botão de AVANÇAR: Vermelho */
-        .stButton button[kind="primary"] {{ background-color: {COR_VERMELHO} !important; color: white !important; }}
-        .stButton button[kind="primary"]:hover {{ background-color: #c40a10 !important; box-shadow: 0 4px 8px rgba(0,0,0,0.1); }}
+        /* Botão Padrão (Voltar) */
+        .stButton button {{ 
+            background-color: {COR_AZUL_ESC} !important; 
+        }}
+        .stButton button:hover {{ 
+            background-color: #001a3d !important; 
+            box-shadow: 0 8px 20px rgba(0, 44, 93, 0.2); 
+        }}
         
-        /* Rodapé */
-        .footer {{ text-align: center; padding: 30px 0; color: {COR_AZUL_ESC} !important; font-size: 0.85rem; border-top: 1px solid {COR_VERMELHO}; margin-top: 50px; font-weight: 400; background: #ffffff; }}
+        /* Rodapé de Luxo */
+        .footer {{ 
+            text-align: center; 
+            padding: 40px 0; 
+            color: #94a3b8 !important; 
+            font-size: 0.9rem; 
+            border-top: 1px solid #f1f5f9; 
+            margin-top: 60px; 
+            font-weight: 500; 
+            background: #ffffff; 
+        }}
         
-        /* Resumo - Cabeçalhos com Texto Branco */
+        /* Resumo - Consistência Visual */
         .summary-header {{ 
             font-family: 'Montserrat', sans-serif;
             background: {COR_AZUL_ESC}; 
             color: #ffffff !important; 
-            padding: 15px; 
-            border-radius: 10px 10px 0 0; 
+            padding: 18px; 
+            border-radius: 12px 12px 0 0; 
             font-weight: 700; 
             text-align: center; 
-            margin-bottom: 0px; 
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
         }}
-        .summary-header b, .summary-header span, .summary-header div {{ color: #ffffff !important; }}
-        .summary-body {{ background: white; padding: 20px; border: 1px solid #e2e8f0; border-radius: 0 0 10px 10px; margin-bottom: 20px; color: {COR_AZUL_ESC}; }}
+        .summary-header * {{ color: #ffffff !important; }}
+        .summary-body {{ 
+            background: white; 
+            padding: 25px; 
+            border: 1px solid #e2e8f0; 
+            border-radius: 0 0 12px 12px; 
+            margin-bottom: 30px; 
+            color: {COR_AZUL_ESC}; 
+            box-shadow: 0 4px 15px rgba(0,0,0,0.03);
+        }}
         
-        /* Alertas com Texto Branco */
-        .custom-alert {{ background-color: {COR_AZUL_ESC}; padding: 15px; border-radius: 10px; margin-bottom: 20px; text-align: center; font-weight: 600; color: #ffffff !important; }}
-        .custom-alert b, .custom-alert span, .custom-alert p {{ color: #ffffff !important; }}
+        /* Alertas */
+        .custom-alert {{ 
+            background-color: {COR_AZUL_ESC}; 
+            padding: 20px; 
+            border-radius: 12px; 
+            margin-bottom: 25px; 
+            text-align: center; 
+            font-weight: 600; 
+            color: #ffffff !important; 
+            box-shadow: 0 10px 25px rgba(0, 44, 93, 0.1);
+        }}
+        .custom-alert * {{ color: #ffffff !important; }}
 
-        /* Tabs Centralizadas */
-        div[data-baseweb="tab-list"] {{ justify-content: center !important; display: flex !important; gap: 20px; }}
-        button[data-baseweb="tab"] p {{ color: {COR_AZUL_ESC} !important; font-weight: 600 !important; }}
+        /* Tabs Profissionais */
+        div[data-baseweb="tab-list"] {{ justify-content: center !important; display: flex !important; gap: 30px; margin-bottom: 20px; }}
+        button[data-baseweb="tab"] p {{ 
+            color: {COR_AZUL_ESC} !important; 
+            font-weight: 700 !important; 
+            font-family: 'Montserrat', sans-serif !important;
+            font-size: 1.05rem !important;
+        }}
         button[data-baseweb="tab"][aria-selected="true"] p {{ color: {COR_VERMELHO} !important; }}
-        div[data-baseweb="tab-highlight"] {{ background-color: {COR_VERMELHO} !important; }}
-
-        /* Toggles Ativados em Vermelho */
-        div[data-testid="stToggle"] div[aria-checked="true"] {{ background-color: {COR_VERMELHO} !important; }}
+        div[data-baseweb="tab-highlight"] {{ background-color: {COR_VERMELHO} !important; height: 4px !important; }}
         </style>
     """, unsafe_allow_html=True)
 
@@ -312,7 +391,6 @@ def gerar_resumo_pdf(d):
         AZUL_RGB = (0, 44, 93)
         VERMELHO_RGB = (227, 6, 19)
         BRANCO_RGB = (255, 255, 255)
-        TEXTO_BASE = (15, 23, 42)
 
         # Cabeçalho do Documento
         pdf.set_fill_color(*BRANCO_RGB)
@@ -330,32 +408,30 @@ def gerar_resumo_pdf(d):
         pdf.cell(0, 6, "Resumo de Compra e Viabilidade Financeira", ln=True, align='C')
         pdf.ln(10)
 
-        # Informações do Cliente (Ajustado para Azul)
+        # Informações do Cliente (Corrigido para Azul conforme pedido)
         pdf.set_text_color(*AZUL_RGB)
         pdf.set_font("Helvetica", 'B', 12)
         pdf.cell(0, 10, f"Cliente: {d.get('nome', 'Nao informado')}", ln=True)
-        pdf.set_text_color(*AZUL_RGB) # Ajustado de TEXTO_BASE (preto) para AZUL_RGB conforme solicitado
+        
+        pdf.set_text_color(*AZUL_RGB) # Renda Familiar agora em Azul
         pdf.set_font("Helvetica", '', 11)
         pdf.cell(0, 8, f"Renda Familiar: R$ {d.get('renda', 0):,.2f}", ln=True)
         pdf.ln(8)
 
-        # Função para criar blocos estalizados tipo "Card"
         def criar_card_pdf(titulo, linhas, destaque_vermelho=False):
-            # Cabeçalho do Card (Fundo Azul, Letra Branca)
+            # Cabeçalho do Card
             pdf.set_fill_color(*AZUL_RGB)
             pdf.set_text_color(*BRANCO_RGB)
             pdf.set_font("Helvetica", 'B', 11)
             pdf.cell(0, 10, f"   {titulo}", ln=True, fill=True)
             
-            # Conteúdo do Card (Fundo Branco, Letra Azul)
+            # Conteúdo do Card
             pdf.set_fill_color(*BRANCO_RGB)
             pdf.set_text_color(*AZUL_RGB)
-            pdf.set_font("Helvetica", '', 10.5)
             pdf.set_draw_color(226, 232, 240)
             
             pdf.ln(2)
             for i, texto in enumerate(linhas):
-                # Se for a última linha de 'DADOS DO IMÓVEL' e destaque_vermelho, pinta de vermelho
                 if destaque_vermelho and i == len(linhas) - 1:
                     pdf.set_text_color(*VERMELHO_RGB)
                     pdf.set_font("Helvetica", 'B', 11)
@@ -365,7 +441,6 @@ def gerar_resumo_pdf(d):
                 
                 pdf.cell(0, 8, f"     {texto}", ln=True, border='LR')
             
-            # Fecha Borda Inferior
             pdf.cell(0, 2, "", ln=True, border='LRB')
             pdf.ln(10)
 
@@ -375,7 +450,7 @@ def gerar_resumo_pdf(d):
             f"Unidade: {d.get('unidade_id')}",
             f"Valor de Venda: R$ {d.get('imovel_valor', 0):,.2f}"
         ]
-        criar_card_pdf("DADOS DO IMÓVEL", imovel_dados, destaque_vermelho=True)
+        criar_card_pdf("DADOS DO IMOVEL", imovel_dados, destaque_vermelho=True)
 
         # 2. Plano de Financiamento
         finan_dados = [
@@ -396,14 +471,13 @@ def gerar_resumo_pdf(d):
         ]
         criar_card_pdf("FLUXO DE ENTRADA (ATO)", entrada_dados)
 
-        # Nota de Rodapé
         pdf.set_y(-25)
         pdf.set_font("Helvetica", 'I', 8)
         pdf.set_text_color(100, 116, 139)
         pdf.cell(0, 10, "Este documento e uma simulacao sujeita a analise de credito.", ln=True, align='C')
 
         return bytes(pdf.output())
-    except Exception as e:
+    except Exception:
         return None
 
 # =============================================================================
@@ -411,7 +485,6 @@ def gerar_resumo_pdf(d):
 # =============================================================================
 
 def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
-    # Componente para forçar scroll ao topo
     passo_atual = st.session_state.get('passo_simulacao', 'init')
     components.html(
         f"""
@@ -531,7 +604,6 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
                 if not df_filt_rec.empty:
                     r100, r90, r75 = df_filt_rec.iloc[0], df_filt_rec.iloc[len(df_filt_rec)//2], df_filt_rec.iloc[-1]
                     c1, c2, c3 = st.columns(3)
-                    # RECOMENDAÇÕES PADRONIZADAS (Azul - Vermelho - Azul)
                     with c1: st.markdown(f'<div class="recommendation-card" style="border-top: 5px solid {COR_AZUL_ESC};"><b>IDEAL</b><br><small>{r100["Empreendimento"]}</small><br>{r100["Identificador"]}<br><span class="price-tag">R$ {r100["Valor de Venda"]:,.2f}</span></div>', unsafe_allow_html=True)
                     with c2: st.markdown(f'<div class="recommendation-card" style="border-top: 5px solid {COR_VERMELHO};"><b>SEGURA</b><br><small>{r90["Empreendimento"]}</small><br>{r90["Identificador"]}<br><span class="price-tag">R$ {r90["Valor de Venda"]:,.2f}</span></div>', unsafe_allow_html=True)
                     with c3: st.markdown(f'<div class="recommendation-card" style="border-top: 5px solid {COR_AZUL_ESC};"><b>FACILITADA</b><br><small>{r75["Empreendimento"]}</small><br>{r75["Identificador"]}<br><span class="price-tag">R$ {r75["Valor de Venda"]:,.2f}</span></div>', unsafe_allow_html=True)
