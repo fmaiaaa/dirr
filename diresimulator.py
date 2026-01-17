@@ -4,12 +4,12 @@
 SISTEMA DE SIMULAÇÃO IMOBILIÁRIA - DIRE RIO V2
 =============================================================================
 Fluxo Automatizado de Recomendação (Sequencial):
-1. Etapa 1: Entrada de dados do cliente.
+1. Etapa 1: Entrada de dados do cliente (com validação de nome).
 2. Etapa 2: Valor Potencial de Compra.
 3. Etapa 4: Fechamento Financeiro.
-5. Etapa 5: Resumo da Compra e Exportação PDF.
+5. Etapa 5: Resumo da Compra e Exportação PDF Profissional.
 
-Versão: 40.0 (Resumo Executivo Premium)
+Versão: 41.0 (PDF Premium e Reversão de UI)
 =============================================================================
 """
 
@@ -343,58 +343,27 @@ def configurar_layout():
             font-weight: 500; 
         }}
         
-        /* DESIGN DO RESUMO PREMIUM */
         .summary-header {{ 
             font-family: 'Montserrat', sans-serif;
-            background: #f1f5f9; 
-            color: {COR_AZUL_ESC} !important; 
-            padding: 12px 24px; 
-            border-radius: 12px; 
-            font-weight: 800; 
-            text-align: left; 
+            background: {COR_AZUL_ESC}; 
+            color: #ffffff !important; 
+            padding: 20px; 
+            border-radius: 16px 16px 0 0; 
+            font-weight: 700; 
+            text-align: center; 
             text-transform: uppercase;
-            letter-spacing: 1.5px;
-            font-size: 0.9rem;
-            margin-bottom: 20px;
-            border-left: 5px solid {COR_AZUL_ESC};
+            letter-spacing: 2px;
         }}
+        .summary-header * {{ color: #ffffff !important; }}
         .summary-body {{ 
             background: #ffffff; 
-            padding: 0px; 
-            border-radius: 16px; 
+            padding: 35px; 
+            border: 1px solid #e2e8f0; 
+            border-radius: 0 0 16px 16px; 
             margin-bottom: 40px; 
+            color: {COR_AZUL_ESC}; 
+            box-shadow: 0 15px 40px rgba(0,0,0,0.04);
         }}
-        
-        .summary-tile {{
-            background: #ffffff;
-            padding: 20px;
-            border-radius: 16px;
-            border: 1px solid #f1f5f9;
-            text-align: left;
-            height: 100%;
-        }}
-        .summary-tile-label {{
-            color: #64748b;
-            font-size: 0.8rem;
-            font-weight: 600;
-            text-transform: uppercase;
-            margin-bottom: 4px;
-        }}
-        .summary-tile-value {{
-            color: {COR_AZUL_ESC};
-            font-size: 1.15rem;
-            font-weight: 700;
-            font-family: 'Montserrat', sans-serif;
-        }}
-
-        .summary-row-item {{
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 14px 0;
-            border-bottom: 1px solid #f1f5f9;
-        }}
-        .summary-row-item:last-child {{ border-bottom: none; }}
         
         .custom-alert {{ 
             background-color: {COR_AZUL_ESC}; 
@@ -422,7 +391,7 @@ def configurar_layout():
     """, unsafe_allow_html=True)
 
 # =============================================================================
-# 4. FUNÇÃO PARA GERAR PDF (ESTILO PREMIUM EXECUTIVO)
+# 4. FUNÇÃO PARA GERAR PDF (ESTILO PREMIUM EXECUTIVO REFINADO)
 # =============================================================================
 
 def gerar_resumo_pdf(d):
@@ -438,85 +407,87 @@ def gerar_resumo_pdf(d):
         VERMELHO_RGB = (227, 6, 19)
         BRANCO_RGB = (255, 255, 255)
         CINZA_RGB = (100, 116, 139)
+        FUNDO_SECAO = (241, 245, 249)
 
-        pdf.set_fill_color(*BRANCO_RGB)
-        pdf.rect(0, 0, 210, 45, 'F')
-        
+        # Barra de topo Direcional
         pdf.set_fill_color(*VERMELHO_RGB)
         pdf.rect(0, 0, 210, 4, 'F')
         
+        # Cabeçalho Centralizado
+        pdf.ln(10)
         pdf.set_text_color(*AZUL_RGB)
-        pdf.set_font("Helvetica", 'B', 22)
-        pdf.ln(15)
-        pdf.cell(0, 10, "SIMULADOR IMOBILIARIO DV", ln=True, align='C')
+        pdf.set_font("Helvetica", 'B', 24)
+        pdf.cell(0, 12, "RELATORIO DE VIABILIDADE", ln=True, align='C')
         pdf.set_text_color(*CINZA_RGB)
-        pdf.set_font("Helvetica", '', 11)
-        pdf.cell(0, 6, "Relatorio Executivo de Viabilidade Financeira", ln=True, align='C')
-        pdf.ln(15)
+        pdf.set_font("Helvetica", '', 10)
+        pdf.cell(0, 6, "SIMULADOR IMOBILIARIO DIRE RIO - DOCUMENTO EXECUTIVO", ln=True, align='C')
+        pdf.ln(12)
 
+        # Dados do Cliente (Destaque Lateral)
+        pdf.set_fill_color(*FUNDO_SECAO)
+        pdf.rect(10, pdf.get_y(), 190, 20, 'F')
+        pdf.set_xy(15, pdf.get_y() + 4)
         pdf.set_text_color(*AZUL_RGB)
-        pdf.set_font("Helvetica", 'B', 13)
-        pdf.cell(0, 10, f"CLIENTE: {d.get('nome', 'Nao informado').upper()}", ln=True)
-        
-        pdf.set_text_color(*AZUL_RGB)
-        pdf.set_font("Helvetica", '', 12)
-        pdf.cell(0, 8, f"Renda Familiar: R$ {d.get('renda', 0):,.2f}", ln=True)
+        pdf.set_font("Helvetica", 'B', 14)
+        pdf.cell(0, 6, f"CLIENTE: {d.get('nome', 'Nao informado').upper()}", ln=True)
+        pdf.set_x(15)
+        pdf.set_font("Helvetica", '', 11)
+        pdf.cell(0, 6, f"Renda Familiar Declarada: R$ {d.get('renda', 0):,.2f}", ln=True)
         pdf.ln(10)
 
-        def criar_card_pdf(titulo, linhas, destaque_vermelho=False):
+        def adicionar_secao_pdf(titulo):
             pdf.set_fill_color(*AZUL_RGB)
             pdf.set_text_color(*BRANCO_RGB)
             pdf.set_font("Helvetica", 'B', 12)
-            pdf.cell(0, 12, f"   {titulo}", ln=True, fill=True)
-            
-            pdf.set_fill_color(*BRANCO_RGB)
-            pdf.set_draw_color(226, 232, 240)
-            
-            pdf.ln(2)
-            for i, texto in enumerate(linhas):
-                if texto == "SEPARATOR":
-                    pdf.set_draw_color(226, 232, 240)
-                    pdf.line(pdf.get_x() + 5, pdf.get_y() + 4, pdf.get_x() + 185, pdf.get_y() + 4)
-                    pdf.ln(8)
-                    continue
+            pdf.cell(0, 10, f"  {titulo}", ln=True, fill=True)
+            pdf.ln(4)
 
-                if destaque_vermelho and i == len(linhas) - 1:
-                    pdf.set_text_color(*VERMELHO_RGB)
-                    pdf.set_font("Helvetica", 'B', 11)
-                else:
-                    pdf.set_text_color(*AZUL_RGB)
-                    pdf.set_font("Helvetica", '', 11)
+        def adicionar_linha_detalhe(label, valor, destaque=False):
+            pdf.set_x(15)
+            pdf.set_text_color(*AZUL_RGB)
+            pdf.set_font("Helvetica", '', 11)
+            pdf.cell(100, 8, label, border=0)
+            
+            if destaque:
+                pdf.set_text_color(*VERMELHO_RGB)
+                pdf.set_font("Helvetica", 'B', 11)
+            else:
+                pdf.set_font("Helvetica", 'B', 11)
                 
-                pdf.cell(0, 9, f"      {texto}", ln=True, border='LR')
-            
-            pdf.cell(0, 3, "", ln=True, border='LRB')
-            pdf.ln(12)
+            pdf.cell(0, 8, valor, border=0, ln=True, align='R')
+            pdf.set_draw_color(226, 232, 240)
+            pdf.line(15, pdf.get_y(), 195, pdf.get_y())
 
-        criar_card_pdf("DADOS DO IMOVEL", [
-            f"Empreendimento: {d.get('empreendimento_nome')}",
-            f"Unidade: {d.get('unidade_id')}",
-            f"Valor de Venda do Ativo: R$ {d.get('imovel_valor', 0):,.2f}"
-        ], destaque_vermelho=True)
+        # 1. Informações da Unidade
+        adicionar_secao_pdf("ESPECIFICACOES DO ATIVO")
+        adicionar_linha_detalhe("Empreendimento", d.get('empreendimento_nome'))
+        adicionar_linha_detalhe("Unidade Selecionada", d.get('unidade_id'))
+        adicionar_linha_detalhe("Valor de Venda do Imovel", f"R$ {d.get('imovel_valor', 0):,.2f}", destaque=True)
+        pdf.ln(6)
 
-        criar_card_pdf("PLANO DE FINANCIAMENTO", [
-            f"Financiamento Bancario Estimado: R$ {d.get('finan_usado', 0):,.2f}",
-            f"Composicao FGTS + Subsidio: R$ {d.get('fgts_sub_usado', 0):,.2f}",
-            f"Pro Soluto Total: R$ {d.get('ps_usado', 0):,.2f} ({d.get('ps_parcelas')} parcelas de R$ {d.get('ps_mensal', 0):,.2f})"
-        ])
+        # 2. Engenharia Financeira
+        adicionar_secao_pdf("ENGENHARIA FINANCEIRA")
+        adicionar_linha_detalhe("Financiamento Bancario Estimado", f"R$ {d.get('finan_usado', 0):,.2f}")
+        adicionar_linha_detalhe("Subsidio + FGTS Utilizado", f"R$ {d.get('fgts_sub_usado', 0):,.2f}")
+        adicionar_linha_detalhe("Pro Soluto Direcional", f"R$ {d.get('ps_usado', 0):,.2f}")
+        adicionar_linha_detalhe("Mensalidade Pro Soluto", f"{d.get('ps_parcelas')}x de R$ {d.get('ps_mensal', 0):,.2f}")
+        pdf.ln(6)
 
-        criar_card_pdf("FLUXO DE ENTRADA (ATO)", [
-            f"Valor Total de Entrada: R$ {d.get('entrada_total', 0):,.2f}",
-            "SEPARATOR",
-            f"Parcela de Ato: R$ {d.get('ato_final', 0):,.2f}",
-            f"Ato 30 Dias: R$ {d.get('ato_30', 0):,.2f}",
-            f"Ato 60 Dias: R$ {d.get('ato_60', 0):,.2f}",
-            f"Ato 90 Dias: R$ {d.get('ato_90', 0):,.2f}"
-        ])
+        # 3. Fluxo de Entrada
+        adicionar_secao_pdf("PLANO DE ENTRADA (FLUXO DE CAIXA)")
+        adicionar_linha_detalhe("VALOR TOTAL DE ENTRADA", f"R$ {d.get('entrada_total', 0):,.2f}", destaque=True)
+        pdf.ln(2)
+        adicionar_linha_detalhe("Parcela de Ato (Imediato)", f"R$ {d.get('ato_final', 0):,.2f}")
+        adicionar_linha_detalhe("Parcela 30 Dias", f"R$ {d.get('ato_30', 0):,.2f}")
+        adicionar_linha_detalhe("Parcela 60 Dias", f"R$ {d.get('ato_60', 0):,.2f}")
+        adicionar_linha_detalhe("Parcela 90 Dias", f"R$ {d.get('ato_90', 0):,.2f}")
 
+        # Rodapé
         pdf.set_y(-25)
-        pdf.set_font("Helvetica", 'I', 9)
+        pdf.set_font("Helvetica", 'I', 8)
         pdf.set_text_color(*CINZA_RGB)
-        pdf.cell(0, 10, "Este documento e uma simulacao informativa sujeita a analise de credito oficial.", ln=True, align='C')
+        pdf.cell(0, 5, "Simulacao sujeita a aprovacao de credito e alteracao de tabela sem aviso previo.", ln=True, align='C')
+        pdf.cell(0, 5, "Direcional Engenharia - Rio de Janeiro", ln=True, align='C')
 
         return bytes(pdf.output())
     except Exception:
@@ -561,8 +532,11 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
         cotista = st.toggle("Cotista FGTS", value=st.session_state.dados_cliente.get('cotista', True), key="in_cot_v23")
         
         if st.button("Avançar para Valor Potencial de Compra", type="primary", use_container_width=True, key="btn_s1_v23"):
+            # REQUISITO: Validação de Nome (Não permite números)
             if not nome.strip():
-                st.markdown(f'<div class="custom-alert">Por favor, informe o Nome do Cliente para iniciar a simulação.</div>', unsafe_allow_html=True)
+                st.markdown(f'<div class="custom-alert">Por favor, informe o Nome do Cliente para continuar.</div>', unsafe_allow_html=True)
+            elif any(char.isdigit() for char in nome):
+                st.markdown(f'<div class="custom-alert">Por favor, insira um Nome Válido. O campo não deve conter números.</div>', unsafe_allow_html=True)
             else:
                 finan, sub = motor.obter_enquadramento(renda, social, cotista)
                 class_b = 'EMCASH' if politica_ps == "Emcash" else ranking
@@ -795,67 +769,41 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
         d = st.session_state.dados_cliente
         st.markdown(f"### Resumo da Simulação - {d.get('nome', 'Cliente')}")
         
-        # --- BOTÃO DE EXPORTAÇÃO NO TOPO ---
         if PDF_ENABLED:
             pdf_data = gerar_resumo_pdf(d)
             if pdf_data:
                 _, col_btn_center, _ = st.columns([1, 1.2, 1])
                 with col_btn_center:
                     st.download_button(
-                        label="📄 Exportar Resumo Profissional (PDF)", 
+                        label="📄 Exportar Relatório Executivo (PDF)", 
                         data=pdf_data, 
                         file_name=f"Resumo Direcional - {d.get('nome', 'Cliente')}.pdf", 
                         mime="application/pdf",
                         use_container_width=True,
-                        key="btn_download_pdf_v40"
+                        key="btn_download_pdf_final"
                     )
+        else:
+            st.warning("Função de PDF indisponível.")
 
-        # --- SEÇÃO 1: VISÃO GERAL DO INVESTIMENTO ---
-        st.markdown('<div class="summary-header">Visão Geral do Investimento</div>', unsafe_allow_html=True)
-        c1, c2, c3 = st.columns(3)
-        with c1:
-            st.markdown(f"""<div class="summary-tile"><p class="summary-tile-label">Empreendimento</p><p class="summary-tile-value">{d.get('empreendimento_nome')}</p></div>""", unsafe_allow_html=True)
-        with c2:
-            st.markdown(f"""<div class="summary-tile"><p class="summary-tile-label">Unidade</p><p class="summary-tile-value">{d.get('unidade_id')}</p></div>""", unsafe_allow_html=True)
-        with c3:
-            st.markdown(f"""<div class="summary-tile"><p class="summary-tile-label">Valor de Venda</p><p class="summary-tile-value" style="color:{COR_VERMELHO}">R$ {d.get('imovel_valor', 0):,.2f}</p></div>""", unsafe_allow_html=True)
+        # REVERSÃO: Voltou ao design de "caixas" do site (v39)
+        st.markdown(f'<div class="summary-header">DADOS DO IMÓVEL</div>', unsafe_allow_html=True)
+        st.markdown(f"""<div class="summary-body"><b>Empreendimento:</b> {d.get('empreendimento_nome')}<br>
+            <b>Unidade:</b> {d.get('unidade_id')}<br><b>Valor de Venda:</b> <span style="color: {COR_VERMELHO}; font-weight: 700;">R$ {d.get('imovel_valor', 0):,.2f}</span></div>""", unsafe_allow_html=True)
 
-        # --- SEÇÃO 2: COMPOSIÇÃO FINANCEIRA ---
-        st.markdown('<div class="summary-header">Engenharia Financeira</div>', unsafe_allow_html=True)
-        cf1, cf2 = st.columns(2)
-        with cf1:
-            st.markdown(f"""
-                <div class="summary-tile">
-                    <div class="summary-row-item"><span>Financiamento Bancário</span><b>R$ {d.get('finan_usado', 0):,.2f}</b></div>
-                    <div class="summary-row-item"><span>FGTS + Subsídio</span><b>R$ {d.get('fgts_sub_usado', 0):,.2f}</b></div>
-                    <div class="summary-row-item"><span>Pro Soluto Direcional</span><b>R$ {d.get('ps_usado', 0):,.2f}</b></div>
-                </div>
-            """, unsafe_allow_html=True)
-        with cf2:
-            st.markdown(f"""
-                <div class="summary-tile">
-                    <p class="summary-tile-label">Mensalidade Pro Soluto</p>
-                    <p class="summary-tile-value">{d.get('ps_parcelas')} parcelas de R$ {d.get('ps_mensal', 0):,.2f}</p>
-                    <p style="font-size: 0.85rem; color: #64748b; margin-top: 10px;">Parcelamento fixo em tabela Direcional.</p>
-                </div>
-            """, unsafe_allow_html=True)
+        st.markdown(f'<div class="summary-header">PLANO DE FINANCIAMENTO</div>', unsafe_allow_html=True)
+        st.markdown(f"""<div class="summary-body"><b>Financiamento Bancário:</b> R$ {d.get('finan_usado', 0):,.2f}<br>
+            <b>FGTS + Subsídio:</b> R$ {d.get('fgts_sub_usado', 0):,.2f}<br>
+            <b>Pro Soluto Total:</b> R$ {d.get('ps_usado', 0):,.2f} ({d.get('ps_parcelas')}x de R$ {d.get('ps_mensal', 0):,.2f})</div>""", unsafe_allow_html=True)
 
-        # --- SEÇÃO 3: FLUXO DE CAIXA DE ENTRADA ---
-        st.markdown('<div class="summary-header">Plano de Entrada e Fluxo de Caixa</div>', unsafe_allow_html=True)
-        st.markdown(f"""
-            <div class="summary-tile">
-                <div class="summary-row-item"><span style="font-weight:700;">VALOR TOTAL DE ENTRADA</span><b style="color:{COR_AZUL_ESC}; font-size:1.3rem;">R$ {d.get('entrada_total', 0):,.2f}</b></div>
-                <div class="summary-row-item"><span>Parcela de Ato (Imediato)</span><b>R$ {d.get('ato_final', 0):,.2f}</b></div>
-                <div class="summary-row-item"><span>Entrada em 30 Dias</span><b>R$ {d.get('ato_30', 0):,.2f}</b></div>
-                <div class="summary-row-item"><span>Entrada em 60 Dias</span><b>R$ {d.get('ato_60', 0):,.2f}</b></div>
-                <div class="summary-row-item"><span>Entrada em 90 Dias</span><b>R$ {d.get('ato_90', 0):,.2f}</b></div>
-            </div>
-        """, unsafe_allow_html=True)
+        st.markdown(f'<div class="summary-header">FLUXO DE ENTRADA (ATO)</div>', unsafe_allow_html=True)
+        st.markdown(f"""<div class="summary-body"><b>Total de Entrada:</b> R$ {d.get('entrada_total', 0):,.2f}<br><hr style="border: 0; border-top: 1px solid #e2e8f0; margin: 10px 0;">
+            <b>Ato:</b> R$ {d.get('ato_final', 0):,.2f}<br><b>Ato 30 Dias:</b> R$ {d.get('ato_30', 0):,.2f}<br>
+            <b>Ato 60 Dias:</b> R$ {d.get('ato_60', 0):,.2f}<br><b>Ato 90 Dias:</b> R$ {d.get('ato_90', 0):,.2f}</div>""", unsafe_allow_html=True)
 
         st.markdown("---")
-        if st.button("Simular Novo Cliente", type="primary", use_container_width=True, key="btn_new_client_summary"): 
+        if st.button("Iniciar Novo Cliente", type="primary", use_container_width=True, key="btn_new_client_summary"): 
             st.session_state.dados_cliente = {}; st.session_state.passo_simulacao = 'input'; st.rerun()
-        if st.button("Ajustar Valores Financeiros", use_container_width=True, key="btn_edit_fin_summary"):
+        if st.button("Editar Fechamento Financeiro", use_container_width=True, key="btn_edit_fin_summary"):
             st.session_state.passo_simulacao = 'payment_flow'; st.rerun()
 
 def main():
@@ -864,7 +812,7 @@ def main():
     if df_finan.empty or df_estoque.empty:
         st.warning("Carregando dados privados...")
         st.stop()
-    st.markdown(f'<div class="header-container"><div class="header-title">SIMULADOR IMOBILIÁRIO DV</div><div class="header-subtitle">Sistema de Gestão de Vendas e Viabilidade Imobiliária</div></div>', unsafe_allow_html=True)
+    st.markdown(f'<div class="header-container"><div class="header-title">SIMULADOR IMOBILIÁRIO DIRE RIO</div><div class="header-subtitle">Sistema de Gestão de Vendas e Viabilidade Imobiliária</div></div>', unsafe_allow_html=True)
     aba_simulador_automacao(df_finan, df_estoque, df_politicas)
     st.markdown(f'<div class="footer">Desenvolvido por Lucas Maia</div>', unsafe_allow_html=True)
 
