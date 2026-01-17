@@ -486,7 +486,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
             st.session_state.passo_simulacao = 'input'
             st.rerun()
             
-        if st.button("Editar Fechamento Financeiro", use_container_width=True, key="btn_back_from_summary"):
+        if st.button("Voltar para Fechamento Financeiro", use_container_width=True, key="btn_back_from_summary"):
             st.session_state.passo_simulacao = 'payment_flow'
             st.rerun()
 
