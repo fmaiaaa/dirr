@@ -1,15 +1,15 @@
 # -*- coding: utf-8 -*-
 """
 =============================================================================
-SISTEMA DE SIMULAÇÃO IMOBILIÁRIA - DIRE RIO V55.0
+SISTEMA DE SIMULAÇÃO IMOBILIÁRIA - DIRE RIO V2
 =============================================================================
-Novas Funcionalidades:
-- Gráficos: Gauge, Donut e Barras Comparativas.
-- Simulação Reversa: "Quanto posso pagar por mês?"
-- Comparador de Unidades: Lado a lado.
-- Amortização: Tabela SAC vs PRICE.
-- Mobile First: Design responsivo e botões otimizados.
-- Integração WhatsApp e PDF.
+Fluxo Automatizado de Recomendação (Sequencial):
+1. Etapa 1: Entrada de dados do cliente (com validação de nome).
+2. Etapa 2: Valor Potencial de Compra.
+3. Etapa 4: Fechamento Financeiro.
+5. Etapa 5: Resumo da Compra e Exportação PDF Profissional.
+
+Versão: 52.1 (Ajuste de Formatação de Números - Padrão Brasileiro)
 =============================================================================
 """
 
@@ -26,10 +26,6 @@ try:
 except ImportError:
     Image = None
 import os
-import plotly.graph_objects as go
-import plotly.express as px
-import urllib.parse
-import math
 
 # Tenta importar fpdf de forma segura
 try:
@@ -51,8 +47,9 @@ URL_ESTOQUE = f"https://docs.google.com/spreadsheets/d/{ID_ESTOQUE}/edit#gid=0"
 
 URL_FAVICON_RESERVA = "https://direcional.com.br/wp-content/uploads/2021/04/cropped-favicon-direcional-32x32.png"
 
+# Cores Oficiais Direcional - Elite Tecnológica
 COR_AZUL_ESC = "#002c5d"
-COR_VERMELHO = "#e30613"
+COR_VERMELHO = "#e30613"  # Vermelho Direcional Oficial
 COR_FUNDO = "#fcfdfe"
 COR_BORDA = "#eef2f6"
 COR_TEXTO_MUTED = "#64748b"
@@ -64,25 +61,6 @@ def fmt_br(valor):
     except:
         return "0,00"
 
-def gerar_texto_whatsapp(d):
-    """Gera texto formatado para envio via WhatsApp"""
-    texto = (
-        f"*SIMULAÇÃO IMOBILIÁRIA - DIRECIONAL*\n"
-        f"Olá, {d.get('nome', 'Cliente')}! Segue o resumo da sua simulação:\n\n"
-        f"🏠 *IMÓVEL*: {d.get('empreendimento_nome')}\n"
-        f"📍 *UNIDADE*: Bloco {d.get('bloco_u', '-')} - {d.get('unidade_id')}\n"
-        f"💰 *VALOR*: R$ {fmt_br(d.get('imovel_valor', 0))}\n\n"
-        f"💳 *FINANCEIRO*:\n"
-        f"• Financiamento: R$ {fmt_br(d.get('finan_usado', 0))}\n"
-        f"• FGTS/Subsídio: R$ {fmt_br(d.get('fgts_sub_usado', 0))}\n"
-        f"• Pro Soluto: {d.get('ps_parcelas')}x de R$ {fmt_br(d.get('ps_mensal', 0))}\n\n"
-        f"🚀 *ENTRADA (ATO)*:\n"
-        f"• Total: R$ {fmt_br(d.get('entrada_total', 0))}\n"
-        f"• Ato Imediato: R$ {fmt_br(d.get('ato_final', 0))}\n\n"
-        f"_Simulação sujeita a aprovação de crédito._"
-    )
-    return urllib.parse.quote(texto)
-
 # =============================================================================
 # 1. CARREGAMENTO E TRATAMENTO DE DADOS
 # =============================================================================
@@ -93,641 +71,792 @@ def carregar_dados_sistema():
         if "connections" not in st.secrets:
             st.error("Aviso: Configuração de 'Secrets' não encontrada.")
             return pd.DataFrame(), pd.DataFrame(), pd.DataFrame()
+
         conn = st.connection("gsheets", type=GSheetsConnection)
-        
-        def limpar_moeda(val):
-            if isinstance(val, str):
-                val = val.replace('R$', '').replace('.', '').replace(',', '.').strip()
-            try: return float(val) if float(val) > 0 else 0.0
-            except: return 0.0
 
         def limpar_porcentagem(val):
             if isinstance(val, str):
                 v = val.replace('%', '').replace(',', '.').strip()
-                try: 
-                    n = float(v)
-                    return n / 100 if n > 1 else n
+                try:
+                    num = float(v)
+                    return num / 100 if num > 1 else num
                 except: return 0.0
             return val
 
-        try:
-            df_politicas = conn.read(spreadsheet=URL_RANKING).rename(columns={'FAIXA RENDA': 'FAIXA_RENDA', 'FX RENDA 1': 'FX_RENDA_1', 'FX RENDA 2': 'FX_RENDA_2'})
-            for col in ['PROSOLUTO', 'FX_RENDA_1', 'FX_RENDA_2']:
-                if col in df_politicas.columns: df_politicas[col] = df_politicas[col].apply(limpar_porcentagem)
-        except: df_politicas = pd.DataFrame()
+        def limpar_moeda(val):
+            if isinstance(val, str):
+                val = val.replace('R$', '').replace('.', '').replace(',', '.').strip()
+            try:
+                num = float(val)
+                return num if num > 0 else 0.0
+            except: return 0.0
 
-        try: df_finan = conn.read(spreadsheet=URL_FINAN)
-        except: df_finan = pd.DataFrame()
+        try:
+            df_politicas = conn.read(spreadsheet=URL_RANKING)
+            df_politicas = df_politicas.rename(columns={
+                'FAIXA RENDA': 'FAIXA_RENDA',
+                'FX RENDA 1': 'FX_RENDA_1',
+                'FX RENDA 2': 'FX_RENDA_2'
+            })
+            for col in ['PROSOLUTO', 'FX_RENDA_1', 'FX_RENDA_2']:
+                if col in df_politicas.columns:
+                    df_politicas[col] = df_politicas[col].apply(limpar_porcentagem)
+        except Exception:
+            df_politicas = pd.DataFrame()
+
+        try:
+            df_finan = conn.read(spreadsheet=URL_FINAN)
+        except Exception:
+            df_finan = pd.DataFrame()
 
         try:
             df_raw = conn.read(spreadsheet=URL_ESTOQUE)
-            df_estoque = df_raw.rename(columns={'Nome do Empreendimento': 'Empreendimento', 'VALOR DE VENDA': 'Valor de Venda', 'Status da unidade': 'Status', 'BLOCO': 'Bloco'})
+            df_estoque = df_raw.rename(columns={
+                'Nome do Empreendimento': 'Empreendimento',
+                'VALOR DE VENDA': 'Valor de Venda',
+                'Status da unidade': 'Status'
+            })
             df_estoque['Valor de Venda'] = df_estoque['Valor de Venda'].apply(limpar_moeda)
-            df_estoque = df_estoque[(df_estoque['Valor de Venda'] > 0) & (df_estoque['Empreendimento'].notnull())].copy()
+            df_estoque = df_estoque[
+                (df_estoque['Valor de Venda'] > 0) & 
+                (df_estoque['Empreendimento'].notnull())
+            ].copy()
+
             if 'Bairro' not in df_estoque.columns: df_estoque['Bairro'] = "Rio de Janeiro"
             if 'Identificador' not in df_estoque.columns: df_estoque['Identificador'] = df_estoque.index.astype(str)
-            if 'Bloco' not in df_estoque.columns: df_estoque['Bloco'] = "1"
-        except: df_estoque = pd.DataFrame()
+                
+            def extrair_andar_seguro(id_unid):
+                try:
+                    val_str = str(id_unid)
+                    if '-' in val_str: val_str = val_str.split('-')[-1]
+                    nums = re.sub(r'\D', '', val_str)
+                    return int(nums) // 100 if nums else 0
+                except: return 0
 
+            df_estoque['Andar'] = df_estoque['Identificador'].apply(extrair_andar_seguro)
+        except Exception:
+            df_estoque = pd.DataFrame()
+        
         return df_finan, df_estoque, df_politicas
+    
     except Exception as e:
         st.error(f"Erro de conexão: {e}")
         return pd.DataFrame(), pd.DataFrame(), pd.DataFrame()
 
 # =============================================================================
-# 2. MOTOR DE CÁLCULO E AMORTIZAÇÃO
+# 2. MOTOR DE CÁLCULO
 # =============================================================================
 
-class MotorElite:
-    @staticmethod
-    def calcular_sac_price(valor_financiado, prazo_meses, taxa_anual):
-        taxa_mensal = (1 + taxa_anual/100)**(1/12) - 1
-        # PRICE
-        pmt_price = valor_financiado * (taxa_mensal * (1 + taxa_mensal)**prazo_meses) / ((1 + taxa_mensal)**prazo_meses - 1)
-        # SAC (Primeira Parcela)
-        amort_sac = valor_financiado / prazo_meses
-        juros_sac_1 = valor_financiado * taxa_mensal
-        pmt_sac_1 = amort_sac + juros_sac_1
-        return pmt_price, pmt_sac_1
+class MotorRecomendacao:
+    def __init__(self, df_finan, df_estoque, df_politicas):
+        self.df_finan = df_finan
+        self.df_estoque = df_estoque
+        self.df_politicas = df_politicas
 
-    @staticmethod
-    def obter_enquadramento(df_finan, renda, social, cotista):
-        if df_finan.empty: return 0.0, 0.0
-        df_finan['Renda'] = pd.to_numeric(df_finan['Renda'], errors='coerce').fillna(0)
-        idx = (df_finan['Renda'] - renda).abs().idxmin()
-        row = df_finan.iloc[idx]
+    def obter_enquadramento(self, renda, social, cotista):
+        if self.df_finan.empty: return 0.0, 0.0
+        self.df_finan['Renda'] = pd.to_numeric(self.df_finan['Renda'], errors='coerce').fillna(0)
+        idx = (self.df_finan['Renda'] - renda).abs().idxmin()
+        row = self.df_finan.iloc[idx]
         s_suf, c_suf = ('Sim' if social else 'Nao'), ('Sim' if cotista else 'Nao')
-        return float(row.get(f"Finan_Social_{s_suf}_Cotista_{c_suf}", 0)), float(row.get(f"Subsidio_Social_{s_suf}_Cotista_{c_suf}", 0))
+        c_finan = f"Finan_Social_{s_suf}_Cotista_{c_suf}"
+        c_sub = f"Subsidio_Social_{s_suf}_Cotista_{c_suf}"
+        return float(row.get(c_finan, 0)), float(row.get(c_sub, 0))
+
+    def calcular_poder_compra(self, renda, finan, fgts_sub, perc_ps, valor_unidade):
+        pro_soluto_unidade = valor_unidade * perc_ps
+        poder = (2 * renda) + finan + fgts_sub + pro_soluto_unidade
+        return poder, pro_soluto_unidade
+
+    def filtrar_unidades_viaveis(self, renda, finan, fgts_sub, perc_ps):
+        if self.df_estoque.empty: return pd.DataFrame()
+        estoque_disp = self.df_estoque[self.df_estoque['Status'] == 'Disponível'].copy()
+        res = estoque_disp['Valor de Venda'].apply(lambda vv: self.calcular_poder_compra(renda, finan, fgts_sub, perc_ps, vv))
+        estoque_disp['Poder_Compra'] = [x[0] for x in res]
+        estoque_disp['PS_Unidade'] = [x[1] for x in res]
+        estoque_disp['Viavel'] = estoque_disp['Valor de Venda'] <= estoque_disp['Poder_Compra']
+        return estoque_disp[estoque_disp['Viavel']]
 
 # =============================================================================
-# 3. DESIGN E CSS (ELITE MOBILE OPTIMIZED)
+# 3. INTERFACE E DESIGN (ELITE TECNOLÓGICA)
 # =============================================================================
 
-def aplicar_estilo():
+def configurar_layout():
+    favicon = URL_FAVICON_RESERVA
+    if os.path.exists("favicon.png") and Image:
+        try:
+            favicon = Image.open("favicon.png")
+        except:
+            pass
+        
+    st.set_page_config(page_title="Simulador Direcional Elite", page_icon=favicon, layout="wide")
+    
     st.markdown(f"""
         <style>
-        @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;700;900&family=Inter:wght@400;600;700&display=swap');
-        html, body, [data-testid="stAppViewContainer"] {{ font-family: 'Inter', sans-serif; background-color: {COR_FUNDO}; }}
-        h1, h2, h3 {{ font-family: 'Montserrat', sans-serif; text-align: center; color: {COR_AZUL_ESC}; font-weight: 800; }}
+        @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800;900&family=Inter:wght@300;400;500;600;700&display=swap');
         
-        /* Mobile Native Optimization */
-        @media (max-width: 768px) {{
-            .block-container {{ padding: 1rem !important; }}
-            .stButton button {{ width: 100% !important; }}
-            .header-title {{ font-size: 1.8rem !important; }}
+        html, body, [data-testid="stAppViewContainer"] {{
+            font-family: 'Inter', sans-serif;
+            color: #1a1e26;
+            background-color: {COR_FUNDO};
+        }}
+        
+        h1, h2, h3, h4 {{
+            font-family: 'Montserrat', sans-serif !important;
+            text-align: center !important; 
+            color: {COR_AZUL_ESC} !important; 
+            font-weight: 800;
+            letter-spacing: -0.04em;
         }}
 
-        .progress-container {{ width: 100%; height: 6px; background: {COR_BORDA}; border-radius: 10px; margin-bottom: 30px; }}
-        .progress-bar {{ height: 100%; background: {COR_VERMELHO}; transition: width 0.5s; }}
+        .block-container {{ max-width: 1400px !important; padding: 4rem 2rem !important; }}
         
-        .card, .fin-box {{ 
-            background: white; padding: 25px; border-radius: 12px; border: 1px solid {COR_BORDA}; 
-            text-align: center; margin-bottom: 20px; transition: 0.3s;
-        }}
-        .card:hover {{ border-color: {COR_VERMELHO}; transform: translateY(-3px); box-shadow: 0 10px 20px rgba(0,0,0,0.05); }}
-        
-        .metric-label {{ font-size: 0.7rem; font-weight: 700; color: {COR_TEXTO_MUTED}; text-transform: uppercase; letter-spacing: 1px; }}
-        .metric-value {{ font-size: 1.4rem; font-weight: 800; color: {COR_AZUL_ESC}; font-family: 'Montserrat'; }}
-        
-        .whatsapp-btn {{
-            background: #25d366; color: white !important; border-radius: 8px; padding: 12px;
-            font-weight: 700; text-align: center; display: block; text-decoration: none; margin-top: 10px;
+        div[data-baseweb="input"] {{
+            border-radius: 8px !important;
+            border: 1px solid #e2e8f0 !important;
+            background-color: #ffffff !important;
+            transition: all 0.2s ease-in-out !important;
         }}
         
-        /* Badges */
-        .badge-ideal {{ background: {COR_AZUL_ESC}; color: white; padding: 4px 10px; border-radius: 20px; font-size: 0.6rem; font-weight: 700; }}
+        div[data-baseweb="input"]:focus-within {{
+            border-color: {COR_VERMELHO} !important;
+            box-shadow: 0 0 0 1px {COR_VERMELHO} !important;
+        }}
+
+        .stTextInput input, .stNumberInput input {{
+            padding: 14px 18px !important;
+            color: {COR_AZUL_ESC} !important;
+        }}
+        
+        div[data-testid="stNumberInput"] button:hover {{
+            background-color: {COR_VERMELHO} !important;
+            color: #ffffff !important;
+            border-color: {COR_VERMELHO} !important;
+        }}
+
+        div[data-testid="stToggle"] div[aria-checked="true"] {{
+            background-color: {COR_VERMELHO} !important;
+        }}
+        
+        div[data-baseweb="select"] > div {{
+            border-radius: 8px !important;
+            border: 1px solid #e2e8f0 !important;
+        }}
+
+        .header-container {{ 
+            text-align: center; 
+            padding: 70px 0; 
+            background: #ffffff; 
+            margin-bottom: 60px; 
+            border-radius: 0 0 40px 40px; 
+            border-bottom: 1px solid {COR_BORDA};
+            box-shadow: 0 15px 35px -20px rgba(0,44,93,0.1);
+            position: relative;
+        }}
+        .header-title {{ 
+            font-family: 'Montserrat', sans-serif;
+            color: {COR_AZUL_ESC}; 
+            font-size: 3rem; 
+            font-weight: 900; 
+            margin: 0; 
+            text-transform: uppercase; 
+            letter-spacing: 0.2em; 
+        }}
+        .header-subtitle {{ 
+            color: {COR_TEXTO_MUTED}; 
+            font-size: 1rem; 
+            font-weight: 600; 
+            margin-top: 15px; 
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
+        }}
+        
+        .card, .fin-box, .recommendation-card {{ 
+            background: #ffffff; 
+            padding: 40px; 
+            border-radius: 16px; 
+            border: 1px solid {COR_BORDA}; 
+            text-align: center;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+        }}
+        
+        .card:hover, .fin-box:hover, .recommendation-card:hover {{
+            transform: translateY(-4px);
+            border-color: {COR_VERMELHO};
+            box-shadow: 0 10px 30px -10px rgba(227,6,19,0.1);
+        }}
+        
+        .metric-label {{ color: {COR_TEXTO_MUTED} !important; font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.15em; margin-bottom: 12px; }}
+        .metric-value {{ color: {COR_AZUL_ESC} !important; font-size: 1.8rem; font-weight: 800; font-family: 'Montserrat', sans-serif; }}
+        
+        .inline-ref {{
+            font-size: 0.78rem;
+            color: #64748b;
+            margin-top: -15px;
+            margin-bottom: 15px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }}
+
+        .stButton button {{ 
+            font-family: 'Inter', sans-serif;
+            border-radius: 8px !important; 
+            padding: 20px 40px !important; 
+            font-weight: 700 !important; 
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            font-size: 0.8rem !important;
+            transition: all 0.2s ease !important;
+        }}
+
+        .stButton button[kind="primary"] {{ 
+            background: {COR_VERMELHO} !important; 
+            color: #ffffff !important;
+            border: none !important;
+        }}
+        .stButton button[kind="primary"]:hover {{ 
+            background: #c40510 !important;
+            box-shadow: 0 8px 20px -5px rgba(227, 6, 19, 0.4) !important;
+        }}
+        
+        .stButton button:not([kind="primary"]) {{ 
+            background: #ffffff !important; 
+            color: {COR_AZUL_ESC} !important;
+            border: 1px solid {COR_AZUL_ESC} !important;
+        }}
+        .stButton button:not([kind="primary"]):hover {{
+            border-color: {COR_VERMELHO} !important;
+            color: {COR_VERMELHO} !important;
+        }}
+        
+        [data-testid="stDataFrame"] {{
+            border: 1px solid {COR_BORDA} !important;
+            background: #ffffff;
+            padding: 8px;
+            border-radius: 12px;
+            box-shadow: 0 10px 30px -15px rgba(0,0,0,0.05);
+        }}
+
+        .footer {{ 
+            text-align: center; 
+            padding: 80px 0; 
+            color: {COR_TEXTO_MUTED} !important; 
+            font-size: 0.8rem; 
+            font-weight: 700;
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
+        }}
+        
+        .summary-header {{ 
+            font-family: 'Montserrat', sans-serif;
+            background: {COR_AZUL_ESC}; 
+            color: #ffffff !important; 
+            padding: 20px; 
+            border-radius: 12px 12px 0 0; 
+            font-weight: 800; 
+            text-align: center; 
+            text-transform: uppercase;
+            letter-spacing: 0.15em;
+            font-size: 0.9rem;
+        }}
+        .summary-body {{ 
+            background: #ffffff; 
+            padding: 40px; 
+            border: 1px solid {COR_BORDA}; 
+            border-radius: 0 0 12px 12px; 
+            margin-bottom: 40px; 
+            color: {COR_AZUL_ESC}; 
+        }}
+        
+        .custom-alert {{ 
+            background-color: {COR_AZUL_ESC}; 
+            padding: 25px; 
+            border-radius: 10px; 
+            margin-bottom: 30px; 
+            text-align: center; 
+            font-weight: 700; 
+            color: #ffffff !important; 
+        }}
+
+        div[data-baseweb="tab-list"] {{ justify-content: center !important; gap: 40px; margin-bottom: 40px; }}
+        button[data-baseweb="tab"] p {{ 
+            color: {COR_TEXTO_MUTED} !important; 
+            font-weight: 700 !important; 
+            font-family: 'Montserrat', sans-serif !important; 
+            font-size: 0.9rem !important; 
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+        }}
+        button[data-baseweb="tab"][aria-selected="true"] p {{ color: {COR_AZUL_ESC} !important; }}
+        div[data-baseweb="tab-highlight"] {{ background-color: {COR_VERMELHO} !important; height: 3px !important; }}
         </style>
     """, unsafe_allow_html=True)
 
 # =============================================================================
-# 4. INTERFACE PRINCIPAL
+# 4. FUNÇÃO PARA GERAR PDF (ESTILO PREMIUM EXECUTIVO)
 # =============================================================================
 
-def main():
-    aplicar_estilo()
-    df_finan, df_estoque, df_politicas = carregar_dados_sistema()
-    
-    if 'passo_simulacao' not in st.session_state: st.session_state.passo_simulacao = 'input'
-    if 'dados_cliente' not in st.session_state: st.session_state.dados_cliente = {}
-    if 'comparador' not in st.session_state: st.session_state.comparador = []
-
-    # Header
-    st.markdown(f'<div style="text-align:center; padding: 40px 0;"><h1 class="header-title">SIMULADOR DIRECIONAL ELITE</h1><p style="color:{COR_TEXTO_MUTED}; font-weight:700;">V55.0 - GESTÃO DE INTELIGÊNCIA IMOBILIÁRIA</p></div>', unsafe_allow_html=True)
-
-    # Barra de Progresso
-    passos = {'input': 20, 'potential': 40, 'guide': 60, 'payment_flow': 80, 'summary': 100}
-    st.markdown(f'<div class="progress-container"><div class="progress-bar" style="width: {passos[st.session_state.passo_simulacao]}%"></div></div>', unsafe_allow_html=True)
-
-    # --- ETAPA 1: ENTRADA ---
-    if st.session_state.passo_simulacao == 'input':
-        with st.container():
-            st.markdown("### 👤 Perfil do Investidor")
-            c1, c2 = st.columns(2)
-            nome = c1.text_input("Nome Completo", value=st.session_state.dados_cliente.get('nome', ""))
-            renda = c2.number_input("Renda Familiar Mensal (R$)", value=st.session_state.dados_cliente.get('renda', 4500.0), step=500.0)
-            
-            rank_opts = [r for r in df_politicas['CLASSIFICAÇÃO'].unique() if r != "EMCASH"]
-            ranking = c1.selectbox("Classificação Interna", rank_opts)
-            pol_ps = c2.selectbox("Política Financeira", ["Emcash", "Direcional"], index=0)
-            
-            s1, s2 = st.columns(2)
-            social = s1.toggle("Beneficiário Social", value=True)
-            cotista = s2.toggle("Conta FGTS (+3 anos)", value=True)
-            
-            if st.button("CALCULAR POTENCIAL DE COMPRA", type="primary", use_container_width=True):
-                if not nome: st.warning("Por favor, insira o nome."); st.stop()
-                finan, sub = MotorElite.obter_enquadramento(df_finan, renda, social, cotista)
-                pol_ativa = "EMCASH" if pol_ps == "Emcash" else ranking
-                p_row = df_politicas[df_politicas['CLASSIFICAÇÃO'] == pol_ativa].iloc[0]
-                lim_renda = p_row['FX_RENDA_1'] if renda < p_row['FAIXA_RENDA'] else p_row['FX_RENDA_2']
-                
-                st.session_state.dados_cliente.update({
-                    'nome': nome, 'renda': renda, 'social': social, 'cotista': cotista, 'ranking': ranking,
-                    'politica': pol_ps, 'perc_ps': p_row['PROSOLUTO'], 'prazo_ps': int(p_row['PARCELAS']),
-                    'finan_est': finan, 'sub_est': sub, 'lim_renda': lim_renda
-                })
-                st.session_state.passo_simulacao = 'potential'; st.rerun()
-
-    # --- ETAPA 2: POTENCIAL ---
-    elif st.session_state.passo_simulacao == 'potential':
-        d = st.session_state.dados_cliente
-        st.markdown(f"### 📈 Análise de Crédito: {d['nome']}")
+def gerar_resumo_pdf(d):
+    if not PDF_ENABLED:
+        return None
         
-        # Simulação Reversa
-        with st.expander("🔄 SIMULAÇÃO REVERSA: QUANTO POSSO PAGAR POR MÊS?"):
-            pmt_desejada = st.slider("Parcela Mensal Pro Soluto Ideal:", 100, 3000, 800)
-            valor_ps_possivel = pmt_desejada * d['prazo_ps']
-            v_imovel_est = (valor_ps_possivel + d['finan_est'] + d['sub_est'] + (2*d['renda']))
-            st.info(f"Com uma parcela de R$ {fmt_br(pmt_desejada)}, seu potencial de compra sobe para aprox. R$ {fmt_br(v_imovel_est)}")
-
-        # Gráfico Gauge de Poder de Compra
-        fig_g = go.Figure(go.Indicator(
-            mode = "gauge+number", value = d['finan_est'] + d['sub_est'] + (2*d['renda']),
-            domain = {'x': [0, 1], 'y': [0, 1]}, title = {'text': "Poder de Aquisição Imediato (R$)"},
-            gauge = {'axis': {'range': [None, 400000]}, 'bar': {'color': COR_VERMELHO}, 'steps': [{'range': [0, 200000], 'color': "lightgray"}]}
-        ))
-        fig_g.update_layout(height=250, margin=dict(l=20,r=20,t=40,b=20))
-        st.plotly_chart(fig_g, use_container_width=True)
-
-        c1, c2, c3 = st.columns(3)
-        c1.markdown(f'<div class="card"><p class="metric-label">Financiamento</p><p class="metric-value">R$ {fmt_br(d["finan_est"])}</p></div>', unsafe_allow_html=True)
-        c2.markdown(f'<div class="card"><p class="metric-label">Subsídio + FGTS</p><p class="metric-value">R$ {fmt_br(d["sub_est"])}</p></div>', unsafe_allow_html=True)
-        c3.markdown(f'<div class="card"><p class="metric-label">Prazo Pro Soluto</p><p class="metric-value">{d["prazo_ps"]} Meses</p></div>', unsafe_allow_html=True)
-
-        if st.button("VER UNIDADES DISPONÍVEIS", type="primary", use_container_width=True):
-            st.session_state.passo_simulacao = 'guide'; st.rerun()
-        if st.button("VOLTAR E EDITAR"): st.session_state.passo_simulacao = 'input'; st.rerun()
-
-    # --- ETAPA 3: GUIA (ESTOQUE & COMPARADOR) ---
-    elif st.session_state.passo_simulacao == 'guide':
-        d = st.session_state.dados_cliente
-        st.markdown("### 🏢 Seleção de Unidades e Comparador")
-        
-        df_v = df_estoque[df_estoque['Status'] == 'Disponível'].copy()
-        df_v['Poder'] = d['finan_est'] + d['sub_est'] + (2*d['renda']) + (df_v['Valor de Venda']*d['perc_ps'])
-        df_v['Viavel'] = df_v['Valor de Venda'] <= df_v['Poder']
-        df_v = df_v.sort_values(['Bloco', 'Identificador'])
-
-        # Filtros Mobile-Friendly
-        f_emp = st.selectbox("Filtrar Empreendimento", ["Todos"] + list(df_v['Empreendimento'].unique()))
-        df_f = df_v if f_emp == "Todos" else df_v[df_v['Empreendimento'] == f_emp]
-
-        # Comparador
-        st.markdown("#### Comparar Unidades (Selecione até 3)")
-        cols_comp = st.multiselect("Selecione as unidades para comparar:", df_f['Identificador'].tolist(), max_selections=3)
-        if cols_comp:
-            df_comp = df_f[df_f['Identificador'].isin(cols_comp)]
-            st.table(df_comp[['Identificador', 'Bloco', 'Andar', 'Valor de Venda']].assign(
-                Mensal_Est = lambda x: (x['Valor de Venda']*d['perc_ps'])/d['prazo_ps']
-            ).rename(columns={'Mensal_Est': 'Mensal PS (Est.)'}))
-
-        st.markdown("---")
-        # Lista com Botão de Seleção
-        for _, row in df_f.head(10).iterrows():
-            with st.container():
-                col_i, col_b = st.columns([4, 1])
-                badge = "✅ VIÁVEL" if row['Viavel'] else "❌ INV."
-                col_i.markdown(f"**Bloco {row['Bloco']} - Unid {row['Identificador']}** | R$ {fmt_br(row['Valor de Venda'])} | {badge}")
-                if col_b.button("SELECIONAR", key=f"sel_{row['Identificador']}"):
-                    st.session_state.dados_cliente.update({'unidade_id': row['Identificador'], 'imovel_valor': row['Valor de Venda'], 'empreendimento_nome': row['Empreendimento'], 'bloco_u': row['Bloco']})
-                    st.session_state.passo_simulacao = 'payment_flow'; st.rerun()
-
-        if st.button("VOLTAR"): st.session_state.passo_simulacao = 'potential'; st.rerun()
-
-    # --- ETAPA 4: FECHAMENTO (SAC vs PRICE) ---
-    elif st.session_state.passo_simulacao == 'payment_flow':
-        d = st.session_state.dados_cliente
-        st.markdown(f"### 💵 Fechamento Financeiro: {d['unidade_id']}")
-        
-        f_u = st.number_input("Financiamento Bancário (R$)", value=float(d['finan_est']))
-        sub_u = st.number_input("FGTS + Subsídio (R$)", value=float(d['sub_est']))
-        ps_u = st.number_input("Pro Soluto (R$)", value=float(d['imovel_valor']*d['perc_ps']))
-        parc_u = st.number_input("Parcelas Pro Soluto", value=d['prazo_ps'], min_value=1)
-        
-        saldo_ato = d['imovel_valor'] - f_u - sub_u - ps_u
-        v_mensal_ps = ps_u / parc_u
-
-        # Tabela SAC vs PRICE
-        with st.expander("📊 COMPARATIVO DE AMORTIZAÇÃO BANCÁRIA (ESTIMADO)"):
-            taxa_banco = st.number_input("Taxa de Juros Anual (%)", value=9.5)
-            p_price, p_sac = MotorElite.calcular_sac_price(f_u, 420, taxa_banco)
-            st.markdown(f"""
-            | Modalidade | Parcela Inicial (Est.) | Característica |
-            | :--- | :--- | :--- |
-            | **S.A.C** | R$ {fmt_br(p_sac)} | Parcelas decrescentes ao longo do tempo. |
-            | **PRICE** | R$ {fmt_br(p_price)} | Parcelas fixas durante todo o contrato. |
-            """)
-
-        st.session_state.dados_cliente.update({
-            'finan_usado': f_u, 'fgts_sub_usado': sub_u, 'ps_usado': ps_u, 'ps_parcelas': parc_u,
-            'ps_mensal': v_mensal_ps, 'entrada_total': saldo_ato, 'ato_final': saldo_ato
-        })
-
-        if st.button("GERAR PROPOSTA FINAL", type="primary", use_container_width=True):
-            st.session_state.passo_simulacao = 'summary'; st.rerun()
-        if st.button("TROCAR UNIDADE"): st.session_state.passo_simulacao = 'guide'; st.rerun()
-
-    # --- ETAPA 5: RESUMO ---
-    elif st.session_state.passo_simulacao == 'summary':
-        d = st.session_state.dados_cliente
-        st.markdown(f"### 🏆 Resumo da Simulação: {d['nome']}")
-        
-        # Gráfico Donut de Composição
-        fig_d = go.Figure(data=[go.Pie(
-            labels=['Financiamento', 'FGTS/Sub', 'Pro Soluto', 'Entrada'],
-            values=[d['finan_usado'], d['fgts_sub_usado'], d['ps_usado'], d['entrada_total']],
-            hole=.6, marker=dict(colors=[COR_AZUL_ESC, '#64748b', COR_VERMELHO, '#eef2f6'])
-        )])
-        fig_d.update_layout(height=300, margin=dict(l=0,r=0,t=0,b=0), showlegend=True, legend=dict(orientation="h", y=-0.1))
-        st.plotly_chart(fig_d, use_container_width=True)
-
-        st.markdown('<div class="summary-header">DETALHES DO PLANO</div>', unsafe_allow_html=True)
-        st.markdown(f"""<div class="summary-body">
-            <b>Empreendimento:</b> {d['empreendimento_nome']}<br>
-            <b>Unidade:</b> Bloco {d['bloco_u']} - {d['unidade_id']}<br>
-            <b>Valor de Venda:</b> R$ {fmt_br(d['imovel_valor'])}<hr>
-            <b>Mensais Pro Soluto:</b> {d['ps_parcelas']}x R$ {fmt_br(d['ps_mensal'])}<br>
-            <b>Entrada (Ato):</b> R$ {fmt_br(d['entrada_total'])}
-        </div>""", unsafe_allow_html=True)
-
-        if PDF_ENABLED:
-            pdf_b = gerar_resumo_pdf(d)
-            if pdf_b: st.download_button("📩 BAIXAR PROPOSTA PDF", data=pdf_b, file_name=f"Proposta_{d['nome']}.pdf", use_container_width=True)
-        
-        st.markdown(f'<a href="https://wa.me/?text={gerar_texto_whatsapp(d)}" target="_blank" class="whatsapp-btn">📱 ENVIAR PARA WHATSAPP</a>', unsafe_allow_html=True)
-        
-        if st.button("NOVA SIMULAÇÃO", type="primary", use_container_width=True):
-            st.session_state.dados_cliente = {}; st.session_state.passo_simulacao = 'input'; st.rerun()
-
-    st.markdown(f'<div style="text-align:center; padding: 40px; color:{COR_TEXTO_MUTED}; font-size:0.7rem;">Direcional Engenharia - Rio de Janeiro | Developed by Lucas Maia</div>', unsafe_allow_html=True)
-
-if __name__ == "__main__":
-    main()    PDF_ENABLED = True
-except ImportError:
-    PDF_ENABLED = False
-
-# =============================================================================
-# 0. CONSTANTES E UTILITÁRIOS
-# =============================================================================
-ID_FINAN = "1wJD3tXe1e8FxL4mVEfNKGdtaS__Dl4V6-sm1G6qfL0s"
-ID_RANKING = "1N00McOjO1O_MuKyQhp-CVhpAet_9Lfq-VqVm1FmPV00"
-ID_ESTOQUE = "1VG-hgBkddyssN1OXgIA33CVsKGAdqT-5kwbgizxWDZQ"
-
-URL_FINAN = f"https://docs.google.com/spreadsheets/d/{ID_FINAN}/edit#gid=0"
-URL_RANKING = f"https://docs.google.com/spreadsheets/d/{ID_RANKING}/edit#gid=0"
-URL_ESTOQUE = f"https://docs.google.com/spreadsheets/d/{ID_ESTOQUE}/edit#gid=0"
-
-URL_FAVICON_RESERVA = "https://direcional.com.br/wp-content/uploads/2021/04/cropped-favicon-direcional-32x32.png"
-
-COR_AZUL_ESC = "#002c5d"
-COR_VERMELHO = "#e30613"
-COR_FUNDO = "#fcfdfe"
-COR_BORDA = "#eef2f6"
-COR_TEXTO_MUTED = "#64748b"
-
-def fmt_br(valor):
-    """Formata números para o padrão brasileiro XXX.XXX,XX"""
     try:
-        return f"{valor:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
-    except:
-        return "0,00"
+        pdf = FPDF()
+        pdf.add_page()
+        pdf.set_auto_page_break(auto=True, margin=15)
+        
+        AZUL_RGB = (0, 44, 93)
+        VERMELHO_RGB = (227, 6, 19)
+        BRANCO_RGB = (255, 255, 255)
+        CINZA_RGB = (100, 116, 139)
+        FUNDO_SECAO = (248, 250, 252)
 
-def gerar_texto_whatsapp(d):
-    """Gera texto formatado para envio via WhatsApp"""
-    texto = (
-        f"*SIMULAÇÃO IMOBILIÁRIA - DIRECIONAL*\n"
-        f"Olá, {d.get('nome', 'Cliente')}! Segue o resumo da sua simulação:\n\n"
-        f"🏠 *IMÓVEL*: {d.get('empreendimento_nome')}\n"
-        f"📍 *UNIDADE*: Bloco {d.get('bloco_u', '-')} - {d.get('unidade_id')}\n"
-        f"💰 *VALOR*: R$ {fmt_br(d.get('imovel_valor', 0))}\n\n"
-        f"💳 *FINANCEIRO*:\n"
-        f"• Financiamento: R$ {fmt_br(d.get('finan_usado', 0))}\n"
-        f"• FGTS/Subsídio: R$ {fmt_br(d.get('fgts_sub_usado', 0))}\n"
-        f"• Pro Soluto: {d.get('ps_parcelas')}x de R$ {fmt_br(d.get('ps_mensal', 0))}\n\n"
-        f"🚀 *ENTRADA (ATO)*:\n"
-        f"• Total: R$ {fmt_br(d.get('entrada_total', 0))}\n"
-        f"• Ato Imediato: R$ {fmt_br(d.get('ato_final', 0))}\n\n"
-        f"_Simulação sujeita a aprovação de crédito._"
+        pdf.set_fill_color(*AZUL_RGB)
+        pdf.rect(0, 0, 210, 3, 'F')
+
+        # Logótipo no PDF
+        if os.path.exists("favicon.png"):
+            pdf.image("favicon.png", 10, 8, 10)
+        
+        pdf.ln(15)
+        pdf.set_text_color(*AZUL_RGB)
+        pdf.set_font("Helvetica", 'B', 22)
+        pdf.cell(0, 12, "RELATÓRIO DE VIABILIDADE", ln=True, align='C')
+        pdf.set_text_color(*CINZA_RGB)
+        pdf.set_font("Helvetica", '', 9)
+        pdf.cell(0, 6, "SIMULADOR IMOBILIÁRIO DV - DOCUMENTO EXECUTIVO", ln=True, align='C')
+        pdf.ln(15)
+
+        pdf.set_fill_color(*FUNDO_SECAO)
+        pdf.rect(10, pdf.get_y(), 190, 24, 'F')
+        pdf.set_xy(15, pdf.get_y() + 6)
+        pdf.set_text_color(*AZUL_RGB)
+        pdf.set_font("Helvetica", 'B', 13)
+        pdf.cell(0, 6, f"CLIENTE: {d.get('nome', 'Nao informado').upper()}", ln=True)
+        pdf.set_x(15)
+        pdf.set_font("Helvetica", '', 10)
+        pdf.cell(0, 6, f"Renda Familiar: R$ {fmt_br(d.get('renda', 0))}", ln=True)
+        pdf.ln(15)
+
+        def adicionar_secao_pdf(titulo):
+            pdf.set_fill_color(*AZUL_RGB)
+            pdf.set_text_color(*BRANCO_RGB)
+            pdf.set_font("Helvetica", 'B', 10)
+            pdf.cell(0, 10, f"   {titulo}", ln=True, fill=True)
+            pdf.ln(4)
+
+        def adicionar_linha_detalhe(label, valor, destaque=False):
+            pdf.set_x(15)
+            pdf.set_text_color(*AZUL_RGB)
+            pdf.set_font("Helvetica", '', 10)
+            pdf.cell(110, 9, label, border=0)
+            
+            if destaque:
+                pdf.set_text_color(*VERMELHO_RGB)
+                pdf.set_font("Helvetica", 'B', 10)
+            else:
+                pdf.set_font("Helvetica", 'B', 10)
+                
+            pdf.cell(0, 9, valor, border=0, ln=True, align='R')
+            pdf.set_draw_color(241, 245, 249)
+            pdf.line(15, pdf.get_y(), 195, pdf.get_y())
+
+        adicionar_secao_pdf("DADOS DO IMÓVEL")
+        adicionar_linha_detalhe("Empreendimento", d.get('empreendimento_nome'))
+        adicionar_linha_detalhe("Unidade Selecionada", d.get('unidade_id'))
+        adicionar_linha_detalhe("Valor de Venda do Imovel", f"R$ {fmt_br(d.get('imovel_valor', 0))}", destaque=True)
+        pdf.ln(8)
+
+        adicionar_secao_pdf("ENGENHARIA FINANCEIRA")
+        adicionar_linha_detalhe("Financiamento Bancário Estimado", f"R$ {fmt_br(d.get('finan_usado', 0))}")
+        adicionar_linha_detalhe("Subsídio + FGTS Utilizado", f"R$ {fmt_br(d.get('fgts_sub_usado', 0))}")
+        adicionar_linha_detalhe("Pro Soluto Direcional", f"R$ {fmt_br(d.get('ps_usado', 0))}")
+        adicionar_linha_detalhe("Mensalidade Pro Soluto", f"{d.get('ps_parcelas')}x de R$ {fmt_br(d.get('ps_mensal', 0))}")
+        pdf.ln(8)
+
+        adicionar_secao_pdf("PLANO DE ENTRADA (FLUXO DE CAIXA)")
+        adicionar_linha_detalhe("VALOR TOTAL DE ENTRADA", f"R$ {fmt_br(d.get('entrada_total', 0))}", destaque=True)
+        adicionar_linha_detalhe("Parcela de Ato (Imediato)", f"R$ {fmt_br(d.get('ato_final', 0))}")
+        adicionar_linha_detalhe("Parcela 30 Dias", f"R$ {fmt_br(d.get('ato_30', 0))}")
+        adicionar_linha_detalhe("Parcela 60 Dias", f"R$ {fmt_br(d.get('ato_60', 0))}")
+        adicionar_linha_detalhe("Parcela 90 Dias", f"R$ {fmt_br(d.get('ato_90', 0))}")
+
+        pdf.set_y(-25)
+        pdf.set_font("Helvetica", 'I', 7)
+        pdf.set_text_color(*CINZA_RGB)
+        pdf.cell(0, 4, "Simulação sujeita a aprovação de crédito e alteração de tabela sem aviso prévio.", ln=True, align='C')
+        pdf.cell(0, 4, "Direcional Engenharia - Rio de Janeiro", ln=True, align='C')
+
+        return bytes(pdf.output())
+    except Exception:
+        return None
+
+# =============================================================================
+# 5. COMPONENTES DE INTERAÇÃO
+# =============================================================================
+
+def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
+    passo_atual = st.session_state.get('passo_simulacao', 'init')
+    components.html(
+        f"""
+        <div id="scroll-anchor-{passo_atual}"></div>
+        <script>
+            var mainContainer = window.parent.document.querySelector('.main');
+            if (mainContainer) {{
+                mainContainer.scrollTo({{top: 0, behavior: 'smooth'}});
+            }}
+            window.parent.window.scrollTo({{top: 0, behavior: 'smooth'}});
+        </script>
+        """,
+        height=0
     )
-    return urllib.parse.quote(texto)
 
-# =============================================================================
-# 1. CARREGAMENTO E TRATAMENTO DE DADOS
-# =============================================================================
-
-@st.cache_data(ttl=300)
-def carregar_dados_sistema():
-    try:
-        if "connections" not in st.secrets:
-            st.error("Aviso: Configuração de 'Secrets' não encontrada.")
-            return pd.DataFrame(), pd.DataFrame(), pd.DataFrame()
-        conn = st.connection("gsheets", type=GSheetsConnection)
-        
-        def limpar_moeda(val):
-            if isinstance(val, str):
-                val = val.replace('R$', '').replace('.', '').replace(',', '.').strip()
-            try: return float(val) if float(val) > 0 else 0.0
-            except: return 0.0
-
-        def limpar_porcentagem(val):
-            if isinstance(val, str):
-                v = val.replace('%', '').replace(',', '.').strip()
-                try: 
-                    n = float(v)
-                    return n / 100 if n > 1 else n
-                except: return 0.0
-            return val
-
-        try:
-            df_politicas = conn.read(spreadsheet=URL_RANKING).rename(columns={'FAIXA RENDA': 'FAIXA_RENDA', 'FX RENDA 1': 'FX_RENDA_1', 'FX RENDA 2': 'FX_RENDA_2'})
-            for col in ['PROSOLUTO', 'FX_RENDA_1', 'FX_RENDA_2']:
-                if col in df_politicas.columns: df_politicas[col] = df_politicas[col].apply(limpar_porcentagem)
-        except: df_politicas = pd.DataFrame()
-
-        try: df_finan = conn.read(spreadsheet=URL_FINAN)
-        except: df_finan = pd.DataFrame()
-
-        try:
-            df_raw = conn.read(spreadsheet=URL_ESTOQUE)
-            df_estoque = df_raw.rename(columns={'Nome do Empreendimento': 'Empreendimento', 'VALOR DE VENDA': 'Valor de Venda', 'Status da unidade': 'Status', 'BLOCO': 'Bloco'})
-            df_estoque['Valor de Venda'] = df_estoque['Valor de Venda'].apply(limpar_moeda)
-            df_estoque = df_estoque[(df_estoque['Valor de Venda'] > 0) & (df_estoque['Empreendimento'].notnull())].copy()
-            if 'Bairro' not in df_estoque.columns: df_estoque['Bairro'] = "Rio de Janeiro"
-            if 'Identificador' not in df_estoque.columns: df_estoque['Identificador'] = df_estoque.index.astype(str)
-            if 'Bloco' not in df_estoque.columns: df_estoque['Bloco'] = "1"
-        except: df_estoque = pd.DataFrame()
-
-        return df_finan, df_estoque, df_politicas
-    except Exception as e:
-        st.error(f"Erro de conexão: {e}")
-        return pd.DataFrame(), pd.DataFrame(), pd.DataFrame()
-
-# =============================================================================
-# 2. MOTOR DE CÁLCULO E AMORTIZAÇÃO
-# =============================================================================
-
-class MotorElite:
-    @staticmethod
-    def calcular_sac_price(valor_financiado, prazo_meses, taxa_anual):
-        taxa_mensal = (1 + taxa_anual/100)**(1/12) - 1
-        # PRICE
-        pmt_price = valor_financiado * (taxa_mensal * (1 + taxa_mensal)**prazo_meses) / ((1 + taxa_mensal)**prazo_meses - 1)
-        # SAC (Primeira Parcela)
-        amort_sac = valor_financiado / prazo_meses
-        juros_sac_1 = valor_financiado * taxa_mensal
-        pmt_sac_1 = amort_sac + juros_sac_1
-        return pmt_price, pmt_sac_1
-
-    @staticmethod
-    def obter_enquadramento(df_finan, renda, social, cotista):
-        if df_finan.empty: return 0.0, 0.0
-        df_finan['Renda'] = pd.to_numeric(df_finan['Renda'], errors='coerce').fillna(0)
-        idx = (df_finan['Renda'] - renda).abs().idxmin()
-        row = df_finan.iloc[idx]
-        s_suf, c_suf = ('Sim' if social else 'Nao'), ('Sim' if cotista else 'Nao')
-        return float(row.get(f"Finan_Social_{s_suf}_Cotista_{c_suf}", 0)), float(row.get(f"Subsidio_Social_{s_suf}_Cotista_{c_suf}", 0))
-
-# =============================================================================
-# 3. DESIGN E CSS (ELITE MOBILE OPTIMIZED)
-# =============================================================================
-
-def aplicar_estilo():
-    st.markdown(f"""
-        <style>
-        @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;700;900&family=Inter:wght@400;600;700&display=swap');
-        html, body, [data-testid="stAppViewContainer"] {{ font-family: 'Inter', sans-serif; background-color: {COR_FUNDO}; }}
-        h1, h2, h3 {{ font-family: 'Montserrat', sans-serif; text-align: center; color: {COR_AZUL_ESC}; font-weight: 800; }}
-        
-        /* Mobile Native Optimization */
-        @media (max-width: 768px) {{
-            .block-container {{ padding: 1rem !important; }}
-            .stButton button {{ width: 100% !important; }}
-            .header-title {{ font-size: 1.8rem !important; }}
-        }}
-
-        .progress-container {{ width: 100%; height: 6px; background: {COR_BORDA}; border-radius: 10px; margin-bottom: 30px; }}
-        .progress-bar {{ height: 100%; background: {COR_VERMELHO}; transition: width 0.5s; }}
-        
-        .card, .fin-box {{ 
-            background: white; padding: 25px; border-radius: 12px; border: 1px solid {COR_BORDA}; 
-            text-align: center; margin-bottom: 20px; transition: 0.3s;
-        }}
-        .card:hover {{ border-color: {COR_VERMELHO}; transform: translateY(-3px); box-shadow: 0 10px 20px rgba(0,0,0,0.05); }}
-        
-        .metric-label {{ font-size: 0.7rem; font-weight: 700; color: {COR_TEXTO_MUTED}; text-transform: uppercase; letter-spacing: 1px; }}
-        .metric-value {{ font-size: 1.4rem; font-weight: 800; color: {COR_AZUL_ESC}; font-family: 'Montserrat'; }}
-        
-        .whatsapp-btn {{
-            background: #25d366; color: white !important; border-radius: 8px; padding: 12px;
-            font-weight: 700; text-align: center; display: block; text-decoration: none; margin-top: 10px;
-        }}
-        
-        /* Badges */
-        .badge-ideal {{ background: {COR_AZUL_ESC}; color: white; padding: 4px 10px; border-radius: 20px; font-size: 0.6rem; font-weight: 700; }}
-        </style>
-    """, unsafe_allow_html=True)
-
-# =============================================================================
-# 4. INTERFACE PRINCIPAL
-# =============================================================================
-
-def main():
-    aplicar_estilo()
-    df_finan, df_estoque, df_politicas = carregar_dados_sistema()
+    motor = MotorRecomendacao(df_finan, df_estoque, df_politicas)
     
-    if 'passo_simulacao' not in st.session_state: st.session_state.passo_simulacao = 'input'
-    if 'dados_cliente' not in st.session_state: st.session_state.dados_cliente = {}
-    if 'comparador' not in st.session_state: st.session_state.comparador = []
+    if 'passo_simulacao' not in st.session_state:
+        st.session_state.passo_simulacao = 'input'
+    if 'dados_cliente' not in st.session_state:
+        st.session_state.dados_cliente = {}
 
-    # Header
-    st.markdown(f'<div style="text-align:center; padding: 40px 0;"><h1 class="header-title">SIMULADOR DIRECIONAL ELITE</h1><p style="color:{COR_TEXTO_MUTED}; font-weight:700;">V55.0 - GESTÃO DE INTELIGÊNCIA IMOBILIÁRIA</p></div>', unsafe_allow_html=True)
-
-    # Barra de Progresso
-    passos = {'input': 20, 'potential': 40, 'guide': 60, 'payment_flow': 80, 'summary': 100}
-    st.markdown(f'<div class="progress-container"><div class="progress-bar" style="width: {passos[st.session_state.passo_simulacao]}%"></div></div>', unsafe_allow_html=True)
-
-    # --- ETAPA 1: ENTRADA ---
+    # --- ETAPA 1 ---
     if st.session_state.passo_simulacao == 'input':
-        with st.container():
-            st.markdown("### 👤 Perfil do Investidor")
-            c1, c2 = st.columns(2)
-            nome = c1.text_input("Nome Completo", value=st.session_state.dados_cliente.get('nome', ""))
-            renda = c2.number_input("Renda Familiar Mensal (R$)", value=st.session_state.dados_cliente.get('renda', 4500.0), step=500.0)
-            
-            rank_opts = [r for r in df_politicas['CLASSIFICAÇÃO'].unique() if r != "EMCASH"]
-            ranking = c1.selectbox("Classificação Interna", rank_opts)
-            pol_ps = c2.selectbox("Política Financeira", ["Emcash", "Direcional"], index=0)
-            
-            s1, s2 = st.columns(2)
-            social = s1.toggle("Beneficiário Social", value=True)
-            cotista = s2.toggle("Conta FGTS (+3 anos)", value=True)
-            
-            if st.button("CALCULAR POTENCIAL DE COMPRA", type="primary", use_container_width=True):
-                if not nome: st.warning("Por favor, insira o nome."); st.stop()
-                finan, sub = MotorElite.obter_enquadramento(df_finan, renda, social, cotista)
-                pol_ativa = "EMCASH" if pol_ps == "Emcash" else ranking
-                p_row = df_politicas[df_politicas['CLASSIFICAÇÃO'] == pol_ativa].iloc[0]
-                lim_renda = p_row['FX_RENDA_1'] if renda < p_row['FAIXA_RENDA'] else p_row['FX_RENDA_2']
+        st.markdown("### Dados do Cliente")
+        nome = st.text_input("Nome do Cliente", value=st.session_state.dados_cliente.get('nome', ""), placeholder="Nome Completo", key="in_nome_v23")
+        renda = st.number_input("Renda Familiar", min_value=1.0, value=st.session_state.dados_cliente.get('renda', 3500.0), step=100.0, key="in_renda_v23")
+        
+        ranking_options = [r for r in df_politicas['CLASSIFICAÇÃO'].unique().tolist() if r != "EMCASH"] if not df_politicas.empty else ["DIAMANTE"]
+        ranking = st.selectbox("Ranking do Cliente", options=ranking_options, index=0, key="in_rank_v23")
+        politica_ps = st.selectbox("Política de Pro Soluto", ["Direcional", "Emcash"], key="in_pol_v23")
+        social = st.toggle("Fator Social", value=st.session_state.dados_cliente.get('social', False), key="in_soc_v23")
+        cotista = st.toggle("Cotista FGTS", value=st.session_state.dados_cliente.get('cotista', True), key="in_cot_v23")
+        
+        if st.button("Avançar para Valor Potencial de Compra", type="primary", use_container_width=True, key="btn_s1_v23"):
+            if not nome.strip():
+                st.markdown(f'<div class="custom-alert">Por favor, informe o Nome do Cliente para continuar.</div>', unsafe_allow_html=True)
+            elif any(char.isdigit() for char in nome):
+                st.markdown(f'<div class="custom-alert">Nome Invalido. Por favor, insira um nome valido sem numeros.</div>', unsafe_allow_html=True)
+            else:
+                finan, sub = motor.obter_enquadramento(renda, social, cotista)
+                class_b = 'EMCASH' if politica_ps == "Emcash" else ranking
+                politica_row = df_politicas[df_politicas['CLASSIFICAÇÃO'] == class_b].iloc[0]
+                limit_ps_r = politica_row['FX_RENDA_1'] if renda < politica_row['FAIXA_RENDA'] else politica_row['FX_RENDA_2']
                 
-                st.session_state.dados_cliente.update({
-                    'nome': nome, 'renda': renda, 'social': social, 'cotista': cotista, 'ranking': ranking,
-                    'politica': pol_ps, 'perc_ps': p_row['PROSOLUTO'], 'prazo_ps': int(p_row['PARCELAS']),
-                    'finan_est': finan, 'sub_est': sub, 'lim_renda': lim_renda
-                })
-                st.session_state.passo_simulacao = 'potential'; st.rerun()
+                st.session_state.dados_cliente = {
+                    'nome': nome, 'renda': renda, 'social': social, 'cotista': cotista,
+                    'ranking': ranking, 'politica': politica_ps, 
+                    'perc_ps': politica_row['PROSOLUTO'], 
+                    'prazo_ps_max': int(politica_row['PARCELAS']),
+                    'limit_ps_renda': limit_ps_r, 'finan_estimado': finan, 'fgts_sub': sub
+                }
+                st.session_state.passo_simulacao = 'potential'
+                st.rerun()
 
-    # --- ETAPA 2: POTENCIAL ---
+    # --- ETAPA 2 ---
     elif st.session_state.passo_simulacao == 'potential':
         d = st.session_state.dados_cliente
-        st.markdown(f"### 📈 Análise de Crédito: {d['nome']}")
+        st.markdown(f"### Valor Potencial de Compra - {d['nome'] or 'Cliente'}")
         
-        # Simulação Reversa
-        with st.expander("🔄 SIMULAÇÃO REVERSA: QUANTO POSSO PAGAR POR MÊS?"):
-            pmt_desejada = st.slider("Parcela Mensal Pro Soluto Ideal:", 100, 3000, 800)
-            valor_ps_possivel = pmt_desejada * d['prazo_ps']
-            v_imovel_est = (valor_ps_possivel + d['finan_est'] + d['sub_est'] + (2*d['renda']))
-            st.info(f"Com uma parcela de R$ {fmt_br(pmt_desejada)}, seu potencial de compra sobe para aprox. R$ {fmt_br(v_imovel_est)}")
+        df_pot = df_estoque[df_estoque['Status'] == 'Disponível']
+        ps_min_total = df_pot['Valor de Venda'].min() * d['perc_ps']
+        ps_max_total = df_pot['Valor de Venda'].max() * d['perc_ps']
+        dobro_renda = 2 * d['renda']
+        pot_min = d['finan_estimado'] + d['fgts_sub'] + ps_min_total + dobro_renda
+        pot_max = d['finan_estimado'] + d['fgts_sub'] + ps_max_total + dobro_renda
+        
+        m1, m2, m3, m4 = st.columns(4)
+        with m1: st.markdown(f'<div class="card"><p class="metric-label">Financiamento</p><p class="metric-value">R$ {fmt_br(d["finan_estimado"])}</p></div>', unsafe_allow_html=True)
+        with m2: st.markdown(f'<div class="card"><p class="metric-label">FGTS + Subsídio</p><p class="metric-value">R$ {fmt_br(d["fgts_sub"])}</p></div>', unsafe_allow_html=True)
+        with m3: st.markdown(f'<div class="card"><p class="metric-label">Pro Soluto</p><p class="metric-value">R$ {fmt_br(ps_min_total)} a {fmt_br(ps_max_total)}</p></div>', unsafe_allow_html=True)
+        with m4: st.markdown(f'<div class="card"><p class="metric-label">Capacidade de Entrada</p><p class="metric-value">R$ {fmt_br(dobro_renda)}</p></div>', unsafe_allow_html=True)
 
-        # Gráfico Gauge de Poder de Compra
-        fig_g = go.Figure(go.Indicator(
-            mode = "gauge+number", value = d['finan_est'] + d['sub_est'] + (2*d['renda']),
-            domain = {'x': [0, 1], 'y': [0, 1]}, title = {'text': "Poder de Aquisição Imediato (R$)"},
-            gauge = {'axis': {'range': [None, 400000]}, 'bar': {'color': COR_VERMELHO}, 'steps': [{'range': [0, 200000], 'color': "lightgray"}]}
-        ))
-        fig_g.update_layout(height=250, margin=dict(l=20,r=20,t=40,b=20))
-        st.plotly_chart(fig_g, use_container_width=True)
-
-        c1, c2, c3 = st.columns(3)
-        c1.markdown(f'<div class="card"><p class="metric-label">Financiamento</p><p class="metric-value">R$ {fmt_br(d["finan_est"])}</p></div>', unsafe_allow_html=True)
-        c2.markdown(f'<div class="card"><p class="metric-label">Subsídio + FGTS</p><p class="metric-value">R$ {fmt_br(d["sub_est"])}</p></div>', unsafe_allow_html=True)
-        c3.markdown(f'<div class="card"><p class="metric-label">Prazo Pro Soluto</p><p class="metric-value">{d["prazo_ps"]} Meses</p></div>', unsafe_allow_html=True)
-
-        if st.button("VER UNIDADES DISPONÍVEIS", type="primary", use_container_width=True):
+        st.markdown(f"""
+            <div class="card" style="border-top: 4px solid {COR_AZUL_ESC}; background: #ffffff; min-height: 120px;">
+                <p class="metric-label" style="color: {COR_AZUL_ESC}; font-size: 0.8rem;">Poder de Aquisição Estimado</p>
+                <p class="metric-value" style="font-size: 2.8rem; color: {COR_AZUL_ESC};">R$ {fmt_br(pot_min)} a R$ {fmt_br(pot_max)}</p>
+            </div>
+        """, unsafe_allow_html=True)
+        
+        if st.button("Avançar para Seleção de Imóvel", type="primary", use_container_width=True, key="btn_s2_v23"):
             st.session_state.passo_simulacao = 'guide'; st.rerun()
-        if st.button("VOLTAR E EDITAR"): st.session_state.passo_simulacao = 'input'; st.rerun()
+        st.write("")
+        if st.button("Voltar para Dados do Cliente", use_container_width=True, key="btn_edit_v23"):
+            st.session_state.passo_simulacao = 'input'; st.rerun()
 
-    # --- ETAPA 3: GUIA (ESTOQUE & COMPARADOR) ---
+    # --- ETAPA 3 ---
     elif st.session_state.passo_simulacao == 'guide':
         d = st.session_state.dados_cliente
-        st.markdown("### 🏢 Seleção de Unidades e Comparador")
+        st.markdown(f"### Seleção de Imóvel")
         
-        df_v = df_estoque[df_estoque['Status'] == 'Disponível'].copy()
-        df_v['Poder'] = d['finan_est'] + d['sub_est'] + (2*d['renda']) + (df_v['Valor de Venda']*d['perc_ps'])
-        df_v['Viavel'] = df_v['Valor de Venda'] <= df_v['Poder']
-        df_v = df_v.sort_values(['Bloco', 'Identificador'])
+        df_disp_total = df_estoque[df_estoque['Status'] == 'Disponível'].copy()
+        res = df_disp_total['Valor de Venda'].apply(lambda vv: motor.calcular_poder_compra(d['renda'], d['finan_estimado'], d['fgts_sub'], d['perc_ps'], vv))
+        df_disp_total['Poder_Compra'] = [x[0] for x in res]
+        df_disp_total['PS_Unidade'] = [x[1] for x in res]
+        df_disp_total['Viavel'] = df_disp_total['Valor de Venda'] <= df_disp_total['Poder_Compra']
+        df_disp_total['Status Viabilidade'] = df_disp_total['Viavel'].apply(lambda x: "Viavel" if x else "Inviavel")
+        
+        df_viaveis = df_disp_total[df_disp_total['Viavel']].copy()
+        
+        st.markdown("#### Empreendimentos Viáveis")
+        if df_viaveis.empty:
+            st.info("Sem produtos viaveis no perfil selecionado.")
+        else:
+            emp_counts = df_viaveis.groupby('Empreendimento').size().to_dict()
+            items = list(emp_counts.items())
+            cols_per_row = 3
+            for i in range(0, len(items), cols_per_row):
+                row_items = items[i:i+cols_per_row]
+                row_cols = st.columns(len(row_items))
+                for idx, (emp, qtd) in enumerate(row_items):
+                    with row_cols[idx]:
+                        st.markdown(f"""
+                            <div class="card" style="min-height: 100px; padding: 20px; border-top: 3px solid {COR_VERMELHO};">
+                                <p style="margin:0; font-weight:700; color:{COR_AZUL_ESC};">{emp}</p>
+                                <p style="margin:5px 0 0 0; font-size:0.85rem; color:{COR_TEXTO_MUTED};">{qtd} unidades disponiveis</p>
+                            </div>
+                        """, unsafe_allow_html=True)
 
-        # Filtros Mobile-Friendly
-        f_emp = st.selectbox("Filtrar Empreendimento", ["Todos"] + list(df_v['Empreendimento'].unique()))
-        df_f = df_v if f_emp == "Todos" else df_v[df_v['Empreendimento'] == f_emp]
+        st.write("")
+        tab_rec, tab_list = st.tabs(["Sugestões de Unidades", "Estoque Geral"])
+        
+        with tab_rec:
+            if df_viaveis.empty:
+                st.info("Nenhuma unidade atende ao poder de compra atual.")
+            else:
+                emp_rec = st.selectbox("Refinar Sugestões:", options=["Todos"] + sorted(df_viaveis['Empreendimento'].unique().tolist()), key="sel_emp_v23")
+                df_filt_rec = df_viaveis if emp_rec == "Todos" else df_viaveis[df_viaveis['Empreendimento'] == emp_rec]
+                df_filt_rec = df_filt_rec.sort_values('Valor de Venda', ascending=False)
+                
+                if not df_filt_rec.empty:
+                    r100, r90, r75 = df_filt_rec.iloc[0], df_filt_rec.iloc[len(df_filt_rec)//2], df_filt_rec.iloc[-1]
+                    c1, c2, c3 = st.columns(3)
+                    with c1: st.markdown(f'<div class="recommendation-card" style="border-top: 4px solid {COR_AZUL_ESC};"><b>IDEAL</b><br><small>{r100["Empreendimento"]}</small><br>{r100["Identificador"]}<br><span class="price-tag">R$ {fmt_br(r100["Valor de Venda"])}</span></div>', unsafe_allow_html=True)
+                    with c2: st.markdown(f'<div class="recommendation-card" style="border-top: 4px solid {COR_VERMELHO};"><b>SEGURO</b><br><small>{r90["Empreendimento"]}</small><br>{r90["Identificador"]}<br><span class="price-tag">R$ {fmt_br(r90["Valor de Venda"])}</span></div>', unsafe_allow_html=True)
+                    with c3: st.markdown(f'<div class="recommendation-card" style="border-top: 4px solid {COR_AZUL_ESC};"><b>FACILITADO</b><br><small>{r75["Empreendimento"]}</small><br>{r75["Identificador"]}<br><span class="price-tag">R$ {fmt_br(r75["Valor de Venda"])}</span></div>', unsafe_allow_html=True)
 
-        # Comparador
-        st.markdown("#### Comparar Unidades (Selecione até 3)")
-        cols_comp = st.multiselect("Selecione as unidades para comparar:", df_f['Identificador'].tolist(), max_selections=3)
-        if cols_comp:
-            df_comp = df_f[df_f['Identificador'].isin(cols_comp)]
-            st.table(df_comp[['Identificador', 'Bloco', 'Andar', 'Valor de Venda']].assign(
-                Mensal_Est = lambda x: (x['Valor de Venda']*d['perc_ps'])/d['prazo_ps']
-            ).rename(columns={'Mensal_Est': 'Mensal PS (Est.)'}))
+        with tab_list:
+            f1, f2, f3, f4, f5, f6 = st.columns([1.2, 1, 0.7, 1.1, 0.9, 0.8])
+            with f1: f_emp = st.multiselect("Empreendimento:", options=sorted(df_disp_total['Empreendimento'].unique()), key="f_emp_tab_v25")
+            with f2: f_bairro = st.multiselect("Bairro:", options=sorted(df_disp_total['Bairro'].unique()), key="f_bairro_tab_v25")
+            with f3: f_andar = st.multiselect("Andar:", options=sorted(df_disp_total['Andar'].unique()), key="f_andar_tab_v25")
+            with f4: f_status_v = st.multiselect("Viabilidade:", options=["Viavel", "Inviavel"], key="f_status_tab_v25")
+            with f5: f_ordem = st.selectbox("Ordem:", ["Maior Preço", "Menor Preço"], key="f_ordem_tab_v25")
+            with f6: f_pmax = st.number_input("Preço Máx:", value=float(df_disp_total['Valor de Venda'].max()), key="f_pmax_tab_v25")
+            
+            df_tab = df_disp_total.copy()
+            if f_emp: df_tab = df_tab[df_tab['Empreendimento'].isin(f_emp)]
+            if f_bairro: df_tab = df_tab[df_tab['Bairro'].isin(f_bairro)]
+            if f_andar: df_tab = df_tab[df_tab['Andar'].isin(f_andar)]
+            if f_status_v: df_tab = df_tab[df_tab['Status Viabilidade'].isin(f_status_v)]
+            df_tab = df_tab[df_tab['Valor de Venda'] <= f_pmax]
+            df_tab = df_tab.sort_values('Valor de Venda', ascending=(f_ordem == "Menor Preço"))
+            
+            # Aplicando formatação visual para a tabela
+            df_tab_view = df_tab.copy()
+            df_tab_view['Valor de Venda'] = df_tab_view['Valor de Venda'].apply(fmt_br)
+            df_tab_view['Poder_Compra'] = df_tab_view['Poder_Compra'].apply(fmt_br)
+
+            st.dataframe(
+                df_tab_view[['Identificador', 'Empreendimento', 'Bairro', 'Andar', 'Valor de Venda', 'Poder_Compra', 'Status Viabilidade']], 
+                use_container_width=True, 
+                hide_index=True,
+                column_config={
+                    "Identificador": st.column_config.TextColumn("Unidade", width="small"),
+                    "Empreendimento": st.column_config.TextColumn("Projeto", width="medium"),
+                    "Bairro": st.column_config.TextColumn("Localizacao", width="medium"),
+                    "Andar": st.column_config.NumberColumn("Pavimento", format="%dº", width="small"),
+                    "Valor de Venda": st.column_config.TextColumn("Valor de Tabela (R$)", width="medium"),
+                    "Poder_Compra": st.column_config.TextColumn("Teto de Aquisicao (R$)", width="medium"),
+                    "Status Viabilidade": st.column_config.TextColumn("Viabilidade", width="small")
+                }
+            )
 
         st.markdown("---")
-        # Lista com Botão de Seleção
-        for _, row in df_f.head(10).iterrows():
-            with st.container():
-                col_i, col_b = st.columns([4, 1])
-                badge = "✅ VIÁVEL" if row['Viavel'] else "❌ INV."
-                col_i.markdown(f"**Bloco {row['Bloco']} - Unid {row['Identificador']}** | R$ {fmt_br(row['Valor de Venda'])} | {badge}")
-                if col_b.button("SELECIONAR", key=f"sel_{row['Identificador']}"):
-                    st.session_state.dados_cliente.update({'unidade_id': row['Identificador'], 'imovel_valor': row['Valor de Venda'], 'empreendimento_nome': row['Empreendimento'], 'bloco_u': row['Bloco']})
-                    st.session_state.passo_simulacao = 'payment_flow'; st.rerun()
+        st.markdown("### Unidade Selecionada")
+        
+        def label_emp_guide(name):
+            sub = df_estoque[(df_estoque['Empreendimento'] == name) & (df_estoque['Status'] == 'Disponível')]
+            if sub.empty: return name
+            return f"{name} (R$ {fmt_br(sub['Valor de Venda'].min())} a R$ {fmt_br(sub['Valor de Venda'].max())})"
 
-        if st.button("VOLTAR"): st.session_state.passo_simulacao = 'potential'; st.rerun()
+        def label_uni_guide(uid, unidades_context):
+            u_row = unidades_context[unidades_context['Identificador'] == uid].iloc[0]
+            return f"{uid} (R$ {fmt_br(u_row['Valor de Venda'])})"
 
-    # --- ETAPA 4: FECHAMENTO (SAC vs PRICE) ---
+        emp_names = sorted(df_estoque[df_estoque['Status'] == 'Disponível']['Empreendimento'].unique())
+        col_sel1, col_sel2 = st.columns(2)
+        with col_sel1:
+            emp_escolhido = st.selectbox("Escolha o Empreendimento:", options=emp_names, format_func=label_emp_guide, key="sel_emp_guide_v26")
+        unidades_disp = df_estoque[(df_estoque['Empreendimento'] == emp_escolhido) & (df_estoque['Status'] == 'Disponível')]
+        with col_sel2:
+            if unidades_disp.empty:
+                st.warning("Sem estoque disponivel.")
+                uni_escolhida_id = None
+            else:
+                uni_escolhida_id = st.selectbox("Escolha a Unidade:", options=unidades_disp['Identificador'].unique(), 
+                                               format_func=lambda x: label_uni_guide(x, unidades_disp), key="sel_uni_guide_v26")
+
+        st.write("")
+        if st.button("Avançar para Fechamento Financeiro", type="primary", use_container_width=True, key="btn_fech_v26"):
+            if uni_escolhida_id:
+                st.session_state.dados_cliente['unidade_id'] = uni_escolhida_id
+                st.session_state.dados_cliente['empreendimento_nome'] = emp_escolhido
+                st.session_state.passo_simulacao = 'payment_flow'
+                st.rerun()
+            else:
+                st.error("Por favor, selecione uma unidade.")
+        
+        if st.button("Voltar para Valor Potencial de Compra", use_container_width=True, key="btn_pot_v23"): 
+            st.session_state.passo_simulacao = 'potential'; st.rerun()
+
+    # --- ETAPA 4 ---
     elif st.session_state.passo_simulacao == 'payment_flow':
         d = st.session_state.dados_cliente
-        st.markdown(f"### 💵 Fechamento Financeiro: {d['unidade_id']}")
+        st.markdown(f"### Fechamento Financeiro")
         
-        f_u = st.number_input("Financiamento Bancário (R$)", value=float(d['finan_est']))
-        sub_u = st.number_input("FGTS + Subsídio (R$)", value=float(d['sub_est']))
-        ps_u = st.number_input("Pro Soluto (R$)", value=float(d['imovel_valor']*d['perc_ps']))
-        parc_u = st.number_input("Parcelas Pro Soluto", value=d['prazo_ps'], min_value=1)
+        u_id = d.get('unidade_id')
+        emp_name = d.get('empreendimento_nome')
+        unidades_filtradas = df_estoque[(df_estoque['Empreendimento'] == emp_name) & (df_estoque['Identificador'] == u_id)]
         
-        saldo_ato = d['imovel_valor'] - f_u - sub_u - ps_u
-        v_mensal_ps = ps_u / parc_u
+        if unidades_filtradas.empty:
+            st.error("Falha ao recuperar unidade.")
+            if st.button("Voltar para Seleção de Imóvel"): st.session_state.passo_simulacao = 'guide'; st.rerun()
+        else:
+            u = unidades_filtradas.iloc[0]
+            st.markdown(f'<div class="custom-alert">Unidade Selecionada: {u["Identificador"]} - {u["Empreendimento"]} (R$ {fmt_br(u["Valor de Venda"])})</div>', unsafe_allow_html=True)
+            
+            # Inputs com referências solicitadas
+            f_u = st.number_input("Financiamento Bancário", value=float(d['finan_estimado']), step=1000.0, key="fin_u_v23")
+            st.markdown(f'<p class="inline-ref">Financiamento Aprovado: R$ {fmt_br(d["finan_estimado"])}</p>', unsafe_allow_html=True)
+            
+            fgts_u = st.number_input("FGTS + Subsídio", value=float(d['fgts_sub']), step=1000.0, key="fgt_u_v23")
+            st.markdown(f'<p class="inline-ref">Subsídio Aprovado: R$ {fmt_br(d["fgts_sub"])}</p>', unsafe_allow_html=True)
+            
+            ps_max_real = u['Valor de Venda'] * d['perc_ps']
+            ps_u = st.number_input("Pro Soluto Direcional", value=float(ps_max_real), step=1000.0, key="ps_u_v23")
+            st.markdown(f'<p class="inline-ref">PS Máximo ({int(d["perc_ps"]*100)}%): R$ {fmt_br(ps_max_real)}</p>', unsafe_allow_html=True)
+            
+            parc = st.number_input("Número de Parcelas Pro Soluto", min_value=1, max_value=d['prazo_ps_max'], value=d['prazo_ps_max'], key="parc_u_v23")
+            st.markdown(f'<p class="inline-ref">Parcelamento Máximo: {d["prazo_ps_max"]}x</p>', unsafe_allow_html=True)
+            
+            v_parc = ps_u / parc
+            comp_r = (v_parc / d['renda'])
+            saldo_e = u['Valor de Venda'] - f_u - fgts_u - ps_u
 
-        # Tabela SAC vs PRICE
-        with st.expander("📊 COMPARATIVO DE AMORTIZAÇÃO BANCÁRIA (ESTIMADO)"):
-            taxa_banco = st.number_input("Taxa de Juros Anual (%)", value=9.5)
-            p_price, p_sac = MotorElite.calcular_sac_price(f_u, 420, taxa_banco)
-            st.markdown(f"""
-            | Modalidade | Parcela Inicial (Est.) | Característica |
-            | :--- | :--- | :--- |
-            | **S.A.C** | R$ {fmt_br(p_sac)} | Parcelas decrescentes ao longo do tempo. |
-            | **PRICE** | R$ {fmt_br(p_price)} | Parcelas fixas durante todo o contrato. |
-            """)
+            calc_hash = f"{f_u}-{fgts_u}-{ps_u}-{u_id}"
+            if 'last_calc_hash' not in st.session_state or st.session_state.last_calc_hash != calc_hash:
+                dist_val = max(0.0, saldo_e / 4)
+                st.session_state.ato_1 = dist_val
+                st.session_state.ato_2 = dist_val
+                st.session_state.ato_3 = dist_val
+                st.session_state.ato_4 = dist_val
+                st.session_state.last_calc_hash = calc_hash
+            
+            fin1, fin2, fin3 = st.columns(3)
+            with fin1: st.markdown(f"""<div class="fin-box" style="border-top: 6px solid {COR_AZUL_ESC};"><b>VALOR DO IMÓVEL</b><br>R$ {fmt_br(u['Valor de Venda'])}</div>""", unsafe_allow_html=True)
+            with fin2: st.markdown(f"""<div class="fin-box" style="border-top: 6px solid {COR_VERMELHO};"><b>MENSALIDADE PS</b><br>R$ {fmt_br(v_parc)} ({parc}x)</div>""", unsafe_allow_html=True)
+            with fin3: st.markdown(f"""<div class="fin-box" style="border-top: 6px solid {COR_AZUL_ESC};"><b>SALDO DE ENTRADA</b><br>R$ {fmt_br(max(0, saldo_e))}</div>""", unsafe_allow_html=True)
+            
+            if comp_r > d['limit_ps_renda']:
+                st.warning(f"Atenção: Parcela Pro Soluto excede o limite de {d['limit_ps_renda']*100:.0f}% da renda.")
 
-        st.session_state.dados_cliente.update({
-            'finan_usado': f_u, 'fgts_sub_usado': sub_u, 'ps_usado': ps_u, 'ps_parcelas': parc_u,
-            'ps_mensal': v_mensal_ps, 'entrada_total': saldo_ato, 'ato_final': saldo_ato
-        })
+            if saldo_e > 0:
+                st.markdown("#### Distribuição da Entrada")
+                col_a, col_b = st.columns(2)
+                with col_a:
+                    st.session_state.ato_1 = st.number_input("Ato", value=st.session_state.ato_1, key="ato_1_v24")
+                    st.session_state.ato_3 = st.number_input("Ato 60", value=st.session_state.ato_3, key="ato_3_v24")
+                with col_b:
+                    st.session_state.ato_2 = st.number_input("Ato 30", value=st.session_state.ato_2, key="ato_2_v24")
+                    st.session_state.ato_4 = st.number_input("Ato 90", value=st.session_state.ato_4, key="ato_4_v24")
+                
+                soma_entrada = st.session_state.ato_1 + st.session_state.ato_2 + st.session_state.ato_3 + st.session_state.ato_4
+                if abs(soma_entrada - saldo_e) > 0.01:
+                    st.error(f"Erro na Distribuição: A soma das parcelas (R$ {fmt_br(soma_entrada)}) difere do saldo de entrada.")
+            
+            st.session_state.dados_cliente.update({
+                'imovel_valor': u['Valor de Venda'], 'finan_usado': f_u, 'fgts_sub_usado': fgts_u,
+                'ps_usado': ps_u, 'ps_parcelas': parc, 'ps_mensal': v_parc, 'entrada_total': saldo_e,
+                'ato_final': st.session_state.ato_1, 'ato_30': st.session_state.ato_2,
+                'ato_60': st.session_state.ato_3, 'ato_90': st.session_state.ato_4
+            })
+        
+        st.markdown("---")
+        if st.button("Avançar para Resumo de Compra", type="primary", use_container_width=True, key="btn_to_summary"):
+            st.session_state.passo_simulacao = 'summary'
+            st.rerun()
+        if st.button("Voltar para Seleção de Imóvel", use_container_width=True, key="btn_back_to_guide"): 
+            st.session_state.passo_simulacao = 'guide'; st.rerun()
 
-        if st.button("GERAR PROPOSTA FINAL", type="primary", use_container_width=True):
-            st.session_state.passo_simulacao = 'summary'; st.rerun()
-        if st.button("TROCAR UNIDADE"): st.session_state.passo_simulacao = 'guide'; st.rerun()
-
-    # --- ETAPA 5: RESUMO ---
+    # --- ETAPA 5 ---
     elif st.session_state.passo_simulacao == 'summary':
         d = st.session_state.dados_cliente
-        st.markdown(f"### 🏆 Resumo da Simulação: {d['nome']}")
+        st.markdown(f"### Resumo da Simulação - {d.get('nome', 'Cliente')}")
         
-        # Gráfico Donut de Composição
-        fig_d = go.Figure(data=[go.Pie(
-            labels=['Financiamento', 'FGTS/Sub', 'Pro Soluto', 'Entrada'],
-            values=[d['finan_usado'], d['fgts_sub_usado'], d['ps_usado'], d['entrada_total']],
-            hole=.6, marker=dict(colors=[COR_AZUL_ESC, '#64748b', COR_VERMELHO, '#eef2f6'])
-        )])
-        fig_d.update_layout(height=300, margin=dict(l=0,r=0,t=0,b=0), showlegend=True, legend=dict(orientation="h", y=-0.1))
-        st.plotly_chart(fig_d, use_container_width=True)
-
-        st.markdown('<div class="summary-header">DETALHES DO PLANO</div>', unsafe_allow_html=True)
-        st.markdown(f"""<div class="summary-body">
-            <b>Empreendimento:</b> {d['empreendimento_nome']}<br>
-            <b>Unidade:</b> Bloco {d['bloco_u']} - {d['unidade_id']}<br>
-            <b>Valor de Venda:</b> R$ {fmt_br(d['imovel_valor'])}<hr>
-            <b>Mensais Pro Soluto:</b> {d['ps_parcelas']}x R$ {fmt_br(d['ps_mensal'])}<br>
-            <b>Entrada (Ato):</b> R$ {fmt_br(d['entrada_total'])}
-        </div>""", unsafe_allow_html=True)
-
         if PDF_ENABLED:
-            pdf_b = gerar_resumo_pdf(d)
-            if pdf_b: st.download_button("📩 BAIXAR PROPOSTA PDF", data=pdf_b, file_name=f"Proposta_{d['nome']}.pdf", use_container_width=True)
-        
-        st.markdown(f'<a href="https://wa.me/?text={gerar_texto_whatsapp(d)}" target="_blank" class="whatsapp-btn">📱 ENVIAR PARA WHATSAPP</a>', unsafe_allow_html=True)
-        
-        if st.button("NOVA SIMULAÇÃO", type="primary", use_container_width=True):
-            st.session_state.dados_cliente = {}; st.session_state.passo_simulacao = 'input'; st.rerun()
+            pdf_data = gerar_resumo_pdf(d)
+            if pdf_data:
+                _, col_btn_center, _ = st.columns([1, 1.2, 1])
+                with col_btn_center:
+                    st.download_button(
+                        label="Baixar Resumo em PDF", 
+                        data=pdf_data, 
+                        file_name=f"Resumo Direcional - {d.get('nome', 'Cliente')}.pdf", 
+                        mime="application/pdf",
+                        use_container_width=True,
+                        key="btn_download_pdf_final"
+                    )
 
-    st.markdown(f'<div style="text-align:center; padding: 40px; color:{COR_TEXTO_MUTED}; font-size:0.7rem;">Direcional Engenharia - Rio de Janeiro | Developed by Lucas Maia</div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="summary-header">DADOS DO IMÓVEL</div>', unsafe_allow_html=True)
+        st.markdown(f"""<div class="summary-body"><b>Empreendimento:</b> {d.get('empreendimento_nome')}<br>
+            <b>Unidade:</b> {d.get('unidade_id')}<br><b>Valor de Venda:</b> <span style="color: {COR_VERMELHO}; font-weight: 800;">R$ {fmt_br(d.get('imovel_valor', 0))}</span></div>""", unsafe_allow_html=True)
+
+        st.markdown(f'<div class="summary-header">PLANO DE FINANCIAMENTO</div>', unsafe_allow_html=True)
+        st.markdown(f"""<div class="summary-body"><b>Financiamento Bancário:</b> R$ {fmt_br(d.get('finan_usado', 0))}<br>
+            <b>FGTS + Subsídio:</b> R$ {fmt_br(d.get('fgts_sub_usado', 0))}<br>
+            <b>Pro Soluto Total:</b> R$ {fmt_br(d.get('ps_usado', 0))} ({d.get('ps_parcelas')}x de R$ {fmt_br(d.get('ps_mensal', 0))})</div>""", unsafe_allow_html=True)
+
+        st.markdown(f'<div class="summary-header">FLUXO DE ENTRADA (ATO)</div>', unsafe_allow_html=True)
+        st.markdown(f"""<div class="summary-body"><b>Total de Entrada:</b> R$ {fmt_br(d.get('entrada_total', 0))}<br><hr style="border: 0; border-top: 1px solid #e2e8f0; margin: 10px 0;">
+            <b>Ato:</b> R$ {fmt_br(d.get('ato_final', 0))}<br><b>Ato 30 Dias:</b> R$ {fmt_br(d.get('ato_30', 0))}<br>
+            <b>Ato 60 Dias:</b> R$ {fmt_br(d.get('ato_60', 0))}<br><b>Ato 90 Dias:</b> R$ {fmt_br(d.get('ato_90', 0))}</div>""", unsafe_allow_html=True)
+
+        st.markdown("---")
+        if st.button("Fazer Nova Simulação", type="primary", use_container_width=True, key="btn_new_client_summary"): 
+            st.session_state.dados_cliente = {}; st.session_state.passo_simulacao = 'input'; st.rerun()
+        if st.button("Voltar para Fechamento Financeiro", use_container_width=True, key="btn_edit_fin_summary"):
+            st.session_state.passo_simulacao = 'payment_flow'; st.rerun()
+
+def main():
+    configurar_layout()
+    df_finan, df_estoque, df_politicas = carregar_dados_sistema()
+    if df_finan.empty or df_estoque.empty:
+        st.warning("Aguardando conexão com base de dados...")
+        st.stop()
+    
+    logo_src = URL_FAVICON_RESERVA
+    if os.path.exists("favicon.png"):
+        try:
+            with open("favicon.png", "rb") as f:
+                encoded = base64.b64encode(f.read()).decode()
+                logo_src = f"data:image/png;base64,{encoded}"
+        except:
+            pass
+
+    st.markdown(f'''
+        <div class="header-container">
+            <img src="{logo_src}" style="position: absolute; top: 30px; left: 40px; height: 50px;">
+            <div class="header-title">SIMULADOR IMOBILIÁRIO DV</div>
+            <div class="header-subtitle">Sistema de Gestão de Vendas e Viabilidade Imobiliária</div>
+        </div>
+    ''', unsafe_allow_html=True)
+    
+    aba_simulador_automacao(df_finan, df_estoque, df_politicas)
+    st.markdown(f'<div class="footer">Direcional Engenharia - Rio de Janeiro | Developed by Lucas Maia</div>', unsafe_allow_html=True)
 
 if __name__ == "__main__":
     main()
