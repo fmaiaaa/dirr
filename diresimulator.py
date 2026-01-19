@@ -9,7 +9,7 @@ Fluxo Automatizado de Recomendação (Sequencial):
 3. Etapa 4: Fechamento Financeiro.
 5. Etapa 5: Resumo da Compra e Exportação PDF Profissional.
 
-Versão: 52.3 (Correção de Faixas de Financiamento F1/F2/F3 por Valor de Imóvel)
+Versão: 52.4 (Correção Leitura Financeira e Filtro Estoque Robusto)
 =============================================================================
 """
 
@@ -116,14 +116,13 @@ def carregar_dados_sistema():
             # 2. Carrega a lista de empreendimentos permitidos (Aba 'Página2')
             try:
                 df_filtro = conn.read(spreadsheet=URL_ESTOQUE, worksheet="Página2")
-                # Verifica se a coluna existe e extrai a lista
+                # Verifica se a coluna existe e extrai a lista. Normaliza para evitar erros de Case Sensitive.
                 if 'Nome do empreendimento' in df_filtro.columns:
-                    # Cria lista normalizada (string e sem espaços nas pontas)
-                    lista_permitidos = df_filtro['Nome do empreendimento'].dropna().astype(str).str.strip().unique()
+                    lista_permitidos = df_filtro['Nome do empreendimento'].dropna().astype(str).str.strip().str.upper().unique()
                 else:
-                    lista_permitidos = None
+                    lista_permitidos = [] # Se a coluna não existe, bloqueia tudo por segurança ou deixa vazio
             except Exception:
-                lista_permitidos = None
+                lista_permitidos = []
 
             df_estoque = df_raw.rename(columns={
                 'Nome do Empreendimento': 'Empreendimento',
@@ -132,10 +131,12 @@ def carregar_dados_sistema():
             })
             df_estoque['Valor de Venda'] = df_estoque['Valor de Venda'].apply(limpar_moeda)
             
-            # Aplica Filtro de Empreendimentos Permitidos (Se a lista foi carregada com sucesso)
-            if lista_permitidos is not None:
-                # Normaliza a coluna do estoque para garantir match
-                df_estoque = df_estoque[df_estoque['Empreendimento'].astype(str).str.strip().isin(lista_permitidos)]
+            # Aplica Filtro de Empreendimentos Permitidos (Se a lista foi carregada)
+            # Se lista_permitidos estiver vazia (erro na leitura da pág 2), assume que filtra tudo (segurança)
+            # ou avisa. Aqui assumiremos que se leu a aba, filtra.
+            if len(lista_permitidos) > 0:
+                # Normaliza a coluna do estoque também para garantir match
+                df_estoque = df_estoque[df_estoque['Empreendimento'].astype(str).str.strip().str.upper().isin(lista_permitidos)]
 
             df_estoque = df_estoque[
                 (df_estoque['Valor de Venda'] > 0) & 
@@ -180,8 +181,18 @@ class MotorRecomendacao:
         """
         if self.df_finan.empty: return {}
         
-        self.df_finan['Renda'] = pd.to_numeric(self.df_finan['Renda'], errors='coerce').fillna(0)
-        idx = (self.df_finan['Renda'] - renda).abs().idxmin()
+        # Limpeza robusta da coluna Renda para garantir que valores monetários (ex: "R$ 2.000,00") sejam lidos corretamente
+        if 'Renda' in self.df_finan.columns:
+            # Remove R$, remove pontos de milhar, troca virgula por ponto
+            self.df_finan['Renda_Num'] = self.df_finan['Renda'].astype(str).str.replace('R$', '', regex=False)
+            self.df_finan['Renda_Num'] = self.df_finan['Renda_Num'].str.replace('.', '', regex=False)
+            self.df_finan['Renda_Num'] = self.df_finan['Renda_Num'].str.replace(',', '.', regex=False)
+            self.df_finan['Renda_Num'] = pd.to_numeric(self.df_finan['Renda_Num'], errors='coerce').fillna(0)
+        else:
+             return {}
+
+        # Busca a renda mais próxima
+        idx = (self.df_finan['Renda_Num'] - renda).abs().idxmin()
         row = self.df_finan.iloc[idx]
         
         s_suf = 'Sim' if social else 'Nao'
@@ -191,9 +202,22 @@ class MotorRecomendacao:
         for faixa in ['F1', 'F2', 'F3']:
             col_finan = f"Finan_Social_{s_suf}_Cotista_{c_suf}_{faixa}"
             col_sub = f"Subsidio_Social_{s_suf}_Cotista_{c_suf}_{faixa}"
+            
+            # Limpeza também nos valores de financiamento/subsidio se vierem como string
+            val_finan = row.get(col_finan, 0)
+            val_sub = row.get(col_sub, 0)
+            
+            def safe_float(v):
+                if isinstance(v, (int, float)): return float(v)
+                if isinstance(v, str):
+                     v = v.replace('R$', '').replace('.', '').replace(',', '.').strip()
+                     try: return float(v)
+                     except: return 0.0
+                return 0.0
+
             perfil[faixa] = {
-                'finan': float(row.get(col_finan, 0)),
-                'sub': float(row.get(col_sub, 0))
+                'finan': safe_float(val_finan),
+                'sub': safe_float(val_sub)
             }
         return perfil
 
@@ -631,15 +655,15 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
         
         # Recupera valores de financiamento para cálculo de potencial (Min: F1, Max: F3)
         pf = d.get('perfil_finan', {})
-        # Assume cenário conservador (F1) para mínimo e otimista (F3) para máximo se disponível
-        finan_f1 = pf.get('F1', {}).get('finan', 0)
-        sub_f1 = pf.get('F1', {}).get('sub', 0)
-        finan_f3 = pf.get('F3', {}).get('finan', 0)
-        sub_f3 = pf.get('F3', {}).get('sub', 0)
         
-        # Para exibição no card de Financiamento, usamos o valor F3 (Teto máximo) como referência visual
-        finan_display = finan_f3 if finan_f3 > 0 else finan_f1
-        sub_display = sub_f3 if sub_f3 > 0 else sub_f1
+        # Intervalo de Financiamento (F1: Imóveis Baratos, F3: Imóveis Caros)
+        finan_min = pf.get('F1', {}).get('finan', 0)
+        finan_max = pf.get('F3', {}).get('finan', 0)
+        # Se F3 for 0 (caso raro ou erro de tabela), assumimos F1 como max também para não mostrar 0
+        if finan_max == 0 and finan_min > 0: finan_max = finan_min
+
+        # Subsídio (Considerado fixo para a renda, pegamos F1 como referência)
+        sub_val = pf.get('F1', {}).get('sub', 0)
         
         if df_pot.empty:
             st.warning("Não há empreendimentos disponíveis com os filtros atuais.")
@@ -651,15 +675,22 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
             
         dobro_renda = 2 * d['renda']
         
-        # Potencial Minimo (Usa parametros da Faixa 1 - imóveis mais baratos)
-        pot_min = finan_f1 + sub_f1 + ps_min_total + dobro_renda
-        # Potencial Maximo (Usa parametros da Faixa 3 - imóveis mais caros)
-        pot_max = finan_f3 + sub_f3 + ps_max_total + dobro_renda
+        # Potencial Minimo (Usa parametros da Faixa 1)
+        pot_min = finan_min + sub_val + ps_min_total + dobro_renda
+        # Potencial Maximo (Usa parametros da Faixa 3)
+        pot_max = finan_max + sub_val + ps_max_total + dobro_renda
         
         m1, m2, m3, m4 = st.columns(4)
-        with m1: st.markdown(f'<div class="card"><p class="metric-label">Financiamento (Teto)</p><p class="metric-value">R$ {fmt_br(finan_display)}</p></div>', unsafe_allow_html=True)
-        with m2: st.markdown(f'<div class="card"><p class="metric-label">FGTS + Subsídio (Est.)</p><p class="metric-value">R$ {fmt_br(sub_display)}</p></div>', unsafe_allow_html=True)
-        with m3: st.markdown(f'<div class="card"><p class="metric-label">Pro Soluto</p><p class="metric-value">R$ {fmt_br(ps_min_total)} a {fmt_br(ps_max_total)}</p></div>', unsafe_allow_html=True)
+        
+        # Exibição Financiamento como Range se houver variação
+        if abs(finan_max - finan_min) > 1.0:
+            finan_str = f"R$ {fmt_br(finan_min)} a {fmt_br(finan_max)}"
+        else:
+            finan_str = f"R$ {fmt_br(finan_max)}"
+            
+        with m1: st.markdown(f'<div class="card"><p class="metric-label">Financiamento</p><p class="metric-value" style="font-size: 1.4rem;">{finan_str}</p></div>', unsafe_allow_html=True)
+        with m2: st.markdown(f'<div class="card"><p class="metric-label">FGTS + Subsídio</p><p class="metric-value">R$ {fmt_br(sub_val)}</p></div>', unsafe_allow_html=True)
+        with m3: st.markdown(f'<div class="card"><p class="metric-label">Pro Soluto</p><p class="metric-value" style="font-size: 1.4rem;">R$ {fmt_br(ps_min_total)} a {fmt_br(ps_max_total)}</p></div>', unsafe_allow_html=True)
         with m4: st.markdown(f'<div class="card"><p class="metric-label">Capacidade de Entrada</p><p class="metric-value">R$ {fmt_br(dobro_renda)}</p></div>', unsafe_allow_html=True)
 
         st.markdown(f"""
