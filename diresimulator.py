@@ -668,7 +668,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
     # --- ETAPA 3: SELEÇÃO E RECOMENDAÇÃO ---
     elif st.session_state.passo_simulacao == 'guide':
         d = st.session_state.dados_cliente
-        st.markdown(f"### Seleção de Imóvel")
+        st.markdown(f"### Recomendação de Imóveis")
         
         df_disp_total = df_estoque[df_estoque['Status'] == 'Disponível'].copy()
         
@@ -689,7 +689,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
             
             df_viaveis = df_disp_total[df_disp_total['Viavel']].sort_values('Gap', ascending=False).copy()
         
-        st.markdown("#### Panorama de Produtos (Viáveis)")
+        st.markdown("#### Panorama de Produtos Viáveis")
         if df_viaveis.empty:
             st.info("Sem produtos viaveis no perfil selecionado para exibição automática.")
         else:
@@ -709,7 +709,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
                         """, unsafe_allow_html=True)
 
         st.write("")
-        tab_rec, tab_list = st.tabs(["Sugestões Inteligentes", "Estoque Geral"])
+        tab_rec, tab_list = st.tabs(["Sugestões de Unidades", "Estoque Geral"])
         
         with tab_rec:
             emp_names_rec = sorted(df_disp_total['Empreendimento'].unique().tolist())
@@ -738,7 +738,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
                     st.markdown(f'''<div class="recommendation-card" style="border-top: 4px solid {border_color}; padding: 15px; min-height: 80px;">
                         <span style="font-size:0.65rem; color:{COR_AZUL_ESC}; opacity:0.8;">PERFIL</span><br><b style="color:{COR_AZUL_ESC}; font-size:1.1rem;">{perfil_label}</b><br>
                         <small style="color:{COR_AZUL_ESC}; font-size:0.95rem;">{unid_ref["Empreendimento"]}</small><br>
-                        <span style="color:{COR_AZUL_ESC}; font-size:1.0rem;">Unid(s): {ids}</span><br>
+                        <span style="color:{COR_AZUL_ESC}; font-size:1.0rem;">Unidade(s): {ids}</span><br>
                         <div class="price-tag" style="font-size:1.3rem; margin:2px 0;">R$ {fmt_br(unid_ref["Valor de Venda"])}</div>
                         <small style="color:{COR_AZUL_ESC}; opacity:0.9; font-size:0.8rem;">{subtitulo}</small>
                     </div>''', unsafe_allow_html=True)
@@ -854,13 +854,13 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
         
         u_valor = d.get('imovel_valor', 0)
         u_aval = d.get('imovel_avaliacao', u_valor)
-        st.markdown(f'<div class="custom-alert">Unidade Selecionada: {d["unidade_id"]} - {d["empreendimento_nome"]} (R$ {fmt_br(u_valor)})<br><small style="font-weight:400;">Faixa do Imóvel (Base Avaliação Bancária R$ {fmt_br(u_aval)}): {d.get("faixa_unidade", "N/A")}</small></div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="custom-alert">Unidade Selecionada: {d["unidade_id"]} - {d["empreendimento_nome"]} (R$ {fmt_br(u_valor)})<br><small style="font-weight:400;">Faixa do Imóvel: {d.get("faixa_unidade", "N/A")}</small></div>', unsafe_allow_html=True)
         
         f_u = st.number_input("Financiamento Bancário", value=float(d['finan_estimado']), step=1000.0, key="fin_u_v28")
-        st.markdown(f'<span class="inline-ref">Referência Sugerida: R$ {fmt_br(d.get("finan_estimado", 0))}</span>', unsafe_allow_html=True)
+        st.markdown(f'<span class="inline-ref">Financiamento Aprovado: R$ {fmt_br(d.get("finan_estimado", 0))}</span>', unsafe_allow_html=True)
             
         fgts_u = st.number_input("FGTS + Subsídio", value=float(d['fgts_sub']), step=1000.0, key="fgt_u_v28")
-        st.markdown(f'<span class="inline-ref">Referência Sugerida: R$ {fmt_br(d.get("fgts_sub", 0))}</span>', unsafe_allow_html=True)
+        st.markdown(f'<span class="inline-ref">Subsídio Aprovado: R$ {fmt_br(d.get("fgts_sub", 0))}</span>', unsafe_allow_html=True)
         
         ps_max_real = u_valor * d['perc_ps']
         ps_u = st.number_input("Pro Soluto Direcional", value=float(ps_max_real), step=1000.0, key="ps_u_v28")
