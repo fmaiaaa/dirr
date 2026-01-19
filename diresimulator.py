@@ -4,9 +4,9 @@
 SISTEMA DE SIMULAÇÃO IMOBILIÁRIA - DIRE RIO V2 (MODIFICADO)
 =============================================================================
 Alterações Realizadas:
-1. Estoque Geral: Adicionado filtro por "Bairro" na aba de estoque.
-2. Organização Visual: Colunas de filtro ajustadas para comportar o novo seletor.
-3. Estilização: Mantida a cor Azul Escuro (#002c5d) para todos os textos.
+1. Ajuste Estético: Altura dos cards de recomendação sincronizada com o card de poder de compra (120px).
+2. Filtros: Mantida a organização em linha única na aba de estoque.
+3. Estilização: Cor Azul Escuro (#002c5d) para todos os textos.
 =============================================================================
 """
 
@@ -732,7 +732,8 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
                 facilitado = obter_melhor_ajuste(df_pool, df_pool['Poder_Compra'].mean() * 0.75)
 
                 def render_card(unid, perfil_label, subtitulo, border_color):
-                    st.markdown(f'''<div class="recommendation-card" style="border-top: 4px solid {border_color}; padding: 20px;">
+                    # Alterado min-height para 120px para alinhar com o card do poder de compra
+                    st.markdown(f'''<div class="recommendation-card" style="border-top: 4px solid {border_color}; padding: 20px; min-height: 120px;">
                         <span style="font-size:0.7rem; color:{COR_AZUL_ESC}; opacity:0.8;">PERFIL</span><br><b style="color:{COR_AZUL_ESC};">{perfil_label}</b><br>
                         <small style="color:{COR_AZUL_ESC};">{unid["Empreendimento"]}</small><br><span style="color:{COR_AZUL_ESC};">Unid. {unid["Identificador"]}</span><br>
                         <div class="price-tag">R$ {fmt_br(unid["Valor de Venda"])}</div>
@@ -763,19 +764,17 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
             if df_disp_total.empty:
                 st.info("Sem dados para exibir.")
             else:
-                # Seção de Filtros Ajustada para incluir Bairro
-                row_f1, row_f2 = st.columns([1, 1]), st.columns([1, 1, 1])
+                f_cols = st.columns([1.2, 1.5, 1, 1, 1])
                 
-                with row_f1[0]: 
+                with f_cols[0]: 
                     f_bairro = st.multiselect("Bairro:", options=sorted(df_disp_total['Bairro'].unique()), key="f_bairro_tab_v28")
-                with row_f1[1]:
+                with f_cols[1]:
                     f_emp = st.multiselect("Empreendimento:", options=sorted(df_disp_total['Empreendimento'].unique()), key="f_emp_tab_v28")
-                
-                with row_f2[0]:
+                with f_cols[2]:
                     f_status_v = st.multiselect("Viabilidade:", options=["Viavel", "Inviavel"], key="f_status_tab_v28")
-                with row_f2[1]:
+                with f_cols[3]:
                     f_ordem = st.selectbox("Ordem:", ["Maior Gap", "Menor Gap", "Maior Preço"], key="f_ordem_tab_v28")
-                with row_f2[2]:
+                with f_cols[4]:
                     f_pmax = st.number_input("Preço Máx:", value=float(df_disp_total['Valor de Venda'].max()), key="f_pmax_tab_v28")
                 
                 df_tab = df_disp_total.copy()
