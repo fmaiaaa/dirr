@@ -736,7 +736,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
                     ids = ", ".join(df_unids["Identificador"].astype(str).tolist())
                     unid_ref = df_unids.iloc[0]
                     # Altura reduzida de 120px para 100px conforme solicitado
-                    st.markdown(f'''<div class="recommendation-card" style="border-top: 4px solid {border_color}; padding: 15px; min-height: 100px;">
+                    st.markdown(f'''<div class="recommendation-card" style="border-top: 4px solid {border_color}; padding: 15px; min-height: 80px;">
                         <span style="font-size:0.65rem; color:{COR_AZUL_ESC}; opacity:0.8;">PERFIL</span><br><b style="color:{COR_AZUL_ESC}; font-size:0.9rem;">{perfil_label}</b><br>
                         <small style="color:{COR_AZUL_ESC}; font-size:0.75rem;">{unid_ref["Empreendimento"]}</small><br>
                         <span style="color:{COR_AZUL_ESC}; font-size:0.8rem;">Unid(s): {ids}</span><br>
