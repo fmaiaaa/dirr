@@ -4,9 +4,9 @@
 SISTEMA DE SIMULAÇÃO IMOBILIÁRIA - DIRE RIO V2 (MODIFICADO)
 =============================================================================
 Alterações Realizadas:
-1. Ajuste Estético: Altura dos cards de recomendação sincronizada com o card de poder de compra (120px).
-2. Filtros: Mantida a organização em linha única na aba de estoque.
-3. Estilização: Cor Azul Escuro (#002c5d) para todos os textos.
+1. Recomendações: Agora os cards exibem todas as unidades que possuem o valor recomendado.
+2. Ajuste Estético: Altura dos cards mantida em 120px e cores em azul escuro.
+3. Lógica de Faixa: Baseada no "Valor de Avaliação Bancária".
 =============================================================================
 """
 
@@ -720,45 +720,53 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
             if df_pool.empty:
                 st.info("Nenhuma unidade encontrada para este filtro.")
             else:
-                def obter_melhor_ajuste(df_base, limite_poder):
+                # Função alterada para retornar todas as unidades com o mesmo valor alvo
+                def obter_unidades_ajustadas(df_base, limite_poder):
                     dentro_orcamento = df_base[df_base['Valor de Venda'] <= limite_poder]
                     if not dentro_orcamento.empty:
-                        return dentro_orcamento.sort_values('Valor de Venda', ascending=False).iloc[0]
+                        # Identifica o maior valor que cabe no orçamento
+                        valor_alvo = dentro_orcamento['Valor de Venda'].max()
                     else:
-                        return df_base.sort_values('Valor de Venda', ascending=True).iloc[0]
+                        # Se nada cabe, identifica o valor da unidade mais barata do pool
+                        valor_alvo = df_base['Valor de Venda'].min()
+                    
+                    # Filtra todas as unidades que possuem exatamente esse valor de venda
+                    return df_base[df_base['Valor de Venda'] == valor_alvo]
 
-                ideal = obter_melhor_ajuste(df_pool, df_pool['Poder_Compra'].mean())
-                seguro = obter_melhor_ajuste(df_pool, df_pool['Poder_Compra'].mean() * 0.90)
-                facilitado = obter_melhor_ajuste(df_pool, df_pool['Poder_Compra'].mean() * 0.75)
+                df_ideal = obter_unidades_ajustadas(df_pool, df_pool['Poder_Compra'].mean())
+                df_seguro = obter_unidades_ajustadas(df_pool, df_pool['Poder_Compra'].mean() * 0.90)
+                df_facilitado = obter_unidades_ajustadas(df_pool, df_pool['Poder_Compra'].mean() * 0.75)
 
-                def render_card(unid, perfil_label, subtitulo, border_color):
-                    # Alterado min-height para 120px para alinhar com o card do poder de compra
+                def render_card(df_unids, perfil_label, subtitulo, border_color):
+                    ids = ", ".join(df_unids["Identificador"].astype(str).tolist())
+                    unid_ref = df_unids.iloc[0]
                     st.markdown(f'''<div class="recommendation-card" style="border-top: 4px solid {border_color}; padding: 20px; min-height: 120px;">
                         <span style="font-size:0.7rem; color:{COR_AZUL_ESC}; opacity:0.8;">PERFIL</span><br><b style="color:{COR_AZUL_ESC};">{perfil_label}</b><br>
-                        <small style="color:{COR_AZUL_ESC};">{unid["Empreendimento"]}</small><br><span style="color:{COR_AZUL_ESC};">Unid. {unid["Identificador"]}</span><br>
-                        <div class="price-tag">R$ {fmt_br(unid["Valor de Venda"])}</div>
+                        <small style="color:{COR_AZUL_ESC};">{unid_ref["Empreendimento"]}</small><br>
+                        <span style="color:{COR_AZUL_ESC}; font-size:0.85rem;">Unid(s): {ids}</span><br>
+                        <div class="price-tag">R$ {fmt_br(unid_ref["Valor de Venda"])}</div>
                         <small style="color:{COR_AZUL_ESC}; opacity:0.8;">{subtitulo}</small>
                     </div>''', unsafe_allow_html=True)
 
-                v100 = ideal['Valor de Venda']
-                v90 = seguro['Valor de Venda']
-                v75 = facilitado['Valor de Venda']
+                v100 = df_ideal.iloc[0]['Valor de Venda']
+                v90 = df_seguro.iloc[0]['Valor de Venda']
+                v75 = df_facilitado.iloc[0]['Valor de Venda']
 
                 if v100 == v90 == v75:
-                    render_card(ideal, "IDEAL / SEGURO / FACILITADO", "Unidade atende a todas as faixas de poder", COR_AZUL_ESC)
+                    render_card(df_ideal, "IDEAL / SEGURO / FACILITADO", "Unidades atendem a todas as faixas de poder", COR_AZUL_ESC)
                 elif v90 == v75:
                     c1, c2 = st.columns(2)
-                    with c1: render_card(ideal, "IDEAL", "100% do Poder de Compra", COR_AZUL_ESC)
-                    with c2: render_card(seguro, "SEGURO & FACILITADO", "90% a 75% do Poder de Compra", COR_VERMELHO)
+                    with c1: render_card(df_ideal, "IDEAL", "100% do Poder de Compra", COR_AZUL_ESC)
+                    with c2: render_card(df_seguro, "SEGURO & FACILITADO", "90% a 75% do Poder de Compra", COR_VERMELHO)
                 elif v100 == v90:
                     c1, c2 = st.columns(2)
-                    with c1: render_card(ideal, "IDEAL & SEGURO", "100% a 90% do Poder de Compra", COR_AZUL_ESC)
-                    with c2: render_card(facilitado, "FACILITADO", "75% do Poder de Compra", COR_VERMELHO)
+                    with c1: render_card(df_ideal, "IDEAL & SEGURO", "100% a 90% do Poder de Compra", COR_AZUL_ESC)
+                    with c2: render_card(df_facilitado, "FACILITADO", "75% do Poder de Compra", COR_VERMELHO)
                 else:
                     c1, c2, c3 = st.columns(3)
-                    with c1: render_card(ideal, "IDEAL", "100% do Poder de Compra", COR_AZUL_ESC)
-                    with c2: render_card(seguro, "SEGURO", "90% do Poder de Compra", COR_VERMELHO)
-                    with c3: render_card(facilitado, "FACILITADO", "75% do Poder de Compra", COR_AZUL_ESC)
+                    with c1: render_card(df_ideal, "IDEAL", "100% do Poder de Compra", COR_AZUL_ESC)
+                    with c2: render_card(df_seguro, "SEGURO", "90% do Poder de Compra", COR_VERMELHO)
+                    with c3: render_card(df_facilitado, "FACILITADO", "75% do Poder de Compra", COR_AZUL_ESC)
 
         with tab_list:
             if df_disp_total.empty:
