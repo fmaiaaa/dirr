@@ -4,8 +4,8 @@
 SISTEMA DE SIMULAÇÃO IMOBILIÁRIA - DIRE RIO V2 (MODIFICADO)
 =============================================================================
 Alterações Realizadas:
-1. Lógica de Faixa: O enquadramento (F1 a F4) agora é baseado no "Valor de Avaliação Bancária".
-2. Tratamento de Dados: Adicionado carregamento da coluna de avaliação bancária.
+1. Estoque Geral: Adicionado filtro por "Bairro" na aba de estoque.
+2. Organização Visual: Colunas de filtro ajustadas para comportar o novo seletor.
 3. Estilização: Mantida a cor Azul Escuro (#002c5d) para todos os textos.
 =============================================================================
 """
@@ -131,12 +131,10 @@ def carregar_dados_sistema():
             
             df_estoque['Valor de Venda'] = df_estoque['Valor de Venda'].apply(limpar_moeda)
             
-            # Carregamento do Valor de Avaliação Bancária
             col_aval = 'VALOR DE AVALIACAO BANCARIA' if 'VALOR DE AVALIACAO BANCARIA' in df_raw.columns else 'Valor de Avaliação Bancária'
             if col_aval in df_raw.columns:
                 df_estoque['Valor de Avaliação Bancária'] = df_raw[col_aval].apply(limpar_moeda)
             else:
-                # Fallback caso a coluna não exista na planilha
                 df_estoque['Valor de Avaliação Bancária'] = df_estoque['Valor de Venda']
             
             if lista_permitidos is not None:
@@ -202,8 +200,7 @@ class MotorRecomendacao:
     def obter_enquadramento(self, renda, social, cotista, valor_avaliacao=250000):
         if self.df_finan.empty: return 0.0, 0.0, "N/A"
         
-        # Determinação da Faixa BASEADA NA AVALIAÇÃO BANCÁRIA
-        if valor_avaliacao <= 190000: # Faixa 1 (Limite genérico Direcional)
+        if valor_avaliacao <= 190000:
             faixa = "F1"
         elif valor_avaliacao <= 275000:
             faixa = "F2"
@@ -224,7 +221,6 @@ class MotorRecomendacao:
         val_finan = row.get(c_finan, 0.0)
         val_sub = row.get(c_sub, 0.0)
         
-        # Fallback se F1 não existir na planilha (tenta F2)
         if val_finan == 0 and faixa == "F1":
             c_finan = f"Finan_Social_{s_suf}_Cotista_{c_suf}_F2"
             c_sub = f"Subsidio_Social_{s_suf}_Cotista_{c_suf}_F2"
@@ -339,7 +335,7 @@ def configurar_layout():
         
         .card, .fin-box, .recommendation-card {{ 
             background: #ffffff; 
-            padding: 40px; 
+            padding: 25px; 
             border-radius: 16px; 
             border: 1px solid {COR_BORDA}; 
             text-align: center;
@@ -490,7 +486,6 @@ def gerar_resumo_pdf(d):
         AZUL_RGB = (0, 44, 93)
         VERMELHO_RGB = (227, 6, 19)
         BRANCO_RGB = (255, 255, 255)
-        CINZA_RGB = (0, 44, 93) 
         FUNDO_SECAO = (248, 250, 252)
 
         pdf.set_fill_color(*AZUL_RGB)
@@ -621,7 +616,6 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
                 politica_row = df_politicas[df_politicas['CLASSIFICAÇÃO'] == class_b].iloc[0]
                 limit_ps_r = politica_row['FX_RENDA_1'] if renda < politica_row['FAIXA_RENDA'] else politica_row['FX_RENDA_2']
                 
-                # Coleta valores específicos da Faixa 1 para a próxima tela (simulação genérica)
                 f_faixa1, s_faixa1, fx_nome = motor.obter_enquadramento(renda, social, cotista, valor_avaliacao=180000)
 
                 st.session_state.dados_cliente = {
@@ -650,8 +644,6 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
             v_medio = df_pot['Valor de Venda'].mean()
             ps_medio = v_medio * d['perc_ps']
             dobro_renda = 2 * d['renda']
-            
-            # Cálculo Base: Finan F1 + Sub F1 + Pro Soluto Médio + 2x Renda
             pot_final = d['finan_f1'] + d['sub_f1'] + ps_medio + dobro_renda
         
         m1, m2, m3, m4 = st.columns(4)
@@ -687,7 +679,6 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
             def calcular_viabilidade_unidade(row):
                 v_venda = row['Valor de Venda']
                 v_aval = row['Valor de Avaliação Bancária']
-                # Lógica: O enquadramento usa o valor de AVALIAÇÃO
                 fin, sub, fx_n = motor.obter_enquadramento(d['renda'], d['social'], d['cotista'], v_aval)
                 poder, ps_u = motor.calcular_poder_compra(d['renda'], fin, sub, d['perc_ps'], v_venda)
                 gap = poder - v_venda
@@ -711,7 +702,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
                 for idx, (emp, qtd) in enumerate(row_items):
                     with row_cols[idx]:
                         st.markdown(f"""
-                            <div class="card" style="min-height: 100px; padding: 20px; border-top: 3px solid {COR_VERMELHO};">
+                            <div class="card" style="min-height: 80px; padding: 15px; border-top: 3px solid {COR_VERMELHO};">
                                 <p style="margin:0; font-weight:700; color:{COR_AZUL_ESC};">{emp}</p>
                                 <p style="margin:5px 0 0 0; font-size:0.85rem; color:{COR_TEXTO_MUTED};">{qtd} unidades viaveis</p>
                             </div>
@@ -741,7 +732,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
                 facilitado = obter_melhor_ajuste(df_pool, df_pool['Poder_Compra'].mean() * 0.75)
 
                 def render_card(unid, perfil_label, subtitulo, border_color):
-                    st.markdown(f'''<div class="recommendation-card" style="border-top: 4px solid {border_color};">
+                    st.markdown(f'''<div class="recommendation-card" style="border-top: 4px solid {border_color}; padding: 20px;">
                         <span style="font-size:0.7rem; color:{COR_AZUL_ESC}; opacity:0.8;">PERFIL</span><br><b style="color:{COR_AZUL_ESC};">{perfil_label}</b><br>
                         <small style="color:{COR_AZUL_ESC};">{unid["Empreendimento"]}</small><br><span style="color:{COR_AZUL_ESC};">Unid. {unid["Identificador"]}</span><br>
                         <div class="price-tag">R$ {fmt_br(unid["Valor de Venda"])}</div>
@@ -772,13 +763,23 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
             if df_disp_total.empty:
                 st.info("Sem dados para exibir.")
             else:
-                f1, f2, f3, f4 = st.columns([1.2, 1, 0.7, 1.1])
-                with f1: f_emp = st.multiselect("Empreendimento:", options=sorted(df_disp_total['Empreendimento'].unique()), key="f_emp_tab_v28")
-                with f2: f_status_v = st.multiselect("Viabilidade:", options=["Viavel", "Inviavel"], key="f_status_tab_v28")
-                with f3: f_ordem = st.selectbox("Ordem:", ["Maior Gap", "Menor Gap", "Maior Preço"], key="f_ordem_tab_v28")
-                with f4: f_pmax = st.number_input("Preço Máx:", value=float(df_disp_total['Valor de Venda'].max()), key="f_pmax_tab_v28")
+                # Seção de Filtros Ajustada para incluir Bairro
+                row_f1, row_f2 = st.columns([1, 1]), st.columns([1, 1, 1])
+                
+                with row_f1[0]: 
+                    f_bairro = st.multiselect("Bairro:", options=sorted(df_disp_total['Bairro'].unique()), key="f_bairro_tab_v28")
+                with row_f1[1]:
+                    f_emp = st.multiselect("Empreendimento:", options=sorted(df_disp_total['Empreendimento'].unique()), key="f_emp_tab_v28")
+                
+                with row_f2[0]:
+                    f_status_v = st.multiselect("Viabilidade:", options=["Viavel", "Inviavel"], key="f_status_tab_v28")
+                with row_f2[1]:
+                    f_ordem = st.selectbox("Ordem:", ["Maior Gap", "Menor Gap", "Maior Preço"], key="f_ordem_tab_v28")
+                with row_f2[2]:
+                    f_pmax = st.number_input("Preço Máx:", value=float(df_disp_total['Valor de Venda'].max()), key="f_pmax_tab_v28")
                 
                 df_tab = df_disp_total.copy()
+                if f_bairro: df_tab = df_tab[df_tab['Bairro'].isin(f_bairro)]
                 if f_emp: df_tab = df_tab[df_tab['Empreendimento'].isin(f_emp)]
                 if f_status_v: df_tab = df_tab[df_tab['Status Viabilidade'].isin(f_status_v)]
                 df_tab = df_tab[df_tab['Valor de Venda'] <= f_pmax]
@@ -793,7 +794,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
                 df_tab_view['Gap'] = df_tab_view['Gap'].apply(fmt_br)
 
                 st.dataframe(
-                    df_tab_view[['Identificador', 'Empreendimento', 'Valor de Venda', 'Poder_Compra', 'Gap', 'Status Viabilidade']], 
+                    df_tab_view[['Identificador', 'Bairro', 'Empreendimento', 'Valor de Venda', 'Poder_Compra', 'Gap', 'Status Viabilidade']], 
                     use_container_width=True, 
                     hide_index=True,
                     column_config={
@@ -828,7 +829,6 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
         if st.button("Avançar para Fechamento Financeiro", type="primary", use_container_width=True, key="btn_fech_v28"):
             if uni_escolhida_id:
                 u_row = unidades_disp[unidades_disp['Identificador'] == uni_escolhida_id].iloc[0]
-                # ENQUADRAMENTO USANDO AVALIAÇÃO BANCÁRIA
                 fin_real, sub_real, faixa_real = motor.obter_enquadramento(d['renda'], d['social'], d['cotista'], u_row['Valor de Avaliação Bancária'])
                 
                 st.session_state.dados_cliente.update({
@@ -857,20 +857,16 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
         u_aval = d.get('imovel_avaliacao', u_valor)
         st.markdown(f'<div class="custom-alert">Unidade Selecionada: {d["unidade_id"]} - {d["empreendimento_nome"]} (R$ {fmt_br(u_valor)})<br><small style="font-weight:400;">Faixa do Imóvel (Base Avaliação Bancária R$ {fmt_br(u_aval)}): {d.get("faixa_unidade", "N/A")}</small></div>', unsafe_allow_html=True)
         
-        # Campo de Financiamento
         f_u = st.number_input("Financiamento Bancário", value=float(d['finan_estimado']), step=1000.0, key="fin_u_v28")
         st.markdown(f'<span class="inline-ref">Referência Sugerida: R$ {fmt_br(d.get("finan_estimado", 0))}</span>', unsafe_allow_html=True)
             
-        # Campo de FGTS + Subsídio
         fgts_u = st.number_input("FGTS + Subsídio", value=float(d['fgts_sub']), step=1000.0, key="fgt_u_v28")
         st.markdown(f'<span class="inline-ref">Referência Sugerida: R$ {fmt_br(d.get("fgts_sub", 0))}</span>', unsafe_allow_html=True)
         
-        # Campo de Pro Soluto
         ps_max_real = u_valor * d['perc_ps']
         ps_u = st.number_input("Pro Soluto Direcional", value=float(ps_max_real), step=1000.0, key="ps_u_v28")
         st.markdown(f'<span class="inline-ref">Limite Permitido: {d.get("perc_ps", 0)*100:.0f}% (Até R$ {fmt_br(ps_max_real)})</span>', unsafe_allow_html=True)
         
-        # Campo de Parcelas
         parc = st.number_input("Número de Parcelas Pro Soluto", min_value=1, max_value=144, value=d['prazo_ps_max'], key="parc_u_v28")
         st.markdown(f'<span class="inline-ref">Prazo Máximo: {d.get("prazo_ps_max", 0)} meses</span>', unsafe_allow_html=True)
         
