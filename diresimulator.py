@@ -4,10 +4,8 @@
 SISTEMA DE SIMULAÇÃO IMOBILIÁRIA - DIRE RIO V2 (MODIFICADO)
 =============================================================================
 Alterações Realizadas:
-1. Correção de Erro: Chaves de widgets atualizadas para v28 para evitar DuplicateElementKey.
-2. Lógica de Recomendação: Agora sempre recomenda uma unidade (fallback para a mais barata).
-3. Referências Financeiras: Adicionada seção informativa na etapa de fechamento.
-4. Consolidação de Sugestões: Boxes de recomendação são fundidos se os imóveis sugeridos forem iguais.
+1. Referências de Política: Movidas para baixo de cada campo de preenchimento respectivo.
+2. Organização Visual: Melhorada a legibilidade dos indicadores de limite.
 =============================================================================
 """
 
@@ -348,13 +346,14 @@ def configurar_layout():
         .metric-value {{ color: {COR_AZUL_ESC} !important; font-size: 1.8rem; font-weight: 800; font-family: 'Montserrat', sans-serif; }}
         
         .inline-ref {{
-            font-size: 0.78rem;
+            font-size: 0.72rem;
             color: #64748b;
-            margin-top: -15px;
+            margin-top: -12px;
             margin-bottom: 15px;
-            font-weight: 600;
+            font-weight: 700;
             text-transform: uppercase;
             letter-spacing: 0.05em;
+            display: block;
         }}
 
         .stButton button {{ 
@@ -455,44 +454,6 @@ def configurar_layout():
         }}
         button[data-baseweb="tab"][aria-selected="true"] p {{ color: {COR_AZUL_ESC} !important; }}
         div[data-baseweb="tab-highlight"] {{ background-color: {COR_VERMELHO} !important; height: 3px !important; }}
-
-        /* Tabela de Referencia de Politica */
-        .policy-ref-table {{
-            width: 100%;
-            background: #f8fafc;
-            border-radius: 12px;
-            padding: 20px;
-            border: 1px dashed #cbd5e1;
-            margin-bottom: 25px;
-        }}
-        .policy-ref-title {{
-            font-size: 0.7rem;
-            font-weight: 800;
-            text-transform: uppercase;
-            color: #64748b;
-            letter-spacing: 0.1em;
-            margin-bottom: 15px;
-            text-align: left;
-        }}
-        .policy-grid {{
-            display: grid;
-            grid-template-columns: repeat(4, 1fr);
-            gap: 15px;
-        }}
-        .policy-item {{
-            text-align: left;
-        }}
-        .policy-item-label {{
-            font-size: 0.65rem;
-            color: #94a3b8;
-            font-weight: 600;
-            text-transform: uppercase;
-        }}
-        .policy-item-value {{
-            font-size: 0.85rem;
-            color: {COR_AZUL_ESC};
-            font-weight: 700;
-        }}
         </style>
     """, unsafe_allow_html=True)
 
@@ -550,7 +511,7 @@ def gerar_resumo_pdf(d):
 
         def adicionar_linha_detalhe(label, valor, destaque=False):
             pdf.set_x(15)
-            pdf.set_text_color(*AZUL_ESC_RGB if 'AZUL_ESC_RGB' in locals() else AZUL_RGB)
+            pdf.set_text_color(*AZUL_RGB)
             pdf.set_font("Helvetica", '', 10)
             pdf.cell(110, 9, label, border=0)
             
@@ -881,42 +842,23 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
         st.markdown(f"### Fechamento Financeiro")
         
         u_valor = d.get('imovel_valor', 0)
-        st.markdown(f'<div class="custom-alert">Unidade Selecionada: {d["unidade_id"]} - {d["empreendimento_nome"]} (R$ {fmt_br(u_valor)})</div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="custom-alert">Unidade Selecionada: {d["unidade_id"]} - {d["empreendimento_nome"]} (R$ {fmt_br(u_valor)})<br><small style="font-weight:400;">Faixa do Imóvel: {d.get("faixa_unidade", "N/A")}</small></div>', unsafe_allow_html=True)
         
-        st.markdown(f"""
-            <div class="policy-ref-table">
-                <div class="policy-ref-title">Referências de Política para este Perfil</div>
-                <div class="policy-grid">
-                    <div class="policy-item">
-                        <div class="policy-item-label">Faixa do Imóvel</div>
-                        <div class="policy-item-value">{d.get('faixa_unidade', 'N/A')}</div>
-                    </div>
-                    <div class="policy-item">
-                        <div class="policy-item-label">Ref. Finan/Sub</div>
-                        <div class="policy-item-value">R$ {fmt_br(d.get('finan_estimado',0) + d.get('fgts_sub',0))}</div>
-                    </div>
-                    <div class="policy-item">
-                        <div class="policy-item-label">PS Permitido</div>
-                        <div class="policy-item-value">{d.get('perc_ps', 0)*100:.0f}% (R$ {fmt_br(u_valor * d.get('perc_ps',0))})</div>
-                    </div>
-                    <div class="policy-item">
-                        <div class="policy-item-label">Parcelas Máx.</div>
-                        <div class="policy-item-value">{d.get('prazo_ps_max', 0)}x permitidas</div>
-                    </div>
-                </div>
-                <div style="margin-top:10px; font-size:0.65rem; color:#94a3b8; font-weight:600;">
-                    Limite de Comprometimento: {d.get('limit_ps_renda', 0)*100:.0f}% da renda de R$ {fmt_br(d.get('renda',0))}
-                </div>
-            </div>
-        """, unsafe_allow_html=True)
-
-        f_u = st.number_input("Financiamento Bancário", value=float(d['finan_estimado']), step=1000.0, key="fin_u_v28")
-        fgts_u = st.number_input("FGTS + Subsídio", value=float(d['fgts_sub']), step=1000.0, key="fgt_u_v28")
+        col_f1, col_f2 = st.columns(2)
+        with col_f1:
+            f_u = st.number_input("Financiamento Bancário", value=float(d['finan_estimado']), step=1000.0, key="fin_u_v28")
+            st.markdown(f'<span class="inline-ref">Referência Sugerida: R$ {fmt_br(d.get("finan_estimado", 0))}</span>', unsafe_allow_html=True)
+            
+        with col_f2:
+            fgts_u = st.number_input("FGTS + Subsídio", value=float(d['fgts_sub']), step=1000.0, key="fgt_u_v28")
+            st.markdown(f'<span class="inline-ref">Referência Sugerida: R$ {fmt_br(d.get("fgts_sub", 0))}</span>', unsafe_allow_html=True)
         
         ps_max_real = u_valor * d['perc_ps']
         ps_u = st.number_input("Pro Soluto Direcional", value=float(ps_max_real), step=1000.0, key="ps_u_v28")
+        st.markdown(f'<span class="inline-ref">Limite Permitido: {d.get("perc_ps", 0)*100:.0f}% (Até R$ {fmt_br(ps_max_real)})</span>', unsafe_allow_html=True)
         
         parc = st.number_input("Número de Parcelas Pro Soluto", min_value=1, max_value=144, value=d['prazo_ps_max'], key="parc_u_v28")
+        st.markdown(f'<span class="inline-ref">Prazo Máximo: {d.get("prazo_ps_max", 0)} meses</span>', unsafe_allow_html=True)
         
         v_parc = ps_u / parc
         comp_r = (v_parc / d['renda'])
@@ -931,7 +873,9 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
         
         fin1, fin2, fin3 = st.columns(3)
         with fin1: st.markdown(f"""<div class="fin-box" style="border-top: 6px solid {COR_AZUL_ESC};"><b>VALOR DO IMÓVEL</b><br>R$ {fmt_br(u_valor)}</div>""", unsafe_allow_html=True)
-        with fin2: st.markdown(f"""<div class="fin-box" style="border-top: 6px solid {COR_VERMELHO};"><b>MENSALIDADE PS</b><br>R$ {fmt_br(v_parc)} ({parc}x)</div>""", unsafe_allow_html=True)
+        with fin2: 
+            st.markdown(f"""<div class="fin-box" style="border-top: 6px solid {COR_VERMELHO};"><b>MENSALIDADE PS</b><br>R$ {fmt_br(v_parc)} ({parc}x)</div>""", unsafe_allow_html=True)
+            st.markdown(f'<center><span style="font-size:0.65rem; color:#64748b; font-weight:700;">LIMITE RENDA: {d.get("limit_ps_renda", 0)*100:.0f}%</span></center>', unsafe_allow_html=True)
         with fin3: st.markdown(f"""<div class="fin-box" style="border-top: 6px solid {COR_AZUL_ESC};"><b>SALDO DE ENTRADA</b><br>R$ {fmt_br(max(0, saldo_e))}</div>""", unsafe_allow_html=True)
         
         if comp_r > d['limit_ps_renda']:
