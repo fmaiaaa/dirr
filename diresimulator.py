@@ -737,11 +737,11 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
                     unid_ref = df_unids.iloc[0]
                     # Altura reduzida de 120px para 100px conforme solicitado
                     st.markdown(f'''<div class="recommendation-card" style="border-top: 4px solid {border_color}; padding: 15px; min-height: 80px;">
-                        <span style="font-size:0.65rem; color:{COR_AZUL_ESC}; opacity:0.8;">PERFIL</span><br><b style="color:{COR_AZUL_ESC}; font-size:1rem;">{perfil_label}</b><br>
-                        <small style="color:{COR_AZUL_ESC}; font-size:0.85rem;">{unid_ref["Empreendimento"]}</small><br>
-                        <span style="color:{COR_AZUL_ESC}; font-size:0.9rem;">Unid(s): {ids}</span><br>
-                        <div class="price-tag" style="font-size:1.2rem; margin:2px 0;">R$ {fmt_br(unid_ref["Valor de Venda"])}</div>
-                        <small style="color:{COR_AZUL_ESC}; opacity:0.8; font-size:0.8rem;">{subtitulo}</small>
+                        <span style="font-size:0.65rem; color:{COR_AZUL_ESC}; opacity:0.8;">PERFIL</span><br><b style="color:{COR_AZUL_ESC}; font-size:1.1rem;">{perfil_label}</b><br>
+                        <small style="color:{COR_AZUL_ESC}; font-size:0.95rem;">{unid_ref["Empreendimento"]}</small><br>
+                        <span style="color:{COR_AZUL_ESC}; font-size:1.0rem;">Unid(s): {ids}</span><br>
+                        <div class="price-tag" style="font-size:1.3rem; margin:2px 0;">R$ {fmt_br(unid_ref["Valor de Venda"])}</div>
+                        <small style="color:{COR_AZUL_ESC}; opacity:0.9; font-size:0.8rem;">{subtitulo}</small>
                     </div>''', unsafe_allow_html=True)
 
                 v100 = df_ideal.iloc[0]['Valor de Venda']
