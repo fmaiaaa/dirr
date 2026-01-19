@@ -4,9 +4,9 @@
 SISTEMA DE SIMULAÇÃO IMOBILIÁRIA - DIRE RIO V2 (MODIFICADO)
 =============================================================================
 Alterações Realizadas:
-1. Recomendações: Agora os cards exibem todas as unidades que possuem o valor recomendado.
-2. Ajuste Estético: Altura dos cards mantida em 120px e cores em azul escuro.
-3. Lógica de Faixa: Baseada no "Valor de Avaliação Bancária".
+1. Recomendação de Unidades: Altura dos cards reduzida (min-height de 100px e ajustes de padding).
+2. Layout: Mantida a exibição de todas as unidades com o valor recomendado.
+3. Cores e Estilo: Preservado o azul escuro (#002c5d) e a lógica de enquadramento bancário.
 =============================================================================
 """
 
@@ -335,7 +335,7 @@ def configurar_layout():
         
         .card, .fin-box, .recommendation-card {{ 
             background: #ffffff; 
-            padding: 25px; 
+            padding: 15px 25px; 
             border-radius: 16px; 
             border: 1px solid {COR_BORDA}; 
             text-align: center;
@@ -352,7 +352,7 @@ def configurar_layout():
             box-shadow: 0 10px 30px -10px rgba(227,6,19,0.1);
         }}
         
-        .metric-label {{ color: {COR_AZUL_ESC} !important; opacity: 0.7; font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.15em; margin-bottom: 12px; }}
+        .metric-label {{ color: {COR_AZUL_ESC} !important; opacity: 0.7; font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.15em; margin-bottom: 8px; }}
         .metric-value {{ color: {COR_AZUL_ESC} !important; font-size: 1.8rem; font-weight: 800; font-family: 'Montserrat', sans-serif; }}
         
         .inline-ref {{
@@ -452,7 +452,7 @@ def configurar_layout():
             color: {COR_VERMELHO};
             font-weight: 900;
             font-size: 1.2rem;
-            margin-top: 10px;
+            margin-top: 5px;
         }}
 
         div[data-baseweb="tab-list"] {{ justify-content: center !important; gap: 40px; margin-bottom: 40px; }}
@@ -720,17 +720,12 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
             if df_pool.empty:
                 st.info("Nenhuma unidade encontrada para este filtro.")
             else:
-                # Função alterada para retornar todas as unidades com o mesmo valor alvo
                 def obter_unidades_ajustadas(df_base, limite_poder):
                     dentro_orcamento = df_base[df_base['Valor de Venda'] <= limite_poder]
                     if not dentro_orcamento.empty:
-                        # Identifica o maior valor que cabe no orçamento
                         valor_alvo = dentro_orcamento['Valor de Venda'].max()
                     else:
-                        # Se nada cabe, identifica o valor da unidade mais barata do pool
                         valor_alvo = df_base['Valor de Venda'].min()
-                    
-                    # Filtra todas as unidades que possuem exatamente esse valor de venda
                     return df_base[df_base['Valor de Venda'] == valor_alvo]
 
                 df_ideal = obter_unidades_ajustadas(df_pool, df_pool['Poder_Compra'].mean())
@@ -740,12 +735,13 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
                 def render_card(df_unids, perfil_label, subtitulo, border_color):
                     ids = ", ".join(df_unids["Identificador"].astype(str).tolist())
                     unid_ref = df_unids.iloc[0]
-                    st.markdown(f'''<div class="recommendation-card" style="border-top: 4px solid {border_color}; padding: 20px; min-height: 120px;">
-                        <span style="font-size:0.7rem; color:{COR_AZUL_ESC}; opacity:0.8;">PERFIL</span><br><b style="color:{COR_AZUL_ESC};">{perfil_label}</b><br>
-                        <small style="color:{COR_AZUL_ESC};">{unid_ref["Empreendimento"]}</small><br>
-                        <span style="color:{COR_AZUL_ESC}; font-size:0.85rem;">Unid(s): {ids}</span><br>
-                        <div class="price-tag">R$ {fmt_br(unid_ref["Valor de Venda"])}</div>
-                        <small style="color:{COR_AZUL_ESC}; opacity:0.8;">{subtitulo}</small>
+                    # Altura reduzida de 120px para 100px conforme solicitado
+                    st.markdown(f'''<div class="recommendation-card" style="border-top: 4px solid {border_color}; padding: 15px; min-height: 100px;">
+                        <span style="font-size:0.65rem; color:{COR_AZUL_ESC}; opacity:0.8;">PERFIL</span><br><b style="color:{COR_AZUL_ESC}; font-size:0.9rem;">{perfil_label}</b><br>
+                        <small style="color:{COR_AZUL_ESC}; font-size:0.75rem;">{unid_ref["Empreendimento"]}</small><br>
+                        <span style="color:{COR_AZUL_ESC}; font-size:0.8rem;">Unid(s): {ids}</span><br>
+                        <div class="price-tag" style="font-size:1.1rem; margin:2px 0;">R$ {fmt_br(unid_ref["Valor de Venda"])}</div>
+                        <small style="color:{COR_AZUL_ESC}; opacity:0.8; font-size:0.7rem;">{subtitulo}</small>
                     </div>''', unsafe_allow_html=True)
 
                 v100 = df_ideal.iloc[0]['Valor de Venda']
@@ -753,37 +749,31 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
                 v75 = df_facilitado.iloc[0]['Valor de Venda']
 
                 if v100 == v90 == v75:
-                    render_card(df_ideal, "IDEAL / SEGURO / FACILITADO", "Unidades atendem a todas as faixas de poder", COR_AZUL_ESC)
+                    render_card(df_ideal, "IDEAL / SEGURO / FACILITADO", "Unidades atendem a todas as faixas", COR_AZUL_ESC)
                 elif v90 == v75:
                     c1, c2 = st.columns(2)
                     with c1: render_card(df_ideal, "IDEAL", "100% do Poder de Compra", COR_AZUL_ESC)
-                    with c2: render_card(df_seguro, "SEGURO & FACILITADO", "90% a 75% do Poder de Compra", COR_VERMELHO)
+                    with c2: render_card(df_seguro, "SEGURO & FACILITADO", "90% a 75% do Poder", COR_VERMELHO)
                 elif v100 == v90:
                     c1, c2 = st.columns(2)
-                    with c1: render_card(df_ideal, "IDEAL & SEGURO", "100% a 90% do Poder de Compra", COR_AZUL_ESC)
-                    with c2: render_card(df_facilitado, "FACILITADO", "75% do Poder de Compra", COR_VERMELHO)
+                    with c1: render_card(df_ideal, "IDEAL & SEGURO", "100% a 90% do Poder", COR_AZUL_ESC)
+                    with c2: render_card(df_facilitado, "FACILITADO", "75% do Poder", COR_VERMELHO)
                 else:
                     c1, c2, c3 = st.columns(3)
-                    with c1: render_card(df_ideal, "IDEAL", "100% do Poder de Compra", COR_AZUL_ESC)
-                    with c2: render_card(df_seguro, "SEGURO", "90% do Poder de Compra", COR_VERMELHO)
-                    with c3: render_card(df_facilitado, "FACILITADO", "75% do Poder de Compra", COR_AZUL_ESC)
+                    with c1: render_card(df_ideal, "IDEAL", "100% do Poder", COR_AZUL_ESC)
+                    with c2: render_card(df_seguro, "SEGURO", "90% do Poder", COR_VERMELHO)
+                    with c3: render_card(df_facilitado, "FACILITADO", "75% do Poder", COR_AZUL_ESC)
 
         with tab_list:
             if df_disp_total.empty:
                 st.info("Sem dados para exibir.")
             else:
                 f_cols = st.columns([1.2, 1.5, 1, 1, 1])
-                
-                with f_cols[0]: 
-                    f_bairro = st.multiselect("Bairro:", options=sorted(df_disp_total['Bairro'].unique()), key="f_bairro_tab_v28")
-                with f_cols[1]:
-                    f_emp = st.multiselect("Empreendimento:", options=sorted(df_disp_total['Empreendimento'].unique()), key="f_emp_tab_v28")
-                with f_cols[2]:
-                    f_status_v = st.multiselect("Viabilidade:", options=["Viavel", "Inviavel"], key="f_status_tab_v28")
-                with f_cols[3]:
-                    f_ordem = st.selectbox("Ordem:", ["Maior Gap", "Menor Gap", "Maior Preço"], key="f_ordem_tab_v28")
-                with f_cols[4]:
-                    f_pmax = st.number_input("Preço Máx:", value=float(df_disp_total['Valor de Venda'].max()), key="f_pmax_tab_v28")
+                with f_cols[0]: f_bairro = st.multiselect("Bairro:", options=sorted(df_disp_total['Bairro'].unique()), key="f_bairro_tab_v28")
+                with f_cols[1]: f_emp = st.multiselect("Empreendimento:", options=sorted(df_disp_total['Empreendimento'].unique()), key="f_emp_tab_v28")
+                with f_cols[2]: f_status_v = st.multiselect("Viabilidade:", options=["Viavel", "Inviavel"], key="f_status_tab_v28")
+                with f_cols[3]: f_ordem = st.selectbox("Ordem:", ["Maior Gap", "Menor Gap", "Maior Preço"], key="f_ordem_tab_v28")
+                with f_cols[4]: f_pmax = st.number_input("Preço Máx:", value=float(df_disp_total['Valor de Venda'].max()), key="f_pmax_tab_v28")
                 
                 df_tab = df_disp_total.copy()
                 if f_bairro: df_tab = df_tab[df_tab['Bairro'].isin(f_bairro)]
