@@ -4,8 +4,9 @@
 SISTEMA DE SIMULAÇÃO IMOBILIÁRIA - DIRE RIO V2 (MODIFICADO)
 =============================================================================
 Alterações Realizadas:
-1. Cores: Todos os textos que estavam em preto/grafite foram alterados para Azul Escuro (#002c5d).
-2. Organização dos Campos: Mantida a lógica de referências abaixo de cada input.
+1. Lógica de Faixa: O enquadramento (F1 a F4) agora é baseado no "Valor de Avaliação Bancária".
+2. Tratamento de Dados: Adicionado carregamento da coluna de avaliação bancária.
+3. Estilização: Mantida a cor Azul Escuro (#002c5d) para todos os textos.
 =============================================================================
 """
 
@@ -130,6 +131,14 @@ def carregar_dados_sistema():
             
             df_estoque['Valor de Venda'] = df_estoque['Valor de Venda'].apply(limpar_moeda)
             
+            # Carregamento do Valor de Avaliação Bancária
+            col_aval = 'VALOR DE AVALIACAO BANCARIA' if 'VALOR DE AVALIACAO BANCARIA' in df_raw.columns else 'Valor de Avaliação Bancária'
+            if col_aval in df_raw.columns:
+                df_estoque['Valor de Avaliação Bancária'] = df_raw[col_aval].apply(limpar_moeda)
+            else:
+                # Fallback caso a coluna não exista na planilha
+                df_estoque['Valor de Avaliação Bancária'] = df_estoque['Valor de Venda']
+            
             if lista_permitidos is not None:
                 df_estoque = df_estoque[df_estoque['Empreendimento'].astype(str).str.strip().isin(lista_permitidos)]
 
@@ -190,15 +199,15 @@ class MotorRecomendacao:
         self.df_estoque = df_estoque
         self.df_politicas = df_politicas
 
-    def obter_enquadramento(self, renda, social, cotista, valor_imovel=250000):
+    def obter_enquadramento(self, renda, social, cotista, valor_avaliacao=250000):
         if self.df_finan.empty: return 0.0, 0.0, "N/A"
         
-        # Determinação da Faixa
-        if valor_imovel <= 190000: # Faixa 1 (Limite genérico Direcional)
+        # Determinação da Faixa BASEADA NA AVALIAÇÃO BANCÁRIA
+        if valor_avaliacao <= 190000: # Faixa 1 (Limite genérico Direcional)
             faixa = "F1"
-        elif valor_imovel <= 275000:
+        elif valor_avaliacao <= 275000:
             faixa = "F2"
-        elif valor_imovel <= 350000:
+        elif valor_avaliacao <= 350000:
             faixa = "F3"
         else:
             faixa = "F4"
@@ -261,7 +270,6 @@ def configurar_layout():
             letter-spacing: -0.04em;
         }}
 
-        /* Garante que labels padrão do Streamlit fiquem em Azul Escuro */
         .stMarkdown p, .stText, label, .stSelectbox label, .stTextInput label, .stNumberInput label {{
             color: {COR_AZUL_ESC} !important;
         }}
@@ -482,7 +490,7 @@ def gerar_resumo_pdf(d):
         AZUL_RGB = (0, 44, 93)
         VERMELHO_RGB = (227, 6, 19)
         BRANCO_RGB = (255, 255, 255)
-        CINZA_RGB = (0, 44, 93) # Alterado para azul escuro conforme pedido global
+        CINZA_RGB = (0, 44, 93) 
         FUNDO_SECAO = (248, 250, 252)
 
         pdf.set_fill_color(*AZUL_RGB)
@@ -613,8 +621,8 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
                 politica_row = df_politicas[df_politicas['CLASSIFICAÇÃO'] == class_b].iloc[0]
                 limit_ps_r = politica_row['FX_RENDA_1'] if renda < politica_row['FAIXA_RENDA'] else politica_row['FX_RENDA_2']
                 
-                # Coleta valores específicos da Faixa 1 para a próxima tela
-                f_faixa1, s_faixa1, fx_nome = motor.obter_enquadramento(renda, social, cotista, valor_imovel=180000)
+                # Coleta valores específicos da Faixa 1 para a próxima tela (simulação genérica)
+                f_faixa1, s_faixa1, fx_nome = motor.obter_enquadramento(renda, social, cotista, valor_avaliacao=180000)
 
                 st.session_state.dados_cliente = {
                     'nome': nome, 'renda': renda, 'social': social, 'cotista': cotista,
@@ -678,8 +686,9 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
         else:
             def calcular_viabilidade_unidade(row):
                 v_venda = row['Valor de Venda']
-                fin, sub, fx_n = motor.obter_enquadramento(d['renda'], d['social'], d['cotista'], v_venda)
-                # Lógica: Finan Faixa Unidade + (Sub+FGTS) + Pro Soluto + 2x Renda
+                v_aval = row['Valor de Avaliação Bancária']
+                # Lógica: O enquadramento usa o valor de AVALIAÇÃO
+                fin, sub, fx_n = motor.obter_enquadramento(d['renda'], d['social'], d['cotista'], v_aval)
                 poder, ps_u = motor.calcular_poder_compra(d['renda'], fin, sub, d['perc_ps'], v_venda)
                 gap = poder - v_venda
                 return pd.Series([poder, gap, gap >= 0])
@@ -687,7 +696,6 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
             df_disp_total[['Poder_Compra', 'Gap', 'Viavel']] = df_disp_total.apply(calcular_viabilidade_unidade, axis=1)
             df_disp_total['Status Viabilidade'] = df_disp_total['Viavel'].apply(lambda x: "Viavel" if x else "Inviavel")
             
-            # Panorama: Ordenar por Gap Decrescente (Só os viáveis)
             df_viaveis = df_disp_total[df_disp_total['Viavel']].sort_values('Gap', ascending=False).copy()
         
         st.markdown("#### Panorama de Produtos (Viáveis)")
@@ -713,7 +721,6 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
         tab_rec, tab_list = st.tabs(["Sugestões Inteligentes", "Estoque Geral"])
         
         with tab_rec:
-            # Selecionar empreendimento para recomendação
             emp_names_rec = sorted(df_disp_total['Empreendimento'].unique().tolist())
             emp_rec = st.selectbox("Escolha um empreendimento para recomendações:", options=["Todos"] + emp_names_rec, key="sel_emp_rec_v28")
             
@@ -722,7 +729,6 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
             if df_pool.empty:
                 st.info("Nenhuma unidade encontrada para este filtro.")
             else:
-                # Função auxiliar de seleção (sempre recomenda algo)
                 def obter_melhor_ajuste(df_base, limite_poder):
                     dentro_orcamento = df_base[df_base['Valor de Venda'] <= limite_poder]
                     if not dentro_orcamento.empty:
@@ -730,14 +736,10 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
                     else:
                         return df_base.sort_values('Valor de Venda', ascending=True).iloc[0]
 
-                # 1. Ideal (100% do Poder)
                 ideal = obter_melhor_ajuste(df_pool, df_pool['Poder_Compra'].mean())
-                # 2. Seguro (90% do Poder)
                 seguro = obter_melhor_ajuste(df_pool, df_pool['Poder_Compra'].mean() * 0.90)
-                # 3. Facilitado (75% do Poder)
                 facilitado = obter_melhor_ajuste(df_pool, df_pool['Poder_Compra'].mean() * 0.75)
 
-                # Função interna para renderizar o card
                 def render_card(unid, perfil_label, subtitulo, border_color):
                     st.markdown(f'''<div class="recommendation-card" style="border-top: 4px solid {border_color};">
                         <span style="font-size:0.7rem; color:{COR_AZUL_ESC}; opacity:0.8;">PERFIL</span><br><b style="color:{COR_AZUL_ESC};">{perfil_label}</b><br>
@@ -750,7 +752,6 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
                 v90 = seguro['Valor de Venda']
                 v75 = facilitado['Valor de Venda']
 
-                # Lógica de Consolidação de Boxes baseada em Valores
                 if v100 == v90 == v75:
                     render_card(ideal, "IDEAL / SEGURO / FACILITADO", "Unidade atende a todas as faixas de poder", COR_AZUL_ESC)
                 elif v90 == v75:
@@ -827,12 +828,14 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
         if st.button("Avançar para Fechamento Financeiro", type="primary", use_container_width=True, key="btn_fech_v28"):
             if uni_escolhida_id:
                 u_row = unidades_disp[unidades_disp['Identificador'] == uni_escolhida_id].iloc[0]
-                fin_real, sub_real, faixa_real = motor.obter_enquadramento(d['renda'], d['social'], d['cotista'], u_row['Valor de Venda'])
+                # ENQUADRAMENTO USANDO AVALIAÇÃO BANCÁRIA
+                fin_real, sub_real, faixa_real = motor.obter_enquadramento(d['renda'], d['social'], d['cotista'], u_row['Valor de Avaliação Bancária'])
                 
                 st.session_state.dados_cliente.update({
                     'unidade_id': uni_escolhida_id,
                     'empreendimento_nome': emp_escolhido,
                     'imovel_valor': u_row['Valor de Venda'],
+                    'imovel_avaliacao': u_row['Valor de Avaliação Bancária'],
                     'finan_estimado': fin_real,
                     'fgts_sub': sub_real,
                     'faixa_unidade': faixa_real
@@ -851,7 +854,8 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
         st.markdown(f"### Fechamento Financeiro")
         
         u_valor = d.get('imovel_valor', 0)
-        st.markdown(f'<div class="custom-alert">Unidade Selecionada: {d["unidade_id"]} - {d["empreendimento_nome"]} (R$ {fmt_br(u_valor)})<br><small style="font-weight:400;">Faixa do Imóvel: {d.get("faixa_unidade", "N/A")}</small></div>', unsafe_allow_html=True)
+        u_aval = d.get('imovel_avaliacao', u_valor)
+        st.markdown(f'<div class="custom-alert">Unidade Selecionada: {d["unidade_id"]} - {d["empreendimento_nome"]} (R$ {fmt_br(u_valor)})<br><small style="font-weight:400;">Faixa do Imóvel (Base Avaliação Bancária R$ {fmt_br(u_aval)}): {d.get("faixa_unidade", "N/A")}</small></div>', unsafe_allow_html=True)
         
         # Campo de Financiamento
         f_u = st.number_input("Financiamento Bancário", value=float(d['finan_estimado']), step=1000.0, key="fin_u_v28")
