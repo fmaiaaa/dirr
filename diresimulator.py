@@ -4,9 +4,9 @@
 SISTEMA DE SIMULAÇÃO IMOBILIÁRIA - DIRE RIO V2 (MODIFICADO)
 =============================================================================
 Alterações Realizadas:
-1. Recomendação de Unidades: Altura dos cards reduzida (min-height de 100px e ajustes de padding).
-2. Layout: Mantida a exibição de todas as unidades com o valor recomendado.
-3. Cores e Estilo: Preservado o azul escuro (#002c5d) e a lógica de enquadramento bancário.
+1. Estoque Geral: Filtro de ordem simplificado para apenas "Menor Preço" e "Maior Preço".
+2. Recomendação de Unidades: Cards exibem todas as unidades com o valor recomendado.
+3. Estilização: Cor Azul Escuro (#002c5d) e design preservado.
 =============================================================================
 """
 
@@ -335,7 +335,7 @@ def configurar_layout():
         
         .card, .fin-box, .recommendation-card {{ 
             background: #ffffff; 
-            padding: 15px 25px; 
+            padding: 25px; 
             border-radius: 16px; 
             border: 1px solid {COR_BORDA}; 
             text-align: center;
@@ -735,7 +735,6 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
                 def render_card(df_unids, perfil_label, subtitulo, border_color):
                     ids = ", ".join(df_unids["Identificador"].astype(str).tolist())
                     unid_ref = df_unids.iloc[0]
-                    # Altura reduzida de 120px para 100px conforme solicitado
                     st.markdown(f'''<div class="recommendation-card" style="border-top: 4px solid {border_color}; padding: 15px; min-height: 80px;">
                         <span style="font-size:0.65rem; color:{COR_AZUL_ESC}; opacity:0.8;">PERFIL</span><br><b style="color:{COR_AZUL_ESC}; font-size:1.1rem;">{perfil_label}</b><br>
                         <small style="color:{COR_AZUL_ESC}; font-size:0.95rem;">{unid_ref["Empreendimento"]}</small><br>
@@ -772,7 +771,8 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
                 with f_cols[0]: f_bairro = st.multiselect("Bairro:", options=sorted(df_disp_total['Bairro'].unique()), key="f_bairro_tab_v28")
                 with f_cols[1]: f_emp = st.multiselect("Empreendimento:", options=sorted(df_disp_total['Empreendimento'].unique()), key="f_emp_tab_v28")
                 with f_cols[2]: f_status_v = st.multiselect("Viabilidade:", options=["Viavel", "Inviavel"], key="f_status_tab_v28")
-                with f_cols[3]: f_ordem = st.selectbox("Ordem:", ["Maior Gap", "Menor Gap", "Maior Preço"], key="f_ordem_tab_v28")
+                # Filtro de Ordem Alterado para Menor e Maior Preço somente
+                with f_cols[3]: f_ordem = st.selectbox("Ordem:", ["Menor Preço", "Maior Preço"], key="f_ordem_tab_v28")
                 with f_cols[4]: f_pmax = st.number_input("Preço Máx:", value=float(df_disp_total['Valor de Venda'].max()), key="f_pmax_tab_v28")
                 
                 df_tab = df_disp_total.copy()
@@ -781,9 +781,11 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
                 if f_status_v: df_tab = df_tab[df_tab['Status Viabilidade'].isin(f_status_v)]
                 df_tab = df_tab[df_tab['Valor de Venda'] <= f_pmax]
                 
-                if f_ordem == "Maior Gap": df_tab = df_tab.sort_values('Gap', ascending=False)
-                elif f_ordem == "Menor Gap": df_tab = df_tab.sort_values('Gap', ascending=True)
-                else: df_tab = df_tab.sort_values('Valor de Venda', ascending=False)
+                # Lógica de Ordenação Ajustada
+                if f_ordem == "Menor Preço": 
+                    df_tab = df_tab.sort_values('Valor de Venda', ascending=True)
+                else: 
+                    df_tab = df_tab.sort_values('Valor de Venda', ascending=False)
                 
                 df_tab_view = df_tab.copy()
                 df_tab_view['Valor de Venda'] = df_tab_view['Valor de Venda'].apply(fmt_br)
