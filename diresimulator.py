@@ -9,7 +9,7 @@ Fluxo Automatizado de Recomendação (Sequencial):
 3. Etapa 4: Fechamento Financeiro.
 5. Etapa 5: Resumo da Compra e Exportação PDF Profissional.
 
-Versão: 53.0 (Lógica de Faixas F2, F3, F4 Integrada)
+Versão: 53.1 (Correção de Bug: Valores Zero no Financiamento)
 =============================================================================
 """
 
@@ -84,15 +84,20 @@ def carregar_dados_sistema():
             return val
 
         def limpar_moeda(val):
+            """Converte valores monetários ou strings numéricas brasileiras para float"""
+            if isinstance(val, (int, float)):
+                return float(val)
             if isinstance(val, str):
+                # Remove R$, pontos de milhar e troca vírgula por ponto
                 val = val.replace('R$', '').replace('.', '').replace(',', '.').strip()
-            try:
-                num = float(val)
-                return num if num > 0 else 0.0
-            except: return 0.0
+                try:
+                    return float(val)
+                except: return 0.0
+            return 0.0
 
         try:
             df_politicas = conn.read(spreadsheet=URL_RANKING)
+            df_politicas.columns = [str(c).strip() for c in df_politicas.columns]
             df_politicas = df_politicas.rename(columns={
                 'FAIXA RENDA': 'FAIXA_RENDA',
                 'FX RENDA 1': 'FX_RENDA_1',
@@ -105,13 +110,18 @@ def carregar_dados_sistema():
             df_politicas = pd.DataFrame()
 
         try:
+            # Carrega e limpa a tabela de financiamentos
             df_finan = conn.read(spreadsheet=URL_FINAN)
+            df_finan.columns = [str(c).strip() for c in df_finan.columns]
+            for col in df_finan.columns:
+                df_finan[col] = df_finan[col].apply(limpar_moeda)
         except Exception:
             df_finan = pd.DataFrame()
 
         try:
             # 1. Carrega os dados brutos de estoque
             df_raw = conn.read(spreadsheet=URL_ESTOQUE)
+            df_raw.columns = [str(c).strip() for c in df_raw.columns]
             
             # 2. Carrega a lista de empreendimentos permitidos (Aba 'Página2')
             try:
@@ -186,20 +196,27 @@ class MotorRecomendacao:
         elif valor_imovel <= 500000:
             faixa = "F4"
         else:
-            faixa = "F4" # Fallback
+            faixa = "F4" # Fallback para imóveis acima de 500k
             
-        self.df_finan['Renda'] = pd.to_numeric(self.df_finan['Renda'], errors='coerce').fillna(0)
-        # Encontra a linha de renda mais próxima
-        idx = (self.df_finan['Renda'] - renda).abs().idxmin()
+        # Garante que a coluna Renda seja numérica para a comparação
+        # A limpeza já é feita no carregamento, mas reforçamos aqui
+        renda_col = pd.to_numeric(self.df_finan['Renda'], errors='coerce').fillna(0)
+        
+        # Encontra a linha de renda mais próxima da informada pelo usuário
+        idx = (renda_col - renda).abs().idxmin()
         row = self.df_finan.iloc[idx]
         
         s_suf, c_suf = ('Sim' if social else 'Nao'), ('Sim' if cotista else 'Nao')
         
-        # Constrói o nome da coluna conforme o novo formato da tabela
+        # Constrói o nome exato da coluna esperado na planilha
         c_finan = f"Finan_Social_{s_suf}_Cotista_{c_suf}_{faixa}"
         c_sub = f"Subsidio_Social_{s_suf}_Cotista_{c_suf}_{faixa}"
         
-        return float(row.get(c_finan, 0)), float(row.get(c_sub, 0))
+        # Retorna os valores encontrados ou 0.0 caso a coluna não exista
+        val_finan = row.get(c_finan, 0.0)
+        val_sub = row.get(c_sub, 0.0)
+        
+        return float(val_finan), float(val_sub)
 
     def calcular_poder_compra(self, renda, finan, fgts_sub, perc_ps, valor_unidade):
         """Calcula o poder de compra específico para uma unidade e sua necessidade de Pro Soluto"""
@@ -616,7 +633,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
             pot_max = f_max + s_max + ps_max_total + dobro_renda
         
         m1, m2, m3, m4 = st.columns(4)
-        with m1: st.markdown(f'<div class="card"><p class="metric-label">Financiamento (Est.)</p><p class="metric-value">R$ {fmt_br(d["finan_estimado"])}</p></div>', unsafe_allow_html=True)
+        with m1: st.markdown(f'<div class="card"><p class="metric-label">Financiamento (Est.)</p><p class="metric-value">R$ {fmt_br(pot_min - ps_min_total - dobro_renda - d["fgts_sub"])}</p></div>', unsafe_allow_html=True)
         with m2: st.markdown(f'<div class="card"><p class="metric-label">FGTS + Subsídio (Est.)</p><p class="metric-value">R$ {fmt_br(d["fgts_sub"])}</p></div>', unsafe_allow_html=True)
         with m3: st.markdown(f'<div class="card"><p class="metric-label">Pro Soluto</p><p class="metric-value">R$ {fmt_br(ps_min_total)} a {fmt_br(ps_max_total)}</p></div>', unsafe_allow_html=True)
         with m4: st.markdown(f'<div class="card"><p class="metric-label">Capacidade de Entrada</p><p class="metric-value">R$ {fmt_br(dobro_renda)}</p></div>', unsafe_allow_html=True)
