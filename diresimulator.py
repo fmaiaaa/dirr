@@ -4,8 +4,8 @@
 SISTEMA DE SIMULAÇÃO IMOBILIÁRIA - DIRE RIO V2 (MODIFICADO)
 =============================================================================
 Alterações Realizadas:
-1. Referências de Política: Movidas para baixo de cada campo de preenchimento respectivo.
-2. Organização Visual: Melhorada a legibilidade dos indicadores de limite.
+1. Cores: Todos os textos que estavam em preto/grafite foram alterados para Azul Escuro (#002c5d).
+2. Organização dos Campos: Mantida a lógica de referências abaixo de cada input.
 =============================================================================
 """
 
@@ -249,7 +249,7 @@ def configurar_layout():
         
         html, body, [data-testid="stAppViewContainer"] {{
             font-family: 'Inter', sans-serif;
-            color: #1a1e26;
+            color: {COR_AZUL_ESC}; 
             background-color: {COR_FUNDO};
         }}
         
@@ -259,6 +259,11 @@ def configurar_layout():
             color: {COR_AZUL_ESC} !important; 
             font-weight: 800;
             letter-spacing: -0.04em;
+        }}
+
+        /* Garante que labels padrão do Streamlit fiquem em Azul Escuro */
+        .stMarkdown p, .stText, label, .stSelectbox label, .stTextInput label, .stNumberInput label {{
+            color: {COR_AZUL_ESC} !important;
         }}
 
         .block-container {{ max-width: 1400px !important; padding: 4rem 2rem !important; }}
@@ -315,12 +320,13 @@ def configurar_layout():
             letter-spacing: 0.2em; 
         }}
         .header-subtitle {{ 
-            color: {COR_TEXTO_MUTED}; 
+            color: {COR_AZUL_ESC}; 
             font-size: 1rem; 
             font-weight: 600; 
             margin-top: 15px; 
             letter-spacing: 0.1em;
             text-transform: uppercase;
+            opacity: 0.8;
         }}
         
         .card, .fin-box, .recommendation-card {{ 
@@ -342,18 +348,19 @@ def configurar_layout():
             box-shadow: 0 10px 30px -10px rgba(227,6,19,0.1);
         }}
         
-        .metric-label {{ color: {COR_TEXTO_MUTED} !important; font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.15em; margin-bottom: 12px; }}
+        .metric-label {{ color: {COR_AZUL_ESC} !important; opacity: 0.7; font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.15em; margin-bottom: 12px; }}
         .metric-value {{ color: {COR_AZUL_ESC} !important; font-size: 1.8rem; font-weight: 800; font-family: 'Montserrat', sans-serif; }}
         
         .inline-ref {{
             font-size: 0.72rem;
-            color: #64748b;
+            color: {COR_AZUL_ESC};
             margin-top: -12px;
             margin-bottom: 15px;
             font-weight: 700;
             text-transform: uppercase;
             letter-spacing: 0.05em;
             display: block;
+            opacity: 0.9;
         }}
 
         .stButton button {{ 
@@ -398,11 +405,12 @@ def configurar_layout():
         .footer {{ 
             text-align: center; 
             padding: 80px 0; 
-            color: {COR_TEXTO_MUTED} !important; 
+            color: {COR_AZUL_ESC} !important; 
             font-size: 0.8rem; 
             font-weight: 700;
             letter-spacing: 0.1em;
             text-transform: uppercase;
+            opacity: 0.6;
         }}
         
         .summary-header {{ 
@@ -445,14 +453,15 @@ def configurar_layout():
 
         div[data-baseweb="tab-list"] {{ justify-content: center !important; gap: 40px; margin-bottom: 40px; }}
         button[data-baseweb="tab"] p {{ 
-            color: {COR_TEXTO_MUTED} !important; 
+            color: {COR_AZUL_ESC} !important; 
+            opacity: 0.6;
             font-weight: 700 !important; 
             font-family: 'Montserrat', sans-serif !important; 
             font-size: 0.9rem !important; 
             text-transform: uppercase;
             letter-spacing: 0.1em;
         }}
-        button[data-baseweb="tab"][aria-selected="true"] p {{ color: {COR_AZUL_ESC} !important; }}
+        button[data-baseweb="tab"][aria-selected="true"] p {{ color: {COR_AZUL_ESC} !important; opacity: 1; }}
         div[data-baseweb="tab-highlight"] {{ background-color: {COR_VERMELHO} !important; height: 3px !important; }}
         </style>
     """, unsafe_allow_html=True)
@@ -473,7 +482,7 @@ def gerar_resumo_pdf(d):
         AZUL_RGB = (0, 44, 93)
         VERMELHO_RGB = (227, 6, 19)
         BRANCO_RGB = (255, 255, 255)
-        CINZA_RGB = (100, 116, 139)
+        CINZA_RGB = (0, 44, 93) # Alterado para azul escuro conforme pedido global
         FUNDO_SECAO = (248, 250, 252)
 
         pdf.set_fill_color(*AZUL_RGB)
@@ -486,7 +495,7 @@ def gerar_resumo_pdf(d):
         pdf.set_text_color(*AZUL_RGB)
         pdf.set_font("Helvetica", 'B', 22)
         pdf.cell(0, 12, "RELATÓRIO DE VIABILIDADE", ln=True, align='C')
-        pdf.set_text_color(*CINZA_RGB)
+        pdf.set_text_color(*AZUL_RGB)
         pdf.set_font("Helvetica", '', 9)
         pdf.cell(0, 6, "SIMULADOR IMOBILIÁRIO DV - DOCUMENTO EXECUTIVO", ln=True, align='C')
         pdf.ln(15)
@@ -547,7 +556,7 @@ def gerar_resumo_pdf(d):
 
         pdf.set_y(-25)
         pdf.set_font("Helvetica", 'I', 7)
-        pdf.set_text_color(*CINZA_RGB)
+        pdf.set_text_color(*AZUL_RGB)
         pdf.cell(0, 4, "Simulação sujeita a aprovação de crédito e alteração de tabela sem aviso prévio.", ln=True, align='C')
         pdf.cell(0, 4, "Direcional Engenharia - Rio de Janeiro", ln=True, align='C')
 
@@ -731,10 +740,10 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
                 # Função interna para renderizar o card
                 def render_card(unid, perfil_label, subtitulo, border_color):
                     st.markdown(f'''<div class="recommendation-card" style="border-top: 4px solid {border_color};">
-                        <span style="font-size:0.7rem; color:{COR_TEXTO_MUTED}">PERFIL</span><br><b>{perfil_label}</b><br>
-                        <small>{unid["Empreendimento"]}</small><br>Unid. {unid["Identificador"]}<br>
+                        <span style="font-size:0.7rem; color:{COR_AZUL_ESC}; opacity:0.8;">PERFIL</span><br><b style="color:{COR_AZUL_ESC};">{perfil_label}</b><br>
+                        <small style="color:{COR_AZUL_ESC};">{unid["Empreendimento"]}</small><br><span style="color:{COR_AZUL_ESC};">Unid. {unid["Identificador"]}</span><br>
                         <div class="price-tag">R$ {fmt_br(unid["Valor de Venda"])}</div>
-                        <small style="color:{COR_TEXTO_MUTED}">{subtitulo}</small>
+                        <small style="color:{COR_AZUL_ESC}; opacity:0.8;">{subtitulo}</small>
                     </div>''', unsafe_allow_html=True)
 
                 v100 = ideal['Valor de Venda']
@@ -844,19 +853,20 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
         u_valor = d.get('imovel_valor', 0)
         st.markdown(f'<div class="custom-alert">Unidade Selecionada: {d["unidade_id"]} - {d["empreendimento_nome"]} (R$ {fmt_br(u_valor)})<br><small style="font-weight:400;">Faixa do Imóvel: {d.get("faixa_unidade", "N/A")}</small></div>', unsafe_allow_html=True)
         
-        col_f1, col_f2 = st.columns(2)
-        with col_f1:
-            f_u = st.number_input("Financiamento Bancário", value=float(d['finan_estimado']), step=1000.0, key="fin_u_v28")
-            st.markdown(f'<span class="inline-ref">Referência Sugerida: R$ {fmt_br(d.get("finan_estimado", 0))}</span>', unsafe_allow_html=True)
+        # Campo de Financiamento
+        f_u = st.number_input("Financiamento Bancário", value=float(d['finan_estimado']), step=1000.0, key="fin_u_v28")
+        st.markdown(f'<span class="inline-ref">Referência Sugerida: R$ {fmt_br(d.get("finan_estimado", 0))}</span>', unsafe_allow_html=True)
             
-        with col_f2:
-            fgts_u = st.number_input("FGTS + Subsídio", value=float(d['fgts_sub']), step=1000.0, key="fgt_u_v28")
-            st.markdown(f'<span class="inline-ref">Referência Sugerida: R$ {fmt_br(d.get("fgts_sub", 0))}</span>', unsafe_allow_html=True)
+        # Campo de FGTS + Subsídio
+        fgts_u = st.number_input("FGTS + Subsídio", value=float(d['fgts_sub']), step=1000.0, key="fgt_u_v28")
+        st.markdown(f'<span class="inline-ref">Referência Sugerida: R$ {fmt_br(d.get("fgts_sub", 0))}</span>', unsafe_allow_html=True)
         
+        # Campo de Pro Soluto
         ps_max_real = u_valor * d['perc_ps']
         ps_u = st.number_input("Pro Soluto Direcional", value=float(ps_max_real), step=1000.0, key="ps_u_v28")
         st.markdown(f'<span class="inline-ref">Limite Permitido: {d.get("perc_ps", 0)*100:.0f}% (Até R$ {fmt_br(ps_max_real)})</span>', unsafe_allow_html=True)
         
+        # Campo de Parcelas
         parc = st.number_input("Número de Parcelas Pro Soluto", min_value=1, max_value=144, value=d['prazo_ps_max'], key="parc_u_v28")
         st.markdown(f'<span class="inline-ref">Prazo Máximo: {d.get("prazo_ps_max", 0)} meses</span>', unsafe_allow_html=True)
         
@@ -872,11 +882,11 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
             st.session_state.last_calc_hash = calc_hash
         
         fin1, fin2, fin3 = st.columns(3)
-        with fin1: st.markdown(f"""<div class="fin-box" style="border-top: 6px solid {COR_AZUL_ESC};"><b>VALOR DO IMÓVEL</b><br>R$ {fmt_br(u_valor)}</div>""", unsafe_allow_html=True)
+        with fin1: st.markdown(f"""<div class="fin-box" style="border-top: 6px solid {COR_AZUL_ESC};"><b style="color:{COR_AZUL_ESC};">VALOR DO IMÓVEL</b><br><span style="color:{COR_AZUL_ESC};">R$ {fmt_br(u_valor)}</span></div>""", unsafe_allow_html=True)
         with fin2: 
-            st.markdown(f"""<div class="fin-box" style="border-top: 6px solid {COR_VERMELHO};"><b>MENSALIDADE PS</b><br>R$ {fmt_br(v_parc)} ({parc}x)</div>""", unsafe_allow_html=True)
-            st.markdown(f'<center><span style="font-size:0.65rem; color:#64748b; font-weight:700;">LIMITE RENDA: {d.get("limit_ps_renda", 0)*100:.0f}%</span></center>', unsafe_allow_html=True)
-        with fin3: st.markdown(f"""<div class="fin-box" style="border-top: 6px solid {COR_AZUL_ESC};"><b>SALDO DE ENTRADA</b><br>R$ {fmt_br(max(0, saldo_e))}</div>""", unsafe_allow_html=True)
+            st.markdown(f"""<div class="fin-box" style="border-top: 6px solid {COR_VERMELHO};"><b style="color:{COR_AZUL_ESC};">MENSALIDADE PS</b><br><span style="color:{COR_AZUL_ESC};">R$ {fmt_br(v_parc)} ({parc}x)</span></div>""", unsafe_allow_html=True)
+            st.markdown(f'<center><span style="font-size:0.65rem; color:{COR_AZUL_ESC}; font-weight:700; opacity:0.8;">LIMITE RENDA: {d.get("limit_ps_renda", 0)*100:.0f}%</span></center>', unsafe_allow_html=True)
+        with fin3: st.markdown(f"""<div class="fin-box" style="border-top: 6px solid {COR_AZUL_ESC};"><b style="color:{COR_AZUL_ESC};">SALDO DE ENTRADA</b><br><span style="color:{COR_AZUL_ESC};">R$ {fmt_br(max(0, saldo_e))}</span></div>""", unsafe_allow_html=True)
         
         if comp_r > d['limit_ps_renda']:
             st.warning(f"Atenção: Parcela Pro Soluto excede o limite de {d['limit_ps_renda']*100:.0f}% da renda.")
