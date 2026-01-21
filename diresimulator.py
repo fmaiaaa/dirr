@@ -4,9 +4,10 @@
 SISTEMA DE SIMULAÇÃO IMOBILIÁRIA - DIRE RIO V2 (MODIFICADO)
 =============================================================================
 Alterações Realizadas:
-1. Recomendação Multi-Unidade: Cards agora listam todas as unidades com o preço sugerido.
-2. Agrupamento de Perfis: Cards com o mesmo valor de venda são mesclados automaticamente.
-3. Design Responsivo: Cards com alturas iguais para manter simetria visual.
+1. Padronização Visual: O st.info da Etapa 2 foi substituído por um st.markdown
+   utilizando a classe 'custom-alert' para manter a identidade visual azul.
+2. Recomendação Multi-Unidade: Cards listam todas as unidades com o preço sugerido.
+3. Agrupamento de Perfis: Cards com o mesmo valor são mesclados automaticamente.
 4. Lógica de Viabilidade: Mantida a análise granular por unidade.
 =============================================================================
 """
@@ -20,7 +21,7 @@ import io
 import streamlit.components.v1 as components
 import base64
 try:
-    from Image import Image
+    from PIL import Image
 except ImportError:
     Image = None
 import os
@@ -669,7 +670,8 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
             </div>
         """, unsafe_allow_html=True)
         
-        st.info("Este valor é apenas uma estimativa guia. A viabilidade real será calculada para cada unidade individualmente na próxima etapa.")
+        # Ajuste visual solicitado: info estilizado no padrão azul (custom-alert)
+        st.markdown('<div class="custom-alert">Este valor é apenas uma estimativa guia. A viabilidade real será calculada para cada unidade individualmente na próxima etapa.</div>', unsafe_allow_html=True)
         
         if st.button("Avançar para Recomendação Granular", type="primary", use_container_width=True, key="btn_s2_v28"):
             st.session_state.passo_simulacao = 'guide'; st.rerun()
