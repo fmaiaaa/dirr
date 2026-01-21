@@ -4,9 +4,11 @@
 SISTEMA DE SIMULAÇÃO IMOBILIÁRIA - DIRE RIO V2 (MODIFICADO)
 =============================================================================
 Alterações Realizadas:
-1. Estoque Geral: Filtro de ordem simplificado para apenas "Menor Preço" e "Maior Preço".
-2. Recomendação de Unidades: Cards exibem todas as unidades com o valor recomendado.
-3. Estilização: Cor Azul Escuro (#002c5d) e design preservado.
+1. Lógica de Viabilidade: Agora calculada unidade a unidade (granular).
+2. Poder de Compra: O valor na Etapa 2 é apenas um guia (baseado na média do estoque).
+3. Recomendação: As sugestões (Ideal, Seguro, Facilitado) utilizam o poder de compra 
+   específico de cada unidade em relação ao seu preço.
+4. Estilização: Cor Azul Escuro (#002c5d) e design original preservados.
 =============================================================================
 """
 
@@ -616,7 +618,8 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
                 politica_row = df_politicas[df_politicas['CLASSIFICAÇÃO'] == class_b].iloc[0]
                 limit_ps_r = politica_row['FX_RENDA_1'] if renda < politica_row['FAIXA_RENDA'] else politica_row['FX_RENDA_2']
                 
-                f_faixa1, s_faixa1, fx_nome = motor.obter_enquadramento(renda, social, cotista, valor_avaliacao=180000)
+                # Para o enquadramento do GUIA, usamos um valor de avaliação padrão
+                f_faixa_ref, s_faixa_ref, fx_nome_ref = motor.obter_enquadramento(renda, social, cotista, valor_avaliacao=240000)
 
                 st.session_state.dados_cliente = {
                     'nome': nome, 'renda': renda, 'social': social, 'cotista': cotista,
@@ -624,12 +627,12 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
                     'perc_ps': politica_row['PROSOLUTO'], 
                     'prazo_ps_max': int(politica_row['PARCELAS']),
                     'limit_ps_renda': limit_ps_r,
-                    'finan_f1': f_faixa1, 'sub_f1': s_faixa1
+                    'finan_f_ref': f_faixa_ref, 'sub_f_ref': s_faixa_ref
                 }
                 st.session_state.passo_simulacao = 'potential'
                 st.rerun()
 
-    # --- ETAPA 2: POTENCIAL ---
+    # --- ETAPA 2: POTENCIAL (GUIA) ---
     elif st.session_state.passo_simulacao == 'potential':
         d = st.session_state.dados_cliente
         st.markdown(f"### Valor Potencial de Compra - {d['nome'] or 'Cliente'}")
@@ -641,34 +644,37 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
             ps_medio = 0
             pot_final = 0
         else:
+            # Cálculo referencial baseado na média de mercado para servir como guia
             v_medio = df_pot['Valor de Venda'].mean()
             ps_medio = v_medio * d['perc_ps']
             dobro_renda = 2 * d['renda']
-            pot_final = d['finan_f1'] + d['sub_f1'] + ps_medio + dobro_renda
+            pot_final = d['finan_f_ref'] + d['sub_f_ref'] + ps_medio + dobro_renda
         
         m1, m2, m3, m4 = st.columns(4)
-        with m1: st.markdown(f'<div class="card"><p class="metric-label">Financiamento</p><p class="metric-value">R$ {fmt_br(d["finan_f1"])}</p></div>', unsafe_allow_html=True)
-        with m2: st.markdown(f'<div class="card"><p class="metric-label">Subsídio</p><p class="metric-value">R$ {fmt_br(d["sub_f1"])}</p></div>', unsafe_allow_html=True)
-        with m3: st.markdown(f'<div class="card"><p class="metric-label">Pro Soluto</p><p class="metric-value">R$ {fmt_br(ps_medio)}</p></div>', unsafe_allow_html=True)
-        with m4: st.markdown(f'<div class="card"><p class="metric-label">Capacidade de Entrada</p><p class="metric-value">R$ {fmt_br(2 * d["renda"])}</p></div>', unsafe_allow_html=True)
+        with m1: st.markdown(f'<div class="card"><p class="metric-label">Finan. Ref.</p><p class="metric-value">R$ {fmt_br(d["finan_f_ref"])}</p></div>', unsafe_allow_html=True)
+        with m2: st.markdown(f'<div class="card"><p class="metric-label">Subsídio Ref.</p><p class="metric-value">R$ {fmt_br(d["sub_f_ref"])}</p></div>', unsafe_allow_html=True)
+        with m3: st.markdown(f'<div class="card"><p class="metric-label">Pro Soluto Ref.</p><p class="metric-value">R$ {fmt_br(ps_medio)}</p></div>', unsafe_allow_html=True)
+        with m4: st.markdown(f'<div class="card"><p class="metric-label">Capacidade Entrada</p><p class="metric-value">R$ {fmt_br(2 * d["renda"])}</p></div>', unsafe_allow_html=True)
 
         st.markdown(f"""
             <div class="card" style="border-top: 4px solid {COR_AZUL_ESC}; background: #ffffff; min-height: 120px;">
-                <p class="metric-label" style="color: {COR_AZUL_ESC}; font-size: 0.8rem;">Poder de Aquisição Estimado</p>
+                <p class="metric-label" style="color: {COR_AZUL_ESC}; font-size: 0.8rem;">Poder de Aquisição Estimado (Guia)</p>
                 <p class="metric-value" style="font-size: 2.8rem; color: {COR_AZUL_ESC};">R$ {fmt_br(pot_final)}</p>
             </div>
         """, unsafe_allow_html=True)
         
-        if st.button("Avançar para Seleção de Imóvel", type="primary", use_container_width=True, key="btn_s2_v28"):
+        st.info("Este valor é apenas uma estimativa guia. A viabilidade real será calculada para cada unidade individualmente na próxima etapa.")
+        
+        if st.button("Avançar para Recomendação Granular", type="primary", use_container_width=True, key="btn_s2_v28"):
             st.session_state.passo_simulacao = 'guide'; st.rerun()
         st.write("")
         if st.button("Voltar para Dados do Cliente", use_container_width=True, key="btn_edit_v28"):
             st.session_state.passo_simulacao = 'input'; st.rerun()
 
-    # --- ETAPA 3: SELEÇÃO E RECOMENDAÇÃO ---
+    # --- ETAPA 3: SELEÇÃO E RECOMENDAÇÃO GRANULAR ---
     elif st.session_state.passo_simulacao == 'guide':
         d = st.session_state.dados_cliente
-        st.markdown(f"### Recomendação de Imóveis")
+        st.markdown(f"### Recomendação de Imóveis (Análise por Unidade)")
         
         df_disp_total = df_estoque[df_estoque['Status'] == 'Disponível'].copy()
         
@@ -676,15 +682,19 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
             st.warning("Não há estoque disponível.")
             df_viaveis = pd.DataFrame()
         else:
+            # Lógica de cálculo UNIDADE A UNIDADE
             def calcular_viabilidade_unidade(row):
                 v_venda = row['Valor de Venda']
                 v_aval = row['Valor de Avaliação Bancária']
+                # Financiamento e subsídio mudam conforme a faixa da unidade (baseada na avaliação)
                 fin, sub, fx_n = motor.obter_enquadramento(d['renda'], d['social'], d['cotista'], v_aval)
+                # O poder de compra é calculado especificamente para esta unidade (Pro Soluto escala com o valor da unidade)
                 poder, ps_u = motor.calcular_poder_compra(d['renda'], fin, sub, d['perc_ps'], v_venda)
                 gap = poder - v_venda
-                return pd.Series([poder, gap, gap >= 0])
+                return pd.Series([poder, gap, gap >= 0, fin, sub])
 
-            df_disp_total[['Poder_Compra', 'Gap', 'Viavel']] = df_disp_total.apply(calcular_viabilidade_unidade, axis=1)
+            # Aplicando a lógica individual
+            df_disp_total[['Poder_Compra', 'Gap', 'Viavel', 'Finan_Unid', 'Sub_Unid']] = df_disp_total.apply(calcular_viabilidade_unidade, axis=1)
             df_disp_total['Status Viabilidade'] = df_disp_total['Viavel'].apply(lambda x: "Viavel" if x else "Inviavel")
             
             df_viaveis = df_disp_total[df_disp_total['Viavel']].sort_values('Gap', ascending=False).copy()
@@ -720,48 +730,39 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
             if df_pool.empty:
                 st.info("Nenhuma unidade encontrada para este filtro.")
             else:
-                def obter_unidades_ajustadas(df_base, limite_poder):
-                    dentro_orcamento = df_base[df_base['Valor de Venda'] <= limite_poder]
-                    if not dentro_orcamento.empty:
-                        valor_alvo = dentro_orcamento['Valor de Venda'].max()
-                    else:
-                        valor_alvo = df_base['Valor de Venda'].min()
-                    return df_base[df_base['Valor de Venda'] == valor_alvo]
+                # Novas Sugestões baseadas na viabilidade individual
+                # Ideal: Maior valor de venda que seja viável (100% do poder)
+                df_ideal_pool = df_pool[df_pool['Viavel']]
+                df_ideal = df_ideal_pool.sort_values('Valor de Venda', ascending=False).head(1) if not df_ideal_pool.empty else pd.DataFrame()
 
-                df_ideal = obter_unidades_ajustadas(df_pool, df_pool['Poder_Compra'].mean())
-                df_seguro = obter_unidades_ajustadas(df_pool, df_pool['Poder_Compra'].mean() * 0.90)
-                df_facilitado = obter_unidades_ajustadas(df_pool, df_pool['Poder_Compra'].mean() * 0.75)
+                # Seguro: Unidades onde o valor de venda é <= 90% do poder de compra calculado PARA ELAS
+                df_seguro_pool = df_pool[df_pool['Valor de Venda'] <= (df_pool['Poder_Compra'] * 0.90)]
+                df_seguro = df_seguro_pool.sort_values('Valor de Venda', ascending=False).head(1) if not df_seguro_pool.empty else pd.DataFrame()
 
-                def render_card(df_unids, perfil_label, subtitulo, border_color):
-                    ids = ", ".join(df_unids["Identificador"].astype(str).tolist())
+                # Facilitado: Unidades onde o valor de venda é <= 75% do poder de compra calculado PARA ELAS
+                df_facilitado_pool = df_pool[df_pool['Valor de Venda'] <= (df_pool['Poder_Compra'] * 0.75)]
+                df_facilitado = df_facilitado_pool.sort_values('Valor de Venda', ascending=False).head(1) if not df_facilitado_pool.empty else pd.DataFrame()
+
+                def render_card_granular(df_unids, perfil_label, subtitulo, border_color):
+                    if df_unids.empty:
+                        st.markdown(f'''<div class="recommendation-card" style="border-top: 4px solid #cbd5e1; padding: 15px; min-height: 180px; opacity: 0.5;">
+                            <b style="color:#64748b;">{perfil_label}</b><br><small>Nenhuma unidade encontrada</small>
+                        </div>''', unsafe_allow_html=True)
+                        return
+                    
                     unid_ref = df_unids.iloc[0]
-                    st.markdown(f'''<div class="recommendation-card" style="border-top: 4px solid {border_color}; padding: 15px; min-height: 80px;">
+                    st.markdown(f'''<div class="recommendation-card" style="border-top: 4px solid {border_color}; padding: 15px; min-height: 180px;">
                         <span style="font-size:0.65rem; color:{COR_AZUL_ESC}; opacity:0.8;">PERFIL</span><br><b style="color:{COR_AZUL_ESC}; font-size:1.1rem;">{perfil_label}</b><br>
                         <small style="color:{COR_AZUL_ESC}; font-size:0.95rem;">{unid_ref["Empreendimento"]}</small><br>
-                        <span style="color:{COR_AZUL_ESC}; font-size:1.0rem;">Unidade(s): {ids}</span><br>
+                        <span style="color:{COR_AZUL_ESC}; font-size:1.0rem;">Unidade: {unid_ref["Identificador"]}</span><br>
                         <div class="price-tag" style="font-size:1.3rem; margin:2px 0;">R$ {fmt_br(unid_ref["Valor de Venda"])}</div>
                         <small style="color:{COR_AZUL_ESC}; opacity:0.9; font-size:0.8rem;">{subtitulo}</small>
                     </div>''', unsafe_allow_html=True)
 
-                v100 = df_ideal.iloc[0]['Valor de Venda']
-                v90 = df_seguro.iloc[0]['Valor de Venda']
-                v75 = df_facilitado.iloc[0]['Valor de Venda']
-
-                if v100 == v90 == v75:
-                    render_card(df_ideal, "IDEAL / SEGURO / FACILITADO", "Unidades atendem a todas as faixas", COR_AZUL_ESC)
-                elif v90 == v75:
-                    c1, c2 = st.columns(2)
-                    with c1: render_card(df_ideal, "IDEAL", "100% do Poder de Compra", COR_AZUL_ESC)
-                    with c2: render_card(df_seguro, "SEGURO & FACILITADO", "90% a 75% do Poder", COR_VERMELHO)
-                elif v100 == v90:
-                    c1, c2 = st.columns(2)
-                    with c1: render_card(df_ideal, "IDEAL & SEGURO", "100% a 90% do Poder", COR_AZUL_ESC)
-                    with c2: render_card(df_facilitado, "FACILITADO", "75% do Poder", COR_VERMELHO)
-                else:
-                    c1, c2, c3 = st.columns(3)
-                    with c1: render_card(df_ideal, "IDEAL", "100% do Poder", COR_AZUL_ESC)
-                    with c2: render_card(df_seguro, "SEGURO", "90% do Poder", COR_VERMELHO)
-                    with c3: render_card(df_facilitado, "FACILITADO", "75% do Poder", COR_AZUL_ESC)
+                c1, c2, c3 = st.columns(3)
+                with c1: render_card_granular(df_ideal, "IDEAL", "Até 100% da Capacidade Real", COR_AZUL_ESC)
+                with c2: render_card_granular(df_seguro, "SEGURO", "Folga de 10% no Orçamento", COR_VERMELHO)
+                with c3: render_card_granular(df_facilitado, "FACILITADO", "Folga de 25% no Orçamento", COR_AZUL_ESC)
 
         with tab_list:
             if df_disp_total.empty:
@@ -771,7 +772,6 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
                 with f_cols[0]: f_bairro = st.multiselect("Bairro:", options=sorted(df_disp_total['Bairro'].unique()), key="f_bairro_tab_v28")
                 with f_cols[1]: f_emp = st.multiselect("Empreendimento:", options=sorted(df_disp_total['Empreendimento'].unique()), key="f_emp_tab_v28")
                 with f_cols[2]: f_status_v = st.multiselect("Viabilidade:", options=["Viavel", "Inviavel"], key="f_status_tab_v28")
-                # Filtro de Ordem Alterado para Menor e Maior Preço somente
                 with f_cols[3]: f_ordem = st.selectbox("Ordem:", ["Menor Preço", "Maior Preço"], key="f_ordem_tab_v28")
                 with f_cols[4]: f_pmax = st.number_input("Preço Máx:", value=float(df_disp_total['Valor de Venda'].max()), key="f_pmax_tab_v28")
                 
@@ -781,7 +781,6 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
                 if f_status_v: df_tab = df_tab[df_tab['Status Viabilidade'].isin(f_status_v)]
                 df_tab = df_tab[df_tab['Valor de Venda'] <= f_pmax]
                 
-                # Lógica de Ordenação Ajustada
                 if f_ordem == "Menor Preço": 
                     df_tab = df_tab.sort_values('Valor de Venda', ascending=True)
                 else: 
@@ -799,7 +798,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
                     column_config={
                         "Identificador": st.column_config.TextColumn("Unidade"),
                         "Valor de Venda": st.column_config.TextColumn("Preço (R$)"),
-                        "Poder_Compra": st.column_config.TextColumn("Poder (R$)"),
+                        "Poder_Compra": st.column_config.TextColumn("Poder Real (R$)"),
                         "Gap": st.column_config.TextColumn("Saldo (R$)"),
                     }
                 )
@@ -811,7 +810,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
         with col_sel1:
             emp_escolhido = st.selectbox("Escolha o Empreendimento:", options=emp_names, key="sel_emp_guide_v28")
         
-        unidades_disp = df_estoque[(df_estoque['Empreendimento'] == emp_escolhido) & (df_estoque['Status'] == 'Disponível')].copy()
+        unidades_disp = df_disp_total[(df_disp_total['Empreendimento'] == emp_escolhido)].copy()
         unidades_disp = unidades_disp.sort_values(['Bloco_Sort', 'Andar', 'Apto_Sort'])
         
         with col_sel2:
@@ -821,23 +820,23 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
             else:
                 def label_uni(uid):
                     u_row = unidades_disp[unidades_disp['Identificador'] == uid].iloc[0]
-                    return f"{uid} (R$ {fmt_br(u_row['Valor de Venda'])})"
+                    cor_status = "✅" if u_row['Viavel'] else "❌"
+                    return f"{uid} - {cor_status} (R$ {fmt_br(u_row['Valor de Venda'])})"
                 uni_escolhida_id = st.selectbox("Escolha a Unidade:", options=unidades_disp['Identificador'].unique(), 
                                                 format_func=label_uni, key="sel_uni_guide_v28")
 
         if st.button("Avançar para Fechamento Financeiro", type="primary", use_container_width=True, key="btn_fech_v28"):
             if uni_escolhida_id:
                 u_row = unidades_disp[unidades_disp['Identificador'] == uni_escolhida_id].iloc[0]
-                fin_real, sub_real, faixa_real = motor.obter_enquadramento(d['renda'], d['social'], d['cotista'], u_row['Valor de Avaliação Bancária'])
                 
                 st.session_state.dados_cliente.update({
                     'unidade_id': uni_escolhida_id,
                     'empreendimento_nome': emp_escolhido,
                     'imovel_valor': u_row['Valor de Venda'],
                     'imovel_avaliacao': u_row['Valor de Avaliação Bancária'],
-                    'finan_estimado': fin_real,
-                    'fgts_sub': sub_real,
-                    'faixa_unidade': faixa_real
+                    'finan_estimado': u_row['Finan_Unid'],
+                    'fgts_sub': u_row['Sub_Unid'],
+                    'faixa_unidade': "Calculada via Avaliação" # Informativo
                 })
                 st.session_state.passo_simulacao = 'payment_flow'
                 st.rerun()
@@ -854,17 +853,17 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
         
         u_valor = d.get('imovel_valor', 0)
         u_aval = d.get('imovel_avaliacao', u_valor)
-        st.markdown(f'<div class="custom-alert">Unidade Selecionada: {d["unidade_id"]} - {d["empreendimento_nome"]} (R$ {fmt_br(u_valor)})<br><small style="font-weight:400;">Faixa do Imóvel: {d.get("faixa_unidade", "N/A")}</small></div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="custom-alert">Unidade Selecionada: {d["unidade_id"]} - {d["empreendimento_nome"]} (R$ {fmt_br(u_valor)})<br><small style="font-weight:400;">Valor de Avaliação: R$ {fmt_br(u_aval)}</small></div>', unsafe_allow_html=True)
         
         f_u = st.number_input("Financiamento Bancário", value=float(d['finan_estimado']), step=1000.0, key="fin_u_v28")
-        st.markdown(f'<span class="inline-ref">Financiamento Aprovado: R$ {fmt_br(d.get("finan_estimado", 0))}</span>', unsafe_allow_html=True)
+        st.markdown(f'<span class="inline-ref">Financiamento Específico Unidade: R$ {fmt_br(d.get("finan_estimado", 0))}</span>', unsafe_allow_html=True)
             
         fgts_u = st.number_input("FGTS + Subsídio", value=float(d['fgts_sub']), step=1000.0, key="fgt_u_v28")
-        st.markdown(f'<span class="inline-ref">Subsídio Aprovado: R$ {fmt_br(d.get("fgts_sub", 0))}</span>', unsafe_allow_html=True)
+        st.markdown(f'<span class="inline-ref">Subsídio Específico Unidade: R$ {fmt_br(d.get("fgts_sub", 0))}</span>', unsafe_allow_html=True)
         
         ps_max_real = u_valor * d['perc_ps']
         ps_u = st.number_input("Pro Soluto Direcional", value=float(ps_max_real), step=1000.0, key="ps_u_v28")
-        st.markdown(f'<span class="inline-ref">Limite Permitido: {d.get("perc_ps", 0)*100:.0f}% (Até R$ {fmt_br(ps_max_real)})</span>', unsafe_allow_html=True)
+        st.markdown(f'<span class="inline-ref">Limite Permitido ({d.get("perc_ps", 0)*100:.0f}%): R$ {fmt_br(ps_max_real)}</span>', unsafe_allow_html=True)
         
         parc = st.number_input("Número de Parcelas Pro Soluto", min_value=1, max_value=144, value=d['prazo_ps_max'], key="parc_u_v28")
         st.markdown(f'<span class="inline-ref">Prazo Máximo: {d.get("prazo_ps_max", 0)} meses</span>', unsafe_allow_html=True)
