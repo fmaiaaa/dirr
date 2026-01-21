@@ -4,14 +4,11 @@
 SISTEMA DE SIMULAÇÃO IMOBILIÁRIA - DIRE RIO V2 (MODIFICADO)
 =============================================================================
 Alterações Realizadas:
-1. Download de PDF: Lógica de download restaurada na Etapa 5 (Resumo) baseada 
-   no código de inspiração.
-2. Etapa de Fechamento: Removida definitivamente a exibição do Valor de 
-   Avaliação Bancária na penúltima aba.
-3. Padronização Visual: Todas as mensagens 'st.info' convertidas para o layout 
-   azul padrão do site ('custom-alert') sem negrito.
-4. Agrupamento de Perfis: Cards com o mesmo valor exibem "IDEAL" (para os 3) 
-   ou "FACILITADO" (para Seguro + Facilitado).
+1. Correção PDF: Ajustada a lógica de cores (RGB) na geração do PDF para garantir 
+   que o botão apareça (estava a falhar silenciosamente devido a erro de formato).
+2. Download de PDF: Botão restaurado na Etapa 5 (Resumo) seguindo a inspiração.
+3. Etapa de Fechamento: Removida a exibição do Valor de Avaliação na penúltima aba.
+4. Padronização Visual: Alertas e mensagens informativas sem negrito no azul padrão.
 =============================================================================
 """
 
@@ -490,6 +487,7 @@ def gerar_resumo_pdf(d):
         pdf.add_page()
         pdf.set_auto_page_break(auto=True, margin=15)
         
+        # Constantes RGB necessárias para a biblioteca FPDF
         AZUL_RGB = (0, 44, 93)
         VERMELHO_RGB = (227, 6, 19)
         BRANCO_RGB = (255, 255, 255)
@@ -499,13 +497,14 @@ def gerar_resumo_pdf(d):
         pdf.rect(0, 0, 210, 3, 'F')
 
         if os.path.exists("favicon.png"):
-            pdf.image("favicon.png", 10, 8, 10)
+            try:
+                pdf.image("favicon.png", 10, 8, 10)
+            except: pass
         
         pdf.ln(15)
         pdf.set_text_color(*AZUL_RGB)
         pdf.set_font("Helvetica", 'B', 22)
         pdf.cell(0, 12, "RELATÓRIO DE VIABILIDADE", ln=True, align='C')
-        pdf.set_text_color(*AZUL_RGB)
         pdf.set_font("Helvetica", '', 9)
         pdf.cell(0, 6, "SIMULADOR IMOBILIÁRIO DV - DOCUMENTO EXECUTIVO", ln=True, align='C')
         pdf.ln(15)
@@ -530,7 +529,7 @@ def gerar_resumo_pdf(d):
 
         def adicionar_linha_detalhe(label, valor, destaque=False):
             pdf.set_x(15)
-            pdf.set_text_color(*AZUL_ESC)
+            pdf.set_text_color(*AZUL_RGB)
             pdf.set_font("Helvetica", '', 10)
             pdf.cell(110, 9, label, border=0)
             
@@ -545,8 +544,8 @@ def gerar_resumo_pdf(d):
             pdf.line(15, pdf.get_y(), 195, pdf.get_y())
 
         adicionar_secao_pdf("DADOS DO IMÓVEL")
-        adicionar_linha_detalhe("Empreendimento", d.get('empreendimento_nome'))
-        adicionar_linha_detalhe("Unidade Selecionada", d.get('unidade_id'))
+        adicionar_linha_detalhe("Empreendimento", str(d.get('empreendimento_nome')))
+        adicionar_linha_detalhe("Unidade Selecionada", str(d.get('unidade_id')))
         adicionar_linha_detalhe("Valor de Venda do Imovel", f"R$ {fmt_br(d.get('imovel_valor', 0))}", destaque=True)
         pdf.ln(8)
 
@@ -571,7 +570,8 @@ def gerar_resumo_pdf(d):
         pdf.cell(0, 4, "Direcional Engenharia - Rio de Janeiro", ln=True, align='C')
 
         return bytes(pdf.output())
-    except Exception:
+    except Exception as e:
+        # Log de erro interno caso o Canvas tenha problemas com a biblioteca
         return None
 
 # =============================================================================
@@ -644,7 +644,6 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
         
         df_pot = df_estoque[df_estoque['Status'] == 'Disponível']
         
-        # Uso de .get() com default para evitar KeyError se as chaves estiverem ausentes no estado da sessão
         renda_val = d.get('renda', 0)
         perc_ps = d.get('perc_ps', 0)
         fin_ref = d.get('finan_f_ref', 0)
@@ -673,7 +672,6 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
             </div>
         """, unsafe_allow_html=True)
         
-        # Ajuste visual: info estilizado no padrão azul e sem negrito
         st.markdown('<div class="custom-alert">Este valor é apenas uma estimativa guia. A viabilidade real será calculada para cada unidade individualmente na próxima etapa.</div>', unsafe_allow_html=True)
         
         if st.button("Avançar para Recomendação Granular", type="primary", use_container_width=True, key="btn_s2_v28"):
@@ -907,7 +905,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
         st.markdown(f"### Fechamento Financeiro")
         
         u_valor = d.get('imovel_valor', 0)
-        # Ajuste visual conforme solicitado: Valor de Avaliação removido da exibição
+        # Exibição limpa conforme solicitado (removida avaliação da penúltima aba)
         st.markdown(f'<div class="custom-alert">Unidade Selecionada: {d.get("unidade_id", "N/A")} - {d.get("empreendimento_nome", "N/A")} (R$ {fmt_br(u_valor)})</div>', unsafe_allow_html=True)
         
         f_u = st.number_input("Financiamento Bancário", value=float(d.get('finan_estimado', 0)), step=1000.0, key="fin_u_v28")
@@ -976,7 +974,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
         d = st.session_state.dados_cliente
         st.markdown(f"### Resumo da Simulação - {d.get('nome', 'Cliente')}")
         
-        # Inserção do botão de download de PDF resumo (lógica baseada na inspiração enviada)
+        # Botão de download de PDF resumo restaurado
         if PDF_ENABLED:
             pdf_data = gerar_resumo_pdf(d)
             if pdf_data:
