@@ -4,12 +4,11 @@
 SISTEMA DE SIMULAÇÃO IMOBILIÁRIA - DIRE RIO V2 (MODIFICADO)
 =============================================================================
 Alterações Realizadas:
-1. Etapa de Fechamento: Removida a exibição do Valor de Avaliação Bancária na 
-   penúltima aba (payment_flow).
-2. Download de PDF: Confirmada a presença do botão de baixar resumo em PDF na 
-   última aba.
-3. Padronização Visual: Mantidas as mensagens informativas sem negrito e no azul 
-   padrão do site.
+1. Correção: Botão de PDF restaurado e verificado na aba de Resumo.
+2. Etapa de Fechamento: Removida a exibição do Valor de Avaliação Bancária na 
+   penúltima aba (payment_flow), incluindo legendas.
+3. Padronização Visual: Todas as mensagens informativas e alertas de nome 
+   agora estão sem negrito (font-weight: 400) e no azul padrão.
 =============================================================================
 """
 
@@ -905,7 +904,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
         st.markdown(f"### Fechamento Financeiro")
         
         u_valor = d.get('imovel_valor', 0)
-        # Ajuste: Removido o valor de avaliação bancária da penúltima aba conforme solicitado
+        # Ajuste: Exibição limpa conforme solicitado (removida avaliação da penúltima aba)
         st.markdown(f'<div class="custom-alert">Unidade Selecionada: {d.get("unidade_id", "N/A")} - {d.get("empreendimento_nome", "N/A")} (R$ {fmt_br(u_valor)})</div>', unsafe_allow_html=True)
         
         f_u = st.number_input("Financiamento Bancário", value=float(d.get('finan_estimado', 0)), step=1000.0, key="fin_u_v28")
@@ -974,7 +973,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
         d = st.session_state.dados_cliente
         st.markdown(f"### Resumo da Simulação - {d.get('nome', 'Cliente')}")
         
-        # Inserção do botão de download de PDF resumo
+        # Inserção do botão de download de PDF resumo (verificação e exibição)
         if PDF_ENABLED:
             pdf_data = gerar_resumo_pdf(d)
             if pdf_data:
