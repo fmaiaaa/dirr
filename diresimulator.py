@@ -4,11 +4,12 @@
 SISTEMA DE SIMULAÇÃO IMOBILIÁRIA - DIRE RIO V2 (MODIFICADO)
 =============================================================================
 Alterações Realizadas:
-1. Padronização Visual: O st.info da Etapa 2 foi substituído por um st.markdown
-   utilizando a classe 'custom-alert' para manter a identidade visual azul.
-2. Recomendação Multi-Unidade: Cards listam todas as unidades com o preço sugerido.
-3. Agrupamento de Perfis: Cards com o mesmo valor são mesclados automaticamente.
-4. Lógica de Viabilidade: Mantida a análise granular por unidade.
+1. Ajuste de Agrupamento: Lógica de nomes para cards agrupados (3 perfis = IDEAL, 
+   Seguro + Facilitado = FACILITADO).
+2. Estilização: Removido o negrito (font-weight) das mensagens informativas e 
+   de validação de nome para um visual mais limpo.
+3. Recomendação Multi-Unidade: Cards listam todas as unidades com o preço sugerido.
+4. Lógica de Viabilidade: Análise granular por unidade preservada.
 =============================================================================
 """
 
@@ -448,7 +449,7 @@ def configurar_layout():
             border-radius: 10px; 
             margin-bottom: 30px; 
             text-align: center; 
-            font-weight: 700; 
+            font-weight: 400; /* Alterado de 700 para 400 */
             color: #ffffff !important; 
         }}
 
@@ -527,7 +528,7 @@ def gerar_resumo_pdf(d):
 
         def adicionar_linha_detalhe(label, valor, destaque=False):
             pdf.set_x(15)
-            pdf.set_text_color(*AZUL_RGB)
+            pdf.set_text_color(*AZUL_ESC)
             pdf.set_font("Helvetica", '', 10)
             pdf.cell(110, 9, label, border=0)
             
@@ -671,6 +672,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
         """, unsafe_allow_html=True)
         
         # Ajuste visual solicitado: info estilizado no padrão azul (custom-alert)
+        # Nota: O CSS alterado de .custom-alert já retira o negrito conforme pedido.
         st.markdown('<div class="custom-alert">Este valor é apenas uma estimativa guia. A viabilidade real será calculada para cada unidade individualmente na próxima etapa.</div>', unsafe_allow_html=True)
         
         if st.button("Avançar para Recomendação Granular", type="primary", use_container_width=True, key="btn_s2_v28"):
@@ -763,7 +765,6 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
                             label_extra = "Folga de 25% no Orçamento"
                     
                     price = df_target.iloc[0]['Valor de Venda']
-                    # Pega todas as unidades com esse preço exato
                     df_final = df_base[df_base['Valor de Venda'] == price]
                     return price, df_final, label_extra
 
@@ -797,10 +798,18 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
                             "emp": r['df'].iloc[0]['Empreendimento']
                         })
 
-                # Renderização dos Cards
+                # Renderização dos Cards com Nomenclatura Solicitada
                 cols = st.columns(len(grouped))
                 for idx, g in enumerate(grouped):
-                    labels_text = " & ".join(g['labels'])
+                    labels = g['labels']
+                    # Regras de nome de card agrupado
+                    if len(labels) == 3:
+                        labels_text = "IDEAL"
+                    elif "SEGURO" in labels and "FACILITADO" in labels:
+                        labels_text = "FACILITADO"
+                    else:
+                        labels_text = " & ".join(labels)
+                    
                     ids_text = ", ".join(g['df']['Identificador'].astype(str).unique().tolist())
                     
                     with cols[idx]:
