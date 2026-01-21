@@ -4,11 +4,11 @@
 SISTEMA DE SIMULAÇÃO IMOBILIÁRIA - DIRE RIO V2 (MODIFICADO)
 =============================================================================
 Alterações Realizadas:
-1. Lógica de Viabilidade: Agora calculada unidade a unidade (granular).
-2. Poder de Compra: O valor na Etapa 2 é apenas um guia (baseado na média do estoque).
-3. Recomendação: As sugestões (Ideal, Seguro, Facilitado) utilizam o poder de compra 
-   específico de cada unidade em relação ao seu preço.
-4. Estilização: Cor Azul Escuro (#002c5d) e design original preservados.
+1. Lógica de Viabilidade: Calculada unidade a unidade (granular).
+2. Fallback de Recomendação: Se nenhuma unidade for viável nos perfis, 
+   o sistema sugere a unidade de menor preço (lógica anterior).
+3. Poder de Compra: O valor na Etapa 2 permanece como guia referencial.
+4. Estilização: Preservação do design Azul Escuro (#002c5d).
 =============================================================================
 """
 
@@ -644,7 +644,6 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
             ps_medio = 0
             pot_final = 0
         else:
-            # Cálculo referencial baseado na média de mercado para servir como guia
             v_medio = df_pot['Valor de Venda'].mean()
             ps_medio = v_medio * d['perc_ps']
             dobro_renda = 2 * d['renda']
@@ -682,18 +681,14 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
             st.warning("Não há estoque disponível.")
             df_viaveis = pd.DataFrame()
         else:
-            # Lógica de cálculo UNIDADE A UNIDADE
             def calcular_viabilidade_unidade(row):
                 v_venda = row['Valor de Venda']
                 v_aval = row['Valor de Avaliação Bancária']
-                # Financiamento e subsídio mudam conforme a faixa da unidade (baseada na avaliação)
                 fin, sub, fx_n = motor.obter_enquadramento(d['renda'], d['social'], d['cotista'], v_aval)
-                # O poder de compra é calculado especificamente para esta unidade (Pro Soluto escala com o valor da unidade)
                 poder, ps_u = motor.calcular_poder_compra(d['renda'], fin, sub, d['perc_ps'], v_venda)
                 gap = poder - v_venda
                 return pd.Series([poder, gap, gap >= 0, fin, sub])
 
-            # Aplicando a lógica individual
             df_disp_total[['Poder_Compra', 'Gap', 'Viavel', 'Finan_Unid', 'Sub_Unid']] = df_disp_total.apply(calcular_viabilidade_unidade, axis=1)
             df_disp_total['Status Viabilidade'] = df_disp_total['Viavel'].apply(lambda x: "Viavel" if x else "Inviavel")
             
@@ -730,26 +725,37 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
             if df_pool.empty:
                 st.info("Nenhuma unidade encontrada para este filtro.")
             else:
-                # Novas Sugestões baseadas na viabilidade individual
-                # Ideal: Maior valor de venda que seja viável (100% do poder)
+                # --- LÓGICA DE RECOMENDAÇÃO COM FALLBACK ---
+                
+                # Ideal: Maior valor de venda que seja viável (100% do poder). Fallback: Menor Preço.
                 df_ideal_pool = df_pool[df_pool['Viavel']]
-                df_ideal = df_ideal_pool.sort_values('Valor de Venda', ascending=False).head(1) if not df_ideal_pool.empty else pd.DataFrame()
+                if not df_ideal_pool.empty:
+                    df_ideal = df_ideal_pool.sort_values('Valor de Venda', ascending=False).head(1)
+                    sub_ideal = "Até 100% da Capacidade Real"
+                else:
+                    df_ideal = df_pool.sort_values('Valor de Venda', ascending=True).head(1)
+                    sub_ideal = "Unidade de Menor Preço (Excede Poder)"
 
-                # Seguro: Unidades onde o valor de venda é <= 90% do poder de compra calculado PARA ELAS
+                # Seguro: Unidades onde o valor de venda é <= 90% do poder. Fallback: Menor Preço.
                 df_seguro_pool = df_pool[df_pool['Valor de Venda'] <= (df_pool['Poder_Compra'] * 0.90)]
-                df_seguro = df_seguro_pool.sort_values('Valor de Venda', ascending=False).head(1) if not df_seguro_pool.empty else pd.DataFrame()
+                if not df_seguro_pool.empty:
+                    df_seguro = df_seguro_pool.sort_values('Valor de Venda', ascending=False).head(1)
+                    sub_seguro = "Folga de 10% no Orçamento"
+                else:
+                    df_seguro = df_pool.sort_values('Valor de Venda', ascending=True).head(1)
+                    sub_seguro = "Unidade de Menor Preço"
 
-                # Facilitado: Unidades onde o valor de venda é <= 75% do poder de compra calculado PARA ELAS
+                # Facilitado: Unidades onde o valor de venda é <= 75% do poder. Fallback: Menor Preço.
                 df_facilitado_pool = df_pool[df_pool['Valor de Venda'] <= (df_pool['Poder_Compra'] * 0.75)]
-                df_facilitado = df_facilitado_pool.sort_values('Valor de Venda', ascending=False).head(1) if not df_facilitado_pool.empty else pd.DataFrame()
+                if not df_facilitado_pool.empty:
+                    df_facilitado = df_facilitado_pool.sort_values('Valor de Venda', ascending=False).head(1)
+                    sub_facilitado = "Folga de 25% no Orçamento"
+                else:
+                    df_facilitado = df_pool.sort_values('Valor de Venda', ascending=True).head(1)
+                    sub_facilitado = "Unidade de Menor Preço"
 
                 def render_card_granular(df_unids, perfil_label, subtitulo, border_color):
-                    if df_unids.empty:
-                        st.markdown(f'''<div class="recommendation-card" style="border-top: 4px solid #cbd5e1; padding: 15px; min-height: 180px; opacity: 0.5;">
-                            <b style="color:#64748b;">{perfil_label}</b><br><small>Nenhuma unidade encontrada</small>
-                        </div>''', unsafe_allow_html=True)
-                        return
-                    
+                    if df_unids.empty: return
                     unid_ref = df_unids.iloc[0]
                     st.markdown(f'''<div class="recommendation-card" style="border-top: 4px solid {border_color}; padding: 15px; min-height: 180px;">
                         <span style="font-size:0.65rem; color:{COR_AZUL_ESC}; opacity:0.8;">PERFIL</span><br><b style="color:{COR_AZUL_ESC}; font-size:1.1rem;">{perfil_label}</b><br>
@@ -760,9 +766,9 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
                     </div>''', unsafe_allow_html=True)
 
                 c1, c2, c3 = st.columns(3)
-                with c1: render_card_granular(df_ideal, "IDEAL", "Até 100% da Capacidade Real", COR_AZUL_ESC)
-                with c2: render_card_granular(df_seguro, "SEGURO", "Folga de 10% no Orçamento", COR_VERMELHO)
-                with c3: render_card_granular(df_facilitado, "FACILITADO", "Folga de 25% no Orçamento", COR_AZUL_ESC)
+                with c1: render_card_granular(df_ideal, "IDEAL", sub_ideal, COR_AZUL_ESC)
+                with c2: render_card_granular(df_seguro, "SEGURO", sub_seguro, COR_VERMELHO)
+                with c3: render_card_granular(df_facilitado, "FACILITADO", sub_facilitado, COR_AZUL_ESC)
 
         with tab_list:
             if df_disp_total.empty:
@@ -835,8 +841,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
                     'imovel_valor': u_row['Valor de Venda'],
                     'imovel_avaliacao': u_row['Valor de Avaliação Bancária'],
                     'finan_estimado': u_row['Finan_Unid'],
-                    'fgts_sub': u_row['Sub_Unid'],
-                    'faixa_unidade': "Calculada via Avaliação" # Informativo
+                    'fgts_sub': u_row['Sub_Unid']
                 })
                 st.session_state.passo_simulacao = 'payment_flow'
                 st.rerun()
