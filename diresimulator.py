@@ -4,12 +4,12 @@
 SISTEMA DE SIMULAÇÃO IMOBILIÁRIA - DIRE RIO V2 (MODIFICADO)
 =============================================================================
 Alterações Realizadas:
-1. Ajuste de Agrupamento: Lógica de nomes para cards agrupados (3 perfis = IDEAL, 
-   Seguro + Facilitado = FACILITADO).
-2. Estilização: Removido o negrito (font-weight) das mensagens informativas e 
-   de validação de nome para um visual mais limpo.
-3. Recomendação Multi-Unidade: Cards listam todas as unidades com o preço sugerido.
-4. Lógica de Viabilidade: Análise granular por unidade preservada.
+1. Etapa de Fechamento: Removida a exibição do Valor de Avaliação Bancária na 
+   penúltima aba (payment_flow).
+2. Download de PDF: Confirmada a presença do botão de baixar resumo em PDF na 
+   última aba.
+3. Padronização Visual: Mantidas as mensagens informativas sem negrito e no azul 
+   padrão do site.
 =============================================================================
 """
 
@@ -449,7 +449,7 @@ def configurar_layout():
             border-radius: 10px; 
             margin-bottom: 30px; 
             text-align: center; 
-            font-weight: 400; /* Alterado de 700 para 400 */
+            font-weight: 400; 
             color: #ffffff !important; 
         }}
 
@@ -671,8 +671,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
             </div>
         """, unsafe_allow_html=True)
         
-        # Ajuste visual solicitado: info estilizado no padrão azul (custom-alert)
-        # Nota: O CSS alterado de .custom-alert já retira o negrito conforme pedido.
+        # Ajuste visual: info estilizado no padrão azul e sem negrito
         st.markdown('<div class="custom-alert">Este valor é apenas uma estimativa guia. A viabilidade real será calculada para cada unidade individualmente na próxima etapa.</div>', unsafe_allow_html=True)
         
         if st.button("Avançar para Recomendação Granular", type="primary", use_container_width=True, key="btn_s2_v28"):
@@ -707,7 +706,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
         
         st.markdown("#### Panorama de Produtos Viáveis")
         if df_viaveis.empty:
-            st.info("Sem produtos viaveis no perfil selecionado para exibição automática.")
+            st.markdown('<div class="custom-alert">Sem produtos viaveis no perfil selecionado para exibição automática.</div>', unsafe_allow_html=True)
         else:
             emp_counts = df_viaveis.groupby('Empreendimento').size().to_dict()
             items = list(emp_counts.items())
@@ -734,10 +733,8 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
             df_pool = df_disp_total if emp_rec == "Todos" else df_disp_total[df_disp_total['Empreendimento'] == emp_rec]
             
             if df_pool.empty:
-                st.info("Nenhuma unidade encontrada para este filtro.")
+                st.markdown('<div class="custom-alert">Nenhuma unidade encontrada para este filtro.</div>', unsafe_allow_html=True)
             else:
-                # --- LÓGICA DE RECOMENDAÇÃO COM AGRUPAMENTO E LISTAGEM TOTAL ---
-                
                 def get_reco_data(df_base, tipo):
                     if tipo == "IDEAL":
                         df_target = df_base[df_base['Viavel']]
@@ -768,19 +765,16 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
                     df_final = df_base[df_base['Valor de Venda'] == price]
                     return price, df_final, label_extra
 
-                # Calculando para cada perfil
                 p_id, df_id, lb_id = get_reco_data(df_pool, "IDEAL")
                 p_se, df_se, lb_se = get_reco_data(df_pool, "SEGURO")
                 p_fa, df_fa, lb_fa = get_reco_data(df_pool, "FACILITADO")
 
-                # Estrutura para agrupamento
                 recos = [
                     {"label": "IDEAL", "price": p_id, "df": df_id, "desc": lb_id},
                     {"label": "SEGURO", "price": p_se, "df": df_se, "desc": lb_se},
                     {"label": "FACILITADO", "price": p_fa, "df": df_fa, "desc": lb_fa}
                 ]
 
-                # Lógica de Agrupamento por Preço
                 grouped = []
                 for r in recos:
                     found = False
@@ -798,11 +792,9 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
                             "emp": r['df'].iloc[0]['Empreendimento']
                         })
 
-                # Renderização dos Cards com Nomenclatura Solicitada
                 cols = st.columns(len(grouped))
                 for idx, g in enumerate(grouped):
                     labels = g['labels']
-                    # Regras de nome de card agrupado
                     if len(labels) == 3:
                         labels_text = "IDEAL"
                     elif "SEGURO" in labels and "FACILITADO" in labels:
@@ -828,7 +820,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
 
         with tab_list:
             if df_disp_total.empty:
-                st.info("Sem dados para exibir.")
+                st.markdown('<div class="custom-alert">Sem dados para exibir.</div>', unsafe_allow_html=True)
             else:
                 f_cols = st.columns([1.2, 1.5, 1, 1, 1])
                 with f_cols[0]: f_bairro = st.multiselect("Bairro:", options=sorted(df_disp_total['Bairro'].unique()), key="f_bairro_tab_v28")
@@ -913,8 +905,8 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
         st.markdown(f"### Fechamento Financeiro")
         
         u_valor = d.get('imovel_valor', 0)
-        u_aval = d.get('imovel_avaliacao', u_valor)
-        st.markdown(f'<div class="custom-alert">Unidade Selecionada: {d.get("unidade_id", "N/A")} - {d.get("empreendimento_nome", "N/A")} (R$ {fmt_br(u_valor)})<br><small style="font-weight:400;">Valor de Avaliação: R$ {fmt_br(u_aval)}</small></div>', unsafe_allow_html=True)
+        # Ajuste: Removido o valor de avaliação bancária da penúltima aba conforme solicitado
+        st.markdown(f'<div class="custom-alert">Unidade Selecionada: {d.get("unidade_id", "N/A")} - {d.get("empreendimento_nome", "N/A")} (R$ {fmt_br(u_valor)})</div>', unsafe_allow_html=True)
         
         f_u = st.number_input("Financiamento Bancário", value=float(d.get('finan_estimado', 0)), step=1000.0, key="fin_u_v28")
         st.markdown(f'<span class="inline-ref">Financiamento Específico Unidade: R$ {fmt_br(d.get("finan_estimado", 0))}</span>', unsafe_allow_html=True)
@@ -982,6 +974,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
         d = st.session_state.dados_cliente
         st.markdown(f"### Resumo da Simulação - {d.get('nome', 'Cliente')}")
         
+        # Inserção do botão de download de PDF resumo
         if PDF_ENABLED:
             pdf_data = gerar_resumo_pdf(d)
             if pdf_data:
