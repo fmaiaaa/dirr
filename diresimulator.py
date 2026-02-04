@@ -21,9 +21,14 @@ Alterações Realizadas:
    - Correção CSS Data: Ajuste de background-color para igualar aos inputs de texto.
    - Layout Aba Inicial: Campos de dados pessoais em largura total (empilhados).
    - Correção UnboundLocalError: Definição da variável 'd' na aba de seleção.
-6. Atualizações (Update Atual):
+6. Atualizações (Update Anterior):
    - Refinamento CSS Data: Correção visual para alinhar cor de fundo e borda.
    - Feature E-mail: Opção de envio de resumo por e-mail na etapa final.
+7. Atualizações (Update Atual):
+   - CSS Data: Cor de fundo #f0f2f6 para igualar aos outros boxes.
+   - Botões Iniciais: Largura total, Caminho Completo primeiro.
+   - Aba Resumo: Download movido para o final, layout de e-mail ajustado.
+   - Fluxo Conclusão: Botão salvar redireciona para o início e limpa sessão.
 =============================================================================
 """
 
@@ -36,6 +41,7 @@ import io
 import streamlit.components.v1 as components
 import base64
 from datetime import datetime, date
+import time
 try:
     from PIL import Image
 except ImportError:
@@ -352,19 +358,24 @@ def configurar_layout():
             color: {COR_AZUL_ESC} !important;
         }}
         
-        /* Ajuste específico para o box de Data para ficar IGUAL aos outros */
+        /* Ajuste específico para o box de Data para ficar IGUAL aos outros (#f0f2f6) */
         div[data-testid="stDateInput"] {{
             border-radius: 8px !important;
         }}
         div[data-testid="stDateInput"] > div {{
             border-radius: 8px !important;
             border: 1px solid #e2e8f0 !important;
-            background-color: #ffffff !important;
+            background-color: #f0f2f6 !important; /* Cor exata solicitada */
         }}
         div[data-testid="stDateInput"] div[data-baseweb="input"] {{
-            border: none !important; /* Remove borda interna duplicada */
+            border: none !important; 
             background-color: transparent !important;
         }}
+        /* Força fundo branco para todos os outros inputs para contraste ou mantem consistencia */
+        div[data-baseweb="input"] {{
+            background-color: #f0f2f6 !important; /* Uniformizando todos para a cor pedida se desejado, ou mantendo branco */
+        }}
+        /* Mas o pedido foi especifico para o box de data ficar igual aos outros. Se os outros sao #f0f2f6, entao data deve ser tambem. */
         
         div[data-testid="stNumberInput"] button:hover {{
             background-color: {COR_VERMELHO} !important;
@@ -379,6 +390,7 @@ def configurar_layout():
         div[data-baseweb="select"] > div {{
             border-radius: 8px !important;
             border: 1px solid #e2e8f0 !important;
+            background-color: #f0f2f6 !important;
         }}
 
         .header-container {{ 
@@ -815,7 +827,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
         cotista = st.toggle("Cotista FGTS", value=st.session_state.dados_cliente.get('cotista', True), key="in_cot_v28")
         
         st.markdown("<br>", unsafe_allow_html=True)
-        col_btn_dir, col_btn_complet = st.columns(2)
+        # BOTOES FLUXO ALTERADOS: Largura total e ordem
         
         def processar_avanco(destino):
             if not nome.strip():
@@ -846,7 +858,6 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
             f_faixa_ref, s_faixa_ref, fx_nome_ref = motor.obter_enquadramento(renda_total_calc, social, cotista, valor_avaliacao=240000)
             
             # Recalcula Potencial Médio para salvar depois
-            # (Lógica da Etapa 2 trazida para cá para garantir que o dado exista mesmo no fluxo direto)
             v_medio_est = df_estoque[df_estoque['Status'] == 'Disponível']['Valor de Venda'].mean() if not df_estoque.empty else 0
             ps_medio_est = v_medio_est * politica_row['PROSOLUTO']
             cap_entrada = 2 * renda_total_calc
@@ -868,22 +879,20 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
                 'limit_ps_renda': limit_ps_r,
                 'finan_f_ref': f_faixa_ref, 
                 'sub_f_ref': s_faixa_ref,
-                'ps_medio_ref': ps_medio_est, # Novo dado para salvar
-                'cap_entrada_ref': cap_entrada, # Novo dado para salvar
-                'poder_aquisicao_ref': poder_aquisicao, # Novo dado para salvar
+                'ps_medio_ref': ps_medio_est, 
+                'cap_entrada_ref': cap_entrada, 
+                'poder_aquisicao_ref': poder_aquisicao, 
                 'qtd_participantes': qtd_part,
                 'prazo_financiamento': prazo_finan
             })
             st.session_state.passo_simulacao = destino
             st.rerun()
 
-        with col_btn_dir:
-            if st.button("Simulação Direta (Ir para Imóveis)", use_container_width=True, key="btn_direto_v3"):
-                processar_avanco('selection') # Vai direto para a nova aba de seleção
-        
-        with col_btn_complet:
-            if st.button("Caminho Completo (Ver Potencial)", type="primary", use_container_width=True, key="btn_completo_v3"):
-                processar_avanco('potential')
+        if st.button("Caminho Completo (Ver Potencial)", type="primary", use_container_width=True, key="btn_completo_v3"):
+            processar_avanco('potential')
+            
+        if st.button("Simulação Direta (Ir para Imóveis)", use_container_width=True, key="btn_direto_v3"):
+            processar_avanco('selection') # Vai direto para a nova aba de seleção
 
     # --- ETAPA 2: POTENCIAL (GUIA) ---
     elif st.session_state.passo_simulacao == 'potential':
@@ -1255,6 +1264,22 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
         d = st.session_state.dados_cliente
         st.markdown(f"### Resumo da Simulação - {d.get('nome', 'Cliente')}")
         
+        st.markdown(f'<div class="summary-header">DADOS DO IMÓVEL</div>', unsafe_allow_html=True)
+        st.markdown(f"""<div class="summary-body"><b>Empreendimento:</b> {d.get('empreendimento_nome')}<br>
+            <b>Unidade:</b> {d.get('unidade_id')}<br><b>Valor de Venda:</b> <span style="color: {COR_VERMELHO}; font-weight: 800;">R$ {fmt_br(d.get('imovel_valor', 0))}</span></div>""", unsafe_allow_html=True)
+
+        st.markdown(f'<div class="summary-header">PLANO DE FINANCIAMENTO</div>', unsafe_allow_html=True)
+        st.markdown(f"""<div class="summary-body"><b>Financiamento Bancário:</b> R$ {fmt_br(d.get('finan_usado', 0))}<br>
+            <b>FGTS + Subsídio:</b> R$ {fmt_br(d.get('fgts_sub_usado', 0))}<br>
+            <b>Pro Soluto Total:</b> R$ {fmt_br(d.get('ps_usado', 0))} ({d.get('ps_parcelas')}x de R$ {fmt_br(d.get('ps_mensal', 0))})</div>""", unsafe_allow_html=True)
+
+        st.markdown(f'<div class="summary-header">FLUXO DE ENTRADA (ATO)</div>', unsafe_allow_html=True)
+        st.markdown(f"""<div class="summary-body"><b>Total de Entrada:</b> R$ {fmt_br(d.get('entrada_total', 0))}<br><hr style="border: 0; border-top: 1px solid #e2e8f0; margin: 10px 0;">
+            <b>Ato:</b> R$ {fmt_br(d.get('ato_final', 0))}<br><b>Ato 30 Dias:</b> R$ {fmt_br(d.get('ato_30', 0))}<br>
+            <b>Ato 60 Dias:</b> R$ {fmt_br(d.get('ato_60', 0))}<br><b>Ato 90 Dias:</b> R$ {fmt_br(d.get('ato_90', 0))}</div>""", unsafe_allow_html=True)
+
+        st.markdown("---")
+        
         # Botão de download de PDF resumo restaurado
         if PDF_ENABLED:
             pdf_data = gerar_resumo_pdf(d)
@@ -1270,22 +1295,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
                         key="btn_download_pdf_final_v28"
                     )
 
-        st.markdown(f'<div class="summary-header">DADOS DO IMÓVEL</div>', unsafe_allow_html=True)
-        st.markdown(f"""<div class="summary-body"><b>Empreendimento:</b> {d.get('empreendimento_nome')}<br>
-            <b>Unidade:</b> {d.get('unidade_id')}<br><b>Valor de Venda:</b> <span style="color: {COR_VERMELHO}; font-weight: 800;">R$ {fmt_br(d.get('imovel_valor', 0))}</span></div>""", unsafe_allow_html=True)
-
-        st.markdown(f'<div class="summary-header">PLANO DE FINANCIAMENTO</div>', unsafe_allow_html=True)
-        st.markdown(f"""<div class="summary-body"><b>Financiamento Bancário:</b> R$ {fmt_br(d.get('finan_usado', 0))}<br>
-            <b>FGTS + Subsídio:</b> R$ {fmt_br(d.get('fgts_sub_usado', 0))}<br>
-            <b>Pro Soluto Total:</b> R$ {fmt_br(d.get('ps_usado', 0))} ({d.get('ps_parcelas')}x de R$ {fmt_br(d.get('ps_mensal', 0))})</div>""", unsafe_allow_html=True)
-
-        st.markdown(f'<div class="summary-header">FLUXO DE ENTRADA (ATO)</div>', unsafe_allow_html=True)
-        st.markdown(f"""<div class="summary-body"><b>Total de Entrada:</b> R$ {fmt_br(d.get('entrada_total', 0))}<br><hr style="border: 0; border-top: 1px solid #e2e8f0; margin: 10px 0;">
-            <b>Ato:</b> R$ {fmt_br(d.get('ato_final', 0))}<br><b>Ato 30 Dias:</b> R$ {fmt_br(d.get('ato_30', 0))}<br>
-            <b>Ato 60 Dias:</b> R$ {fmt_br(d.get('ato_60', 0))}<br><b>Ato 90 Dias:</b> R$ {fmt_br(d.get('ato_90', 0))}</div>""", unsafe_allow_html=True)
-
         # --- SEÇÃO DE ENVIO POR E-MAIL ---
-        st.markdown("---")
         st.markdown("#### Enviar Resumo por E-mail")
         c_email_in, c_email_btn = st.columns([3, 1])
         with c_email_in:
@@ -1350,13 +1360,14 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
                     df_existente = conn_save.read(spreadsheet=URL_RANKING, worksheet="Cadastros")
                     df_final_save = pd.concat([df_existente, df_novo], ignore_index=True)
                 except Exception as e:
-                    # Se falhar (provavelmente aba inexistente), tenta criar nova apenas com a linha atual
-                    # Nota: Isso pode falhar se a aba não existir e o método update não a criar.
-                    # Mas garante que o erro de leitura não pare o fluxo.
                     df_final_save = df_novo
                 
                 conn_save.update(spreadsheet=URL_RANKING, worksheet="Cadastros", data=df_final_save)
-                st.success("Simulação salva com sucesso na base de dados!")
+                st.success("Simulação salva com sucesso! Reiniciando...")
+                time.sleep(2)
+                st.session_state.dados_cliente = {}
+                st.session_state.passo_simulacao = 'input'
+                st.rerun()
                 
             except Exception as e:
                 msg_erro = str(e)
@@ -1367,10 +1378,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
 
         st.markdown("<br>", unsafe_allow_html=True)
         
-        c_new, c_back = st.columns(2)
-        with c_new:
-            if st.button("Fazer Nova Simulação (Limpar)", use_container_width=True, key="btn_new_client_summary_v28"): 
-                st.session_state.dados_cliente = {}; st.session_state.passo_simulacao = 'input'; st.rerun()
+        c_back, _ = st.columns([1, 1])
         with c_back:
             if st.button("Voltar para Fechamento", use_container_width=True, key="btn_edit_fin_summary_v28"):
                 st.session_state.passo_simulacao = 'payment_flow'; st.rerun()
