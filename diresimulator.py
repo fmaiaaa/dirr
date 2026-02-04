@@ -581,7 +581,7 @@ def gerar_resumo_pdf(d):
         pdf.set_xy(15, pdf.get_y() + 6)
         pdf.set_text_color(*AZUL_RGB)
         pdf.set_font("Helvetica", 'B', 13)
-        pdf.cell(0, 6, f"CLIENTE: {d.get('nome', 'Nao informado').upper()}", ln=True)
+        pdf.cell(0, 6, f"CLIENTE: {df.get('nome', 'Nao informado').upper()}", ln=True)
         pdf.set_x(15)
         pdf.set_font("Helvetica", '', 10)
         pdf.cell(0, 6, f"Renda Familiar: R$ {fmt_br(d.get('renda', 0))}", ln=True)
