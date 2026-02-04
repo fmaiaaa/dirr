@@ -1,14 +1,14 @@
 # -*- coding: utf-8 -*-
 """
 =============================================================================
-SISTEMA DE SIMULAÇÃO IMOBILIÁRIA - DIRE RIO V2 (MODIFICADO)
+SISTEMA DE SIMULAÇÃO IMOBILIÁRIA - DIRE RIO V3 (COM LOGIN)
 =============================================================================
 Alterações Realizadas:
-1. Correção PDF: Ajustada a lógica de cores (RGB) na geração do PDF para garantir 
-   que o botão apareça (estava a falhar silenciosamente devido a erro de formato).
-2. Download de PDF: Botão restaurado na Etapa 5 (Resumo) seguindo a inspiração.
-3. Etapa de Fechamento: Removida a exibição do Valor de Avaliação na penúltima aba.
-4. Padronização Visual: Alertas e mensagens informativas sem negrito no azul padrão.
+1. Implementação de Sistema de Login:
+   - Leitura da aba "Logins" na planilha de Ranking.
+   - Verificação de E-mail e Senha antes de liberar o acesso.
+   - Interface de login integrada ao design visual do sistema.
+2. Manutenção das funcionalidades anteriores (PDF, Design, Cálculos).
 =============================================================================
 """
 
@@ -67,7 +67,7 @@ def carregar_dados_sistema():
     try:
         if "connections" not in st.secrets:
             st.error("Aviso: Configuração de 'Secrets' não encontrada.")
-            return pd.DataFrame(), pd.DataFrame(), pd.DataFrame()
+            return pd.DataFrame(), pd.DataFrame(), pd.DataFrame(), pd.DataFrame()
 
         conn = st.connection("gsheets", type=GSheetsConnection)
 
@@ -90,8 +90,32 @@ def carregar_dados_sistema():
                 except: return 0.0
             return 0.0
 
+        # --- CARREGAR LOGINS ---
         try:
-            df_politicas = conn.read(spreadsheet=URL_RANKING)
+            # Tenta carregar a aba "Logins"
+            df_logins = conn.read(spreadsheet=URL_RANKING, worksheet="Logins")
+            df_logins.columns = [str(c).strip() for c in df_logins.columns]
+            
+            # Mapeamento e normalização das colunas de login
+            # Procura colunas que contenham "e-mail" e "senha" se os nomes exatos variarem
+            col_email = next((c for c in df_logins.columns if "e-mail" in c.lower()), "Digite o e-mail")
+            col_senha = next((c for c in df_logins.columns if "senha" in c.lower()), "Digite uma senha")
+            
+            if col_email in df_logins.columns and col_senha in df_logins.columns:
+                df_logins = df_logins[[col_email, col_senha]].rename(columns={col_email: 'email', col_senha: 'senha'})
+                # Limpeza básica
+                df_logins['email'] = df_logins['email'].astype(str).str.strip().str.lower()
+                df_logins['senha'] = df_logins['senha'].astype(str).str.strip()
+            else:
+                df_logins = pd.DataFrame(columns=['email', 'senha'])
+                
+        except Exception:
+            # Se a aba não existir ou der erro, cria DF vazio (ninguém loga)
+            df_logins = pd.DataFrame(columns=['email', 'senha'])
+
+        # --- CARREGAR POLÍTICAS ---
+        try:
+            df_politicas = conn.read(spreadsheet=URL_RANKING) # Aba padrão (primeira)
             df_politicas.columns = [str(c).strip() for c in df_politicas.columns]
             df_politicas = df_politicas.rename(columns={
                 'FAIXA RENDA': 'FAIXA_RENDA',
@@ -104,6 +128,7 @@ def carregar_dados_sistema():
         except Exception:
             df_politicas = pd.DataFrame()
 
+        # --- CARREGAR FINANCEIRO ---
         try:
             df_finan = conn.read(spreadsheet=URL_FINAN)
             df_finan.columns = [str(c).strip() for c in df_finan.columns]
@@ -112,6 +137,7 @@ def carregar_dados_sistema():
         except Exception:
             df_finan = pd.DataFrame()
 
+        # --- CARREGAR ESTOQUE ---
         try:
             df_raw = conn.read(spreadsheet=URL_ESTOQUE)
             df_raw.columns = [str(c).strip() for c in df_raw.columns]
@@ -183,11 +209,11 @@ def carregar_dados_sistema():
         except Exception:
             df_estoque = pd.DataFrame()
         
-        return df_finan, df_estoque, df_politicas
+        return df_finan, df_estoque, df_politicas, df_logins
     
     except Exception as e:
         st.error(f"Erro de conexão: {e}")
-        return pd.DataFrame(), pd.DataFrame(), pd.DataFrame()
+        return pd.DataFrame(), pd.DataFrame(), pd.DataFrame(), pd.DataFrame()
 
 # =============================================================================
 # 2. MOTOR DE CÁLCULO
@@ -335,7 +361,7 @@ def configurar_layout():
             opacity: 0.8;
         }}
         
-        .card, .fin-box, .recommendation-card {{ 
+        .card, .fin-box, .recommendation-card, .login-card {{ 
             background: #ffffff; 
             padding: 25px; 
             border-radius: 16px; 
@@ -346,8 +372,12 @@ def configurar_layout():
             justify-content: center;
             align-items: center;
             transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
-            height: 100%;
-            min-height: 220px;
+        }}
+        .login-card {{
+            min-height: 350px;
+            box-shadow: 0 20px 50px -20px rgba(0,0,0,0.1);
+            max-width: 450px;
+            margin: 0 auto;
         }}
         
         .card:hover, .fin-box:hover, .recommendation-card:hover {{
@@ -575,10 +605,58 @@ def gerar_resumo_pdf(d):
         return None
 
 # =============================================================================
-# 5. COMPONENTES DE INTERAÇÃO
+# 5. TELA DE LOGIN
+# =============================================================================
+
+def tela_login(df_logins):
+    c1, c2, c3 = st.columns([1, 1.5, 1])
+    with c2:
+        st.markdown(f"""
+            <div class="login-card">
+                <h3 style="margin-bottom: 25px;">ACESSO RESTRITO</h3>
+                <p style="color: {COR_AZUL_ESC}; opacity: 0.8; margin-bottom: 20px;">Faça login com seu e-mail e senha cadastrados.</p>
+            </div>
+        """, unsafe_allow_html=True)
+        
+        # Como o st.text_input não pode ficar dentro do HTML, colocamos logo abaixo visualmente
+        email_input = st.text_input("E-mail", placeholder="Digite seu e-mail", key="login_email")
+        senha_input = st.text_input("Senha", type="password", placeholder="Digite sua senha", key="login_pass")
+        
+        st.markdown("<br>", unsafe_allow_html=True)
+        
+        if st.button("ACESSAR SISTEMA", type="primary", use_container_width=True):
+            if df_logins.empty:
+                st.error("Erro: Base de usuários não encontrada.")
+            else:
+                email_clean = email_input.strip().lower()
+                senha_clean = senha_input.strip()
+                
+                # Verifica se existe o par email/senha
+                usuario_valido = df_logins[
+                    (df_logins['email'] == email_clean) & 
+                    (df_logins['senha'] == senha_clean)
+                ]
+                
+                if not usuario_valido.empty:
+                    st.session_state['logged_in'] = True
+                    st.session_state['user_email'] = email_clean
+                    st.success("Login realizado com sucesso!")
+                    st.rerun()
+                else:
+                    st.error("E-mail ou senha incorretos.")
+
+# =============================================================================
+# 6. COMPONENTES DE INTERAÇÃO (SIMULADOR)
 # =============================================================================
 
 def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
+    # Botão de Logout
+    col_logout_space, col_logout_btn = st.columns([6, 1])
+    with col_logout_btn:
+        if st.button("Sair", key="btn_logout", use_container_width=True):
+            st.session_state['logged_in'] = False
+            st.rerun()
+
     passo_atual = st.session_state.get('passo_simulacao', 'init')
     components.html(
         f"""
@@ -1011,10 +1089,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
 
 def main():
     configurar_layout()
-    df_finan, df_estoque, df_politicas = carregar_dados_sistema()
-    if df_finan.empty or df_estoque.empty:
-        st.warning("Aguardando conexão com base de dados...")
-        st.stop()
+    df_finan, df_estoque, df_politicas, df_logins = carregar_dados_sistema()
     
     logo_src = URL_FAVICON_RESERVA
     if os.path.exists("favicon.png"):
@@ -1032,7 +1107,20 @@ def main():
         </div>
     ''', unsafe_allow_html=True)
     
-    aba_simulador_automacao(df_finan, df_estoque, df_politicas)
+    if df_finan.empty or df_estoque.empty:
+        st.warning("Aguardando conexão com base de dados...")
+        st.stop()
+        
+    # Inicializa estado de login
+    if 'logged_in' not in st.session_state:
+        st.session_state['logged_in'] = False
+        
+    # Lógica de Controle de Acesso
+    if not st.session_state['logged_in']:
+        tela_login(df_logins)
+    else:
+        aba_simulador_automacao(df_finan, df_estoque, df_politicas)
+        
     st.markdown(f'<div class="footer">Direcional Engenharia - Rio de Janeiro | Developed by Lucas Maia</div>', unsafe_allow_html=True)
 
 if __name__ == "__main__":
