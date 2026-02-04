@@ -19,6 +19,8 @@ Alterações Realizadas:
 5. Correções de Erros (Update Atual):
    - Correção KeyError 'CLASSIFICAÇÃO': Normalização automática do nome da coluna.
    - Correção CSS Data: Ajuste de background-color para igualar aos inputs de texto.
+   - Layout Aba Inicial: Campos de dados pessoais em largura total (empilhados).
+   - Correção UnboundLocalError: Definição da variável 'd' na aba de seleção.
 =============================================================================
 """
 
@@ -581,7 +583,7 @@ def gerar_resumo_pdf(d):
         pdf.set_xy(15, pdf.get_y() + 6)
         pdf.set_text_color(*AZUL_RGB)
         pdf.set_font("Helvetica", 'B', 13)
-        pdf.cell(0, 6, f"CLIENTE: {df.get('nome', 'Nao informado').upper()}", ln=True)
+        pdf.cell(0, 6, f"CLIENTE: {d.get('nome', 'Nao informado').upper()}", ln=True)
         pdf.set_x(15)
         pdf.set_font("Helvetica", '', 10)
         pdf.cell(0, 6, f"Renda Familiar: R$ {fmt_br(d.get('renda', 0))}", ln=True)
@@ -745,26 +747,20 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
                     st.session_state.last_search = cliente_selecionado
                     st.rerun()
 
-        # --- CAMPOS DE DADOS PESSOAIS ---
-        c_nome, c_cpf = st.columns([2, 1])
-        with c_nome:
-            nome = st.text_input("Nome do Cliente", value=st.session_state.dados_cliente.get('nome', ""), placeholder="Nome Completo", key="in_nome_v28")
-        with c_cpf:
-            cpf_val = st.text_input("CPF", value=st.session_state.dados_cliente.get('cpf', ""), placeholder="000.000.000-00", key="in_cpf_v3")
-            
-        c_nasc, c_gen = st.columns(2)
-        with c_nasc:
-            d_nasc_default = st.session_state.dados_cliente.get('data_nascimento', date(1990, 1, 1))
-            data_nasc = st.date_input(
-                "Data de Nascimento", 
-                value=d_nasc_default, 
-                min_value=date(1900, 1, 1),
-                max_value=datetime.now().date(),
-                format="DD/MM/YYYY", 
-                key="in_dt_nasc_v3"
-            )
-        with c_gen:
-            genero = st.selectbox("Gênero", ["Masculino", "Feminino", "Outro"], index=0, key="in_genero_v3")
+        # --- CAMPOS DE DADOS PESSOAIS (SEM COLUNAS, UMA APÓS A OUTRA) ---
+        nome = st.text_input("Nome do Cliente", value=st.session_state.dados_cliente.get('nome', ""), placeholder="Nome Completo", key="in_nome_v28")
+        cpf_val = st.text_input("CPF", value=st.session_state.dados_cliente.get('cpf', ""), placeholder="000.000.000-00", key="in_cpf_v3")
+        
+        d_nasc_default = st.session_state.dados_cliente.get('data_nascimento', date(1990, 1, 1))
+        data_nasc = st.date_input(
+            "Data de Nascimento", 
+            value=d_nasc_default, 
+            min_value=date(1900, 1, 1),
+            max_value=datetime.now().date(),
+            format="DD/MM/YYYY", 
+            key="in_dt_nasc_v3"
+        )
+        genero = st.selectbox("Gênero", ["Masculino", "Feminino", "Outro"], index=0, key="in_genero_v3")
 
         st.markdown("---")
         
@@ -1100,6 +1096,8 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
 
     # --- ETAPA 3.5: SELEÇÃO DE UNIDADE (NOVA ABA) ---
     elif st.session_state.passo_simulacao == 'selection':
+        # Define 'd' aqui para evitar UnboundLocalError
+        d = st.session_state.dados_cliente
         st.markdown(f"### Seleção de Unidade para Fechamento")
         
         # Filtra apenas disponíveis
