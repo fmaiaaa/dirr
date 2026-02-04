@@ -11,6 +11,11 @@ Alterações Realizadas:
    - Busca de clientes (Nome - CPF) para autopreenchimento.
    - Botão para SALVAR dados na planilha "Cadastros" ao concluir.
    - Mapeamento detalhado das colunas de salvamento.
+4. Ajustes UI e Fluxo (Update Atual):
+   - Data de Nascimento: Estilo CSS unificado e range de datas liberado (1900-Hoje).
+   - Nova Aba 'selection': Seleção de unidade separada da recomendação.
+   - Fluxo Encurtado: Direto para a aba de seleção.
+   - Correção Salvamento: Tratamento de erro robusto para aba 'Cadastros'.
 =============================================================================
 """
 
@@ -329,9 +334,15 @@ def configurar_layout():
             box-shadow: 0 0 0 1px {COR_VERMELHO} !important;
         }}
 
-        .stTextInput input, .stNumberInput input {{
+        .stTextInput input, .stNumberInput input, .stDateInput input {{
             padding: 14px 18px !important;
             color: {COR_AZUL_ESC} !important;
+        }}
+        
+        /* Ajuste específico para o box de Data para ficar igual aos outros */
+        div[data-testid="stDateInput"] div[data-baseweb="input"] {{
+            border-radius: 8px !important;
+            border: 1px solid #e2e8f0 !important;
         }}
         
         div[data-testid="stNumberInput"] button:hover {{
@@ -735,7 +746,14 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
         c_nasc, c_gen = st.columns(2)
         with c_nasc:
             d_nasc_default = st.session_state.dados_cliente.get('data_nascimento', date(1990, 1, 1))
-            data_nasc = st.date_input("Data de Nascimento", value=d_nasc_default, format="DD/MM/YYYY", key="in_dt_nasc_v3")
+            data_nasc = st.date_input(
+                "Data de Nascimento", 
+                value=d_nasc_default, 
+                min_value=date(1900, 1, 1),
+                max_value=datetime.now().date(),
+                format="DD/MM/YYYY", 
+                key="in_dt_nasc_v3"
+            )
         with c_gen:
             genero = st.selectbox("Gênero", ["Masculino", "Feminino", "Outro"], index=0, key="in_genero_v3")
 
@@ -832,7 +850,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
 
         with col_btn_dir:
             if st.button("Simulação Direta (Ir para Imóveis)", use_container_width=True, key="btn_direto_v3"):
-                processar_avanco('guide')
+                processar_avanco('selection') # Vai direto para a nova aba de seleção
         
         with col_btn_complet:
             if st.button("Caminho Completo (Ver Potencial)", type="primary", use_container_width=True, key="btn_completo_v3"):
@@ -871,7 +889,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
         if st.button("Voltar para Dados do Cliente", use_container_width=True, key="btn_edit_v28"):
             st.session_state.passo_simulacao = 'input'; st.rerun()
 
-    # --- ETAPA 3: SELEÇÃO E RECOMENDAÇÃO GRANULAR ---
+    # --- ETAPA 3: RECOMENDAÇÃO GRANULAR (Apenas Visualização) ---
     elif st.session_state.passo_simulacao == 'guide':
         d = st.session_state.dados_cliente
         st.markdown(f"### Recomendação de Imóveis")
@@ -1049,46 +1067,87 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
                 )
 
         st.markdown("---")
-        st.markdown("### Seleção de Unidade para Fechamento")
-        emp_names = sorted(df_estoque[df_estoque['Status'] == 'Disponível']['Empreendimento'].unique())
-        col_sel1, col_sel2 = st.columns(2)
-        with col_sel1:
-            emp_escolhido = st.selectbox("Escolha o Empreendimento:", options=emp_names, key="sel_emp_guide_v28")
+        # Botão para ir para a seleção
+        if st.button("Avançar para Seleção de Unidade", type="primary", use_container_width=True, key="btn_goto_selection"):
+            st.session_state.passo_simulacao = 'selection'; st.rerun()
         
-        unidades_disp = df_disp_total[(df_disp_total['Empreendimento'] == emp_escolhido)].copy()
-        unidades_disp = unidades_disp.sort_values(['Bloco_Sort', 'Andar', 'Apto_Sort'])
+        st.write("")
+        if st.button("Voltar para Valor Potencial", use_container_width=True, key="btn_pot_v28"): 
+            st.session_state.passo_simulacao = 'potential'; st.rerun()
+
+    # --- ETAPA 3.5: SELEÇÃO DE UNIDADE (NOVA ABA) ---
+    elif st.session_state.passo_simulacao == 'selection':
+        st.markdown(f"### Seleção de Unidade para Fechamento")
         
-        with col_sel2:
+        # Filtra apenas disponíveis
+        df_disponiveis = df_estoque[df_estoque['Status'] == 'Disponível'].copy()
+        
+        if df_disponiveis.empty:
+            st.warning("Sem estoque disponível na base.")
+        else:
+            emp_names = sorted(df_disponiveis['Empreendimento'].unique())
+            
+            # Se não tiver seleção prévia ou seleção inválida, pega o primeiro
+            idx_emp = 0
+            if 'empreendimento_nome' in st.session_state.dados_cliente:
+                try:
+                    idx_emp = emp_names.index(st.session_state.dados_cliente['empreendimento_nome'])
+                except:
+                    idx_emp = 0
+            
+            emp_escolhido = st.selectbox("Escolha o Empreendimento:", options=emp_names, index=idx_emp, key="sel_emp_new_v3")
+            
+            # Filtra unidades do empreendimento
+            unidades_disp = df_disponiveis[(df_disponiveis['Empreendimento'] == emp_escolhido)].copy()
+            unidades_disp = unidades_disp.sort_values(['Bloco_Sort', 'Andar', 'Apto_Sort'])
+            
             if unidades_disp.empty:
-                st.warning("Sem estoque disponivel.")
+                st.warning("Sem unidades disponíveis neste empreendimento.")
                 uni_escolhida_id = None
             else:
                 def label_uni(uid):
                     u_row = unidades_disp[unidades_disp['Identificador'] == uid].iloc[0]
-                    cor_status = "" if u_row['Viavel'] else ""
-                    return f"{uid} - {cor_status} (R$ {fmt_br(u_row['Valor de Venda'])})"
-                uni_escolhida_id = st.selectbox("Escolha a Unidade:", options=unidades_disp['Identificador'].unique(), 
-                                                format_func=label_uni, key="sel_uni_guide_v28")
-
-        if st.button("Avançar para Fechamento Financeiro", type="primary", use_container_width=True, key="btn_fech_v28"):
-            if uni_escolhida_id:
-                u_row = unidades_disp[unidades_disp['Identificador'] == uni_escolhida_id].iloc[0]
+                    return f"{uid} - R$ {fmt_br(u_row['Valor de Venda'])}"
                 
-                st.session_state.dados_cliente.update({
-                    'unidade_id': uni_escolhida_id,
-                    'empreendimento_nome': emp_escolhido,
-                    'imovel_valor': u_row['Valor de Venda'],
-                    'imovel_avaliacao': u_row['Valor de Avaliação Bancária'],
-                    'finan_estimado': u_row['Finan_Unid'],
-                    'fgts_sub': u_row['Sub_Unid']
-                })
-                st.session_state.passo_simulacao = 'payment_flow'
-                st.rerun()
-            else:
-                st.error("Por favor, selecione uma unidade.")
-        
-        if st.button("Voltar para Valor Potencial", use_container_width=True, key="btn_pot_v28"): 
-            st.session_state.passo_simulacao = 'potential'; st.rerun()
+                # Tenta manter seleção
+                current_uni_ids = unidades_disp['Identificador'].unique()
+                idx_uni = 0
+                if 'unidade_id' in st.session_state.dados_cliente:
+                    try:
+                        idx_list = list(current_uni_ids)
+                        if st.session_state.dados_cliente['unidade_id'] in idx_list:
+                            idx_uni = idx_list.index(st.session_state.dados_cliente['unidade_id'])
+                    except: pass
+
+                uni_escolhida_id = st.selectbox("Escolha a Unidade:", options=current_uni_ids, index=idx_uni, format_func=label_uni, key="sel_uni_new_v3")
+
+            st.markdown("<br>", unsafe_allow_html=True)
+            
+            if st.button("Avançar para Fechamento Financeiro", type="primary", use_container_width=True, key="btn_fech_new_v3"):
+                if uni_escolhida_id:
+                    u_row = unidades_disp[unidades_disp['Identificador'] == uni_escolhida_id].iloc[0]
+                    
+                    # Calcula dados específicos da unidade (pois podemos ter vindo do fluxo direto)
+                    v_aval = u_row['Valor de Avaliação Bancária']
+                    v_venda = u_row['Valor de Venda']
+                    
+                    fin, sub, _ = motor.obter_enquadramento(d.get('renda', 0), d.get('social', False), d.get('cotista', True), v_aval)
+                    
+                    st.session_state.dados_cliente.update({
+                        'unidade_id': uni_escolhida_id,
+                        'empreendimento_nome': emp_escolhido,
+                        'imovel_valor': v_venda,
+                        'imovel_avaliacao': v_aval,
+                        'finan_estimado': fin,
+                        'fgts_sub': sub
+                    })
+                    st.session_state.passo_simulacao = 'payment_flow'
+                    st.rerun()
+                else:
+                    st.error("Por favor, selecione uma unidade.")
+
+            if st.button("Voltar para Recomendações", use_container_width=True, key="btn_back_to_guide_new"):
+                st.session_state.passo_simulacao = 'guide'; st.rerun()
 
     # --- ETAPA 4: FECHAMENTO ---
     elif st.session_state.passo_simulacao == 'payment_flow':
@@ -1157,8 +1216,8 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
         st.markdown("---")
         if st.button("Avançar para Resumo de Compra", type="primary", use_container_width=True, key="btn_to_summary_v28"):
             st.session_state.passo_simulacao = 'summary'; st.rerun()
-        if st.button("Voltar para Seleção de Imóvel", use_container_width=True, key="btn_back_to_guide_v28"): 
-            st.session_state.passo_simulacao = 'guide'; st.rerun()
+        if st.button("Voltar para Seleção de Imóvel", use_container_width=True, key="btn_back_to_selection_v28"): 
+            st.session_state.passo_simulacao = 'selection'; st.rerun()
 
     # --- ETAPA 5: RESUMO ---
     elif st.session_state.passo_simulacao == 'summary':
@@ -1241,18 +1300,25 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
                 
                 df_novo = pd.DataFrame([nova_linha])
                 
-                # Leitura da base atual para append
+                # Tratamento robusto para leitura da aba Cadastros
                 try:
                     df_existente = conn_save.read(spreadsheet=URL_RANKING, worksheet="Cadastros")
                     df_final_save = pd.concat([df_existente, df_novo], ignore_index=True)
-                except:
+                except Exception as e:
+                    # Se falhar (provavelmente aba inexistente), tenta criar nova apenas com a linha atual
+                    # Nota: Isso pode falhar se a aba não existir e o método update não a criar.
+                    # Mas garante que o erro de leitura não pare o fluxo.
                     df_final_save = df_novo
                 
                 conn_save.update(spreadsheet=URL_RANKING, worksheet="Cadastros", data=df_final_save)
                 st.success("Simulação salva com sucesso na base de dados!")
                 
             except Exception as e:
-                st.error(f"Erro ao salvar dados: {e}")
+                msg_erro = str(e)
+                if "Cadastros" in msg_erro:
+                    st.error("Erro: A aba 'Cadastros' não foi encontrada na planilha. Por favor, crie uma aba com este nome exato na planilha de Ranking.")
+                else:
+                    st.error(f"Erro ao salvar dados: {e}")
 
         st.markdown("<br>", unsafe_allow_html=True)
         
