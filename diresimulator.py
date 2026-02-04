@@ -9,6 +9,11 @@ Alterações Realizadas:
    - Verificação de E-mail e Senha antes de liberar o acesso.
    - Interface de login integrada ao design visual do sistema.
 2. Manutenção das funcionalidades anteriores (PDF, Design, Cálculos).
+3. Novos Inputs e Fluxo (Update):
+   - Participantes na renda (até 4).
+   - Prazo de financiamento (360/420).
+   - Escolha de fluxo (Direto vs Completo).
+   - Botão sair no rodapé.
 =============================================================================
 """
 
@@ -611,14 +616,10 @@ def gerar_resumo_pdf(d):
 def tela_login(df_logins):
     c1, c2, c3 = st.columns([1, 1.5, 1])
     with c2:
-        st.markdown(f"""
-            <div class="login-card">
-                <h3 style="margin-bottom: 25px;">ACESSO RESTRITO</h3>
-                <p style="color: {COR_AZUL_ESC}; opacity: 0.8; margin-bottom: 20px;">Faça login com seu e-mail e senha cadastrados.</p>
-            </div>
-        """, unsafe_allow_html=True)
+        # Removido card visual com mensagem "ACESSO RESTRITO"
         
-        # Como o st.text_input não pode ficar dentro do HTML, colocamos logo abaixo visualmente
+        st.markdown("<br><br><h3 style='text-align:center;'>LOGIN</h3>", unsafe_allow_html=True)
+        
         email_input = st.text_input("E-mail", placeholder="Digite seu e-mail", key="login_email")
         senha_input = st.text_input("Senha", type="password", placeholder="Digite sua senha", key="login_pass")
         
@@ -650,13 +651,8 @@ def tela_login(df_logins):
 # =============================================================================
 
 def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
-    # Botão de Logout
-    col_logout_space, col_logout_btn = st.columns([6, 1])
-    with col_logout_btn:
-        if st.button("Sair", key="btn_logout", use_container_width=True):
-            st.session_state['logged_in'] = False
-            st.rerun()
-
+    # Botão de Logout removido do topo
+    
     passo_atual = st.session_state.get('passo_simulacao', 'init')
     components.html(
         f"""
@@ -683,7 +679,33 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
     if st.session_state.passo_simulacao == 'input':
         st.markdown("### Dados do Cliente")
         nome = st.text_input("Nome do Cliente", value=st.session_state.dados_cliente.get('nome', ""), placeholder="Nome Completo", key="in_nome_v28")
-        renda = st.number_input("Renda Familiar", min_value=1.0, value=st.session_state.dados_cliente.get('renda', 3500.0), step=100.0, key="in_renda_v28")
+        
+        # --- Novos Inputs: Participantes e Prazo ---
+        col_p1, col_p2 = st.columns(2)
+        with col_p1:
+            qtd_part = st.number_input("Participantes na Renda", min_value=1, max_value=4, value=st.session_state.dados_cliente.get('qtd_participantes', 1), step=1, key="qtd_part_v3")
+        with col_p2:
+            idx_prazo = 0 if st.session_state.dados_cliente.get('prazo_financiamento', 360) == 360 else 1
+            prazo_finan = st.selectbox("Prazo Financiamento (Meses)", [360, 420], index=idx_prazo, key="prazo_v3")
+        
+        # --- Inputs Dinâmicos de Renda ---
+        cols_renda = st.columns(qtd_part)
+        renda_total_calc = 0.0
+        
+        # Se já existir renda salva, tenta distribuir (lógica simples: primeira caixa ou valor salvo)
+        # Se não, padrão 3500 para primeiro e 0 para outros
+        for i in range(qtd_part):
+            with cols_renda[i]:
+                # Valor padrão visual
+                if i == 0 and 'renda' not in st.session_state.dados_cliente:
+                    def_val = 3500.0
+                elif i == 0 and 'renda' in st.session_state.dados_cliente and qtd_part == 1:
+                    def_val = float(st.session_state.dados_cliente['renda'])
+                else:
+                    def_val = 0.0
+                
+                val_r = st.number_input(f"Renda Part. {i+1}", min_value=0.0, value=def_val, step=100.0, key=f"renda_part_{i}_v3")
+                renda_total_calc += val_r
         
         ranking_options = [r for r in df_politicas['CLASSIFICAÇÃO'].unique().tolist() if r != "EMCASH"] if not df_politicas.empty else ["DIAMANTE"]
         ranking = st.selectbox("Ranking do Cliente", options=ranking_options, index=0, key="in_rank_v28")
@@ -691,29 +713,47 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
         social = st.toggle("Fator Social", value=st.session_state.dados_cliente.get('social', False), key="in_soc_v28")
         cotista = st.toggle("Cotista FGTS", value=st.session_state.dados_cliente.get('cotista', True), key="in_cot_v28")
         
-        if st.button("Avançar para Valor Potencial de Compra", type="primary", use_container_width=True, key="btn_s1_v28"):
+        st.markdown("<br>", unsafe_allow_html=True)
+        col_btn_dir, col_btn_complet = st.columns(2)
+        
+        def processar_avanco(destino):
             if not nome.strip():
                 st.markdown(f'<div class="custom-alert">Por favor, informe o Nome do Cliente para continuar.</div>', unsafe_allow_html=True)
+                return
             elif any(char.isdigit() for char in nome):
                 st.markdown(f'<div class="custom-alert">Nome Invalido. Por favor, insira um nome valido sem numeros.</div>', unsafe_allow_html=True)
-            else:
-                class_b = 'EMCASH' if politica_ps == "Emcash" else ranking
-                politica_row = df_politicas[df_politicas['CLASSIFICAÇÃO'] == class_b].iloc[0]
-                limit_ps_r = politica_row['FX_RENDA_1'] if renda < politica_row['FAIXA_RENDA'] else politica_row['FX_RENDA_2']
-                
-                # Para o enquadramento do GUIA, usamos um valor de avaliação padrão
-                f_faixa_ref, s_faixa_ref, fx_nome_ref = motor.obter_enquadramento(renda, social, cotista, valor_avaliacao=240000)
+                return
+            elif renda_total_calc <= 0:
+                st.markdown(f'<div class="custom-alert">A renda total deve ser maior que zero.</div>', unsafe_allow_html=True)
+                return
 
-                st.session_state.dados_cliente = {
-                    'nome': nome, 'renda': renda, 'social': social, 'cotista': cotista,
-                    'ranking': ranking, 'politica': politica_ps, 
-                    'perc_ps': politica_row['PROSOLUTO'], 
-                    'prazo_ps_max': int(politica_row['PARCELAS']),
-                    'limit_ps_renda': limit_ps_r,
-                    'finan_f_ref': f_faixa_ref, 'sub_f_ref': s_faixa_ref
-                }
-                st.session_state.passo_simulacao = 'potential'
-                st.rerun()
+            class_b = 'EMCASH' if politica_ps == "Emcash" else ranking
+            politica_row = df_politicas[df_politicas['CLASSIFICAÇÃO'] == class_b].iloc[0]
+            limit_ps_r = politica_row['FX_RENDA_1'] if renda_total_calc < politica_row['FAIXA_RENDA'] else politica_row['FX_RENDA_2']
+            
+            # Para o enquadramento do GUIA, usamos um valor de avaliação padrão
+            f_faixa_ref, s_faixa_ref, fx_nome_ref = motor.obter_enquadramento(renda_total_calc, social, cotista, valor_avaliacao=240000)
+
+            st.session_state.dados_cliente = {
+                'nome': nome, 'renda': renda_total_calc, 'social': social, 'cotista': cotista,
+                'ranking': ranking, 'politica': politica_ps, 
+                'perc_ps': politica_row['PROSOLUTO'], 
+                'prazo_ps_max': int(politica_row['PARCELAS']),
+                'limit_ps_renda': limit_ps_r,
+                'finan_f_ref': f_faixa_ref, 'sub_f_ref': s_faixa_ref,
+                'qtd_participantes': qtd_part,
+                'prazo_financiamento': prazo_finan
+            }
+            st.session_state.passo_simulacao = destino
+            st.rerun()
+
+        with col_btn_dir:
+            if st.button("Simulação Direta (Ir para Imóveis)", use_container_width=True, key="btn_direto_v3"):
+                processar_avanco('guide') # Pula o 'potential'
+        
+        with col_btn_complet:
+            if st.button("Caminho Completo (Ver Potencial)", type="primary", use_container_width=True, key="btn_completo_v3"):
+                processar_avanco('potential')
 
     # --- ETAPA 2: POTENCIAL (GUIA) ---
     elif st.session_state.passo_simulacao == 'potential':
@@ -1086,6 +1126,14 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas):
             st.session_state.dados_cliente = {}; st.session_state.passo_simulacao = 'input'; st.rerun()
         if st.button("Voltar para Fechamento Financeiro", use_container_width=True, key="btn_edit_fin_summary_v28"):
             st.session_state.passo_simulacao = 'payment_flow'; st.rerun()
+    
+    # --- BOTÃO DE SAIR NO RODAPÉ ---
+    st.markdown("<br><br>", unsafe_allow_html=True)
+    c_out_1, c_out_2, c_out_3 = st.columns([1, 1, 1])
+    with c_out_2:
+        if st.button("Sair do Sistema", key="btn_logout_bottom", use_container_width=True):
+            st.session_state['logged_in'] = False
+            st.rerun()
 
 def main():
     configurar_layout()
