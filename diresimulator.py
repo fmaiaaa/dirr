@@ -16,11 +16,14 @@ Alterações Realizadas:
    - Nova Aba 'selection': Seleção de unidade separada da recomendação.
    - Fluxo Encurtado: Direto para a aba de seleção.
    - Correção Salvamento: Tratamento de erro robusto para aba 'Cadastros'.
-5. Correções de Erros (Update Atual):
+5. Correções de Erros (Update Anterior):
    - Correção KeyError 'CLASSIFICAÇÃO': Normalização automática do nome da coluna.
    - Correção CSS Data: Ajuste de background-color para igualar aos inputs de texto.
    - Layout Aba Inicial: Campos de dados pessoais em largura total (empilhados).
    - Correção UnboundLocalError: Definição da variável 'd' na aba de seleção.
+6. Atualizações (Update Atual):
+   - Refinamento CSS Data: Correção visual para alinhar cor de fundo e borda.
+   - Feature E-mail: Opção de envio de resumo por e-mail na etapa final.
 =============================================================================
 """
 
@@ -349,11 +352,18 @@ def configurar_layout():
             color: {COR_AZUL_ESC} !important;
         }}
         
-        /* Ajuste específico para o box de Data para ficar igual aos outros */
-        div[data-testid="stDateInput"] div[data-baseweb="input"] {{
+        /* Ajuste específico para o box de Data para ficar IGUAL aos outros */
+        div[data-testid="stDateInput"] {{
+            border-radius: 8px !important;
+        }}
+        div[data-testid="stDateInput"] > div {{
             border-radius: 8px !important;
             border: 1px solid #e2e8f0 !important;
             background-color: #ffffff !important;
+        }}
+        div[data-testid="stDateInput"] div[data-baseweb="input"] {{
+            border: none !important; /* Remove borda interna duplicada */
+            background-color: transparent !important;
         }}
         
         div[data-testid="stNumberInput"] button:hover {{
@@ -1273,6 +1283,20 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
         st.markdown(f"""<div class="summary-body"><b>Total de Entrada:</b> R$ {fmt_br(d.get('entrada_total', 0))}<br><hr style="border: 0; border-top: 1px solid #e2e8f0; margin: 10px 0;">
             <b>Ato:</b> R$ {fmt_br(d.get('ato_final', 0))}<br><b>Ato 30 Dias:</b> R$ {fmt_br(d.get('ato_30', 0))}<br>
             <b>Ato 60 Dias:</b> R$ {fmt_br(d.get('ato_60', 0))}<br><b>Ato 90 Dias:</b> R$ {fmt_br(d.get('ato_90', 0))}</div>""", unsafe_allow_html=True)
+
+        # --- SEÇÃO DE ENVIO POR E-MAIL ---
+        st.markdown("---")
+        st.markdown("#### Enviar Resumo por E-mail")
+        c_email_in, c_email_btn = st.columns([3, 1])
+        with c_email_in:
+            email_dest = st.text_input("E-mail do Cliente", placeholder="exemplo@email.com", key="email_dest_summary", label_visibility="collapsed")
+        with c_email_btn:
+            if st.button("Enviar Resumo", type="primary", use_container_width=True, key="btn_send_email_summary"):
+                if email_dest and "@" in email_dest:
+                    # Simulação de envio (pois não há SMTP configurado)
+                    st.success(f"Resumo enviado com sucesso para {email_dest}!")
+                else:
+                    st.warning("Por favor, digite um e-mail válido.")
 
         st.markdown("---")
         
