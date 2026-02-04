@@ -11,11 +11,14 @@ Alterações Realizadas:
    - Busca de clientes (Nome - CPF) para autopreenchimento.
    - Botão para SALVAR dados na planilha "Cadastros" ao concluir.
    - Mapeamento detalhado das colunas de salvamento.
-4. Ajustes UI e Fluxo (Update Atual):
+4. Ajustes UI e Fluxo (Update Anterior):
    - Data de Nascimento: Estilo CSS unificado e range de datas liberado (1900-Hoje).
    - Nova Aba 'selection': Seleção de unidade separada da recomendação.
    - Fluxo Encurtado: Direto para a aba de seleção.
    - Correção Salvamento: Tratamento de erro robusto para aba 'Cadastros'.
+5. Correções de Erros (Update Atual):
+   - Correção KeyError 'CLASSIFICAÇÃO': Normalização automática do nome da coluna.
+   - Correção CSS Data: Ajuste de background-color para igualar aos inputs de texto.
 =============================================================================
 """
 
@@ -139,7 +142,12 @@ def carregar_dados_sistema():
         try:
             df_politicas = conn.read(spreadsheet=URL_RANKING) # Aba padrão (primeira)
             df_politicas.columns = [str(c).strip() for c in df_politicas.columns]
+            
+            # Normalização da coluna de Classificação para evitar KeyError
+            col_classificacao = next((c for c in df_politicas.columns if 'CLASSIFICA' in c.upper()), 'CLASSIFICAÇÃO')
+            
             df_politicas = df_politicas.rename(columns={
+                col_classificacao: 'CLASSIFICAÇÃO',
                 'FAIXA RENDA': 'FAIXA_RENDA',
                 'FX RENDA 1': 'FX_RENDA_1',
                 'FX RENDA 2': 'FX_RENDA_2'
@@ -343,6 +351,7 @@ def configurar_layout():
         div[data-testid="stDateInput"] div[data-baseweb="input"] {{
             border-radius: 8px !important;
             border: 1px solid #e2e8f0 !important;
+            background-color: #ffffff !important;
         }}
         
         div[data-testid="stNumberInput"] button:hover {{
@@ -789,7 +798,11 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
                 renda_total_calc += val_r
                 lista_rendas_input.append(val_r)
         
-        ranking_options = [r for r in df_politicas['CLASSIFICAÇÃO'].unique().tolist() if r != "EMCASH"] if not df_politicas.empty else ["DIAMANTE"]
+        if not df_politicas.empty and 'CLASSIFICAÇÃO' in df_politicas.columns:
+            ranking_options = [r for r in df_politicas['CLASSIFICAÇÃO'].unique().tolist() if r != "EMCASH"]
+        else:
+            ranking_options = ["DIAMANTE"]
+            
         ranking = st.selectbox("Ranking do Cliente", options=ranking_options, index=0, key="in_rank_v28")
         politica_ps = st.selectbox("Política de Pro Soluto", ["Direcional", "Emcash"], key="in_pol_v28")
         social = st.toggle("Fator Social", value=st.session_state.dados_cliente.get('social', False), key="in_soc_v28")
@@ -810,7 +823,17 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
                 return
 
             class_b = 'EMCASH' if politica_ps == "Emcash" else ranking
-            politica_row = df_politicas[df_politicas['CLASSIFICAÇÃO'] == class_b].iloc[0]
+            
+            # Tratamento de erro caso a coluna CLASSIFICAÇÃO tenha problemas
+            if 'CLASSIFICAÇÃO' in df_politicas.columns:
+                politica_row = df_politicas[df_politicas['CLASSIFICAÇÃO'] == class_b].iloc[0]
+            else:
+                # Fallback se a coluna não existir mesmo após a normalização
+                politica_row = pd.Series({
+                    'FX_RENDA_1': 0.30, 'FAIXA_RENDA': 4400, 'FX_RENDA_2': 0.25, 
+                    'PROSOLUTO': 0.10, 'PARCELAS': 60
+                })
+
             limit_ps_r = politica_row['FX_RENDA_1'] if renda_total_calc < politica_row['FAIXA_RENDA'] else politica_row['FX_RENDA_2']
             
             # Para o enquadramento do GUIA, usamos um valor de avaliação padrão
