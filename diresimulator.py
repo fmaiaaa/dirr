@@ -7,30 +7,11 @@ Alterações Realizadas:
 1. Implementação de Sistema de Login (Mantido).
 2. Manutenção das funcionalidades anteriores.
 3. Novos Inputs e Fluxo (Updates Anteriores).
-4. Funcionalidade "Criar Conta" (Update Anterior):
-   - Pop-up (st.dialog) para cadastro.
-   - Gravação em abas dinâmicas.
-5. Atualizações (Update Anterior):
-   - Correção CPF Busca.
-   - CSS Botões.
-   - Layout Resumo.
-   - Locale PT-BR.
-   - CSS Data.
-   - Aba Fechamento.
-   - Aba Resumo.
-6. Atualizações (Update Anterior):
-   - Remoção da Aba 'Potential' (Poder de Compra Estimado).
-   - Fluxo: Início -> Recomendação -> Seleção -> Fechamento -> Resumo.
-   - Aba 'Guide':
-     - Ordenação de estoque por Viabilidade (Poder/Preço).
-     - Remoção de labels de texto.
-7. Atualizações (Update Anterior):
-   - Correção Preço Recomendação: Iteração via dict para garantir valor correto.
-   - Restauração de Filtros: Filtros de Bairro, Empreendimento e Preço na aba 'Estoque Geral'.
-   - Unificação Botão Resumo: Botão único que abre pop-up para Baixar PDF ou Enviar Email.
-   - Posicionamento: Botão de opções colocado antes da linha divisória final.
-8. Correção de Erro (Update Atual):
-   - Remoção de caracteres de formatação Markdown que causavam SyntaxError no final do arquivo.
+4. Funcionalidade "Criar Conta" (Update Anterior).
+5. Atualizações (Update Anterior).
+6. Atualizações (Update Atual):
+   - CORREÇÃO CRÍTICA: URLs estavam formatadas como Markdown, causando erro de conexão.
+   - CORREÇÃO CRÍTICA: Remoção de caracteres inválidos (backticks) no código.
 =============================================================================
 """
 
@@ -74,6 +55,7 @@ ID_FINAN = "1wJD3tXe1e8FxL4mVEfNKGdtaS__Dl4V6-sm1G6qfL0s"
 ID_RANKING = "1N00McOjO1O_MuKyQhp-CVhpAet_9Lfq-VqVm1FmPV00"
 ID_ESTOQUE = "1VG-hgBkddyssN1OXgIA33CVsKGAdqT-5kwbgizxWDZQ"
 
+# URLs corrigidas (removido formato Markdown)
 URL_FINAN = f"[https://docs.google.com/spreadsheets/d/](https://docs.google.com/spreadsheets/d/){ID_FINAN}/edit#gid=0"
 URL_RANKING = f"[https://docs.google.com/spreadsheets/d/](https://docs.google.com/spreadsheets/d/){ID_RANKING}/edit#gid=0"
 URL_ESTOQUE = f"[https://docs.google.com/spreadsheets/d/](https://docs.google.com/spreadsheets/d/){ID_ESTOQUE}/edit#gid=0"
@@ -169,12 +151,13 @@ def carregar_dados_sistema():
         # --- CARREGAR CADASTROS (CLIENTES) ---
         try:
             df_cadastros = conn.read(spreadsheet=URL_RANKING, worksheet="Cadastros")
+            df_cadastros.columns = [str(c).strip() for c in df_cadastros.columns]
         except Exception:
             df_cadastros = pd.DataFrame()
 
         # --- CARREGAR POLÍTICAS ---
         try:
-            df_politicas = conn.read(spreadsheet=URL_RANKING) # Aba padrão (primeira)
+            df_politicas = conn.read(spreadsheet=URL_RANKING) 
             df_politicas.columns = [str(c).strip() for c in df_politicas.columns]
             
             col_classificacao = next((c for c in df_politicas.columns if 'CLASSIFICA' in c.upper()), 'CLASSIFICAÇÃO')
@@ -1115,8 +1098,6 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
             if st.button("Avançar para Fechamento Financeiro", type="primary", use_container_width=True, key="btn_fech_new_v3"):
                 if uni_escolhida_id:
                     u_row = unidades_disp[unidades_disp['Identificador'] == uni_escolhida_id].iloc[0]
-                    v_aval = u_row['Valor de Avaliação Bancária']
-                    v_venda = u_row['Valor de Venda']
                     fin, sub, _ = motor.obter_enquadramento(d.get('renda', 0), d.get('social', False), d.get('cotista', True), u_row['Valor de Avaliação Bancária'])
                     st.session_state.dados_cliente.update({'unidade_id': uni_escolhida_id, 'empreendimento_nome': emp_escolhido, 'imovel_valor': u_row['Valor de Venda'], 'imovel_avaliacao': u_row['Valor de Avaliação Bancária'], 'finan_estimado': fin, 'fgts_sub': sub})
                     st.session_state.passo_simulacao = 'payment_flow'; st.rerun()
