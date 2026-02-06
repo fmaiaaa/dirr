@@ -10,7 +10,9 @@ Alterações Realizadas:
 4. Funcionalidade "Criar Conta" (Update Anterior).
 5. Atualizações (Update Anterior).
 6. Atualizações (Update Atual):
-   - Correção SyntaxError no final do arquivo.
+   - Correção SyntaxError no final do arquivo (removido ponto final após main()).
+   - Refatoração da lógica do Modal de Cadastro para uso de Callback (on_click).
+     Isso corrige o erro onde o popup de verificação não aparecia após o envio.
    - Aba Fechamento: Botão "Avançar" sempre visível.
    - Validação no clique: Impede avanço se houver saldo a cobrir.
 =============================================================================
@@ -690,30 +692,40 @@ def modal_criar_conta(conn):
         opts_imob = ["Canal IMOB", "DV", "RV", "Trip", "Swell", "Outro"]
         opts_cargo = ["Coordenador Comercial", "Coordenador IMOB", "Gerente Regional", "Gerente de Vendas", "Corretor", "Outro"]
 
-        sel_imob = st.selectbox("Imobiliária / Canal IMOB", opts_imob, key="reg_imob")
-        if sel_imob == "Outro":
-            imobiliaria = st.text_input("Digite o nome da Imobiliária/Canal", key="reg_imob_text")
-        else:
-            imobiliaria = sel_imob
-
-        sel_cargo = st.selectbox("Cargo", opts_cargo, key="reg_cargo")
-        if sel_cargo == "Outro":
-            cargo = st.text_input("Digite o Cargo", key="reg_cargo_text")
-        else:
-            cargo = sel_cargo
-
-        nome = st.text_input("Nome Completo", key="reg_nome")
-        email = st.text_input("E-mail", key="reg_email")
-        senha = st.text_input("Senha", type="password", key="reg_senha")
+        st.selectbox("Imobiliária / Canal IMOB", opts_imob, key="reg_imob")
+        if st.session_state.reg_imob == "Outro":
+            st.text_input("Digite o nome da Imobiliária/Canal", key="reg_imob_text")
         
-        if st.button("Cadastrar e Enviar Código", type="primary", use_container_width=True):
+        st.selectbox("Cargo", opts_cargo, key="reg_cargo")
+        if st.session_state.reg_cargo == "Outro":
+            st.text_input("Digite o Cargo", key="reg_cargo_text")
+        
+        st.text_input("Nome Completo", key="reg_nome")
+        st.text_input("E-mail", key="reg_email")
+        st.text_input("Senha", type="password", key="reg_senha")
+        
+        def submeter_cadastro(conn_obj):
+            """Callback para processar cadastro sem depender de st.rerun() manual que fecha o modal"""
+            # Recupera valores do session_state
+            imob_sel = st.session_state.get('reg_imob')
+            imob_txt = st.session_state.get('reg_imob_text', '')
+            imobiliaria = imob_txt if imob_sel == "Outro" else imob_sel
+            
+            cargo_sel = st.session_state.get('reg_cargo')
+            cargo_txt = st.session_state.get('reg_cargo_text', '')
+            cargo = cargo_txt if cargo_sel == "Outro" else cargo_sel
+            
+            nome = st.session_state.get('reg_nome', '')
+            email = st.session_state.get('reg_email', '')
+            senha = st.session_state.get('reg_senha', '')
+            
             if not imobiliaria or not nome or not email or not senha or not cargo:
                 st.error("Preencha todos os campos obrigatórios.")
             else:
                 try:
                     # 1. Salva na planilha geral 'Logins' com Codigo VAZIO
                     try:
-                        df_logins = conn.read(spreadsheet=URL_RANKING, worksheet="Logins")
+                        df_logins = conn_obj.read(spreadsheet=URL_RANKING, worksheet="Logins")
                     except:
                         df_logins = pd.DataFrame(columns=['Email', 'Senha', 'Imobiliaria', 'Cargo', 'Nome', 'Codigo'])
                     
@@ -729,31 +741,34 @@ def modal_criar_conta(conn):
                     
                     # Concat e salva (o Apps Script detectará a nova linha e preencherá o código)
                     df_final = pd.concat([df_logins, novo_user], ignore_index=True)
-                    conn.update(spreadsheet=URL_RANKING, worksheet="Logins", data=df_final)
+                    conn_obj.update(spreadsheet=URL_RANKING, worksheet="Logins", data=df_final)
 
                     # 2. Salva na aba específica também
                     nome_aba_canal = f"Logins - {imobiliaria.strip()}"
                     try:
                         try:
-                            df_canal = conn.read(spreadsheet=URL_RANKING, worksheet=nome_aba_canal)
+                            df_canal = conn_obj.read(spreadsheet=URL_RANKING, worksheet=nome_aba_canal)
                             df_final_canal = pd.concat([df_canal, novo_user], ignore_index=True)
                         except:
                             df_final_canal = novo_user
-                        conn.update(spreadsheet=URL_RANKING, worksheet=nome_aba_canal, data=df_final_canal)
+                        conn_obj.update(spreadsheet=URL_RANKING, worksheet=nome_aba_canal, data=df_final_canal)
                     except:
                         pass 
                     
-                    # Atualiza o estado para mostrar a verificação na próxima renderização do modal
+                    # Atualiza o estado para mostrar a verificação na próxima renderização
                     st.session_state.signup_stage = 'verification'
                     st.session_state.signup_email = email.strip().lower()
-                    st.rerun()
+                    # NOTA: Não chamamos st.rerun() aqui. O fim do callback dispara o rerun automático.
                     
                 except Exception as e:
                     st.error(f"Erro ao iniciar cadastro: {e}")
 
+        st.button("Cadastrar e Enviar Código", type="primary", use_container_width=True, on_click=submeter_cadastro, args=(conn,))
+
     elif st.session_state.signup_stage == 'verification':
+        email_display = st.session_state.get('signup_email', 'seu email')
         st.markdown(f"### Verificação de E-mail")
-        st.markdown(f"Um código de 6 dígitos foi enviado para **{st.session_state.signup_email}**. Insira-o abaixo:")
+        st.markdown(f"Um código de 6 dígitos foi enviado para **{email_display}**. Insira-o abaixo:")
         
         # Input do código
         codigo_input = st.text_input("Código de Verificação", max_chars=6, placeholder="123456", key="verify_code_input")
