@@ -7,15 +7,17 @@ Alterações Realizadas:
 1. Implementação de Sistema de Login (Mantido).
 2. Manutenção das funcionalidades anteriores.
 3. Novos Inputs e Fluxo (Updates Anteriores).
-4. Funcionalidade "Criar Conta" (Update Atual):
-   - Correção do BUG de e-mail vazio (padronização de colunas).
-   - Implementação de FLUXO DE VERIFICAÇÃO EM DUAS ETAPAS.
-   - Etapa 1: Envia dados para planilha (Coluna 'Codigo' vai vazia).
-   - Etapa 2: Exibe input de 6 dígitos para validação.
-   - Validação: Lê a planilha para checar se o Apps Script preencheu o código e se bate.
+4. Funcionalidade "Criar Conta" (Update Anterior):
+   - Correção do BUG de e-mail vazio.
+   - Fluxo de Verificação (Código 6 dígitos).
 5. Atualizações (Update Anterior):
    - Correção CPF, CSS, Layout, Locale, Termômetro.
-   - Botão Unificado Resumo, Filtros Estoque, etc.
+   - Botão Unificado Resumo, Filtros Estoque.
+6. Atualizações (Update Atual):
+   - Bloqueio de Avanço: Não permite ir ao resumo se Saldo a Cobrir != 0.
+   - Layout Fechamento: PS e Parcelas movidos para o final.
+   - Busca de Clientes: Integrada visualmente ao campo de nome.
+   - Fix Pop-up Cadastro: Lógica de estado para garantir exibição do input de código.
 =============================================================================
 """
 
@@ -126,11 +128,8 @@ def carregar_dados_sistema():
             df_logins = conn.read(spreadsheet=URL_RANKING, worksheet="Logins")
             df_logins.columns = [str(c).strip() for c in df_logins.columns]
             
-            # Normalização de colunas para uso interno
-            # Garante que existam as colunas padrão
+            # Normalização de colunas
             colunas_padrao = ['Email', 'Senha', 'Imobiliaria', 'Cargo', 'Nome', 'Codigo']
-            
-            # Renomeia colunas existentes que pareçam com as padrão
             mapa_renomeacao = {}
             for col in df_logins.columns:
                 c_lower = col.lower()
@@ -142,13 +141,10 @@ def carregar_dados_sistema():
                 elif "código" in c_lower or "codigo" in c_lower or "tentativa" in c_lower: mapa_renomeacao[col] = 'Codigo'
 
             df_logins = df_logins.rename(columns=mapa_renomeacao)
-            
-            # Adiciona as que faltam
             for col in colunas_padrao:
                 if col not in df_logins.columns:
                     df_logins[col] = ""
 
-            # Filtra e limpa
             df_logins = df_logins[colunas_padrao].copy()
             df_logins['Email'] = df_logins['Email'].astype(str).str.strip().str.lower()
             df_logins['Senha'] = df_logins['Senha'].astype(str).str.strip()
@@ -689,7 +685,7 @@ def gerar_resumo_pdf(d):
 
 @st.dialog("Criar Nova Conta")
 def modal_criar_conta(conn):
-    # Se ainda não iniciou o fluxo, define como 'form'
+    # Inicializa estado se não existir
     if 'signup_stage' not in st.session_state:
         st.session_state.signup_stage = 'form'
 
@@ -720,32 +716,27 @@ def modal_criar_conta(conn):
                 st.error("Preencha todos os campos obrigatórios.")
             else:
                 try:
-                    # 1. Salva na planilha geral 'Logins' com Codigo VAZIO para o script disparar
+                    # 1. Salva na planilha geral 'Logins' com Codigo VAZIO
                     try:
                         df_logins = conn.read(spreadsheet=URL_RANKING, worksheet="Logins")
                     except:
                         df_logins = pd.DataFrame(columns=['Email', 'Senha', 'Imobiliaria', 'Cargo', 'Nome', 'Codigo'])
                     
-                    # Normaliza colunas para evitar duplicação (caso a planilha tenha headers diferentes)
-                    # Mas aqui vamos assumir que o usuario vai criar a planilha correta ou o script python cria
-                    # Vamos forçar a criação de um DF limpo com as colunas certas
-                    
+                    # Força as colunas corretas para evitar erros de schema
                     novo_user = pd.DataFrame([{
                         'Email': email.strip().lower(),
                         'Senha': senha.strip(),
                         'Imobiliaria': imobiliaria.strip(),
                         'Cargo': cargo.strip(),
                         'Nome': nome.strip(),
-                        'Codigo': "" # Deixa vazio para o Apps Script preencher
+                        'Codigo': "" 
                     }])
                     
-                    # Concatena e salva
-                    # Nota: Se as colunas do df_logins forem diferentes, o concat vai alinhar.
-                    # O ideal é garantir que a planilha tenha essas colunas.
+                    # Concat e salva (o Apps Script detectará a nova linha e preencherá o código)
                     df_final = pd.concat([df_logins, novo_user], ignore_index=True)
                     conn.update(spreadsheet=URL_RANKING, worksheet="Logins", data=df_final)
 
-                    # 2. Salva na aba específica também (sem verificação lá, apenas registro)
+                    # 2. Salva na aba específica também
                     nome_aba_canal = f"Logins - {imobiliaria.strip()}"
                     try:
                         try:
@@ -755,9 +746,9 @@ def modal_criar_conta(conn):
                             df_final_canal = novo_user
                         conn.update(spreadsheet=URL_RANKING, worksheet=nome_aba_canal, data=df_final_canal)
                     except:
-                        pass # Falha na aba de canal não impede o fluxo
+                        pass 
                     
-                    # Avança para etapa de verificação
+                    # Atualiza o estado para mostrar a verificação na próxima renderização do modal
                     st.session_state.signup_stage = 'verification'
                     st.session_state.signup_email = email.strip().lower()
                     st.rerun()
@@ -769,6 +760,7 @@ def modal_criar_conta(conn):
         st.markdown(f"### Verificação de E-mail")
         st.markdown(f"Um código de 6 dígitos foi enviado para **{st.session_state.signup_email}**. Insira-o abaixo:")
         
+        # Input do código
         codigo_input = st.text_input("Código de Verificação", max_chars=6, placeholder="123456", key="verify_code_input")
         
         col_btn_v1, col_btn_v2 = st.columns(2)
@@ -781,40 +773,35 @@ def modal_criar_conta(conn):
                 if not codigo_input:
                     st.warning("Digite o código.")
                 else:
-                    # Lógica de validação: Ler a planilha novamente e ver se o código bate
                     try:
                         df_check = conn.read(spreadsheet=URL_RANKING, worksheet="Logins")
-                        # Normaliza colunas
                         mapa = {}
                         for c in df_check.columns:
                             if "email" in c.lower(): mapa[c] = 'Email'
                             if "codigo" in c.lower() or "código" in c.lower(): mapa[c] = 'Codigo'
                         
                         df_check = df_check.rename(columns=mapa)
-                        
-                        # Busca usuário
                         user_row = df_check[df_check['Email'] == st.session_state.signup_email]
                         
                         if user_row.empty:
-                            st.error("Usuário não encontrado. Tente cadastrar novamente.")
+                            st.error("Usuário não encontrado.")
                         else:
-                            # Pega o último registro desse email (caso tenha duplicado)
                             codigo_real = str(user_row.iloc[-1]['Codigo']).strip()
-                            
+                            # Verifica se o código bate. Se vier float da planilha, converte pra int/str limpo
+                            if codigo_real.endswith('.0'): codigo_real = codigo_real[:-2]
+
                             if codigo_real == codigo_input.strip():
                                 st.success("Conta verificada com sucesso! Faça login.")
                                 time.sleep(2)
                                 del st.session_state.signup_stage
                                 del st.session_state.signup_email
-                                st.rerun()
+                                st.rerun() # Fecha o modal e volta pro login
                             elif not codigo_real or codigo_real == "nan":
-                                st.info("O código ainda não foi gerado pelo sistema. Aguarde alguns segundos e tente novamente.")
+                                st.info("Aguardando geração do código...")
                             else:
                                 st.error("Código incorreto.")
-                                
                     except Exception as e:
                         st.error(f"Erro na validação: {e}")
-
 
 @st.dialog("Opções de Resumo")
 def modal_opcoes_resumo(pdf_bytes, nome_cliente):
@@ -828,7 +815,6 @@ def modal_opcoes_resumo(pdf_bytes, nome_cliente):
     st.markdown("---")
     st.markdown("**Enviar por E-mail (Opcional)**")
     
-    # Campo de e-mail e botão de envio
     email = st.text_input("Endereço de e-mail", placeholder="cliente@exemplo.com")
     if st.button("✉️ Enviar Email", use_container_width=True):
         if email and "@" in email:
@@ -852,11 +838,6 @@ def tela_login(df_logins):
                 email_clean = email_input.strip().lower()
                 senha_clean = senha_input.strip()
                 usuario_valido = df_logins[(df_logins['Email'] == email_clean) & (df_logins['Senha'] == senha_clean)]
-                
-                # ADICIONADO: Verifica se tem código validado (opcional, se quiser forçar validação no login também)
-                # Por enquanto, mantemos apenas email/senha, assumindo que só quem tem senha passou pela validação
-                # ou que a senha só é "ativa" se validado. Mas como salvamos a senha no passo 1, o login funciona direto.
-                # Se quiser bloquear login sem validação, teria que checar a coluna Codigo se foi usada ou criar coluna Status.
                 
                 if not usuario_valido.empty:
                     dados_user = usuario_valido.iloc[0]
@@ -884,52 +865,37 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
     if 'passo_simulacao' not in st.session_state: st.session_state.passo_simulacao = 'input'
     if 'dados_cliente' not in st.session_state: st.session_state.dados_cliente = {}
 
-    # --- SIDEBAR COM PERFIL DO CORRETOR ---
     with st.sidebar:
         st.header("Perfil do Corretor")
         st.write(f"**Nome:** {st.session_state.get('user_name', 'N/A')}")
         st.write(f"**Canal:** {st.session_state.get('user_imobiliaria', 'N/A')}")
         st.markdown("---")
         st.markdown("### Minhas Simulações Salvas")
-        
-        # Tenta carregar histórico
         if st.button("Carregar Histórico"):
             try:
-                # Determina aba de leitura baseada no canal do usuário
                 canal_user = st.session_state.get('user_imobiliaria', 'Outros')
                 abas_conhecidas = ["Canal IMOB", "DV", "RV", "Trip", "Swell"]
                 aba_leitura = canal_user if canal_user in abas_conhecidas else "Outros"
-                
                 conn = st.connection("gsheets", type=GSheetsConnection)
                 df_hist = conn.read(spreadsheet=URL_RANKING, worksheet=aba_leitura)
-                
-                # Filtra pelo nome do corretor
                 if not df_hist.empty and 'Nome do Corretor' in df_hist.columns:
                     meus_dados = df_hist[df_hist['Nome do Corretor'] == st.session_state.get('user_name')]
                     if not meus_dados.empty:
                         st.dataframe(meus_dados[['Nome', 'Empreendimento Final', 'Preço Unidade Final']], use_container_width=True, hide_index=True)
-                    else:
-                        st.info("Nenhuma simulação encontrada para seu usuário nesta aba.")
-                else:
-                    st.warning("Aba de dados vazia ou sem coluna de corretor.")
-            except Exception as e:
-                st.error(f"Erro ao carregar: {e}")
+                    else: st.info("Nenhuma simulação encontrada.")
+                else: st.warning("Aba de dados vazia.")
+            except Exception as e: st.error(f"Erro: {e}")
 
     # --- ETAPA 1: INPUT ---
     if st.session_state.passo_simulacao == 'input':
         st.markdown("### Dados do Cliente")
         if not df_cadastros.empty:
             try:
-                # Trata CPF para garantir que seja string e tenha 11 dígitos no label
                 df_cadastros['cpf_str'] = df_cadastros['CPF'].astype(str).apply(limpar_cpf_visual)
-            except:
-                df_cadastros['cpf_str'] = ""
-                
+            except: df_cadastros['cpf_str'] = ""
             df_cadastros['search_label'] = df_cadastros['Nome'].astype(str) + " - " + df_cadastros['cpf_str']
-            # Filtra apenas labels validos
             opcoes_clientes = [""] + sorted(df_cadastros[df_cadastros['search_label'].str.len() > 3]['search_label'].unique().tolist())
-            
-            cliente_selecionado = st.selectbox("Pesquisar Cliente (Nome - CPF)", opcoes_clientes, index=0, key="busca_cliente_v3", placeholder="Digite para buscar...")
+            cliente_selecionado = st.selectbox("Nome do Cliente (Buscar na Base)", opcoes_clientes, index=0, key="busca_cliente_v3", placeholder="Digite para buscar...")
             
             if cliente_selecionado and cliente_selecionado != "":
                 dados_cli = df_cadastros[df_cadastros['search_label'] == cliente_selecionado].iloc[0]
@@ -954,7 +920,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
                     st.session_state.last_search = cliente_selecionado
                     st.rerun()
 
-        nome = st.text_input("Nome do Cliente", value=st.session_state.dados_cliente.get('nome', ""), placeholder="Nome Completo", key="in_nome_v28")
+        nome = st.text_input("Nome Completo", value=st.session_state.dados_cliente.get('nome', ""), placeholder="Nome Completo", key="in_nome_v28")
         cpf_val = st.text_input("CPF", value=st.session_state.dados_cliente.get('cpf', ""), placeholder="000.000.000-00", key="in_cpf_v3")
         d_nasc_default = st.session_state.dados_cliente.get('data_nascimento', date(1990, 1, 1))
         data_nasc = st.date_input("Data de Nascimento", value=d_nasc_default, min_value=date(1900, 1, 1), max_value=datetime.now().date(), format="DD/MM/YYYY", key="in_dt_nasc_v3")
@@ -981,8 +947,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
         
         if not df_politicas.empty and 'CLASSIFICAÇÃO' in df_politicas.columns:
             ranking_options = [r for r in df_politicas['CLASSIFICAÇÃO'].unique().tolist() if r != "EMCASH"]
-        else:
-            ranking_options = ["DIAMANTE"]
+        else: ranking_options = ["DIAMANTE"]
         ranking = st.selectbox("Ranking do Cliente", options=ranking_options, index=0, key="in_rank_v28")
         politica_ps = st.selectbox("Política de Pro Soluto", ["Direcional", "Emcash"], key="in_pol_v28")
         social = st.toggle("Fator Social", value=st.session_state.dados_cliente.get('social', False), key="in_soc_v28")
@@ -991,21 +956,15 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
         st.markdown("<br>", unsafe_allow_html=True)
         
         def processar_avanco(destino):
-            if not nome.strip():
-                st.markdown(f'<div class="custom-alert">Por favor, informe o Nome do Cliente para continuar.</div>', unsafe_allow_html=True); return
-            if renda_total_calc <= 0:
-                st.markdown(f'<div class="custom-alert">A renda total deve ser maior que zero.</div>', unsafe_allow_html=True); return
+            if not nome.strip(): st.markdown(f'<div class="custom-alert">Por favor, informe o Nome do Cliente para continuar.</div>', unsafe_allow_html=True); return
+            if renda_total_calc <= 0: st.markdown(f'<div class="custom-alert">A renda total deve ser maior que zero.</div>', unsafe_allow_html=True); return
 
             class_b = 'EMCASH' if politica_ps == "Emcash" else ranking
-            if 'CLASSIFICAÇÃO' in df_politicas.columns:
-                politica_row = df_politicas[df_politicas['CLASSIFICAÇÃO'] == class_b].iloc[0]
-            else:
-                politica_row = pd.Series({'FX_RENDA_1': 0.30, 'FAIXA_RENDA': 4400, 'FX_RENDA_2': 0.25, 'PROSOLUTO': 0.10, 'PARCELAS': 60})
+            if 'CLASSIFICAÇÃO' in df_politicas.columns: politica_row = df_politicas[df_politicas['CLASSIFICAÇÃO'] == class_b].iloc[0]
+            else: politica_row = pd.Series({'FX_RENDA_1': 0.30, 'FAIXA_RENDA': 4400, 'FX_RENDA_2': 0.25, 'PROSOLUTO': 0.10, 'PARCELAS': 60})
 
             limit_ps_r = politica_row['FX_RENDA_1'] if renda_total_calc < politica_row['FAIXA_RENDA'] else politica_row['FX_RENDA_2']
             f_faixa_ref, s_faixa_ref, fx_nome_ref = motor.obter_enquadramento(renda_total_calc, social, cotista, valor_avaliacao=240000)
-            
-            # Garante formato limpo do CPF para salvar
             cpf_salvar = limpar_cpf_visual(cpf_val)
 
             st.session_state.dados_cliente.update({
@@ -1028,9 +987,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
         st.markdown(f"### Recomendação de Imóveis")
         df_disp_total = df_estoque[df_estoque['Status'] == 'Disponível'].copy()
         
-        if df_disp_total.empty:
-            st.markdown('<div class="custom-alert">Sem produtos viaveis no perfil selecionado.</div>', unsafe_allow_html=True)
-            df_viaveis = pd.DataFrame()
+        if df_disp_total.empty: st.markdown('<div class="custom-alert">Sem produtos viaveis no perfil selecionado.</div>', unsafe_allow_html=True); df_viaveis = pd.DataFrame()
         else:
             def calcular_viabilidade_unidade(row):
                 v_venda = row['Valor de Venda']
@@ -1041,15 +998,12 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
                 return pd.Series([poder, cobertura, cobertura >= 100, fin, sub])
 
             df_disp_total[['Poder_Compra', 'Cobertura', 'Viavel', 'Finan_Unid', 'Sub_Unid']] = df_disp_total.apply(calcular_viabilidade_unidade, axis=1)
-            # Reintroduzindo Status Viabilidade para filtro
             df_disp_total['Status Viabilidade'] = df_disp_total['Viavel'].apply(lambda x: "Viavel" if x else "Inviavel")
-            
             df_disp_total = df_disp_total.sort_values('Cobertura', ascending=False)
             df_viaveis = df_disp_total[df_disp_total['Viavel']].copy()
         
         st.markdown("#### Panorama de Produtos Viáveis")
-        if df_viaveis.empty:
-            st.markdown('<div class="custom-alert">Sem produtos totalmente cobertos pelo poder de compra. Veja opções abaixo para negociar.</div>', unsafe_allow_html=True)
+        if df_viaveis.empty: st.markdown('<div class="custom-alert">Sem produtos totalmente cobertos pelo poder de compra. Veja opções abaixo para negociar.</div>', unsafe_allow_html=True)
         else:
             emp_counts = df_viaveis.groupby('Empreendimento').size().to_dict()
             items = list(emp_counts.items()); cols_per_row = 3
@@ -1166,10 +1120,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
         
         st.markdown("<hr style='margin: 10px 0;'>", unsafe_allow_html=True)
         
-        # 1. Calcular Saldo Restante para Entrada (Preço - Finan - FGTS)
         saldo_restante_inicial = max(0.0, u_valor - f_u - fgts_u)
-        
-        # 2. Inicializar distribuição de entrada para cobrir o saldo
         calc_hash = f"{f_u}-{fgts_u}-{u_valor}-{d.get('unidade_id', 'none')}"
         if 'last_calc_hash' not in st.session_state or st.session_state.last_calc_hash != calc_hash:
             dist_val = saldo_restante_inicial / 4
@@ -1179,7 +1130,6 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
             st.session_state.ato_4 = dist_val
             st.session_state.last_calc_hash = calc_hash
 
-        # 3. Mostrar Inputs de Entrada
         st.markdown("#### Distribuição da Entrada")
         col_a, col_b = st.columns(2)
         with col_a:
@@ -1189,59 +1139,46 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
             st.session_state.ato_2 = st.number_input("Ato 30", value=float(st.session_state.ato_2), key="ato_2_v28")
             st.session_state.ato_4 = st.number_input("Ato 90", value=float(st.session_state.ato_4), key="ato_4_v28")
 
-        # 4. Mostrar Inputs de Pro Soluto no FINAL
         st.markdown("<hr style='margin: 10px 0;'>", unsafe_allow_html=True)
         col_ps_val, col_ps_parc = st.columns(2)
         ps_max_real = u_valor * d.get('perc_ps', 0)
         
         with col_ps_val:
-            # Default 0.0 conforme pedido
             ps_u = st.number_input("Pro Soluto Direcional", value=0.0, step=1000.0, key="ps_u_v28")
             st.markdown(f'<span class="inline-ref">Limite Permitido ({d.get("perc_ps", 0)*100:.0f}%): R$ {fmt_br(ps_max_real)}</span>', unsafe_allow_html=True)
         with col_ps_parc:
-            parc = st.number_input("Número de Parcelas Pro Soluto", min_value=1, max_value=144, value=60, key="parc_u_v28") # Default 60 parcelas se quiser, ou d.get('prazo...')
+            parc = st.number_input("Número de Parcelas Pro Soluto", min_value=1, max_value=144, value=60, key="parc_u_v28")
             st.markdown(f'<span class="inline-ref">Prazo Máximo: {d.get("prazo_ps_max", 0)} meses</span>', unsafe_allow_html=True)
 
-        # 5. Cálculos Finais e Validação
         v_parc = ps_u / parc if parc > 0 else 0
         comp_r = (v_parc / d.get('renda', 1)) if d.get('renda', 0) > 0 else 0
-        
-        # Saldo a Pagar = Preço - Finan - FGTS - PS - (Entradas)
-        # Se PS for 0, as entradas devem cobrir tudo. Se PS > 0, ele ajuda a cobrir.
-        # Total Pago = Finan + FGTS + PS + (Ato+30+60+90)
         total_pago = f_u + fgts_u + ps_u + st.session_state.ato_1 + st.session_state.ato_2 + st.session_state.ato_3 + st.session_state.ato_4
         gap_final = u_valor - total_pago
 
-        # Resumo visual
         fin1, fin2, fin3 = st.columns(3)
         with fin1: st.markdown(f"""<div class="fin-box" style="border-top: 6px solid {COR_AZUL_ESC};"><b style="color:{COR_AZUL_ESC};">VALOR DO IMÓVEL</b><br><span style="color:{COR_AZUL_ESC};">R$ {fmt_br(u_valor)}</span></div>""", unsafe_allow_html=True)
         with fin2: st.markdown(f"""<div class="fin-box" style="border-top: 6px solid {COR_VERMELHO};"><b style="color:{COR_AZUL_ESC};">MENSALIDADE PS</b><br><span style="color:{COR_AZUL_ESC};">R$ {fmt_br(v_parc)} ({parc}x)</span></div>""", unsafe_allow_html=True)
         
-        # Caixa de Saldo a Cobrir
-        cor_saldo = COR_VERMELHO if abs(gap_final) > 1 else "#22c55e" # Verde se zerado
+        cor_saldo = COR_VERMELHO if abs(gap_final) > 1 else "#22c55e"
         with fin3: st.markdown(f"""<div class="fin-box" style="border-top: 6px solid {cor_saldo};"><b style="color:{COR_AZUL_ESC};">SALDO A COBRIR</b><br><span style="color:{COR_AZUL_ESC};">R$ {fmt_br(gap_final)}</span></div>""", unsafe_allow_html=True)
 
-        if comp_r > d.get('limit_ps_renda', 1):
-            st.warning(f"Atenção: Parcela Pro Soluto excede o limite de {d.get('limit_ps_renda', 0)*100:.0f}% da renda.")
+        if comp_r > d.get('limit_ps_renda', 1): st.warning(f"Atenção: Parcela Pro Soluto excede o limite de {d.get('limit_ps_renda', 0)*100:.0f}% da renda.")
         
+        # Bloqueio visual e funcional
         if abs(gap_final) > 1:
             st.error(f"Atenção: A conta não fecha. Falta cobrir R$ {fmt_br(gap_final)} ou há excesso de pagamento.")
 
-        # Salva dados para resumo
-        # Nota: entrada_total aqui é a soma dos atos, não o saldo restante
         total_entrada_cash = st.session_state.ato_1 + st.session_state.ato_2 + st.session_state.ato_3 + st.session_state.ato_4
-        
-        st.session_state.dados_cliente.update({
-            'finan_usado': f_u, 'fgts_sub_usado': fgts_u,
-            'ps_usado': ps_u, 'ps_parcelas': parc, 'ps_mensal': v_parc,
-            'entrada_total': total_entrada_cash, # Valor pago em dinheiro nos atos
-            'ato_final': st.session_state.ato_1, 'ato_30': st.session_state.ato_2,
-            'ato_60': st.session_state.ato_3, 'ato_90': st.session_state.ato_4
-        })
+        st.session_state.dados_cliente.update({'finan_usado': f_u, 'fgts_sub_usado': fgts_u, 'ps_usado': ps_u, 'ps_parcelas': parc, 'ps_mensal': v_parc, 'entrada_total': total_entrada_cash, 'ato_final': st.session_state.ato_1, 'ato_30': st.session_state.ato_2, 'ato_60': st.session_state.ato_3, 'ato_90': st.session_state.ato_4})
         
         st.markdown("---")
-        if st.button("Avançar para Resumo de Compra", type="primary", use_container_width=True, key="btn_to_summary_v28"):
-            st.session_state.passo_simulacao = 'summary'; st.rerun()
+        # Botão de avançar só aparece/funciona se o gap for zero
+        if abs(gap_final) <= 1:
+            if st.button("Avançar para Resumo de Compra", type="primary", use_container_width=True, key="btn_to_summary_v28"):
+                st.session_state.passo_simulacao = 'summary'; st.rerun()
+        else:
+            st.button("Avançar para Resumo de Compra", type="primary", use_container_width=True, disabled=True, key="btn_to_summary_disabled")
+
         if st.button("Voltar para Seleção de Imóvel", use_container_width=True, key="btn_back_to_selection_v28"): 
             st.session_state.passo_simulacao = 'selection'; st.rerun()
 
@@ -1258,7 +1195,6 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
 
         st.markdown("---")
         
-        # Botão unificado que abre o Modal
         if st.button("Opções de Resumo (PDF / E-mail)", use_container_width=True, key="btn_open_modal_summary"):
             if PDF_ENABLED:
                 pdf_data = gerar_resumo_pdf(d)
@@ -1268,81 +1204,39 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
 
         st.markdown("---")
         
-        # Botões de navegação finais - EMPILHADOS
         if st.button("CONCLUIR E SALVAR SIMULAÇÃO", type="primary", use_container_width=True, key="btn_save_final"):
             try:
                 conn_save = st.connection("gsheets", type=GSheetsConnection)
-                
-                # Identifica qual aba salvar
-                aba_destino = "Outros" # Default
-                canal_user = st.session_state.get('user_imobiliaria', 'Outros').strip()
-                abas_padrao = ["Canal IMOB", "DV", "RV", "Trip", "Swell"]
-                
-                if canal_user in abas_padrao:
-                    aba_destino = canal_user
-                
-                # Monta a lista de rendas individuais (garantindo 4 slots)
+                aba_destino = st.session_state.get('user_imobiliaria', 'Cadastros')
+                if not aba_destino or aba_destino == 'nan': aba_destino = 'Cadastros'
                 rendas_ind = d.get('rendas_lista', [])
-                while len(rendas_ind) < 4:
-                    rendas_ind.append(0.0)
+                while len(rendas_ind) < 4: rendas_ind.append(0.0)
                 
-                # Dados para salvar
                 nova_linha = {
-                    "Nome": d.get('nome'),
-                    "CPF": d.get('cpf'), # CPF Limpo
-                    "Data de Nascimento": str(d.get('data_nascimento')),
-                    "Prazo Financiamento": d.get('prazo_financiamento'),
-                    "Renda Part. 1": rendas_ind[0],
-                    "Renda Part. 2": rendas_ind[1],
-                    "Renda Part. 3": rendas_ind[2],
-                    "Renda Part. 4": rendas_ind[3],
-                    "Ranking": d.get('ranking'),
-                    "Política de Pro Soluto": d.get('politica'),
-                    "Fator Social": "Sim" if d.get('social') else "Não",
-                    "Cotista FGTS": "Sim" if d.get('cotista') else "Não",
-                    "Financiamento Aprovado": d.get('finan_f_ref', 0),
-                    "Subsídio Máximo": d.get('sub_f_ref', 0),
-                    "Pro Soluto Médio": d.get('ps_medio_ref', 0),
-                    "Capacidade de Entrada": d.get('cap_entrada_ref', 0),
-                    "Poder de Aquisição Médio": d.get('poder_aquisicao_ref', 0),
-                    "Empreendimento Final": d.get('empreendimento_nome'),
-                    "Unidade Final": d.get('unidade_id'),
-                    "Preço Unidade Final": d.get('imovel_valor', 0),
-                    "Financiamento Final": d.get('finan_usado', 0),
-                    "FGTS + Subsídio Final": d.get('fgts_sub_usado', 0),
-                    "Pro Soluto Final": d.get('ps_usado', 0),
-                    "Número de Parcelas do Pro Soluto": d.get('ps_parcelas', 0),
-                    "Mensalidade PS": d.get('ps_mensal', 0),
-                    "Ato": d.get('ato_final', 0),
-                    "Ato 30": d.get('ato_30', 0),
-                    "Ato 60": d.get('ato_60', 0),
-                    "Ato 90": d.get('ato_90', 0),
-                    # CAMPOS NOVOS DO CORRETOR
-                    "Nome do Corretor": st.session_state.get('user_name', ''),
-                    "Canal/Imobiliária": st.session_state.get('user_imobiliaria', '')
+                    "Nome": d.get('nome'), "CPF": d.get('cpf'), "Data de Nascimento": str(d.get('data_nascimento')),
+                    "Prazo Financiamento": d.get('prazo_financiamento'), "Renda Part. 1": rendas_ind[0], "Renda Part. 2": rendas_ind[1],
+                    "Renda Part. 3": rendas_ind[2], "Renda Part. 4": rendas_ind[3], "Ranking": d.get('ranking'), "Política de Pro Soluto": d.get('politica'),
+                    "Fator Social": "Sim" if d.get('social') else "Não", "Cotista FGTS": "Sim" if d.get('cotista') else "Não",
+                    "Financiamento Aprovado": d.get('finan_f_ref', 0), "Subsídio Máximo": d.get('sub_f_ref', 0), "Pro Soluto Médio": d.get('ps_medio_ref', 0),
+                    "Capacidade de Entrada": d.get('cap_entrada_ref', 0), "Poder de Aquisição Médio": d.get('poder_aquisicao_ref', 0),
+                    "Empreendimento Final": d.get('empreendimento_nome'), "Unidade Final": d.get('unidade_id'), "Preço Unidade Final": d.get('imovel_valor', 0),
+                    "Financiamento Final": d.get('finan_usado', 0), "FGTS + Subsídio Final": d.get('fgts_sub_usado', 0),
+                    "Pro Soluto Final": d.get('ps_usado', 0), "Número de Parcelas do Pro Soluto": d.get('ps_parcelas', 0), "Mensalidade PS": d.get('ps_mensal', 0),
+                    "Ato": d.get('ato_final', 0), "Ato 30": d.get('ato_30', 0), "Ato 60": d.get('ato_60', 0), "Ato 90": d.get('ato_90', 0),
+                    "Nome do Corretor": st.session_state.get('user_name', ''), "Canal/Imobiliária": st.session_state.get('user_imobiliaria', '')
                 }
-                
                 df_novo = pd.DataFrame([nova_linha])
-                
-                # Tenta ler aba existente, se não, cria novo DF
                 try:
                     df_existente = conn_save.read(spreadsheet=URL_RANKING, worksheet=aba_destino)
                     df_final_save = pd.concat([df_existente, df_novo], ignore_index=True)
-                except Exception:
-                    # Assume que a aba não existe ou está vazia
-                    df_final_save = df_novo
-                
-                # Salva na aba específica da imobiliária
+                except: df_final_save = df_novo
                 conn_save.update(spreadsheet=URL_RANKING, worksheet=aba_destino, data=df_final_save)
-                
                 st.success(f"Simulação salva com sucesso na aba '{aba_destino}'! Reiniciando...")
                 time.sleep(2)
                 st.session_state.dados_cliente = {}
                 st.session_state.passo_simulacao = 'input'
                 st.rerun()
-                
-            except Exception as e:
-                st.error(f"Erro ao salvar dados: {e}")
+            except Exception as e: st.error(f"Erro ao salvar dados: {e}")
 
         if st.button("Voltar para Fechamento", use_container_width=True, key="btn_edit_fin_summary_v28"):
             st.session_state.passo_simulacao = 'payment_flow'; st.rerun()
@@ -1373,3 +1267,49 @@ def main():
 
 if __name__ == "__main__":
     main()
+```
+
+### 2. Passo a Passo do Google Apps Script
+
+Siga este procedimento para habilitar o envio automático do código de verificação para o e-mail do corretor:
+
+1.  **Acesse a Planilha de Ranking** no Google Sheets (onde estão as abas "Logins", "Canal IMOB", etc).
+2.  No menu superior, clique em **Extensões** > **Apps Script**.
+3.  Uma nova aba do navegador se abrirá com o editor de código. Apague qualquer código que esteja lá e cole este:
+
+```javascript
+function onChange(e) {
+  // Configuração
+  var nomeAbaLogins = "Logins";
+  var colunaEmail = 1;  // Coluna A
+  var colunaCodigo = 6; // Coluna F (ajuste se sua coluna 'Codigo' estiver em outro lugar)
+
+  var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(nomeAbaLogins);
+  if (!sheet) return;
+
+  var lastRow = sheet.getLastRow();
+  
+  // Pega os dados da última linha inserida
+  var email = sheet.getRange(lastRow, colunaEmail).getValue();
+  var codigoAtual = sheet.getRange(lastRow, colunaCodigo).getValue();
+
+  // Verifica se é um novo registro (email existe e código está vazio)
+  if (email && email.toString().indexOf("@") > -1 && (codigoAtual === "" || codigoAtual === null)) {
+    
+    // Gera código de 6 dígitos
+    var novoCodigo = Math.floor(100000 + Math.random() * 900000);
+    
+    // Escreve o código na planilha
+    sheet.getRange(lastRow, colunaCodigo).setValue(novoCodigo);
+    
+    // Envia o e-mail
+    var assunto = "Código de Verificação - Simulador Direcional";
+    var mensagem = "Seu código de verificação é: " + novoCodigo;
+    
+    try {
+      MailApp.sendEmail(email, assunto, mensagem);
+    } catch (error) {
+      Logger.log("Erro ao enviar email para " + email + ": " + error);
+    }
+  }
+}
