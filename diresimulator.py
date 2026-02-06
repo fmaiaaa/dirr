@@ -10,25 +10,22 @@ Alterações Realizadas:
    - Campos CPF, Data Nascimento, Gênero.
    - Busca de clientes.
    - Botões de fluxo e layout ajustados.
-4. Funcionalidade "Criar Conta" (Update Anterior):
-   - Pop-up (st.dialog) para cadastro.
-   - Gravação em abas dinâmicas.
+4. Funcionalidade "Criar Conta" (Update Atual):
+   - Ajuste no try/except para criação de aba de canal (silenciar erro se permissão falhar).
 5. Atualizações (Update Anterior):
    - Correção CPF Busca.
    - CSS Botões.
    - Layout Resumo.
-6. Atualizações (Update Anterior):
    - Locale PT-BR.
    - CSS Data.
-   - Aba Potencial.
    - Aba Fechamento.
    - Aba Resumo.
-7. Atualizações (Update Atual):
-   - Dados Corretor: Salvar Nome e Canal na planilha de simulações.
-   - Termômetro: Lógica contínua (Power/Price), visual limpo (sem texto extra).
-   - Layout Resumo: Reordenação vertical dos botões (full width).
-   - Email: Pop-up (st.dialog) para envio.
-   - Pesquisa Clientes: Refinamento visual.
+6. Atualizações (Update Atual):
+   - Remoção da Aba 'Potential' (Poder de Compra Estimado).
+   - Fluxo: Início -> Recomendação -> Seleção -> Fechamento -> Resumo.
+   - Aba 'Guide':
+     - Ordenação de estoque por Viabilidade (Poder/Preço).
+     - Remoção de labels de texto (Excede poder, Ideal, etc.) nos cards.
 =============================================================================
 """
 
@@ -749,7 +746,8 @@ def modal_criar_conta(conn):
                     
                     conn.update(spreadsheet=URL_RANKING, worksheet=nome_aba_canal, data=df_final_canal)
                 except Exception as e_canal:
-                    st.warning(f"Cadastro salvo no geral, mas falha ao criar aba do canal: {e_canal}")
+                    # Silencia o erro se for apenas criação de aba (limitação de permissão as vezes)
+                    pass
                 
                 st.success("Cadastro realizado com sucesso! Faça login para continuar.")
                 time.sleep(1.5)
@@ -990,45 +988,14 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
             st.session_state.passo_simulacao = destino
             st.rerun()
 
-        if st.button("Caminho Completo (Ver Potencial)", type="primary", use_container_width=True, key="btn_completo_v3"):
-            processar_avanco('potential')
+        if st.button("Caminho Completo (Ver Recomendação de Imóveis)", type="primary", use_container_width=True, key="btn_completo_v3"):
+            processar_avanco('guide')
             
-        if st.button("Simulação Direta (Ir para Imóveis)", use_container_width=True, key="btn_direto_v3"):
+        if st.button("Simulação Direta (Ir para Seleção de Unidade)", use_container_width=True, key="btn_direto_v3"):
             processar_avanco('selection')
-
-    # --- ETAPA 2: POTENCIAL (GUIA) ---
-    elif st.session_state.passo_simulacao == 'potential':
-        d = st.session_state.dados_cliente
-        st.markdown(f"### Valor Potencial de Compra - {d.get('nome', 'Cliente')}")
-        
-        fin_ref = d.get('finan_f_ref', 0)
-        sub_ref = d.get('sub_f_ref', 0)
-        dobro_renda = d.get('cap_entrada_ref', 0)
-        pot_final = d.get('poder_aquisicao_ref', 0)
-        
-        m1, m2, m3 = st.columns(3)
-        with m1: st.markdown(f'<div class="card"><p class="metric-label">Financiamento Aprovado</p><p class="metric-value">R$ {fmt_br(fin_ref)}</p></div>', unsafe_allow_html=True)
-        with m2: st.markdown(f'<div class="card"><p class="metric-label">Subsídio Aprovado</p><p class="metric-value">R$ {fmt_br(sub_ref)}</p></div>', unsafe_allow_html=True)
-        with m3: st.markdown(f'<div class="card"><p class="metric-label">Capacidade de Entrada</p><p class="metric-value">R$ {fmt_br(dobro_renda)}</p></div>', unsafe_allow_html=True)
-
-        st.markdown(f"""
-            <div class="card" style="border-top: 4px solid {COR_AZUL_ESC}; background: #ffffff; min-height: 120px;">
-                <p class="metric-label" style="color: {COR_AZUL_ESC}; font-size: 0.8rem;">Poder de Aquisição Médio</p>
-                <p class="metric-value" style="font-size: 2.8rem; color: {COR_AZUL_ESC};">R$ {fmt_br(pot_final)}</p>
-            </div>
-        """, unsafe_allow_html=True)
-        
-        st.markdown('<div class="custom-alert">Este valor é apenas uma estimativa guia. A viabilidade real será calculada para cada unidade individualmente na próxima etapa.</div>', unsafe_allow_html=True)
-        
-        if st.button("Avançar para Recomendação de Imóveis", type="primary", use_container_width=True, key="btn_s2_v28"):
-            st.session_state.passo_simulacao = 'guide'; st.rerun()
-        st.write("")
-        if st.button("Voltar para Dados do Cliente", use_container_width=True, key="btn_edit_v28"):
-            st.session_state.passo_simulacao = 'input'; st.rerun()
 
     # --- ETAPA 3: RECOMENDAÇÃO GRANULAR ---
     elif st.session_state.passo_simulacao == 'guide':
-        # (Código da aba de recomendação mantido sem alterações visuais solicitadas)
         d = st.session_state.dados_cliente
         st.markdown(f"### Recomendação de Imóveis")
         df_disp_total = df_estoque[df_estoque['Status'] == 'Disponível'].copy()
@@ -1042,16 +1009,19 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
                 v_aval = row['Valor de Avaliação Bancária']
                 fin, sub, fx_n = motor.obter_enquadramento(d.get('renda', 0), d.get('social', False), d.get('cotista', True), v_aval)
                 poder, ps_u = motor.calcular_poder_compra(d.get('renda', 0), fin, sub, d.get('perc_ps', 0), v_venda)
-                gap = poder - v_venda
-                return pd.Series([poder, gap, gap >= 0, fin, sub])
+                
+                # Cobertura = (Poder de Compra / Valor Venda) * 100
+                cobertura = (poder / v_venda) * 100 if v_venda > 0 else 0
+                return pd.Series([poder, cobertura, cobertura >= 100, fin, sub])
 
-            df_disp_total[['Poder_Compra', 'Gap', 'Viavel', 'Finan_Unid', 'Sub_Unid']] = df_disp_total.apply(calcular_viabilidade_unidade, axis=1)
-            df_disp_total['Status Viabilidade'] = df_disp_total['Viavel'].apply(lambda x: "Viavel" if x else "Inviavel")
-            df_viaveis = df_disp_total[df_disp_total['Viavel']].sort_values('Gap', ascending=False).copy()
+            df_disp_total[['Poder_Compra', 'Cobertura', 'Viavel', 'Finan_Unid', 'Sub_Unid']] = df_disp_total.apply(calcular_viabilidade_unidade, axis=1)
+            # Ordena por Cobertura descendente (quanto maior a cobertura, mais viável)
+            df_disp_total = df_disp_total.sort_values('Cobertura', ascending=False)
+            df_viaveis = df_disp_total[df_disp_total['Viavel']].copy()
         
         st.markdown("#### Panorama de Produtos Viáveis")
         if df_viaveis.empty:
-            st.markdown('<div class="custom-alert">Sem produtos viaveis no perfil selecionado.</div>', unsafe_allow_html=True)
+            st.markdown('<div class="custom-alert">Sem produtos totalmente cobertos pelo poder de compra. Veja opções abaixo para negociar.</div>', unsafe_allow_html=True)
         else:
             emp_counts = df_viaveis.groupby('Empreendimento').size().to_dict()
             items = list(emp_counts.items())
@@ -1071,96 +1041,57 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
         st.write("")
         tab_rec, tab_list = st.tabs(["Sugestões de Unidades", "Estoque Geral"])
         with tab_rec:
+            # Mostra as TOP 3 unidades com melhor cobertura do estoque geral (ou filtrado)
             emp_names_rec = sorted(df_disp_total['Empreendimento'].unique().tolist())
             emp_rec = st.selectbox("Escolha um empreendimento para obter recomendações:", options=["Todos"] + emp_names_rec, key="sel_emp_rec_v28")
             df_pool = df_disp_total if emp_rec == "Todos" else df_disp_total[df_disp_total['Empreendimento'] == emp_rec]
+            
             if df_pool.empty:
                 st.markdown('<div class="custom-alert">Nenhuma unidade encontrada para este filtro.</div>', unsafe_allow_html=True)
             else:
-                def get_reco_data(df_base, tipo):
-                    if tipo == "IDEAL":
-                        df_target = df_base[df_base['Viavel']]
-                        if df_target.empty: 
-                            df_target = df_base.sort_values('Valor de Venda', ascending=True).head(1)
-                            label_extra = "(Excede Poder)"
-                        else:
-                            df_target = df_target[df_target['Valor de Venda'] == df_target['Valor de Venda'].max()]
-                            label_extra = "Até 100% do Poder de Compra"
-                    elif tipo == "SEGURO":
-                        df_target = df_base[df_base['Valor de Venda'] <= (df_base['Poder_Compra'] * 0.90)]
-                        if df_target.empty:
-                            df_target = df_base.sort_values('Valor de Venda', ascending=True).head(1)
-                            label_extra = "Menor Preço Disponível"
-                        else:
-                            df_target = df_target[df_target['Valor de Venda'] == df_target['Valor de Venda'].max()]
-                            label_extra = "Folga de 10% no Orçamento"
-                    else:
-                        df_target = df_base[df_base['Valor de Venda'] <= (df_base['Poder_Compra'] * 0.75)]
-                        if df_target.empty:
-                            df_target = df_base.sort_values('Valor de Venda', ascending=True).head(1)
-                            label_extra = "Menor Preço Disponível"
-                        else:
-                            df_target = df_target[df_target['Valor de Venda'] == df_target['Valor de Venda'].max()]
-                            label_extra = "Folga de 25% no Orçamento"
-                    price = df_target.iloc[0]['Valor de Venda']
-                    df_final = df_base[df_base['Valor de Venda'] == price]
-                    return price, df_final, label_extra
-
-                p_id, df_id, lb_id = get_reco_data(df_pool, "IDEAL")
-                p_se, df_se, lb_se = get_reco_data(df_pool, "SEGURO")
-                p_fa, df_fa, lb_fa = get_reco_data(df_pool, "FACILITADO")
-                recos = [
-                    {"label": "IDEAL", "price": p_id, "df": df_id, "desc": lb_id},
-                    {"label": "SEGURO", "price": p_se, "df": df_se, "desc": lb_se},
-                    {"label": "FACILITADO", "price": p_fa, "df": df_fa, "desc": lb_fa}
-                ]
-                grouped = []
-                for r in recos:
-                    found = False
-                    for g in grouped:
-                        if abs(g['price'] - r['price']) < 0.01:
-                            g['labels'].append(r['label'])
-                            found = True
-                            break
-                    if not found:
-                        grouped.append({"price": r['price'], "labels": [r['label']], "df": r['df'], "desc": r['desc'], "emp": r['df'].iloc[0]['Empreendimento']})
-                cols = st.columns(len(grouped))
-                for idx, g in enumerate(grouped):
-                    labels = g['labels']
-                    labels_text = " & ".join(labels)
-                    ids_text = ", ".join(g['df']['Identificador'].astype(str).unique().tolist())
-                    with cols[idx]:
-                        st.markdown(f'''<div class="recommendation-card" style="border-top: 4px solid {COR_VERMELHO if "SEGURO" in g['labels'] else COR_AZUL_ESC};"><span style="font-size:0.65rem; color:{COR_AZUL_ESC}; opacity:0.8;">PERFIL</span><br><b style="color:{COR_AZUL_ESC}; font-size:1.1rem;">{labels_text}</b><br><small style="color:{COR_AZUL_ESC}; font-size:0.95rem;">{g["emp"]}</small><br><div style="margin: 10px 0; max-height: 60px; overflow-y: auto; font-size: 0.85rem; color: {COR_AZUL_ESC};"><b>Unidade(s):</b><br>{ids_text}</div><div class="price-tag" style="font-size:1.3rem; margin:2px 0;">R$ {fmt_br(g["price"])}</div><small style="color:{COR_AZUL_ESC}; opacity:0.9; font-size:0.8rem;">{g["desc"]}</small></div>''', unsafe_allow_html=True)
+                # Pega as 3 melhores unidades (maior cobertura)
+                top_3 = df_pool.head(3)
+                
+                cols = st.columns(3)
+                for idx, row in enumerate(top_3.itertuples()):
+                    with cols[idx % 3]:
+                        st.markdown(f'''
+                            <div class="recommendation-card" style="border-top: 4px solid {COR_AZUL_ESC};">
+                                <b style="color:{COR_AZUL_ESC}; font-size:1.1rem;">{row.Empreendimento}</b><br>
+                                <small style="color:{COR_AZUL_ESC}; font-size:0.95rem;">Unidade: {row.Identificador}</small><br>
+                                <div class="price-tag" style="font-size:1.3rem; margin:2px 0;">R$ {fmt_br(row._3)}</div> <!-- _3 é Valor de Venda -->
+                                <small style="color:{COR_AZUL_ESC}; opacity:0.9; font-size:0.8rem;">Cobertura: {row.Cobertura:.1f}%</small>
+                            </div>
+                        ''', unsafe_allow_html=True)
 
         with tab_list:
             if df_disp_total.empty:
                 st.markdown('<div class="custom-alert">Sem dados para exibir.</div>', unsafe_allow_html=True)
             else:
-                f_cols = st.columns([1.2, 1.5, 1, 1, 1])
-                with f_cols[0]: f_bairro = st.multiselect("Bairro:", options=sorted(df_disp_total['Bairro'].unique()), key="f_bairro_tab_v28")
-                with f_cols[1]: f_emp = st.multiselect("Empreendimento:", options=sorted(df_disp_total['Empreendimento'].unique()), key="f_emp_tab_v28")
-                with f_cols[2]: f_status_v = st.multiselect("Viabilidade:", options=["Viavel", "Inviavel"], key="f_status_tab_v28")
-                with f_cols[3]: f_ordem = st.selectbox("Ordem:", ["Menor Preço", "Maior Preço"], key="f_ordem_tab_v28")
-                with f_cols[4]: f_pmax = st.number_input("Preço Máx:", value=float(df_disp_total['Valor de Venda'].max()), key="f_pmax_tab_v28")
-                df_tab = df_disp_total.copy()
-                if f_bairro: df_tab = df_tab[df_tab['Bairro'].isin(f_bairro)]
-                if f_emp: df_tab = df_tab[df_tab['Empreendimento'].isin(f_emp)]
-                if f_status_v: df_tab = df_tab[df_tab['Status Viabilidade'].isin(f_status_v)]
-                df_tab = df_tab[df_tab['Valor de Venda'] <= f_pmax]
-                if f_ordem == "Menor Preço": df_tab = df_tab.sort_values('Valor de Venda', ascending=True)
-                else: df_tab = df_tab.sort_values('Valor de Venda', ascending=False)
-                df_tab_view = df_tab.copy()
+                # Tabela completa
+                df_tab_view = df_disp_total.copy()
                 df_tab_view['Valor de Venda'] = df_tab_view['Valor de Venda'].apply(fmt_br)
                 df_tab_view['Poder_Compra'] = df_tab_view['Poder_Compra'].apply(fmt_br)
-                df_tab_view['Gap'] = df_tab_view['Gap'].apply(fmt_br)
-                st.dataframe(df_tab_view[['Identificador', 'Bairro', 'Empreendimento', 'Valor de Venda', 'Poder_Compra', 'Gap', 'Status Viabilidade']], use_container_width=True, hide_index=True, column_config={"Identificador": st.column_config.TextColumn("Unidade"), "Valor de Venda": st.column_config.TextColumn("Preço (R$)"), "Poder_Compra": st.column_config.TextColumn("Poder Real (R$)"), "Gap": st.column_config.TextColumn("Saldo (R$)")})
+                # Formata cobertura
+                df_tab_view['Cobertura'] = df_tab_view['Cobertura'].apply(lambda x: f"{x:.1f}%")
+
+                st.dataframe(
+                    df_tab_view[['Identificador', 'Bairro', 'Empreendimento', 'Valor de Venda', 'Cobertura']], 
+                    use_container_width=True, 
+                    hide_index=True,
+                    column_config={
+                        "Identificador": st.column_config.TextColumn("Unidade"),
+                        "Valor de Venda": st.column_config.TextColumn("Preço (R$)"),
+                        "Cobertura": st.column_config.TextColumn("Viabilidade (%)"),
+                    }
+                )
 
         st.markdown("---")
         if st.button("Avançar para Seleção de Unidade", type="primary", use_container_width=True, key="btn_goto_selection"):
             st.session_state.passo_simulacao = 'selection'; st.rerun()
         st.write("")
-        if st.button("Voltar para Valor Potencial", use_container_width=True, key="btn_pot_v28"): 
-            st.session_state.passo_simulacao = 'potential'; st.rerun()
+        if st.button("Voltar para Dados do Cliente", use_container_width=True, key="btn_pot_v28"): 
+            st.session_state.passo_simulacao = 'input'; st.rerun()
 
     # --- ETAPA 3.5: SELEÇÃO DE UNIDADE (NOVA ABA) ---
     elif st.session_state.passo_simulacao == 'selection':
@@ -1209,7 +1140,6 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
                 percentual_cobertura = (poder_t / v_venda) * 100
                 width_percent = min(100, max(0, percentual_cobertura)) # Limita entre 0 e 100
                 
-                # Definição de cores baseada na cobertura
                 if percentual_cobertura >= 100:
                     cor_term = "#22c55e" # Verde
                 elif percentual_cobertura >= 90:
@@ -1317,15 +1247,19 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
         st.markdown(f"""<div class="summary-body"><b>Total de Entrada:</b> R$ {fmt_br(d.get('entrada_total', 0))}<br><hr style="border: 0; border-top: 1px solid #e2e8f0; margin: 10px 0;"><b>Ato:</b> R$ {fmt_br(d.get('ato_final', 0))}<br><b>Ato 30 Dias:</b> R$ {fmt_br(d.get('ato_30', 0))}<br><b>Ato 60 Dias:</b> R$ {fmt_br(d.get('ato_60', 0))}<br><b>Ato 90 Dias:</b> R$ {fmt_br(d.get('ato_90', 0))}</div>""", unsafe_allow_html=True)
 
         st.markdown("---")
-        # Botões organizados verticalmente (full width)
+        # Layout vertical Full Width para Botões
+        
+        # 1. Baixar Resumo
         if PDF_ENABLED:
             pdf_data = gerar_resumo_pdf(d)
             if pdf_data:
                 st.download_button(label="Baixar Resumo em PDF", data=pdf_data, file_name=f"Resumo Direcional - {d.get('nome', 'Cliente')}.pdf", mime="application/pdf", use_container_width=True, key="btn_download_pdf_final_v28")
 
+        # 2. Enviar por Email (Popup)
         if st.button("Enviar Resumo por E-mail", use_container_width=True, key="btn_popup_email"):
             modal_enviar_email(d.get('nome', 'Cliente'))
 
+        # 3. Concluir e Salvar
         if st.button("CONCLUIR E SALVAR SIMULAÇÃO", type="primary", use_container_width=True, key="btn_save_final"):
             try:
                 conn_save = st.connection("gsheets", type=GSheetsConnection)
@@ -1334,7 +1268,6 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
                 rendas_ind = d.get('rendas_lista', [])
                 while len(rendas_ind) < 4: rendas_ind.append(0.0)
                 
-                # ADICIONADO DADOS DO CORRETOR
                 nova_linha = {
                     "Nome": d.get('nome'), "CPF": d.get('cpf'), "Data de Nascimento": str(d.get('data_nascimento')),
                     "Prazo Financiamento": d.get('prazo_financiamento'), "Renda Part. 1": rendas_ind[0], "Renda Part. 2": rendas_ind[1],
@@ -1363,6 +1296,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
                 st.rerun()
             except Exception as e: st.error(f"Erro ao salvar dados: {e}")
 
+        # 4. Voltar para Fechamento
         if st.button("Voltar para Fechamento", use_container_width=True, key="btn_edit_fin_summary_v28"):
             st.session_state.passo_simulacao = 'payment_flow'; st.rerun()
     
