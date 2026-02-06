@@ -13,8 +13,9 @@ Alterações Realizadas:
 4. Funcionalidade "Criar Conta" (Update Atual):
    - Pop-up (st.dialog) para cadastro de novos corretores.
    - Campos: Imobiliária, Cargo, Nome, Email, Senha.
+   - NOVAS OPÇÕES: Selectbox para Imobiliária e Cargo com opção "Outro" preenchível.
    - Gravação na aba "Logins".
-5. Lógica de Salvamento Dinâmica (Update Atual):
+5. Lógica de Salvamento Dinâmica (Update Anterior):
    - Ao salvar a simulação, o sistema identifica a Imobiliária do usuário.
    - Os dados são salvos em uma aba com o NOME DA IMOBILIÁRIA.
    - Se a aba não existir, ela é criada automaticamente.
@@ -667,43 +668,58 @@ def gerar_resumo_pdf(d):
 @st.dialog("Criar Nova Conta")
 def modal_criar_conta(conn):
     st.markdown("Preencha os dados abaixo para solicitar acesso.")
-    with st.form("form_cadastro_usuario"):
-        imobiliaria = st.text_input("Imobiliária / Canal IMOB")
-        cargo = st.text_input("Cargo")
-        nome = st.text_input("Nome Completo")
-        email = st.text_input("E-mail")
-        senha = st.text_input("Senha", type="password")
-        
-        submitted = st.form_submit_button("Cadastrar")
-        
-        if submitted:
-            if not imobiliaria or not nome or not email or not senha:
-                st.error("Preencha todos os campos obrigatórios.")
-            else:
+    
+    # Opções de Imobiliária e Cargo
+    opts_imob = ["Canal IMOB", "DV", "RV", "Trip", "Swell", "Outro"]
+    opts_cargo = ["Coordenador Comercial", "Coordenador IMOB", "Gerente Regional", "Gerente de Vendas", "Corretor", "Outro"]
+
+    # Seleção de Imobiliária
+    sel_imob = st.selectbox("Imobiliária / Canal IMOB", opts_imob)
+    if sel_imob == "Outro":
+        imobiliaria = st.text_input("Digite o nome da Imobiliária/Canal")
+    else:
+        imobiliaria = sel_imob
+
+    # Seleção de Cargo
+    sel_cargo = st.selectbox("Cargo", opts_cargo)
+    if sel_cargo == "Outro":
+        cargo = st.text_input("Digite o Cargo")
+    else:
+        cargo = sel_cargo
+
+    # Campos restantes
+    nome = st.text_input("Nome Completo")
+    email = st.text_input("E-mail")
+    senha = st.text_input("Senha", type="password")
+    
+    if st.button("Cadastrar", type="primary", use_container_width=True):
+        if not imobiliaria or not nome or not email or not senha or not cargo:
+            st.error("Preencha todos os campos obrigatórios.")
+        else:
+            try:
+                # Lê planilha atual para append
                 try:
-                    # Lê planilha atual para append
-                    try:
-                        df_logins = conn.read(spreadsheet=URL_RANKING, worksheet="Logins")
-                    except:
-                        df_logins = pd.DataFrame(columns=['Email', 'Senha', 'Imobiliaria', 'Cargo', 'Nome'])
-                    
-                    novo_user = pd.DataFrame([{
-                        'Email': email.strip().lower(),
-                        'Senha': senha.strip(),
-                        'Imobiliaria': imobiliaria.strip(),
-                        'Cargo': cargo.strip(),
-                        'Nome': nome.strip()
-                    }])
-                    
-                    df_final = pd.concat([df_logins, novo_user], ignore_index=True)
-                    conn.update(spreadsheet=URL_RANKING, worksheet="Logins", data=df_final)
-                    
-                    st.success("Cadastro realizado com sucesso! Faça login para continuar.")
-                    time.sleep(1.5)
-                    st.rerun()
-                    
-                except Exception as e:
-                    st.error(f"Erro ao salvar cadastro: {e}")
+                    df_logins = conn.read(spreadsheet=URL_RANKING, worksheet="Logins")
+                except:
+                    df_logins = pd.DataFrame(columns=['Email', 'Senha', 'Imobiliaria', 'Cargo', 'Nome'])
+                
+                novo_user = pd.DataFrame([{
+                    'Email': email.strip().lower(),
+                    'Senha': senha.strip(),
+                    'Imobiliaria': imobiliaria.strip(),
+                    'Cargo': cargo.strip(),
+                    'Nome': nome.strip()
+                }])
+                
+                df_final = pd.concat([df_logins, novo_user], ignore_index=True)
+                conn.update(spreadsheet=URL_RANKING, worksheet="Logins", data=df_final)
+                
+                st.success("Cadastro realizado com sucesso! Faça login para continuar.")
+                time.sleep(1.5)
+                st.rerun()
+                
+            except Exception as e:
+                st.error(f"Erro ao salvar cadastro: {e}")
 
 def tela_login(df_logins):
     c1, c2, c3 = st.columns([1, 1.5, 1])
