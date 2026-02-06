@@ -10,16 +10,14 @@ Alterações Realizadas:
    - Campos CPF, Data Nascimento, Gênero.
    - Busca de clientes.
    - Botões de fluxo e layout ajustados.
-4. Funcionalidade "Criar Conta" (Update Atual):
-   - Pop-up (st.dialog) para cadastro de novos corretores.
-   - Campos: Imobiliária, Cargo, Nome, Email, Senha.
-   - NOVAS OPÇÕES: Selectbox para Imobiliária e Cargo com opção "Outro" preenchível.
-   - Gravação na aba MESTRE "Logins".
-   - Gravação em ABA ESPECÍFICA "Logins - {Canal}".
-5. Lógica de Salvamento Dinâmica (Update Anterior):
-   - Ao salvar a simulação, o sistema identifica a Imobiliária do usuário.
-   - Os dados são salvos em uma aba com o NOME DA IMOBILIÁRIA.
-   - Se a aba não existir, ela é criada automaticamente.
+4. Funcionalidade "Criar Conta" (Update Anterior):
+   - Pop-up (st.dialog) para cadastro.
+   - Gravação em abas dinâmicas.
+5. Atualizações (Update Atual):
+   - Correção CPF Busca: Remoção do sufixo .0 e formatação string.
+   - CSS Botões: Altura ajustada para igualar inputs de texto (~45px).
+   - Layout Resumo: Botão "Voltar" centralizado.
+   - Layout Email: Botão "Enviar" alinhado e mesma altura do input.
 =============================================================================
 """
 
@@ -109,7 +107,6 @@ def carregar_dados_sistema():
             df_logins.columns = [str(c).strip() for c in df_logins.columns]
             
             # Mapeamento flexível das colunas de login
-            # Esperamos: Email, Senha, Imobiliaria, Cargo, Nome
             col_map = {
                 'email': next((c for c in df_logins.columns if "e-mail" in c.lower() or "email" in c.lower()), "Email"),
                 'senha': next((c for c in df_logins.columns if "senha" in c.lower()), "Senha"),
@@ -118,15 +115,12 @@ def carregar_dados_sistema():
                 'nome': next((c for c in df_logins.columns if "nome" in c.lower()), "Nome")
             }
             
-            # Filtra apenas as colunas que existem no DF lido
             cols_to_keep = [v for k, v in col_map.items() if v in df_logins.columns]
             df_logins = df_logins[cols_to_keep]
             
-            # Renomeia para padronizar o acesso interno
             rename_dict = {v: k for k, v in col_map.items() if v in df_logins.columns}
             df_logins = df_logins.rename(columns=rename_dict)
             
-            # Garante que as colunas essenciais existam no DF, mesmo que vazias, para evitar KeyErrors
             for req_col in ['email', 'senha', 'imobiliaria', 'cargo', 'nome']:
                 if req_col not in df_logins.columns:
                     df_logins[req_col] = ""
@@ -138,14 +132,9 @@ def carregar_dados_sistema():
             df_logins = pd.DataFrame(columns=['email', 'senha', 'imobiliaria', 'cargo', 'nome'])
 
         # --- CARREGAR CADASTROS (CLIENTES) ---
-        # Apenas para busca, tentamos carregar uma aba geral ou a primeira aba de clientes que encontrarmos
-        # Para simplificar a busca global, vamos ler 'Cadastros' se existir, ou ignorar por enquanto se for dinâmico
         try:
             df_cadastros = conn.read(spreadsheet=URL_RANKING, worksheet="Cadastros")
         except Exception:
-            # Se não existir aba 'Cadastros', retornamos vazio. 
-            # A busca de clientes antigos fica limitada se os dados estiverem espalhados em abas.
-            # (Futuramente pode-se implementar leitura de múltiplas abas)
             df_cadastros = pd.DataFrame()
 
         # --- CARREGAR POLÍTICAS ---
@@ -342,7 +331,7 @@ def configurar_layout():
         div[data-baseweb="input"] {{
             border-radius: 8px !important;
             border: 1px solid #e2e8f0 !important;
-            background-color: #ffffff !important;
+            background-color: #f0f2f6 !important;
             transition: all 0.2s ease-in-out !important;
         }}
         
@@ -368,10 +357,6 @@ def configurar_layout():
         div[data-testid="stDateInput"] div[data-baseweb="input"] {{
             border: none !important; 
             background-color: transparent !important;
-        }}
-        /* Força fundo branco/cinza para todos os outros inputs */
-        div[data-baseweb="input"] {{
-            background-color: #f0f2f6 !important; 
         }}
         
         div[data-testid="stNumberInput"] button:hover {{
@@ -462,12 +447,19 @@ def configurar_layout():
         .stButton button {{ 
             font-family: 'Inter', sans-serif;
             border-radius: 8px !important; 
-            padding: 20px 40px !important; 
+            /* ALTURA AJUSTADA PARA IGUALAR INPUTS */
+            min-height: 45px !important;
+            height: 45px !important;
+            padding: 0px 24px !important; 
+            
             font-weight: 700 !important; 
             text-transform: uppercase;
             letter-spacing: 0.1em;
             font-size: 0.8rem !important;
             transition: all 0.2s ease !important;
+            display: flex;
+            align-items: center;
+            justify-content: center;
         }}
 
         .stButton button[kind="primary"] {{ 
@@ -812,7 +804,14 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
         
         # --- BUSCA DE CLIENTES EXISTENTES ---
         if not df_cadastros.empty:
-            df_cadastros['search_label'] = df_cadastros['Nome'].astype(str) + " - " + df_cadastros['CPF'].astype(str)
+            # CORREÇÃO CPF: Remove sufixo .0 se existir para exibição mais limpa
+            try:
+                # Converte para string e remove decimal
+                cpf_clean = df_cadastros['CPF'].astype(str).str.replace(r'\.0$', '', regex=True)
+            except:
+                cpf_clean = df_cadastros['CPF'].astype(str)
+                
+            df_cadastros['search_label'] = df_cadastros['Nome'].astype(str) + " - " + cpf_clean
             opcoes_clientes = ["Novo Cliente"] + sorted(df_cadastros['search_label'].dropna().unique().tolist())
             cliente_selecionado = st.selectbox("Buscar Cliente Cadastrado (Opcional):", opcoes_clientes, key="busca_cliente_v3")
             
@@ -823,7 +822,10 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
                 # Preenche session_state se ainda não estiver preenchido por esta busca
                 if st.session_state.get('last_search') != cliente_selecionado:
                     st.session_state.dados_cliente['nome'] = str(dados_cli.get('Nome', ''))
-                    st.session_state.dados_cliente['cpf'] = str(dados_cli.get('CPF', ''))
+                    
+                    # Usa o CPF limpo também no preenchimento
+                    cpf_preenchimento = str(dados_cli.get('CPF', '')).replace('.0', '')
+                    st.session_state.dados_cliente['cpf'] = cpf_preenchimento
                     
                     # Tenta converter data nascimento
                     try:
@@ -1363,6 +1365,8 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
         if PDF_ENABLED:
             pdf_data = gerar_resumo_pdf(d)
             if pdf_data:
+                # Usando colunas com vertical_alignment="bottom" para alinhar visualmente com outros elementos se necessário
+                # Aqui está isolado, então colunas normais funcionam bem.
                 _, col_btn_center, _ = st.columns([1, 1.2, 1])
                 with col_btn_center:
                     st.download_button(
@@ -1376,7 +1380,9 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
 
         # --- SEÇÃO DE ENVIO POR E-MAIL ---
         st.markdown("#### Enviar Resumo por E-mail")
-        c_email_in, c_email_btn = st.columns([3, 1])
+        # Ajuste de proporção para alinhar visualmente o input e o botão
+        # vertical_alignment="bottom" alinha a base do input com a base do botão
+        c_email_in, c_email_btn = st.columns([3, 1], vertical_alignment="bottom")
         with c_email_in:
             email_dest = st.text_input("E-mail do Cliente", placeholder="exemplo@email.com", key="email_dest_summary", label_visibility="collapsed")
         with c_email_btn:
@@ -1461,8 +1467,9 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
 
         st.markdown("<br>", unsafe_allow_html=True)
         
-        c_back, _ = st.columns([1, 1])
-        with c_back:
+        # Centralizando o botão de voltar usando 3 colunas e colocando no meio
+        c_back_1, c_back_2, c_back_3 = st.columns([1, 1, 1])
+        with c_back_2:
             if st.button("Voltar para Fechamento", use_container_width=True, key="btn_edit_fin_summary_v28"):
                 st.session_state.passo_simulacao = 'payment_flow'; st.rerun()
     
