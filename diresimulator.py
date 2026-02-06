@@ -13,11 +13,16 @@ Alterações Realizadas:
 4. Funcionalidade "Criar Conta" (Update Anterior):
    - Pop-up (st.dialog) para cadastro.
    - Gravação em abas dinâmicas.
-5. Atualizações (Update Atual):
-   - Correção CPF Busca: Remoção do sufixo .0 e formatação string.
-   - CSS Botões: Altura ajustada para igualar inputs de texto (~45px).
-   - Layout Resumo: Botão "Voltar" centralizado.
-   - Layout Email: Botão "Enviar" alinhado e mesma altura do input.
+5. Atualizações (Update Anterior):
+   - Correção CPF Busca.
+   - CSS Botões.
+   - Layout Resumo.
+6. Atualizações (Update Atual):
+   - Locale PT-BR: Configuração para datas.
+   - CSS Data: Altura e cor (#f0f2f6) corrigidas para match exato.
+   - Aba Potencial: Removido card "Pro Soluto Médio".
+   - Aba Fechamento: Input Pro Soluto movido para o final da lista.
+   - Aba Resumo: Botões de ação com mesma largura.
 =============================================================================
 """
 
@@ -31,11 +36,21 @@ import streamlit.components.v1 as components
 import base64
 from datetime import datetime, date
 import time
+import locale
 try:
     from PIL import Image
 except ImportError:
     Image = None
 import os
+
+# Tenta configurar locale para PT-BR
+try:
+    locale.setlocale(locale.LC_ALL, 'pt_BR.UTF-8')
+except:
+    try:
+        locale.setlocale(locale.LC_ALL, 'pt_BR')
+    except:
+        pass
 
 # Tenta importar fpdf de forma segura
 try:
@@ -345,7 +360,7 @@ def configurar_layout():
             color: {COR_AZUL_ESC} !important;
         }}
         
-        /* Ajuste específico para o box de Data para ficar IGUAL aos outros (#f0f2f6) */
+        /* Ajuste específico para o box de Data para ficar IGUAL aos outros (#f0f2f6) e MESMA ALTURA */
         div[data-testid="stDateInput"] {{
             border-radius: 8px !important;
         }}
@@ -353,10 +368,17 @@ def configurar_layout():
             border-radius: 8px !important;
             border: 1px solid #e2e8f0 !important;
             background-color: #f0f2f6 !important; /* Cor exata solicitada */
+            height: 45px !important; /* Altura forçada igual aos botões/inputs */
+            display: flex;
+            align-items: center;
         }}
         div[data-testid="stDateInput"] div[data-baseweb="input"] {{
             border: none !important; 
             background-color: transparent !important;
+            height: 100% !important;
+        }}
+        div[data-baseweb="input"] {{
+            background-color: #f0f2f6 !important; 
         }}
         
         div[data-testid="stNumberInput"] button:hover {{
@@ -987,11 +1009,12 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
         dobro_renda = d.get('cap_entrada_ref', 0)
         pot_final = d.get('poder_aquisicao_ref', 0)
         
-        m1, m2, m3, m4 = st.columns(4)
+        # REMOVIDO CARD PRO SOLUTO MEDIO, AGORA SÃO 3 COLUNAS
+        m1, m2, m3 = st.columns(3)
         with m1: st.markdown(f'<div class="card"><p class="metric-label">Financiamento Aprovado</p><p class="metric-value">R$ {fmt_br(fin_ref)}</p></div>', unsafe_allow_html=True)
         with m2: st.markdown(f'<div class="card"><p class="metric-label">Subsídio Aprovado</p><p class="metric-value">R$ {fmt_br(sub_ref)}</p></div>', unsafe_allow_html=True)
-        with m3: st.markdown(f'<div class="card"><p class="metric-label">Pro Soluto Médio</p><p class="metric-value">R$ {fmt_br(ps_medio)}</p></div>', unsafe_allow_html=True)
-        with m4: st.markdown(f'<div class="card"><p class="metric-label">Capacidade de Entrada</p><p class="metric-value">R$ {fmt_br(dobro_renda)}</p></div>', unsafe_allow_html=True)
+        # Removido Pro Soluto Médio
+        with m3: st.markdown(f'<div class="card"><p class="metric-label">Capacidade de Entrada</p><p class="metric-value">R$ {fmt_br(dobro_renda)}</p></div>', unsafe_allow_html=True)
 
         st.markdown(f"""
             <div class="card" style="border-top: 4px solid {COR_AZUL_ESC}; background: #ffffff; min-height: 120px;">
@@ -1279,20 +1302,31 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
         # Exibição limpa conforme solicitado (removida avaliação da penúltima aba)
         st.markdown(f'<div class="custom-alert">Unidade Selecionada: {d.get("unidade_id", "N/A")} - {d.get("empreendimento_nome", "N/A")} (R$ {fmt_br(u_valor)})</div>', unsafe_allow_html=True)
         
-        f_u = st.number_input("Financiamento Bancário", value=float(d.get('finan_estimado', 0)), step=1000.0, key="fin_u_v28")
-        st.markdown(f'<span class="inline-ref">Financiamento Máximo: R$ {fmt_br(d.get("finan_estimado", 0))}</span>', unsafe_allow_html=True)
-            
-        fgts_u = st.number_input("FGTS + Subsídio", value=float(d.get('fgts_sub', 0)), step=1000.0, key="fgt_u_v28")
-        st.markdown(f'<span class="inline-ref">Subsídio Máximo: R$ {fmt_br(d.get("fgts_sub", 0))}</span>', unsafe_allow_html=True)
+        # Colunas para Financiamento e FGTS
+        col_fin, col_fgts = st.columns(2)
+        with col_fin:
+            f_u = st.number_input("Financiamento Bancário", value=float(d.get('finan_estimado', 0)), step=1000.0, key="fin_u_v28")
+            st.markdown(f'<span class="inline-ref">Financiamento Máximo: R$ {fmt_br(d.get("finan_estimado", 0))}</span>', unsafe_allow_html=True)
+        with col_fgts:
+            fgts_u = st.number_input("FGTS + Subsídio", value=float(d.get('fgts_sub', 0)), step=1000.0, key="fgt_u_v28")
+            st.markdown(f'<span class="inline-ref">Subsídio Máximo: R$ {fmt_br(d.get("fgts_sub", 0))}</span>', unsafe_allow_html=True)
+        
+        # Colunas para Pro Soluto (MOVIMENTADO PARA CÁ - FINAL DOS RECURSOS)
+        st.markdown("<hr style='margin: 10px 0;'>", unsafe_allow_html=True)
+        col_ps_val, col_ps_parc = st.columns(2)
         
         ps_max_real = u_valor * d.get('perc_ps', 0)
-        ps_u = st.number_input("Pro Soluto Direcional", value=float(ps_max_real), step=1000.0, key="ps_u_v28")
-        st.markdown(f'<span class="inline-ref">Limite Permitido ({d.get("perc_ps", 0)*100:.0f}%): R$ {fmt_br(ps_max_real)}</span>', unsafe_allow_html=True)
         
-        parc = st.number_input("Número de Parcelas Pro Soluto", min_value=1, max_value=144, value=d.get('prazo_ps_max', 60), key="parc_u_v28")
-        st.markdown(f'<span class="inline-ref">Prazo Máximo: {d.get("prazo_ps_max", 0)} meses</span>', unsafe_allow_html=True)
+        with col_ps_val:
+            ps_u = st.number_input("Pro Soluto Direcional", value=float(ps_max_real), step=1000.0, key="ps_u_v28")
+            st.markdown(f'<span class="inline-ref">Limite Permitido ({d.get("perc_ps", 0)*100:.0f}%): R$ {fmt_br(ps_max_real)}</span>', unsafe_allow_html=True)
         
-        v_parc = ps_u / parc
+        with col_ps_parc:
+            parc = st.number_input("Número de Parcelas Pro Soluto", min_value=1, max_value=144, value=d.get('prazo_ps_max', 60), key="parc_u_v28")
+            st.markdown(f'<span class="inline-ref">Prazo Máximo: {d.get("prazo_ps_max", 0)} meses</span>', unsafe_allow_html=True)
+        
+        # Cálculos com base nos inputs (ordem preservada)
+        v_parc = ps_u / parc if parc > 0 else 0
         comp_r = (v_parc / d.get('renda', 1)) if d.get('renda', 0) > 0 else 0
         saldo_e = u_valor - f_u - fgts_u - ps_u
 
@@ -1303,6 +1337,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
             st.session_state.ato_3, st.session_state.ato_4 = dist_val, dist_val
             st.session_state.last_calc_hash = calc_hash
         
+        # Caixas de Resumo Intermediário
         fin1, fin2, fin3 = st.columns(3)
         with fin1: st.markdown(f"""<div class="fin-box" style="border-top: 6px solid {COR_AZUL_ESC};"><b style="color:{COR_AZUL_ESC};">VALOR DO IMÓVEL</b><br><span style="color:{COR_AZUL_ESC};">R$ {fmt_br(u_valor)}</span></div>""", unsafe_allow_html=True)
         with fin2: 
@@ -1395,83 +1430,82 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
 
         st.markdown("---")
         
-        # --- BOTÃO PARA CONCLUIR E SALVAR ---
-        if st.button("CONCLUIR E SALVAR SIMULAÇÃO", type="primary", use_container_width=True, key="btn_save_final"):
-            try:
-                conn_save = st.connection("gsheets", type=GSheetsConnection)
-                
-                # Identifica qual aba salvar
-                aba_destino = st.session_state.get('user_imobiliaria', 'Cadastros')
-                if not aba_destino or aba_destino == 'nan':
-                    aba_destino = 'Cadastros'
-                
-                # Monta a lista de rendas individuais (garantindo 4 slots)
-                rendas_ind = d.get('rendas_lista', [])
-                while len(rendas_ind) < 4:
-                    rendas_ind.append(0.0)
-                
-                # Dados para salvar
-                nova_linha = {
-                    "Nome": d.get('nome'),
-                    "CPF": d.get('cpf'),
-                    "Data de Nascimento": str(d.get('data_nascimento')),
-                    "Prazo Financiamento": d.get('prazo_financiamento'),
-                    "Renda Part. 1": rendas_ind[0],
-                    "Renda Part. 2": rendas_ind[1],
-                    "Renda Part. 3": rendas_ind[2],
-                    "Renda Part. 4": rendas_ind[3],
-                    "Ranking": d.get('ranking'),
-                    "Política de Pro Soluto": d.get('politica'),
-                    "Fator Social": "Sim" if d.get('social') else "Não",
-                    "Cotista FGTS": "Sim" if d.get('cotista') else "Não",
-                    "Financiamento Aprovado": d.get('finan_f_ref', 0),
-                    "Subsídio Máximo": d.get('sub_f_ref', 0),
-                    "Pro Soluto Médio": d.get('ps_medio_ref', 0),
-                    "Capacidade de Entrada": d.get('cap_entrada_ref', 0),
-                    "Poder de Aquisição Médio": d.get('poder_aquisicao_ref', 0),
-                    "Empreendimento Final": d.get('empreendimento_nome'),
-                    "Unidade Final": d.get('unidade_id'),
-                    "Preço Unidade Final": d.get('imovel_valor', 0),
-                    "Financiamento Final": d.get('finan_usado', 0),
-                    "FGTS + Subsídio Final": d.get('fgts_sub_usado', 0),
-                    "Pro Soluto Final": d.get('ps_usado', 0),
-                    "Número de Parcelas do Pro Soluto": d.get('ps_parcelas', 0),
-                    "Mensalidade PS": d.get('ps_mensal', 0),
-                    "Ato": d.get('ato_final', 0),
-                    "Ato 30": d.get('ato_30', 0),
-                    "Ato 60": d.get('ato_60', 0),
-                    "Ato 90": d.get('ato_90', 0)
-                }
-                
-                df_novo = pd.DataFrame([nova_linha])
-                
-                # Tenta ler aba existente, se não, cria novo DF
-                try:
-                    df_existente = conn_save.read(spreadsheet=URL_RANKING, worksheet=aba_destino)
-                    df_final_save = pd.concat([df_existente, df_novo], ignore_index=True)
-                except Exception:
-                    # Assume que a aba não existe ou está vazia
-                    df_final_save = df_novo
-                
-                # Salva na aba específica da imobiliária
-                conn_save.update(spreadsheet=URL_RANKING, worksheet=aba_destino, data=df_final_save)
-                
-                st.success(f"Simulação salva com sucesso na aba '{aba_destino}'! Reiniciando...")
-                time.sleep(2)
-                st.session_state.dados_cliente = {}
-                st.session_state.passo_simulacao = 'input'
-                st.rerun()
-                
-            except Exception as e:
-                st.error(f"Erro ao salvar dados: {e}")
-
-        st.markdown("<br>", unsafe_allow_html=True)
+        # --- BOTOES FINAIS: CONCLUIR E VOLTAR COM MESMA LARGURA ---
+        c_final_1, c_final_2 = st.columns(2)
         
-        # Centralizando o botão de voltar usando 3 colunas e colocando no meio
-        c_back_1, c_back_2, c_back_3 = st.columns([1, 1, 1])
-        with c_back_2:
+        with c_final_1:
             if st.button("Voltar para Fechamento", use_container_width=True, key="btn_edit_fin_summary_v28"):
                 st.session_state.passo_simulacao = 'payment_flow'; st.rerun()
+                
+        with c_final_2:
+            if st.button("CONCLUIR E SALVAR SIMULAÇÃO", type="primary", use_container_width=True, key="btn_save_final"):
+                try:
+                    conn_save = st.connection("gsheets", type=GSheetsConnection)
+                    
+                    # Identifica qual aba salvar
+                    aba_destino = st.session_state.get('user_imobiliaria', 'Cadastros')
+                    if not aba_destino or aba_destino == 'nan':
+                        aba_destino = 'Cadastros'
+                    
+                    # Monta a lista de rendas individuais (garantindo 4 slots)
+                    rendas_ind = d.get('rendas_lista', [])
+                    while len(rendas_ind) < 4:
+                        rendas_ind.append(0.0)
+                    
+                    # Dados para salvar
+                    nova_linha = {
+                        "Nome": d.get('nome'),
+                        "CPF": d.get('cpf'),
+                        "Data de Nascimento": str(d.get('data_nascimento')),
+                        "Prazo Financiamento": d.get('prazo_financiamento'),
+                        "Renda Part. 1": rendas_ind[0],
+                        "Renda Part. 2": rendas_ind[1],
+                        "Renda Part. 3": rendas_ind[2],
+                        "Renda Part. 4": rendas_ind[3],
+                        "Ranking": d.get('ranking'),
+                        "Política de Pro Soluto": d.get('politica'),
+                        "Fator Social": "Sim" if d.get('social') else "Não",
+                        "Cotista FGTS": "Sim" if d.get('cotista') else "Não",
+                        "Financiamento Aprovado": d.get('finan_f_ref', 0),
+                        "Subsídio Máximo": d.get('sub_f_ref', 0),
+                        "Pro Soluto Médio": d.get('ps_medio_ref', 0),
+                        "Capacidade de Entrada": d.get('cap_entrada_ref', 0),
+                        "Poder de Aquisição Médio": d.get('poder_aquisicao_ref', 0),
+                        "Empreendimento Final": d.get('empreendimento_nome'),
+                        "Unidade Final": d.get('unidade_id'),
+                        "Preço Unidade Final": d.get('imovel_valor', 0),
+                        "Financiamento Final": d.get('finan_usado', 0),
+                        "FGTS + Subsídio Final": d.get('fgts_sub_usado', 0),
+                        "Pro Soluto Final": d.get('ps_usado', 0),
+                        "Número de Parcelas do Pro Soluto": d.get('ps_parcelas', 0),
+                        "Mensalidade PS": d.get('ps_mensal', 0),
+                        "Ato": d.get('ato_final', 0),
+                        "Ato 30": d.get('ato_30', 0),
+                        "Ato 60": d.get('ato_60', 0),
+                        "Ato 90": d.get('ato_90', 0)
+                    }
+                    
+                    df_novo = pd.DataFrame([nova_linha])
+                    
+                    # Tenta ler aba existente, se não, cria novo DF
+                    try:
+                        df_existente = conn_save.read(spreadsheet=URL_RANKING, worksheet=aba_destino)
+                        df_final_save = pd.concat([df_existente, df_novo], ignore_index=True)
+                    except Exception:
+                        # Assume que a aba não existe ou está vazia
+                        df_final_save = df_novo
+                    
+                    # Salva na aba específica da imobiliária
+                    conn_save.update(spreadsheet=URL_RANKING, worksheet=aba_destino, data=df_final_save)
+                    
+                    st.success(f"Simulação salva com sucesso na aba '{aba_destino}'! Reiniciando...")
+                    time.sleep(2)
+                    st.session_state.dados_cliente = {}
+                    st.session_state.passo_simulacao = 'input'
+                    st.rerun()
+                    
+                except Exception as e:
+                    st.error(f"Erro ao salvar dados: {e}")
     
     # --- BOTÃO DE SAIR NO RODAPÉ ---
     st.markdown("<br><br>", unsafe_allow_html=True)
