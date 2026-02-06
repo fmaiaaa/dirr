@@ -7,17 +7,12 @@ Alterações Realizadas:
 1. Implementação de Sistema de Login (Mantido).
 2. Manutenção das funcionalidades anteriores.
 3. Novos Inputs e Fluxo (Updates Anteriores).
-4. Funcionalidade "Criar Conta" (Update Anterior):
-   - Correção do BUG de e-mail vazio.
-   - Fluxo de Verificação (Código 6 dígitos).
-5. Atualizações (Update Anterior):
-   - Correção CPF, CSS, Layout, Locale, Termômetro.
-   - Botão Unificado Resumo, Filtros Estoque.
+4. Funcionalidade "Criar Conta" (Update Anterior).
+5. Atualizações (Update Anterior).
 6. Atualizações (Update Atual):
-   - Bloqueio de Avanço: Não permite ir ao resumo se Saldo a Cobrir != 0.
-   - Layout Fechamento: PS e Parcelas movidos para o final.
-   - Busca de Clientes: Integrada visualmente ao campo de nome.
-   - Fix Pop-up Cadastro: Lógica de estado para garantir exibição do input de código.
+   - Correção SyntaxError no final do arquivo.
+   - Aba Fechamento: Botão "Avançar" sempre visível.
+   - Validação no clique: Impede avanço se houver saldo a cobrir.
 =============================================================================
 """
 
@@ -947,7 +942,8 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
         
         if not df_politicas.empty and 'CLASSIFICAÇÃO' in df_politicas.columns:
             ranking_options = [r for r in df_politicas['CLASSIFICAÇÃO'].unique().tolist() if r != "EMCASH"]
-        else: ranking_options = ["DIAMANTE"]
+        else:
+            ranking_options = ["DIAMANTE"]
         ranking = st.selectbox("Ranking do Cliente", options=ranking_options, index=0, key="in_rank_v28")
         politica_ps = st.selectbox("Política de Pro Soluto", ["Direcional", "Emcash"], key="in_pol_v28")
         social = st.toggle("Fator Social", value=st.session_state.dados_cliente.get('social', False), key="in_soc_v28")
@@ -960,8 +956,10 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
             if renda_total_calc <= 0: st.markdown(f'<div class="custom-alert">A renda total deve ser maior que zero.</div>', unsafe_allow_html=True); return
 
             class_b = 'EMCASH' if politica_ps == "Emcash" else ranking
-            if 'CLASSIFICAÇÃO' in df_politicas.columns: politica_row = df_politicas[df_politicas['CLASSIFICAÇÃO'] == class_b].iloc[0]
-            else: politica_row = pd.Series({'FX_RENDA_1': 0.30, 'FAIXA_RENDA': 4400, 'FX_RENDA_2': 0.25, 'PROSOLUTO': 0.10, 'PARCELAS': 60})
+            if 'CLASSIFICAÇÃO' in df_politicas.columns:
+                politica_row = df_politicas[df_politicas['CLASSIFICAÇÃO'] == class_b].iloc[0]
+            else:
+                politica_row = pd.Series({'FX_RENDA_1': 0.30, 'FAIXA_RENDA': 4400, 'FX_RENDA_2': 0.25, 'PROSOLUTO': 0.10, 'PARCELAS': 60})
 
             limit_ps_r = politica_row['FX_RENDA_1'] if renda_total_calc < politica_row['FAIXA_RENDA'] else politica_row['FX_RENDA_2']
             f_faixa_ref, s_faixa_ref, fx_nome_ref = motor.obter_enquadramento(renda_total_calc, social, cotista, valor_avaliacao=240000)
@@ -998,6 +996,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
                 return pd.Series([poder, cobertura, cobertura >= 100, fin, sub])
 
             df_disp_total[['Poder_Compra', 'Cobertura', 'Viavel', 'Finan_Unid', 'Sub_Unid']] = df_disp_total.apply(calcular_viabilidade_unidade, axis=1)
+            # Reintroduzindo Status Viabilidade para filtro
             df_disp_total['Status Viabilidade'] = df_disp_total['Viavel'].apply(lambda x: "Viavel" if x else "Inviavel")
             df_disp_total = df_disp_total.sort_values('Cobertura', ascending=False)
             df_viaveis = df_disp_total[df_disp_total['Viavel']].copy()
@@ -1097,6 +1096,8 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
             if st.button("Avançar para Fechamento Financeiro", type="primary", use_container_width=True, key="btn_fech_new_v3"):
                 if uni_escolhida_id:
                     u_row = unidades_disp[unidades_disp['Identificador'] == uni_escolhida_id].iloc[0]
+                    v_aval = u_row['Valor de Avaliação Bancária']
+                    v_venda = u_row['Valor de Venda']
                     fin, sub, _ = motor.obter_enquadramento(d.get('renda', 0), d.get('social', False), d.get('cotista', True), u_row['Valor de Avaliação Bancária'])
                     st.session_state.dados_cliente.update({'unidade_id': uni_escolhida_id, 'empreendimento_nome': emp_escolhido, 'imovel_valor': u_row['Valor de Venda'], 'imovel_avaliacao': u_row['Valor de Avaliação Bancária'], 'finan_estimado': fin, 'fgts_sub': sub})
                     st.session_state.passo_simulacao = 'payment_flow'; st.rerun()
@@ -1172,12 +1173,13 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
         st.session_state.dados_cliente.update({'finan_usado': f_u, 'fgts_sub_usado': fgts_u, 'ps_usado': ps_u, 'ps_parcelas': parc, 'ps_mensal': v_parc, 'entrada_total': total_entrada_cash, 'ato_final': st.session_state.ato_1, 'ato_30': st.session_state.ato_2, 'ato_60': st.session_state.ato_3, 'ato_90': st.session_state.ato_4})
         
         st.markdown("---")
-        # Botão de avançar só aparece/funciona se o gap for zero
-        if abs(gap_final) <= 1:
-            if st.button("Avançar para Resumo de Compra", type="primary", use_container_width=True, key="btn_to_summary_v28"):
-                st.session_state.passo_simulacao = 'summary'; st.rerun()
-        else:
-            st.button("Avançar para Resumo de Compra", type="primary", use_container_width=True, disabled=True, key="btn_to_summary_disabled")
+        # Botão de avançar sempre visível, validação no click
+        if st.button("Avançar para Resumo de Compra", type="primary", use_container_width=True, key="btn_to_summary_v28"):
+            if abs(gap_final) <= 1:
+                st.session_state.passo_simulacao = 'summary'
+                st.rerun()
+            else:
+                st.error(f"Não é possível avançar. O saldo a cobrir deve ser zerado. (Falta: R$ {fmt_br(gap_final)})")
 
         if st.button("Voltar para Seleção de Imóvel", use_container_width=True, key="btn_back_to_selection_v28"): 
             st.session_state.passo_simulacao = 'selection'; st.rerun()
@@ -1267,49 +1269,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-```
-
-### 2. Passo a Passo do Google Apps Script
-
-Siga este procedimento para habilitar o envio automático do código de verificação para o e-mail do corretor:
-
-1.  **Acesse a Planilha de Ranking** no Google Sheets (onde estão as abas "Logins", "Canal IMOB", etc).
-2.  No menu superior, clique em **Extensões** > **Apps Script**.
-3.  Uma nova aba do navegador se abrirá com o editor de código. Apague qualquer código que esteja lá e cole este:
-
-```javascript
-function onChange(e) {
-  // Configuração
-  var nomeAbaLogins = "Logins";
-  var colunaEmail = 1;  // Coluna A
-  var colunaCodigo = 6; // Coluna F (ajuste se sua coluna 'Codigo' estiver em outro lugar)
-
-  var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(nomeAbaLogins);
-  if (!sheet) return;
-
-  var lastRow = sheet.getLastRow();
-  
-  // Pega os dados da última linha inserida
-  var email = sheet.getRange(lastRow, colunaEmail).getValue();
-  var codigoAtual = sheet.getRange(lastRow, colunaCodigo).getValue();
-
-  // Verifica se é um novo registro (email existe e código está vazio)
-  if (email && email.toString().indexOf("@") > -1 && (codigoAtual === "" || codigoAtual === null)) {
-    
-    // Gera código de 6 dígitos
-    var novoCodigo = Math.floor(100000 + Math.random() * 900000);
-    
-    // Escreve o código na planilha
-    sheet.getRange(lastRow, colunaCodigo).setValue(novoCodigo);
-    
-    // Envia o e-mail
-    var assunto = "Código de Verificação - Simulador Direcional";
-    var mensagem = "Seu código de verificação é: " + novoCodigo;
-    
-    try {
-      MailApp.sendEmail(email, assunto, mensagem);
-    } catch (error) {
-      Logger.log("Erro ao enviar email para " + email + ": " + error);
-    }
-  }
-}
