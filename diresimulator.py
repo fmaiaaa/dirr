@@ -1,22 +1,21 @@
 # -*- coding: utf-8 -*-
 """
 =============================================================================
-SISTEMA DE SIMULAÇÃO IMOBILIÁRIA - DIRE RIO V3 (COM LOGIN, CADASTRO E ABAS DINÂMICAS)
+SISTEMA DE SIMULAÇÃO IMOBILIÁRIA - DIRE RIO V3 (COM LOGIN, CADASTRO SEGURO E ABAS DINÂMICAS)
 =============================================================================
 Alterações Realizadas:
 1. Implementação de Sistema de Login (Mantido).
 2. Manutenção das funcionalidades anteriores.
 3. Novos Inputs e Fluxo (Updates Anteriores).
-4. Funcionalidade "Criar Conta" (Update Anterior).
+4. Funcionalidade "Criar Conta" (Update Atual):
+   - Correção do BUG de e-mail vazio (padronização de colunas).
+   - Implementação de FLUXO DE VERIFICAÇÃO EM DUAS ETAPAS.
+   - Etapa 1: Envia dados para planilha (Coluna 'Codigo' vai vazia).
+   - Etapa 2: Exibe input de 6 dígitos para validação.
+   - Validação: Lê a planilha para checar se o Apps Script preencheu o código e se bate.
 5. Atualizações (Update Anterior):
    - Correção CPF, CSS, Layout, Locale, Termômetro.
-6. Atualizações (Update Atual):
-   - Botão Unificado Resumo: PDF e Email em Popup (st.dialog).
-   - Correção Preço Recomendação: Iteração ajustada.
-   - Filtros Estoque: Garantidos na aba 'Estoque Geral'.
-   - Botões Finais: Empilhados (Concluir acima de Voltar) e Full Width.
-   - Perfil Corretor: Sidebar com histórico de simulações.
-   - Roteamento de Abas: Salva em abas específicas (Canal IMOB, DV, etc) ou 'Outros'.
+   - Botão Unificado Resumo, Filtros Estoque, etc.
 =============================================================================
 """
 
@@ -127,36 +126,40 @@ def carregar_dados_sistema():
             df_logins = conn.read(spreadsheet=URL_RANKING, worksheet="Logins")
             df_logins.columns = [str(c).strip() for c in df_logins.columns]
             
-            col_map = {
-                'email': next((c for c in df_logins.columns if "e-mail" in c.lower() or "email" in c.lower()), "Email"),
-                'senha': next((c for c in df_logins.columns if "senha" in c.lower()), "Senha"),
-                'imobiliaria': next((c for c in df_logins.columns if "imob" in c.lower() or "canal" in c.lower()), "Imobiliaria"),
-                'cargo': next((c for c in df_logins.columns if "cargo" in c.lower()), "Cargo"),
-                'nome': next((c for c in df_logins.columns if "nome" in c.lower()), "Nome")
-            }
+            # Normalização de colunas para uso interno
+            # Garante que existam as colunas padrão
+            colunas_padrao = ['Email', 'Senha', 'Imobiliaria', 'Cargo', 'Nome', 'Codigo']
             
-            cols_to_keep = [v for k, v in col_map.items() if v in df_logins.columns]
-            df_logins = df_logins[cols_to_keep]
-            
-            rename_dict = {v: k for k, v in col_map.items() if v in df_logins.columns}
-            df_logins = df_logins.rename(columns=rename_dict)
-            
-            for req_col in ['email', 'senha', 'imobiliaria', 'cargo', 'nome']:
-                if req_col not in df_logins.columns:
-                    df_logins[req_col] = ""
+            # Renomeia colunas existentes que pareçam com as padrão
+            mapa_renomeacao = {}
+            for col in df_logins.columns:
+                c_lower = col.lower()
+                if "email" in c_lower or "e-mail" in c_lower: mapa_renomeacao[col] = 'Email'
+                elif "senha" in c_lower: mapa_renomeacao[col] = 'Senha'
+                elif "imob" in c_lower or "canal" in c_lower: mapa_renomeacao[col] = 'Imobiliaria'
+                elif "cargo" in c_lower: mapa_renomeacao[col] = 'Cargo'
+                elif "nome" in c_lower: mapa_renomeacao[col] = 'Nome'
+                elif "código" in c_lower or "codigo" in c_lower or "tentativa" in c_lower: mapa_renomeacao[col] = 'Codigo'
 
-            df_logins['email'] = df_logins['email'].astype(str).str.strip().str.lower()
-            df_logins['senha'] = df_logins['senha'].astype(str).str.strip()
+            df_logins = df_logins.rename(columns=mapa_renomeacao)
+            
+            # Adiciona as que faltam
+            for col in colunas_padrao:
+                if col not in df_logins.columns:
+                    df_logins[col] = ""
+
+            # Filtra e limpa
+            df_logins = df_logins[colunas_padrao].copy()
+            df_logins['Email'] = df_logins['Email'].astype(str).str.strip().str.lower()
+            df_logins['Senha'] = df_logins['Senha'].astype(str).str.strip()
+            df_logins['Codigo'] = df_logins['Codigo'].astype(str).str.strip()
             
         except Exception:
-            df_logins = pd.DataFrame(columns=['email', 'senha', 'imobiliaria', 'cargo', 'nome'])
+            df_logins = pd.DataFrame(columns=['Email', 'Senha', 'Imobiliaria', 'Cargo', 'Nome', 'Codigo'])
 
-        # --- CARREGAR CADASTROS (CLIENTES) PARA BUSCA ---
+        # --- CARREGAR CADASTROS (CLIENTES) ---
         try:
-            # Tenta carregar de uma aba agregadora ou principal para busca. 
-            # Se os dados estiverem espalhados, a busca pode ser limitada ou precisar ler múltiplas abas.
-            # Por padrão tentamos 'Cadastros' (antigo) ou 'Outros' como fallback de leitura para busca simples
-            df_cadastros = conn.read(spreadsheet=URL_RANKING, worksheet="Outros")
+            df_cadastros = conn.read(spreadsheet=URL_RANKING, worksheet="Cadastros")
             df_cadastros.columns = [str(c).strip() for c in df_cadastros.columns]
         except Exception:
             df_cadastros = pd.DataFrame()
@@ -686,64 +689,132 @@ def gerar_resumo_pdf(d):
 
 @st.dialog("Criar Nova Conta")
 def modal_criar_conta(conn):
-    st.markdown("Preencha os dados abaixo para solicitar acesso.")
-    
-    opts_imob = ["Canal IMOB", "DV", "RV", "Trip", "Swell", "Outro"]
-    opts_cargo = ["Coordenador Comercial", "Coordenador IMOB", "Gerente Regional", "Gerente de Vendas", "Corretor", "Outro"]
+    # Se ainda não iniciou o fluxo, define como 'form'
+    if 'signup_stage' not in st.session_state:
+        st.session_state.signup_stage = 'form'
 
-    sel_imob = st.selectbox("Imobiliária / Canal IMOB", opts_imob)
-    if sel_imob == "Outro":
-        imobiliaria = st.text_input("Digite o nome da Imobiliária/Canal")
-    else:
-        imobiliaria = sel_imob
+    if st.session_state.signup_stage == 'form':
+        st.markdown("Preencha os dados abaixo para solicitar acesso.")
+        
+        opts_imob = ["Canal IMOB", "DV", "RV", "Trip", "Swell", "Outro"]
+        opts_cargo = ["Coordenador Comercial", "Coordenador IMOB", "Gerente Regional", "Gerente de Vendas", "Corretor", "Outro"]
 
-    sel_cargo = st.selectbox("Cargo", opts_cargo)
-    if sel_cargo == "Outro":
-        cargo = st.text_input("Digite o Cargo")
-    else:
-        cargo = sel_cargo
-
-    nome = st.text_input("Nome Completo")
-    email = st.text_input("E-mail")
-    senha = st.text_input("Senha", type="password")
-    
-    if st.button("Cadastrar", type="primary", use_container_width=True):
-        if not imobiliaria or not nome or not email or not senha or not cargo:
-            st.error("Preencha todos os campos obrigatórios.")
+        sel_imob = st.selectbox("Imobiliária / Canal IMOB", opts_imob, key="reg_imob")
+        if sel_imob == "Outro":
+            imobiliaria = st.text_input("Digite o nome da Imobiliária/Canal", key="reg_imob_text")
         else:
-            try:
-                try:
-                    df_logins = conn.read(spreadsheet=URL_RANKING, worksheet="Logins")
-                except:
-                    df_logins = pd.DataFrame(columns=['Email', 'Senha', 'Imobiliaria', 'Cargo', 'Nome'])
-                
-                novo_user = pd.DataFrame([{
-                    'Email': email.strip().lower(),
-                    'Senha': senha.strip(),
-                    'Imobiliaria': imobiliaria.strip(),
-                    'Cargo': cargo.strip(),
-                    'Nome': nome.strip()
-                }])
-                
-                df_final = pd.concat([df_logins, novo_user], ignore_index=True)
-                conn.update(spreadsheet=URL_RANKING, worksheet="Logins", data=df_final)
+            imobiliaria = sel_imob
 
-                nome_aba_canal = f"Logins - {imobiliaria.strip()}"
+        sel_cargo = st.selectbox("Cargo", opts_cargo, key="reg_cargo")
+        if sel_cargo == "Outro":
+            cargo = st.text_input("Digite o Cargo", key="reg_cargo_text")
+        else:
+            cargo = sel_cargo
+
+        nome = st.text_input("Nome Completo", key="reg_nome")
+        email = st.text_input("E-mail", key="reg_email")
+        senha = st.text_input("Senha", type="password", key="reg_senha")
+        
+        if st.button("Cadastrar e Enviar Código", type="primary", use_container_width=True):
+            if not imobiliaria or not nome or not email or not senha or not cargo:
+                st.error("Preencha todos os campos obrigatórios.")
+            else:
                 try:
+                    # 1. Salva na planilha geral 'Logins' com Codigo VAZIO para o script disparar
                     try:
-                        df_canal = conn.read(spreadsheet=URL_RANKING, worksheet=nome_aba_canal)
-                        df_final_canal = pd.concat([df_canal, novo_user], ignore_index=True)
+                        df_logins = conn.read(spreadsheet=URL_RANKING, worksheet="Logins")
                     except:
-                        df_final_canal = novo_user
-                    conn.update(spreadsheet=URL_RANKING, worksheet=nome_aba_canal, data=df_final_canal)
-                except Exception as e_canal:
-                    pass
-                
-                st.success("Cadastro realizado com sucesso! Faça login para continuar.")
-                time.sleep(1.5)
+                        df_logins = pd.DataFrame(columns=['Email', 'Senha', 'Imobiliaria', 'Cargo', 'Nome', 'Codigo'])
+                    
+                    # Normaliza colunas para evitar duplicação (caso a planilha tenha headers diferentes)
+                    # Mas aqui vamos assumir que o usuario vai criar a planilha correta ou o script python cria
+                    # Vamos forçar a criação de um DF limpo com as colunas certas
+                    
+                    novo_user = pd.DataFrame([{
+                        'Email': email.strip().lower(),
+                        'Senha': senha.strip(),
+                        'Imobiliaria': imobiliaria.strip(),
+                        'Cargo': cargo.strip(),
+                        'Nome': nome.strip(),
+                        'Codigo': "" # Deixa vazio para o Apps Script preencher
+                    }])
+                    
+                    # Concatena e salva
+                    # Nota: Se as colunas do df_logins forem diferentes, o concat vai alinhar.
+                    # O ideal é garantir que a planilha tenha essas colunas.
+                    df_final = pd.concat([df_logins, novo_user], ignore_index=True)
+                    conn.update(spreadsheet=URL_RANKING, worksheet="Logins", data=df_final)
+
+                    # 2. Salva na aba específica também (sem verificação lá, apenas registro)
+                    nome_aba_canal = f"Logins - {imobiliaria.strip()}"
+                    try:
+                        try:
+                            df_canal = conn.read(spreadsheet=URL_RANKING, worksheet=nome_aba_canal)
+                            df_final_canal = pd.concat([df_canal, novo_user], ignore_index=True)
+                        except:
+                            df_final_canal = novo_user
+                        conn.update(spreadsheet=URL_RANKING, worksheet=nome_aba_canal, data=df_final_canal)
+                    except:
+                        pass # Falha na aba de canal não impede o fluxo
+                    
+                    # Avança para etapa de verificação
+                    st.session_state.signup_stage = 'verification'
+                    st.session_state.signup_email = email.strip().lower()
+                    st.rerun()
+                    
+                except Exception as e:
+                    st.error(f"Erro ao iniciar cadastro: {e}")
+
+    elif st.session_state.signup_stage == 'verification':
+        st.markdown(f"### Verificação de E-mail")
+        st.markdown(f"Um código de 6 dígitos foi enviado para **{st.session_state.signup_email}**. Insira-o abaixo:")
+        
+        codigo_input = st.text_input("Código de Verificação", max_chars=6, placeholder="123456", key="verify_code_input")
+        
+        col_btn_v1, col_btn_v2 = st.columns(2)
+        with col_btn_v1:
+            if st.button("Voltar", use_container_width=True):
+                st.session_state.signup_stage = 'form'
                 st.rerun()
-            except Exception as e:
-                st.error(f"Erro ao salvar cadastro: {e}")
+        with col_btn_v2:
+            if st.button("Validar Cadastro", type="primary", use_container_width=True):
+                if not codigo_input:
+                    st.warning("Digite o código.")
+                else:
+                    # Lógica de validação: Ler a planilha novamente e ver se o código bate
+                    try:
+                        df_check = conn.read(spreadsheet=URL_RANKING, worksheet="Logins")
+                        # Normaliza colunas
+                        mapa = {}
+                        for c in df_check.columns:
+                            if "email" in c.lower(): mapa[c] = 'Email'
+                            if "codigo" in c.lower() or "código" in c.lower(): mapa[c] = 'Codigo'
+                        
+                        df_check = df_check.rename(columns=mapa)
+                        
+                        # Busca usuário
+                        user_row = df_check[df_check['Email'] == st.session_state.signup_email]
+                        
+                        if user_row.empty:
+                            st.error("Usuário não encontrado. Tente cadastrar novamente.")
+                        else:
+                            # Pega o último registro desse email (caso tenha duplicado)
+                            codigo_real = str(user_row.iloc[-1]['Codigo']).strip()
+                            
+                            if codigo_real == codigo_input.strip():
+                                st.success("Conta verificada com sucesso! Faça login.")
+                                time.sleep(2)
+                                del st.session_state.signup_stage
+                                del st.session_state.signup_email
+                                st.rerun()
+                            elif not codigo_real or codigo_real == "nan":
+                                st.info("O código ainda não foi gerado pelo sistema. Aguarde alguns segundos e tente novamente.")
+                            else:
+                                st.error("Código incorreto.")
+                                
+                    except Exception as e:
+                        st.error(f"Erro na validação: {e}")
+
 
 @st.dialog("Opções de Resumo")
 def modal_opcoes_resumo(pdf_bytes, nome_cliente):
@@ -780,14 +851,19 @@ def tela_login(df_logins):
             else:
                 email_clean = email_input.strip().lower()
                 senha_clean = senha_input.strip()
-                usuario_valido = df_logins[(df_logins['email'] == email_clean) & (df_logins['senha'] == senha_clean)]
+                usuario_valido = df_logins[(df_logins['Email'] == email_clean) & (df_logins['Senha'] == senha_clean)]
+                
+                # ADICIONADO: Verifica se tem código validado (opcional, se quiser forçar validação no login também)
+                # Por enquanto, mantemos apenas email/senha, assumindo que só quem tem senha passou pela validação
+                # ou que a senha só é "ativa" se validado. Mas como salvamos a senha no passo 1, o login funciona direto.
+                # Se quiser bloquear login sem validação, teria que checar a coluna Codigo se foi usada ou criar coluna Status.
                 
                 if not usuario_valido.empty:
                     dados_user = usuario_valido.iloc[0]
                     st.session_state['logged_in'] = True
                     st.session_state['user_email'] = email_clean
-                    st.session_state['user_name'] = str(dados_user.get('nome', '')).strip()
-                    st.session_state['user_imobiliaria'] = str(dados_user.get('imobiliaria', 'Geral')).strip()
+                    st.session_state['user_name'] = str(dados_user.get('Nome', '')).strip()
+                    st.session_state['user_imobiliaria'] = str(dados_user.get('Imobiliaria', 'Geral')).strip()
                     st.success("Login realizado com sucesso!")
                     st.rerun()
                 else:
@@ -1271,7 +1347,6 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
         if st.button("Voltar para Fechamento", use_container_width=True, key="btn_edit_fin_summary_v28"):
             st.session_state.passo_simulacao = 'payment_flow'; st.rerun()
     
-    # --- BOTÃO DE SAIR NO RODAPÉ ---
     st.markdown("<br><br>", unsafe_allow_html=True)
     c_out_1, c_out_2, c_out_3 = st.columns([1, 1, 1])
     with c_out_2:
@@ -1282,7 +1357,6 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
 def main():
     configurar_layout()
     df_finan, df_estoque, df_politicas, df_logins, df_cadastros = carregar_dados_sistema()
-    
     logo_src = URL_FAVICON_RESERVA
     if os.path.exists("favicon.png"):
         try:
@@ -1290,29 +1364,11 @@ def main():
                 encoded = base64.b64encode(f.read()).decode()
                 logo_src = f"data:image/png;base64,{encoded}"
         except: pass
-
-    st.markdown(f'''
-        <div class="header-container">
-            <img src="{logo_src}" style="position: absolute; top: 30px; left: 40px; height: 50px;">
-            <div class="header-title">SIMULADOR IMOBILIÁRIO DV</div>
-            <div class="header-subtitle">Sistema de Gestão de Vendas e Viabilidade Imobiliária</div>
-        </div>
-    ''', unsafe_allow_html=True)
-    
-    if df_finan.empty or df_estoque.empty:
-        st.warning("Aguardando conexão com base de dados...")
-        st.stop()
-        
-    # Inicializa estado de login
-    if 'logged_in' not in st.session_state:
-        st.session_state['logged_in'] = False
-        
-    # Lógica de Controle de Acesso
-    if not st.session_state['logged_in']:
-        tela_login(df_logins)
-    else:
-        aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros)
-        
+    st.markdown(f'''<div class="header-container"><img src="{logo_src}" style="position: absolute; top: 30px; left: 40px; height: 50px;"><div class="header-title">SIMULADOR IMOBILIÁRIO DV</div><div class="header-subtitle">Sistema de Gestão de Vendas e Viabilidade Imobiliária</div></div>''', unsafe_allow_html=True)
+    if df_finan.empty or df_estoque.empty: st.warning("Aguardando conexão com base de dados..."); st.stop()
+    if 'logged_in' not in st.session_state: st.session_state['logged_in'] = False
+    if not st.session_state['logged_in']: tela_login(df_logins)
+    else: aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros)
     st.markdown(f'<div class="footer">Direcional Engenharia - Rio de Janeiro | Developed by Lucas Maia</div>', unsafe_allow_html=True)
 
 if __name__ == "__main__":
