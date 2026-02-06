@@ -6,29 +6,17 @@ SISTEMA DE SIMULAÇÃO IMOBILIÁRIA - DIRE RIO V3 (COM LOGIN, CADASTRO E ABAS DI
 Alterações Realizadas:
 1. Implementação de Sistema de Login (Mantido).
 2. Manutenção das funcionalidades anteriores.
-3. Novos Inputs e Fluxo (Updates Anteriores):
-   - Campos CPF, Data Nascimento, Gênero.
-   - Busca de clientes.
-   - Botões de fluxo e layout ajustados.
-4. Funcionalidade "Criar Conta" (Update Anterior):
-   - Pop-up (st.dialog) para cadastro.
-   - Gravação em abas dinâmicas.
+3. Novos Inputs e Fluxo (Updates Anteriores).
+4. Funcionalidade "Criar Conta" (Update Anterior).
 5. Atualizações (Update Anterior):
-   - Correção CPF Busca.
-   - CSS Botões.
-   - Layout Resumo.
-   - Locale PT-BR.
-   - CSS Data.
-   - Aba Resumo.
-6. Atualizações (Update Anterior):
-   - Remoção da Aba 'Potential'.
-   - Fluxo: Início -> Recomendação -> Seleção -> Fechamento -> Resumo.
-   - Aba 'Guide': Ordenação por Viabilidade.
-7. Atualizações (Update Atual):
-   - Fix KeyError 'Status Viabilidade'.
-   - Fix Formatação CPF (padding zero).
-   - Fix Preenchimento Busca de Clientes.
-   - Aba Fechamento: PS movido para o final, default 0, distribuição inicial cobre saldo.
+   - Correção CPF, CSS, Layout, Locale, Termômetro.
+6. Atualizações (Update Atual):
+   - Botão Unificado Resumo: PDF e Email em Popup (st.dialog).
+   - Correção Preço Recomendação: Iteração ajustada.
+   - Filtros Estoque: Garantidos na aba 'Estoque Geral'.
+   - Botões Finais: Empilhados (Concluir acima de Voltar) e Full Width.
+   - Perfil Corretor: Sidebar com histórico de simulações.
+   - Roteamento de Abas: Salva em abas específicas (Canal IMOB, DV, etc) ou 'Outros'.
 =============================================================================
 """
 
@@ -94,13 +82,10 @@ def limpar_cpf_visual(valor):
     """Garante que o CPF seja string, sem .0 e com 11 digitos"""
     if pd.isnull(valor) or valor == "":
         return ""
-    # Remove caracteres não numéricos temporariamente para limpar, mas mantemos zeros a esquerda
     v_str = str(valor).strip()
     if v_str.endswith('.0'):
         v_str = v_str[:-2]
-    # Remove tudo que não é digito
     v_nums = re.sub(r'\D', '', v_str)
-    # Pad com zeros a esquerda para 11 digitos se tiver conteudo
     if v_nums:
         return v_nums.zfill(11)
     return ""
@@ -166,10 +151,12 @@ def carregar_dados_sistema():
         except Exception:
             df_logins = pd.DataFrame(columns=['email', 'senha', 'imobiliaria', 'cargo', 'nome'])
 
-        # --- CARREGAR CADASTROS (CLIENTES) ---
+        # --- CARREGAR CADASTROS (CLIENTES) PARA BUSCA ---
         try:
-            df_cadastros = conn.read(spreadsheet=URL_RANKING, worksheet="Cadastros")
-            # Normaliza colunas para evitar erros de busca
+            # Tenta carregar de uma aba agregadora ou principal para busca. 
+            # Se os dados estiverem espalhados, a busca pode ser limitada ou precisar ler múltiplas abas.
+            # Por padrão tentamos 'Cadastros' (antigo) ou 'Outros' como fallback de leitura para busca simples
+            df_cadastros = conn.read(spreadsheet=URL_RANKING, worksheet="Outros")
             df_cadastros.columns = [str(c).strip() for c in df_cadastros.columns]
         except Exception:
             df_cadastros = pd.DataFrame()
@@ -761,11 +748,18 @@ def modal_criar_conta(conn):
 @st.dialog("Opções de Resumo")
 def modal_opcoes_resumo(pdf_bytes, nome_cliente):
     st.markdown("Escolha uma das opções abaixo:")
-    st.download_button(label="📄 Baixar PDF", data=pdf_bytes, file_name=f"Resumo_Direcional_{nome_cliente}.pdf", mime="application/pdf", use_container_width=True)
+    
+    if pdf_bytes:
+        st.download_button(label="📄 Baixar PDF", data=pdf_bytes, file_name=f"Resumo_Direcional_{nome_cliente}.pdf", mime="application/pdf", use_container_width=True)
+    else:
+        st.warning("PDF indisponível.")
+        
     st.markdown("---")
     st.markdown("**Enviar por E-mail (Opcional)**")
+    
+    # Campo de e-mail e botão de envio
     email = st.text_input("Endereço de e-mail", placeholder="cliente@exemplo.com")
-    if st.button("✉️ Enviar", use_container_width=True):
+    if st.button("✉️ Enviar Email", use_container_width=True):
         if email and "@" in email:
             st.success(f"Enviado para {email}!")
             time.sleep(1.5)
@@ -813,6 +807,37 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
     motor = MotorRecomendacao(df_finan, df_estoque, df_politicas)
     if 'passo_simulacao' not in st.session_state: st.session_state.passo_simulacao = 'input'
     if 'dados_cliente' not in st.session_state: st.session_state.dados_cliente = {}
+
+    # --- SIDEBAR COM PERFIL DO CORRETOR ---
+    with st.sidebar:
+        st.header("Perfil do Corretor")
+        st.write(f"**Nome:** {st.session_state.get('user_name', 'N/A')}")
+        st.write(f"**Canal:** {st.session_state.get('user_imobiliaria', 'N/A')}")
+        st.markdown("---")
+        st.markdown("### Minhas Simulações Salvas")
+        
+        # Tenta carregar histórico
+        if st.button("Carregar Histórico"):
+            try:
+                # Determina aba de leitura baseada no canal do usuário
+                canal_user = st.session_state.get('user_imobiliaria', 'Outros')
+                abas_conhecidas = ["Canal IMOB", "DV", "RV", "Trip", "Swell"]
+                aba_leitura = canal_user if canal_user in abas_conhecidas else "Outros"
+                
+                conn = st.connection("gsheets", type=GSheetsConnection)
+                df_hist = conn.read(spreadsheet=URL_RANKING, worksheet=aba_leitura)
+                
+                # Filtra pelo nome do corretor
+                if not df_hist.empty and 'Nome do Corretor' in df_hist.columns:
+                    meus_dados = df_hist[df_hist['Nome do Corretor'] == st.session_state.get('user_name')]
+                    if not meus_dados.empty:
+                        st.dataframe(meus_dados[['Nome', 'Empreendimento Final', 'Preço Unidade Final']], use_container_width=True, hide_index=True)
+                    else:
+                        st.info("Nenhuma simulação encontrada para seu usuário nesta aba.")
+                else:
+                    st.warning("Aba de dados vazia ou sem coluna de corretor.")
+            except Exception as e:
+                st.error(f"Erro ao carregar: {e}")
 
     # --- ETAPA 1: INPUT ---
     if st.session_state.passo_simulacao == 'input':
@@ -1156,75 +1181,97 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
         st.markdown(f"""<div class="summary-body"><b>Total de Entrada:</b> R$ {fmt_br(d.get('entrada_total', 0))}<br><hr style="border: 0; border-top: 1px solid #e2e8f0; margin: 10px 0;"><b>Ato:</b> R$ {fmt_br(d.get('ato_final', 0))}<br><b>Ato 30 Dias:</b> R$ {fmt_br(d.get('ato_30', 0))}<br><b>Ato 60 Dias:</b> R$ {fmt_br(d.get('ato_60', 0))}<br><b>Ato 90 Dias:</b> R$ {fmt_br(d.get('ato_90', 0))}</div>""", unsafe_allow_html=True)
 
         st.markdown("---")
-        if PDF_ENABLED:
-            pdf_data = gerar_resumo_pdf(d)
-            if pdf_data:
-                # Usando colunas com vertical_alignment="bottom" para alinhar visualmente com outros elementos se necessário
-                # Aqui está isolado, então colunas normais funcionam bem.
-                _, col_btn_center, _ = st.columns([1, 1.2, 1])
-                with col_btn_center:
-                    st.download_button(
-                        label="Baixar Resumo em PDF", 
-                        data=pdf_data, 
-                        file_name=f"Resumo Direcional - {d.get('nome', 'Cliente')}.pdf", 
-                        mime="application/pdf",
-                        use_container_width=True,
-                        key="btn_download_pdf_final_v28"
-                    )
-
-        st.markdown("#### Enviar Resumo por E-mail")
-        c_email_in, c_email_btn = st.columns([3, 1], vertical_alignment="bottom")
-        with c_email_in:
-            email_dest = st.text_input("E-mail do Cliente", placeholder="exemplo@email.com", key="email_dest_summary", label_visibility="collapsed")
-        with c_email_btn:
-            if st.button("Enviar Resumo", type="primary", use_container_width=True, key="btn_send_email_summary"):
-                if email_dest and "@" in email_dest:
-                    st.success(f"Resumo enviado com sucesso para {email_dest}!")
-                else:
-                    st.warning("Por favor, digite um e-mail válido.")
+        
+        # Botão unificado que abre o Modal
+        if st.button("Opções de Resumo (PDF / E-mail)", use_container_width=True, key="btn_open_modal_summary"):
+            if PDF_ENABLED:
+                pdf_data = gerar_resumo_pdf(d)
+                modal_opcoes_resumo(pdf_data, d.get('nome', 'Cliente'))
+            else:
+                st.warning("Geração de PDF indisponível.")
 
         st.markdown("---")
         
-        c_final_1, c_final_2 = st.columns(2)
-        with c_final_1:
-            if st.button("Voltar para Fechamento", use_container_width=True, key="btn_edit_fin_summary_v28"):
-                st.session_state.passo_simulacao = 'payment_flow'; st.rerun()
+        # Botões de navegação finais - EMPILHADOS
+        if st.button("CONCLUIR E SALVAR SIMULAÇÃO", type="primary", use_container_width=True, key="btn_save_final"):
+            try:
+                conn_save = st.connection("gsheets", type=GSheetsConnection)
                 
-        with c_final_2:
-            if st.button("CONCLUIR E SALVAR SIMULAÇÃO", type="primary", use_container_width=True, key="btn_save_final"):
+                # Identifica qual aba salvar
+                aba_destino = "Outros" # Default
+                canal_user = st.session_state.get('user_imobiliaria', 'Outros').strip()
+                abas_padrao = ["Canal IMOB", "DV", "RV", "Trip", "Swell"]
+                
+                if canal_user in abas_padrao:
+                    aba_destino = canal_user
+                
+                # Monta a lista de rendas individuais (garantindo 4 slots)
+                rendas_ind = d.get('rendas_lista', [])
+                while len(rendas_ind) < 4:
+                    rendas_ind.append(0.0)
+                
+                # Dados para salvar
+                nova_linha = {
+                    "Nome": d.get('nome'),
+                    "CPF": d.get('cpf'), # CPF Limpo
+                    "Data de Nascimento": str(d.get('data_nascimento')),
+                    "Prazo Financiamento": d.get('prazo_financiamento'),
+                    "Renda Part. 1": rendas_ind[0],
+                    "Renda Part. 2": rendas_ind[1],
+                    "Renda Part. 3": rendas_ind[2],
+                    "Renda Part. 4": rendas_ind[3],
+                    "Ranking": d.get('ranking'),
+                    "Política de Pro Soluto": d.get('politica'),
+                    "Fator Social": "Sim" if d.get('social') else "Não",
+                    "Cotista FGTS": "Sim" if d.get('cotista') else "Não",
+                    "Financiamento Aprovado": d.get('finan_f_ref', 0),
+                    "Subsídio Máximo": d.get('sub_f_ref', 0),
+                    "Pro Soluto Médio": d.get('ps_medio_ref', 0),
+                    "Capacidade de Entrada": d.get('cap_entrada_ref', 0),
+                    "Poder de Aquisição Médio": d.get('poder_aquisicao_ref', 0),
+                    "Empreendimento Final": d.get('empreendimento_nome'),
+                    "Unidade Final": d.get('unidade_id'),
+                    "Preço Unidade Final": d.get('imovel_valor', 0),
+                    "Financiamento Final": d.get('finan_usado', 0),
+                    "FGTS + Subsídio Final": d.get('fgts_sub_usado', 0),
+                    "Pro Soluto Final": d.get('ps_usado', 0),
+                    "Número de Parcelas do Pro Soluto": d.get('ps_parcelas', 0),
+                    "Mensalidade PS": d.get('ps_mensal', 0),
+                    "Ato": d.get('ato_final', 0),
+                    "Ato 30": d.get('ato_30', 0),
+                    "Ato 60": d.get('ato_60', 0),
+                    "Ato 90": d.get('ato_90', 0),
+                    # CAMPOS NOVOS DO CORRETOR
+                    "Nome do Corretor": st.session_state.get('user_name', ''),
+                    "Canal/Imobiliária": st.session_state.get('user_imobiliaria', '')
+                }
+                
+                df_novo = pd.DataFrame([nova_linha])
+                
+                # Tenta ler aba existente, se não, cria novo DF
                 try:
-                    conn_save = st.connection("gsheets", type=GSheetsConnection)
-                    aba_destino = st.session_state.get('user_imobiliaria', 'Cadastros')
-                    if not aba_destino or aba_destino == 'nan': aba_destino = 'Cadastros'
-                    rendas_ind = d.get('rendas_lista', [])
-                    while len(rendas_ind) < 4: rendas_ind.append(0.0)
-                    
-                    nova_linha = {
-                        "Nome": d.get('nome'), "CPF": d.get('cpf'), "Data de Nascimento": str(d.get('data_nascimento')),
-                        "Prazo Financiamento": d.get('prazo_financiamento'), "Renda Part. 1": rendas_ind[0], "Renda Part. 2": rendas_ind[1],
-                        "Renda Part. 3": rendas_ind[2], "Renda Part. 4": rendas_ind[3], "Ranking": d.get('ranking'), "Política de Pro Soluto": d.get('politica'),
-                        "Fator Social": "Sim" if d.get('social') else "Não", "Cotista FGTS": "Sim" if d.get('cotista') else "Não",
-                        "Financiamento Aprovado": d.get('finan_f_ref', 0), "Subsídio Máximo": d.get('sub_f_ref', 0), "Pro Soluto Médio": d.get('ps_medio_ref', 0),
-                        "Capacidade de Entrada": d.get('cap_entrada_ref', 0), "Poder de Aquisição Médio": d.get('poder_aquisicao_ref', 0),
-                        "Empreendimento Final": d.get('empreendimento_nome'), "Unidade Final": d.get('unidade_id'), "Preço Unidade Final": d.get('imovel_valor', 0),
-                        "Financiamento Final": d.get('finan_usado', 0), "FGTS + Subsídio Final": d.get('fgts_sub_usado', 0),
-                        "Pro Soluto Final": d.get('ps_usado', 0), "Número de Parcelas do Pro Soluto": d.get('ps_parcelas', 0), "Mensalidade PS": d.get('ps_mensal', 0),
-                        "Ato": d.get('ato_final', 0), "Ato 30": d.get('ato_30', 0), "Ato 60": d.get('ato_60', 0), "Ato 90": d.get('ato_90', 0),
-                        "Nome do Corretor": st.session_state.get('user_name', ''), "Canal/Imobiliária": st.session_state.get('user_imobiliaria', '')
-                    }
-                    df_novo = pd.DataFrame([nova_linha])
-                    try:
-                        df_existente = conn_save.read(spreadsheet=URL_RANKING, worksheet=aba_destino)
-                        df_final_save = pd.concat([df_existente, df_novo], ignore_index=True)
-                    except: df_final_save = df_novo
-                    conn_save.update(spreadsheet=URL_RANKING, worksheet=aba_destino, data=df_final_save)
-                    st.success(f"Simulação salva com sucesso na aba '{aba_destino}'! Reiniciando...")
-                    time.sleep(2)
-                    st.session_state.dados_cliente = {}
-                    st.session_state.passo_simulacao = 'input'
-                    st.rerun()
-                except Exception as e: st.error(f"Erro ao salvar dados: {e}")
+                    df_existente = conn_save.read(spreadsheet=URL_RANKING, worksheet=aba_destino)
+                    df_final_save = pd.concat([df_existente, df_novo], ignore_index=True)
+                except Exception:
+                    # Assume que a aba não existe ou está vazia
+                    df_final_save = df_novo
+                
+                # Salva na aba específica da imobiliária
+                conn_save.update(spreadsheet=URL_RANKING, worksheet=aba_destino, data=df_final_save)
+                
+                st.success(f"Simulação salva com sucesso na aba '{aba_destino}'! Reiniciando...")
+                time.sleep(2)
+                st.session_state.dados_cliente = {}
+                st.session_state.passo_simulacao = 'input'
+                st.rerun()
+                
+            except Exception as e:
+                st.error(f"Erro ao salvar dados: {e}")
+
+        if st.button("Voltar para Fechamento", use_container_width=True, key="btn_edit_fin_summary_v28"):
+            st.session_state.passo_simulacao = 'payment_flow'; st.rerun()
     
+    # --- BOTÃO DE SAIR NO RODAPÉ ---
     st.markdown("<br><br>", unsafe_allow_html=True)
     c_out_1, c_out_2, c_out_3 = st.columns([1, 1, 1])
     with c_out_2:
@@ -1235,6 +1282,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
 def main():
     configurar_layout()
     df_finan, df_estoque, df_politicas, df_logins, df_cadastros = carregar_dados_sistema()
+    
     logo_src = URL_FAVICON_RESERVA
     if os.path.exists("favicon.png"):
         try:
@@ -1242,11 +1290,29 @@ def main():
                 encoded = base64.b64encode(f.read()).decode()
                 logo_src = f"data:image/png;base64,{encoded}"
         except: pass
-    st.markdown(f'''<div class="header-container"><img src="{logo_src}" style="position: absolute; top: 30px; left: 40px; height: 50px;"><div class="header-title">SIMULADOR IMOBILIÁRIO DV</div><div class="header-subtitle">Sistema de Gestão de Vendas e Viabilidade Imobiliária</div></div>''', unsafe_allow_html=True)
-    if df_finan.empty or df_estoque.empty: st.warning("Aguardando conexão com base de dados..."); st.stop()
-    if 'logged_in' not in st.session_state: st.session_state['logged_in'] = False
-    if not st.session_state['logged_in']: tela_login(df_logins)
-    else: aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros)
+
+    st.markdown(f'''
+        <div class="header-container">
+            <img src="{logo_src}" style="position: absolute; top: 30px; left: 40px; height: 50px;">
+            <div class="header-title">SIMULADOR IMOBILIÁRIO DV</div>
+            <div class="header-subtitle">Sistema de Gestão de Vendas e Viabilidade Imobiliária</div>
+        </div>
+    ''', unsafe_allow_html=True)
+    
+    if df_finan.empty or df_estoque.empty:
+        st.warning("Aguardando conexão com base de dados...")
+        st.stop()
+        
+    # Inicializa estado de login
+    if 'logged_in' not in st.session_state:
+        st.session_state['logged_in'] = False
+        
+    # Lógica de Controle de Acesso
+    if not st.session_state['logged_in']:
+        tela_login(df_logins)
+    else:
+        aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros)
+        
     st.markdown(f'<div class="footer">Direcional Engenharia - Rio de Janeiro | Developed by Lucas Maia</div>', unsafe_allow_html=True)
 
 if __name__ == "__main__":
