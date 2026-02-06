@@ -7,20 +7,30 @@ Alterações Realizadas:
 1. Implementação de Sistema de Login (Mantido).
 2. Manutenção das funcionalidades anteriores.
 3. Novos Inputs e Fluxo (Updates Anteriores).
-4. Funcionalidade "Criar Conta" (Update Atual):
-   - Correção do BUG de e-mail vazio.
-   - Fluxo de Verificação (Código 6 dígitos).
+4. Funcionalidade "Criar Conta" (Update Anterior):
+   - Pop-up (st.dialog) para cadastro.
+   - Gravação em abas dinâmicas.
 5. Atualizações (Update Anterior):
-   - Correção CPF, CSS, Layout, Locale, Termômetro.
-   - Botão Unificado Resumo, Filtros Estoque.
+   - Correção CPF Busca.
+   - CSS Botões.
+   - Layout Resumo.
+   - Locale PT-BR.
+   - CSS Data.
+   - Aba Fechamento.
+   - Aba Resumo.
 6. Atualizações (Update Anterior):
-   - Bloqueio de Avanço: Não permite ir ao resumo se Saldo a Cobrir != 0.
-   - Layout Fechamento: PS e Parcelas movidos para o final.
-   - Busca de Clientes: Integrada visualmente ao campo de nome.
-7. Atualizações (Update Atual):
-   - Persistência do Modal de Cadastro: Uso de session_state para manter aberto.
-   - Verificação Pré-Cadastro: Checa se e-mail já existe antes de salvar.
-   - Validação de Código: Verifica se a coluna 'Codigo' foi preenchida pelo Apps Script.
+   - Remoção da Aba 'Potential' (Poder de Compra Estimado).
+   - Fluxo: Início -> Recomendação -> Seleção -> Fechamento -> Resumo.
+   - Aba 'Guide':
+     - Ordenação de estoque por Viabilidade (Poder/Preço).
+     - Remoção de labels de texto.
+7. Atualizações (Update Anterior):
+   - Correção Preço Recomendação: Iteração via dict para garantir valor correto.
+   - Restauração de Filtros: Filtros de Bairro, Empreendimento e Preço na aba 'Estoque Geral'.
+   - Unificação Botão Resumo: Botão único que abre pop-up para Baixar PDF ou Enviar Email.
+   - Posicionamento: Botão de opções colocado antes da linha divisória final.
+8. Correção de Erro (Update Atual):
+   - Remoção de caracteres de formatação Markdown que causavam SyntaxError no final do arquivo.
 =============================================================================
 """
 
@@ -64,11 +74,11 @@ ID_FINAN = "1wJD3tXe1e8FxL4mVEfNKGdtaS__Dl4V6-sm1G6qfL0s"
 ID_RANKING = "1N00McOjO1O_MuKyQhp-CVhpAet_9Lfq-VqVm1FmPV00"
 ID_ESTOQUE = "1VG-hgBkddyssN1OXgIA33CVsKGAdqT-5kwbgizxWDZQ"
 
-URL_FINAN = f"https://docs.google.com/spreadsheets/d/{ID_FINAN}/edit#gid=0"
-URL_RANKING = f"https://docs.google.com/spreadsheets/d/{ID_RANKING}/edit#gid=0"
-URL_ESTOQUE = f"https://docs.google.com/spreadsheets/d/{ID_ESTOQUE}/edit#gid=0"
+URL_FINAN = f"[https://docs.google.com/spreadsheets/d/](https://docs.google.com/spreadsheets/d/){ID_FINAN}/edit#gid=0"
+URL_RANKING = f"[https://docs.google.com/spreadsheets/d/](https://docs.google.com/spreadsheets/d/){ID_RANKING}/edit#gid=0"
+URL_ESTOQUE = f"[https://docs.google.com/spreadsheets/d/](https://docs.google.com/spreadsheets/d/){ID_ESTOQUE}/edit#gid=0"
 
-URL_FAVICON_RESERVA = "https://direcional.com.br/wp-content/uploads/2021/04/cropped-favicon-direcional-32x32.png"
+URL_FAVICON_RESERVA = "[https://direcional.com.br/wp-content/uploads/2021/04/cropped-favicon-direcional-32x32.png](https://direcional.com.br/wp-content/uploads/2021/04/cropped-favicon-direcional-32x32.png)"
 
 COR_AZUL_ESC = "#002c5d"
 COR_VERMELHO = "#e30613"
@@ -131,41 +141,40 @@ def carregar_dados_sistema():
             df_logins = conn.read(spreadsheet=URL_RANKING, worksheet="Logins")
             df_logins.columns = [str(c).strip() for c in df_logins.columns]
             
-            # Normalização de colunas
-            colunas_padrao = ['Email', 'Senha', 'Imobiliaria', 'Cargo', 'Nome', 'Codigo']
-            mapa_renomeacao = {}
-            for col in df_logins.columns:
-                c_lower = col.lower()
-                if "email" in c_lower or "e-mail" in c_lower: mapa_renomeacao[col] = 'Email'
-                elif "senha" in c_lower: mapa_renomeacao[col] = 'Senha'
-                elif "imob" in c_lower or "canal" in c_lower: mapa_renomeacao[col] = 'Imobiliaria'
-                elif "cargo" in c_lower: mapa_renomeacao[col] = 'Cargo'
-                elif "nome" in c_lower: mapa_renomeacao[col] = 'Nome'
-                elif "código" in c_lower or "codigo" in c_lower or "tentativa" in c_lower: mapa_renomeacao[col] = 'Codigo'
+            # Mapeamento flexível das colunas de login
+            col_map = {
+                'email': next((c for c in df_logins.columns if "e-mail" in c.lower() or "email" in c.lower()), "Email"),
+                'senha': next((c for c in df_logins.columns if "senha" in c.lower()), "Senha"),
+                'imobiliaria': next((c for c in df_logins.columns if "imob" in c.lower() or "canal" in c.lower()), "Imobiliaria"),
+                'cargo': next((c for c in df_logins.columns if "cargo" in c.lower()), "Cargo"),
+                'nome': next((c for c in df_logins.columns if "nome" in c.lower()), "Nome")
+            }
+            
+            cols_to_keep = [v for k, v in col_map.items() if v in df_logins.columns]
+            df_logins = df_logins[cols_to_keep]
+            
+            rename_dict = {v: k for k, v in col_map.items() if v in df_logins.columns}
+            df_logins = df_logins.rename(columns=rename_dict)
+            
+            for req_col in ['email', 'senha', 'imobiliaria', 'cargo', 'nome']:
+                if req_col not in df_logins.columns:
+                    df_logins[req_col] = ""
 
-            df_logins = df_logins.rename(columns=mapa_renomeacao)
-            for col in colunas_padrao:
-                if col not in df_logins.columns:
-                    df_logins[col] = ""
-
-            df_logins = df_logins[colunas_padrao].copy()
-            df_logins['Email'] = df_logins['Email'].astype(str).str.strip().str.lower()
-            df_logins['Senha'] = df_logins['Senha'].astype(str).str.strip()
-            df_logins['Codigo'] = df_logins['Codigo'].astype(str).str.strip()
+            df_logins['email'] = df_logins['email'].astype(str).str.strip().str.lower()
+            df_logins['senha'] = df_logins['senha'].astype(str).str.strip()
             
         except Exception:
-            df_logins = pd.DataFrame(columns=['Email', 'Senha', 'Imobiliaria', 'Cargo', 'Nome', 'Codigo'])
+            df_logins = pd.DataFrame(columns=['email', 'senha', 'imobiliaria', 'cargo', 'nome'])
 
         # --- CARREGAR CADASTROS (CLIENTES) ---
         try:
             df_cadastros = conn.read(spreadsheet=URL_RANKING, worksheet="Cadastros")
-            df_cadastros.columns = [str(c).strip() for c in df_cadastros.columns]
         except Exception:
             df_cadastros = pd.DataFrame()
 
         # --- CARREGAR POLÍTICAS ---
         try:
-            df_politicas = conn.read(spreadsheet=URL_RANKING) 
+            df_politicas = conn.read(spreadsheet=URL_RANKING) # Aba padrão (primeira)
             df_politicas.columns = [str(c).strip() for c in df_politicas.columns]
             
             col_classificacao = next((c for c in df_politicas.columns if 'CLASSIFICA' in c.upper()), 'CLASSIFICAÇÃO')
@@ -332,7 +341,7 @@ def configurar_layout():
     
     st.markdown(f"""
         <style>
-        @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800;900&family=Inter:wght@300;400;500;600;700&display=swap');
+        @import url('[https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800;900&family=Inter:wght@300;400;500;600;700&display=swap](https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800;900&family=Inter:wght@300;400;500;600;700&display=swap)');
         
         html, body, [data-testid="stAppViewContainer"] {{
             font-family: 'Inter', sans-serif;
@@ -719,7 +728,6 @@ def modal_criar_conta(conn):
             else:
                 try:
                     df_logins = conn.read(spreadsheet=URL_RANKING, worksheet="Logins")
-                    # Normaliza e verifica se email ja existe
                     mapa = {}
                     for c in df_logins.columns:
                         if "email" in c.lower(): mapa[c] = 'Email'
@@ -729,7 +737,6 @@ def modal_criar_conta(conn):
                     if 'Email' in df_check.columns and not df_check[df_check['Email'] == email_limpo].empty:
                         st.error("E-mail já cadastrado.")
                     else:
-                        # Prossegue com cadastro
                         novo_user = pd.DataFrame([{
                             'Email': email_limpo,
                             'Senha': senha.strip(),
@@ -742,7 +749,6 @@ def modal_criar_conta(conn):
                         df_final = pd.concat([df_logins, novo_user], ignore_index=True)
                         conn.update(spreadsheet=URL_RANKING, worksheet="Logins", data=df_final)
 
-                        # Salva na aba específica também
                         nome_aba_canal = f"Logins - {imobiliaria.strip()}"
                         try:
                             try:
@@ -756,7 +762,7 @@ def modal_criar_conta(conn):
                         
                         st.session_state.signup_stage = 'verification'
                         st.session_state.signup_email = email_limpo
-                        st.session_state['fluxo_cadastro_ativo'] = True # Flag para reabrir modal
+                        st.session_state['fluxo_cadastro_ativo'] = True 
                         st.rerun()
                         
                 except Exception as e:
@@ -792,7 +798,6 @@ def modal_criar_conta(conn):
                         if user_row.empty:
                             st.error("Usuário não encontrado.")
                         else:
-                            # Pega o último registro
                             raw_code = str(user_row.iloc[-1]['Codigo']).strip()
                             if raw_code.endswith('.0'): raw_code = raw_code[:-2]
 
@@ -858,8 +863,6 @@ def tela_login(df_logins):
                 else:
                     st.error("E-mail ou senha incorretos.")
         st.markdown("<div style='text-align: center; margin-top: 10px;'>OU</div>", unsafe_allow_html=True)
-        
-        # Botão que ativa o fluxo de cadastro
         if st.button("Criar Conta", use_container_width=True):
             st.session_state['fluxo_cadastro_ativo'] = True
             st.rerun()
@@ -1181,7 +1184,6 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
 
         if comp_r > d.get('limit_ps_renda', 1): st.warning(f"Atenção: Parcela Pro Soluto excede o limite de {d.get('limit_ps_renda', 0)*100:.0f}% da renda.")
         
-        # Bloqueio visual e funcional
         if abs(gap_final) > 1:
             st.error(f"Atenção: A conta não fecha. Falta cobrir R$ {fmt_br(gap_final)} ou há excesso de pagamento.")
 
@@ -1189,7 +1191,6 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
         st.session_state.dados_cliente.update({'finan_usado': f_u, 'fgts_sub_usado': fgts_u, 'ps_usado': ps_u, 'ps_parcelas': parc, 'ps_mensal': v_parc, 'entrada_total': total_entrada_cash, 'ato_final': st.session_state.ato_1, 'ato_30': st.session_state.ato_2, 'ato_60': st.session_state.ato_3, 'ato_90': st.session_state.ato_4})
         
         st.markdown("---")
-        # Botão de avançar sempre visível, validação no click
         if st.button("Avançar para Resumo de Compra", type="primary", use_container_width=True, key="btn_to_summary_v28"):
             if abs(gap_final) <= 1:
                 st.session_state.passo_simulacao = 'summary'
@@ -1285,45 +1286,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-```
-
-### 2. Tutorial para Implantar o Google Apps Script (Segurança de Cadastro)
-
-O script abaixo roda automaticamente na sua planilha para enviar o código de verificação por e-mail sempre que um novo cadastro (com código vazio) é inserido pelo Python.
-
-1.  **Acesse a Planilha** onde estão as abas "Logins", "Canal IMOB", etc.
-2.  No menu superior, vá em **Extensões** > **Apps Script**.
-3.  Apague qualquer código que esteja no editor e cole o código abaixo:
-
-```javascript
-function onChange(e) {
-  var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("Logins");
-  if (!sheet) return;
-
-  var lastRow = sheet.getLastRow();
-  // Assume estrutura: Email(A), Senha(B), Imobiliaria(C), Cargo(D), Nome(E), Codigo(F)
-  // Coluna F é índice 6
-  var colunaCodigo = 6; 
-  var colunaEmail = 1;
-
-  var email = sheet.getRange(lastRow, colunaEmail).getValue();
-  var codigoAtual = sheet.getRange(lastRow, colunaCodigo).getValue();
-
-  // Se tem email e o código está vazio (novo cadastro vindo do Python)
-  if (email && (codigoAtual === "" || codigoAtual === null)) {
-    var novoCodigo = Math.floor(100000 + Math.random() * 900000); // Gera 6 dígitos
-    
-    // Escreve o código na planilha
-    sheet.getRange(lastRow, colunaCodigo).setValue(novoCodigo);
-    
-    // Envia o e-mail
-    var assunto = "Código de Verificação - Simulador Direcional";
-    var mensagem = "Seu código de verificação é: " + novoCodigo;
-    
-    try {
-      MailApp.sendEmail(email, assunto, mensagem);
-    } catch (error) {
-      Logger.log("Erro ao enviar email: " + error);
-    }
-  }
-}
