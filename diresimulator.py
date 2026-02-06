@@ -15,6 +15,10 @@ Alterações Realizadas:
    - Remoção do modal de criação de conta interna.
    - Adaptação do carregamento de logins para colunas do Google Forms.
    - Remoção do SelectBox de busca de clientes na aba de inputs.
+8. Atualizações (Último Pedido):
+   - Centralização do salvamento na aba 'Cadastros'.
+   - Lógica de carregamento de histórico lendo apenas de 'Cadastros'.
+   - Integração de envio de e-mail via SMTP (smtplib).
 =============================================================================
 """
 
@@ -29,6 +33,11 @@ import base64
 from datetime import datetime, date
 import time
 import locale
+import smtplib
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
+from email.mime.application import MIMEApplication
+
 try:
     from PIL import Image
 except ImportError:
@@ -127,13 +136,6 @@ def carregar_dados_sistema():
             df_logins.columns = [str(c).strip() for c in df_logins.columns]
             
             # Mapeamento baseado nas colunas do Forms:
-            # Carimbo de data/hora -> (Ignorar ou usar para log)
-            # Imobiliária/Canal IMOB -> Imobiliaria
-            # Cargo -> Cargo
-            # Nome -> Nome
-            # Email -> Email
-            # Escolha uma senha para o simulador -> Senha
-            
             mapa_renomeacao = {}
             for col in df_logins.columns:
                 c_lower = col.lower()
@@ -595,7 +597,7 @@ def configurar_layout():
     """, unsafe_allow_html=True)
 
 # =============================================================================
-# 4. FUNÇÃO PARA GERAR PDF
+# 4. FUNÇÃO PARA GERAR PDF E EMAIL
 # =============================================================================
 
 def gerar_resumo_pdf(d):
@@ -692,6 +694,40 @@ def gerar_resumo_pdf(d):
     except Exception as e:
         return None
 
+def enviar_email_smtp(destinatario, nome_cliente, pdf_bytes):
+    # Configurações do servidor SMTP
+    # Requer que o usuário configure st.secrets com [email] -> smtp_server, smtp_port, sender_email, sender_password
+    if "email" not in st.secrets:
+        return False, "Configurações de e-mail (secrets) não encontradas."
+    
+    smtp_server = st.secrets["email"]["smtp_server"]
+    smtp_port = st.secrets["email"]["smtp_port"]
+    sender_email = st.secrets["email"]["sender_email"]
+    sender_password = st.secrets["email"]["sender_password"]
+
+    msg = MIMEMultipart()
+    msg['From'] = sender_email
+    msg['To'] = destinatario
+    msg['Subject'] = f"Resumo da Simulação - {nome_cliente}"
+
+    body = f"Olá,\n\nSegue em anexo o resumo da simulação imobiliária para {nome_cliente}.\n\nAtenciosamente,\nDirecional Engenharia"
+    msg.attach(MIMEText(body, 'plain'))
+
+    if pdf_bytes:
+        part = MIMEApplication(pdf_bytes, Name=f"Resumo_{nome_cliente}.pdf")
+        part['Content-Disposition'] = f'attachment; filename="Resumo_{nome_cliente}.pdf"'
+        msg.attach(part)
+
+    try:
+        server = smtplib.SMTP(smtp_server, smtp_port)
+        server.starttls()
+        server.login(sender_email, sender_password)
+        server.sendmail(sender_email, destinatario, msg.as_string())
+        server.quit()
+        return True, "E-mail enviado com sucesso!"
+    except Exception as e:
+        return False, f"Erro ao enviar e-mail: {e}"
+
 # =============================================================================
 # 5. TELA DE LOGIN & CADASTRO
 # =============================================================================
@@ -706,14 +742,19 @@ def modal_opcoes_resumo(pdf_bytes, nome_cliente):
         st.warning("PDF indisponível.")
         
     st.markdown("---")
-    st.markdown("**Enviar por E-mail (Opcional)**")
+    st.markdown("**Enviar por E-mail**")
     
     email = st.text_input("Endereço de e-mail", placeholder="cliente@exemplo.com")
     if st.button("✉️ Enviar Email", use_container_width=True):
         if email and "@" in email:
-            st.success(f"Enviado para {email}!")
-            time.sleep(1.5)
-            st.rerun()
+            with st.spinner("Enviando..."):
+                sucesso, msg = enviar_email_smtp(email, nome_cliente, pdf_bytes)
+                if sucesso:
+                    st.success(msg)
+                    time.sleep(2)
+                    st.rerun()
+                else:
+                    st.error(msg)
         else:
             st.warning("Email inválido")
 
@@ -763,17 +804,15 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
         st.markdown("### Minhas Simulações Salvas")
         if st.button("Carregar Histórico"):
             try:
-                canal_user = st.session_state.get('user_imobiliaria', 'Outros')
-                abas_conhecidas = ["Canal IMOB", "DV", "RV", "Trip", "Swell"]
-                aba_leitura = canal_user if canal_user in abas_conhecidas else "Outros"
                 conn = st.connection("gsheets", type=GSheetsConnection)
-                df_hist = conn.read(spreadsheet=URL_RANKING, worksheet=aba_leitura)
+                # Alteração: Lê sempre da aba "Cadastros"
+                df_hist = conn.read(spreadsheet=URL_RANKING, worksheet="Cadastros")
                 if not df_hist.empty and 'Nome do Corretor' in df_hist.columns:
                     meus_dados = df_hist[df_hist['Nome do Corretor'] == st.session_state.get('user_name')]
                     if not meus_dados.empty:
                         st.dataframe(meus_dados[['Nome', 'Empreendimento Final', 'Preço Unidade Final']], use_container_width=True, hide_index=True)
                     else: st.info("Nenhuma simulação encontrada.")
-                else: st.warning("Aba de dados vazia.")
+                else: st.warning("Aba Cadastros vazia ou sem coluna de corretor.")
             except Exception as e: st.error(f"Erro: {e}")
 
     # --- ETAPA 1: INPUT ---
@@ -1075,8 +1114,9 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
         if st.button("CONCLUIR E SALVAR SIMULAÇÃO", type="primary", use_container_width=True, key="btn_save_final"):
             try:
                 conn_save = st.connection("gsheets", type=GSheetsConnection)
-                aba_destino = st.session_state.get('user_imobiliaria', 'Cadastros')
-                if not aba_destino or aba_destino == 'nan': aba_destino = 'Cadastros'
+                # Alteração solicitada: Salvar SEMPRE na aba 'Cadastros'
+                aba_destino = 'Cadastros'
+                
                 rendas_ind = d.get('rendas_lista', [])
                 while len(rendas_ind) < 4: rendas_ind.append(0.0)
                 
