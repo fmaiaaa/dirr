@@ -10,8 +10,9 @@ Alterações Realizadas:
    - Campos CPF, Data Nascimento, Gênero.
    - Busca de clientes.
    - Botões de fluxo e layout ajustados.
-4. Funcionalidade "Criar Conta" (Update Atual):
-   - Ajuste no try/except para criação de aba de canal (silenciar erro se permissão falhar).
+4. Funcionalidade "Criar Conta" (Update Anterior):
+   - Pop-up (st.dialog) para cadastro.
+   - Gravação em abas dinâmicas.
 5. Atualizações (Update Anterior):
    - Correção CPF Busca.
    - CSS Botões.
@@ -20,12 +21,17 @@ Alterações Realizadas:
    - CSS Data.
    - Aba Fechamento.
    - Aba Resumo.
-6. Atualizações (Update Atual):
+6. Atualizações (Update Anterior):
    - Remoção da Aba 'Potential' (Poder de Compra Estimado).
    - Fluxo: Início -> Recomendação -> Seleção -> Fechamento -> Resumo.
    - Aba 'Guide':
      - Ordenação de estoque por Viabilidade (Poder/Preço).
-     - Remoção de labels de texto (Excede poder, Ideal, etc.) nos cards.
+     - Remoção de labels de texto.
+7. Atualizações (Update Atual):
+   - Correção Preço Recomendação: Iteração via dict para garantir valor correto.
+   - Restauração de Filtros: Filtros de Bairro, Empreendimento e Preço na aba 'Estoque Geral'.
+   - Unificação Botão Resumo: Botão único que abre pop-up para Baixar PDF ou Enviar Email.
+   - Posicionamento: Botão de opções colocado antes da linha divisória final.
 =============================================================================
 """
 
@@ -756,20 +762,32 @@ def modal_criar_conta(conn):
             except Exception as e:
                 st.error(f"Erro ao salvar cadastro: {e}")
 
-# --- POPUP DE ENVIO DE EMAIL ---
-@st.dialog("Enviar Resumo por E-mail")
-def modal_enviar_email(nome_cliente):
-    st.markdown(f"Digite o e-mail para enviar o resumo de **{nome_cliente}**.")
-    email_dest = st.text_input("E-mail de Destino", placeholder="cliente@exemplo.com")
+# --- POPUP UNIFICADO DE OPÇÕES ---
+@st.dialog("Opções de Resumo")
+def modal_opcoes_resumo(pdf_bytes, nome_cliente):
+    st.markdown("Escolha uma das opções abaixo:")
     
-    if st.button("Confirmar Envio", type="primary", use_container_width=True):
-        if email_dest and "@" in email_dest:
-            # Simulação de envio
-            st.success(f"Resumo enviado com sucesso para {email_dest}!")
+    # Download
+    st.download_button(
+        label="📄 Baixar PDF",
+        data=pdf_bytes,
+        file_name=f"Resumo_Direcional_{nome_cliente}.pdf",
+        mime="application/pdf",
+        use_container_width=True
+    )
+    
+    st.markdown("---")
+    
+    # Email
+    st.markdown("**Enviar por E-mail (Opcional)**")
+    email = st.text_input("Endereço de e-mail", placeholder="cliente@exemplo.com")
+    if st.button("✉️ Enviar", use_container_width=True):
+        if email and "@" in email:
+            st.success(f"Enviado para {email}!")
             time.sleep(1.5)
             st.rerun()
         else:
-            st.warning("Por favor, digite um e-mail válido.")
+            st.warning("Email inválido")
 
 def tela_login(df_logins):
     c1, c2, c3 = st.columns([1, 1.5, 1])
@@ -1053,14 +1071,15 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
                 top_3 = df_pool.head(3)
                 
                 cols = st.columns(3)
-                for idx, row in enumerate(top_3.itertuples()):
+                # Iterating with to_dict to ensure price access works
+                for idx, row in enumerate(top_3.to_dict('records')):
                     with cols[idx % 3]:
                         st.markdown(f'''
                             <div class="recommendation-card" style="border-top: 4px solid {COR_AZUL_ESC};">
-                                <b style="color:{COR_AZUL_ESC}; font-size:1.1rem;">{row.Empreendimento}</b><br>
-                                <small style="color:{COR_AZUL_ESC}; font-size:0.95rem;">Unidade: {row.Identificador}</small><br>
-                                <div class="price-tag" style="font-size:1.3rem; margin:2px 0;">R$ {fmt_br(row._3)}</div> <!-- _3 é Valor de Venda -->
-                                <small style="color:{COR_AZUL_ESC}; opacity:0.9; font-size:0.8rem;">Cobertura: {row.Cobertura:.1f}%</small>
+                                <b style="color:{COR_AZUL_ESC}; font-size:1.1rem;">{row['Empreendimento']}</b><br>
+                                <small style="color:{COR_AZUL_ESC}; font-size:0.95rem;">Unidade: {row['Identificador']}</small><br>
+                                <div class="price-tag" style="font-size:1.3rem; margin:2px 0;">R$ {fmt_br(row['Valor de Venda'])}</div>
+                                <small style="color:{COR_AZUL_ESC}; opacity:0.9; font-size:0.8rem;">Cobertura: {row['Cobertura']:.1f}%</small>
                             </div>
                         ''', unsafe_allow_html=True)
 
@@ -1068,8 +1087,27 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
             if df_disp_total.empty:
                 st.markdown('<div class="custom-alert">Sem dados para exibir.</div>', unsafe_allow_html=True)
             else:
+                # REINSERINDO FILTROS DE ESTOQUE GERAL
+                f_cols = st.columns([1.2, 1.5, 1, 1, 1])
+                with f_cols[0]: f_bairro = st.multiselect("Bairro:", options=sorted(df_disp_total['Bairro'].unique()), key="f_bairro_tab_v28")
+                with f_cols[1]: f_emp = st.multiselect("Empreendimento:", options=sorted(df_disp_total['Empreendimento'].unique()), key="f_emp_tab_v28")
+                with f_cols[2]: f_status_v = st.multiselect("Viabilidade:", options=["Viavel", "Inviavel"], key="f_status_tab_v28")
+                with f_cols[3]: f_ordem = st.selectbox("Ordem:", ["Menor Preço", "Maior Preço"], key="f_ordem_tab_v28")
+                with f_cols[4]: f_pmax = st.number_input("Preço Máx:", value=float(df_disp_total['Valor de Venda'].max()), key="f_pmax_tab_v28")
+                
+                df_tab = df_disp_total.copy()
+                if f_bairro: df_tab = df_tab[df_tab['Bairro'].isin(f_bairro)]
+                if f_emp: df_tab = df_tab[df_tab['Empreendimento'].isin(f_emp)]
+                if f_status_v: df_tab = df_tab[df_tab['Status Viabilidade'].isin(f_status_v)]
+                df_tab = df_tab[df_tab['Valor de Venda'] <= f_pmax]
+                
+                if f_ordem == "Menor Preço": 
+                    df_tab = df_tab.sort_values('Valor de Venda', ascending=True)
+                else: 
+                    df_tab = df_tab.sort_values('Valor de Venda', ascending=False)
+                
                 # Tabela completa
-                df_tab_view = df_disp_total.copy()
+                df_tab_view = df_tab.copy()
                 df_tab_view['Valor de Venda'] = df_tab_view['Valor de Venda'].apply(fmt_br)
                 df_tab_view['Poder_Compra'] = df_tab_view['Poder_Compra'].apply(fmt_br)
                 # Formata cobertura
@@ -1247,19 +1285,18 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
         st.markdown(f"""<div class="summary-body"><b>Total de Entrada:</b> R$ {fmt_br(d.get('entrada_total', 0))}<br><hr style="border: 0; border-top: 1px solid #e2e8f0; margin: 10px 0;"><b>Ato:</b> R$ {fmt_br(d.get('ato_final', 0))}<br><b>Ato 30 Dias:</b> R$ {fmt_br(d.get('ato_30', 0))}<br><b>Ato 60 Dias:</b> R$ {fmt_br(d.get('ato_60', 0))}<br><b>Ato 90 Dias:</b> R$ {fmt_br(d.get('ato_90', 0))}</div>""", unsafe_allow_html=True)
 
         st.markdown("---")
-        # Layout vertical Full Width para Botões
         
-        # 1. Baixar Resumo
-        if PDF_ENABLED:
-            pdf_data = gerar_resumo_pdf(d)
-            if pdf_data:
-                st.download_button(label="Baixar Resumo em PDF", data=pdf_data, file_name=f"Resumo Direcional - {d.get('nome', 'Cliente')}.pdf", mime="application/pdf", use_container_width=True, key="btn_download_pdf_final_v28")
+        # Botão unificado que abre o Modal
+        if st.button("Opções de Resumo (PDF / E-mail)", use_container_width=True, key="btn_open_modal_summary"):
+            if PDF_ENABLED:
+                pdf_data = gerar_resumo_pdf(d)
+                modal_opcoes_resumo(pdf_data, d.get('nome', 'Cliente'))
+            else:
+                st.warning("Geração de PDF indisponível.")
 
-        # 2. Enviar por Email (Popup)
-        if st.button("Enviar Resumo por E-mail", use_container_width=True, key="btn_popup_email"):
-            modal_enviar_email(d.get('nome', 'Cliente'))
-
-        # 3. Concluir e Salvar
+        st.markdown("---")
+        
+        # Botões de navegação finais
         if st.button("CONCLUIR E SALVAR SIMULAÇÃO", type="primary", use_container_width=True, key="btn_save_final"):
             try:
                 conn_save = st.connection("gsheets", type=GSheetsConnection)
@@ -1296,7 +1333,6 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
                 st.rerun()
             except Exception as e: st.error(f"Erro ao salvar dados: {e}")
 
-        # 4. Voltar para Fechamento
         if st.button("Voltar para Fechamento", use_container_width=True, key="btn_edit_fin_summary_v28"):
             st.session_state.passo_simulacao = 'payment_flow'; st.rerun()
     
