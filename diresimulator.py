@@ -7,20 +7,12 @@ Alterações Realizadas:
 1. Implementação de Sistema de Login (Mantido).
 2. Manutenção das funcionalidades anteriores.
 3. Novos Inputs e Fluxo (Updates Anteriores).
-4. Funcionalidade "Criar Conta" (Update Atual):
-   - Correção do BUG de e-mail vazio.
-   - Fluxo de Verificação (Código 6 dígitos).
-5. Atualizações (Update Anterior):
-   - Correção CPF, CSS, Layout, Locale, Termômetro.
-   - Botão Unificado Resumo, Filtros Estoque.
-6. Atualizações (Update Anterior):
-   - Bloqueio de Avanço: Não permite ir ao resumo se Saldo a Cobrir != 0.
-   - Layout Fechamento: PS e Parcelas movidos para o final.
-   - Busca de Clientes: Integrada visualmente ao campo de nome.
-7. Atualizações (Update Atual):
-   - Persistência do Modal de Cadastro: Uso de session_state para manter aberto.
-   - Verificação Pré-Cadastro: Checa se e-mail já existe antes de salvar.
-   - Validação de Código: Verifica se a coluna 'Codigo' foi preenchida pelo Apps Script.
+4. Funcionalidade "Criar Conta" (Update Anterior).
+5. Atualizações (Update Anterior).
+6. Atualizações (Update Atual):
+   - Correção SyntaxError no final do arquivo.
+   - Aba Fechamento: Botão "Avançar" sempre visível.
+   - Validação no clique: Impede avanço se houver saldo a cobrir.
 =============================================================================
 """
 
@@ -688,6 +680,7 @@ def gerar_resumo_pdf(d):
 
 @st.dialog("Criar Nova Conta")
 def modal_criar_conta(conn):
+    # Inicializa estado se não existir
     if 'signup_stage' not in st.session_state:
         st.session_state.signup_stage = 'form'
 
@@ -718,55 +711,51 @@ def modal_criar_conta(conn):
                 st.error("Preencha todos os campos obrigatórios.")
             else:
                 try:
-                    df_logins = conn.read(spreadsheet=URL_RANKING, worksheet="Logins")
-                    # Normaliza e verifica se email ja existe
-                    mapa = {}
-                    for c in df_logins.columns:
-                        if "email" in c.lower(): mapa[c] = 'Email'
-                    df_check = df_logins.rename(columns=mapa)
+                    # 1. Salva na planilha geral 'Logins' com Codigo VAZIO
+                    try:
+                        df_logins = conn.read(spreadsheet=URL_RANKING, worksheet="Logins")
+                    except:
+                        df_logins = pd.DataFrame(columns=['Email', 'Senha', 'Imobiliaria', 'Cargo', 'Nome', 'Codigo'])
                     
-                    email_limpo = email.strip().lower()
-                    if 'Email' in df_check.columns and not df_check[df_check['Email'] == email_limpo].empty:
-                        st.error("E-mail já cadastrado.")
-                    else:
-                        # Prossegue com cadastro
-                        novo_user = pd.DataFrame([{
-                            'Email': email_limpo,
-                            'Senha': senha.strip(),
-                            'Imobiliaria': imobiliaria.strip(),
-                            'Cargo': cargo.strip(),
-                            'Nome': nome.strip(),
-                            'Codigo': "" 
-                        }])
-                        
-                        df_final = pd.concat([df_logins, novo_user], ignore_index=True)
-                        conn.update(spreadsheet=URL_RANKING, worksheet="Logins", data=df_final)
+                    # Força as colunas corretas para evitar erros de schema
+                    novo_user = pd.DataFrame([{
+                        'Email': email.strip().lower(),
+                        'Senha': senha.strip(),
+                        'Imobiliaria': imobiliaria.strip(),
+                        'Cargo': cargo.strip(),
+                        'Nome': nome.strip(),
+                        'Codigo': "" 
+                    }])
+                    
+                    # Concat e salva (o Apps Script detectará a nova linha e preencherá o código)
+                    df_final = pd.concat([df_logins, novo_user], ignore_index=True)
+                    conn.update(spreadsheet=URL_RANKING, worksheet="Logins", data=df_final)
 
-                        # Salva na aba específica também
-                        nome_aba_canal = f"Logins - {imobiliaria.strip()}"
+                    # 2. Salva na aba específica também
+                    nome_aba_canal = f"Logins - {imobiliaria.strip()}"
+                    try:
                         try:
-                            try:
-                                df_canal = conn.read(spreadsheet=URL_RANKING, worksheet=nome_aba_canal)
-                                df_final_canal = pd.concat([df_canal, novo_user], ignore_index=True)
-                            except:
-                                df_final_canal = novo_user
-                            conn.update(spreadsheet=URL_RANKING, worksheet=nome_aba_canal, data=df_final_canal)
+                            df_canal = conn.read(spreadsheet=URL_RANKING, worksheet=nome_aba_canal)
+                            df_final_canal = pd.concat([df_canal, novo_user], ignore_index=True)
                         except:
-                            pass 
-                        
-                        st.session_state.signup_stage = 'verification'
-                        st.session_state.signup_email = email_limpo
-                        st.session_state['fluxo_cadastro_ativo'] = True # Flag para reabrir modal
-                        st.rerun()
-                        
+                            df_final_canal = novo_user
+                        conn.update(spreadsheet=URL_RANKING, worksheet=nome_aba_canal, data=df_final_canal)
+                    except:
+                        pass 
+                    
+                    # Atualiza o estado para mostrar a verificação na próxima renderização do modal
+                    st.session_state.signup_stage = 'verification'
+                    st.session_state.signup_email = email.strip().lower()
+                    st.rerun()
+                    
                 except Exception as e:
                     st.error(f"Erro ao iniciar cadastro: {e}")
 
     elif st.session_state.signup_stage == 'verification':
         st.markdown(f"### Verificação de E-mail")
         st.markdown(f"Um código de 6 dígitos foi enviado para **{st.session_state.signup_email}**. Insira-o abaixo:")
-        st.caption("Aguarde alguns instantes para o envio do e-mail.")
         
+        # Input do código
         codigo_input = st.text_input("Código de Verificação", max_chars=6, placeholder="123456", key="verify_code_input")
         
         col_btn_v1, col_btn_v2 = st.columns(2)
@@ -792,20 +781,18 @@ def modal_criar_conta(conn):
                         if user_row.empty:
                             st.error("Usuário não encontrado.")
                         else:
-                            # Pega o último registro
-                            raw_code = str(user_row.iloc[-1]['Codigo']).strip()
-                            if raw_code.endswith('.0'): raw_code = raw_code[:-2]
+                            codigo_real = str(user_row.iloc[-1]['Codigo']).strip()
+                            # Verifica se o código bate. Se vier float da planilha, converte pra int/str limpo
+                            if codigo_real.endswith('.0'): codigo_real = codigo_real[:-2]
 
-                            if raw_code == codigo_input.strip():
+                            if codigo_real == codigo_input.strip():
                                 st.success("Conta verificada com sucesso! Faça login.")
                                 time.sleep(2)
                                 del st.session_state.signup_stage
                                 del st.session_state.signup_email
-                                if 'fluxo_cadastro_ativo' in st.session_state:
-                                    del st.session_state['fluxo_cadastro_ativo']
-                                st.rerun() 
-                            elif not raw_code or raw_code == "nan" or raw_code == "":
-                                st.info("Aguardando o sistema gerar o código... Tente novamente em 5 segundos.")
+                                st.rerun() # Fecha o modal e volta pro login
+                            elif not codigo_real or codigo_real == "nan":
+                                st.info("Aguardando geração do código...")
                             else:
                                 st.error("Código incorreto.")
                     except Exception as e:
@@ -858,11 +845,8 @@ def tela_login(df_logins):
                 else:
                     st.error("E-mail ou senha incorretos.")
         st.markdown("<div style='text-align: center; margin-top: 10px;'>OU</div>", unsafe_allow_html=True)
-        
-        # Botão que ativa o fluxo de cadastro
         if st.button("Criar Conta", use_container_width=True):
-            st.session_state['fluxo_cadastro_ativo'] = True
-            st.rerun()
+            modal_criar_conta(st.connection("gsheets", type=GSheetsConnection))
 
 # =============================================================================
 # 6. COMPONENTES DE INTERAÇÃO (SIMULADOR)
@@ -1285,45 +1269,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-```
-
-### 2. Tutorial para Implantar o Google Apps Script (Segurança de Cadastro)
-
-O script abaixo roda automaticamente na sua planilha para enviar o código de verificação por e-mail sempre que um novo cadastro (com código vazio) é inserido pelo Python.
-
-1.  **Acesse a Planilha** onde estão as abas "Logins", "Canal IMOB", etc.
-2.  No menu superior, vá em **Extensões** > **Apps Script**.
-3.  Apague qualquer código que esteja no editor e cole o código abaixo:
-
-```javascript
-function onChange(e) {
-  var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("Logins");
-  if (!sheet) return;
-
-  var lastRow = sheet.getLastRow();
-  // Assume estrutura: Email(A), Senha(B), Imobiliaria(C), Cargo(D), Nome(E), Codigo(F)
-  // Coluna F é índice 6
-  var colunaCodigo = 6; 
-  var colunaEmail = 1;
-
-  var email = sheet.getRange(lastRow, colunaEmail).getValue();
-  var codigoAtual = sheet.getRange(lastRow, colunaCodigo).getValue();
-
-  // Se tem email e o código está vazio (novo cadastro vindo do Python)
-  if (email && (codigoAtual === "" || codigoAtual === null)) {
-    var novoCodigo = Math.floor(100000 + Math.random() * 900000); // Gera 6 dígitos
-    
-    // Escreve o código na planilha
-    sheet.getRange(lastRow, colunaCodigo).setValue(novoCodigo);
-    
-    // Envia o e-mail
-    var assunto = "Código de Verificação - Simulador Direcional";
-    var mensagem = "Seu código de verificação é: " + novoCodigo;
-    
-    try {
-      MailApp.sendEmail(email, assunto, mensagem);
-    } catch (error) {
-      Logger.log("Erro ao enviar email: " + error);
-    }
-  }
-}
