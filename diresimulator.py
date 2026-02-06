@@ -14,7 +14,8 @@ Alterações Realizadas:
    - Pop-up (st.dialog) para cadastro de novos corretores.
    - Campos: Imobiliária, Cargo, Nome, Email, Senha.
    - NOVAS OPÇÕES: Selectbox para Imobiliária e Cargo com opção "Outro" preenchível.
-   - Gravação na aba "Logins".
+   - Gravação na aba MESTRE "Logins".
+   - Gravação em ABA ESPECÍFICA "Logins - {Canal}".
 5. Lógica de Salvamento Dinâmica (Update Anterior):
    - Ao salvar a simulação, o sistema identifica a Imobiliária do usuário.
    - Os dados são salvos em uma aba com o NOME DA IMOBILIÁRIA.
@@ -697,7 +698,7 @@ def modal_criar_conta(conn):
             st.error("Preencha todos os campos obrigatórios.")
         else:
             try:
-                # Lê planilha atual para append
+                # 1. Lê planilha MESTRE "Logins" para append
                 try:
                     df_logins = conn.read(spreadsheet=URL_RANKING, worksheet="Logins")
                 except:
@@ -713,6 +714,22 @@ def modal_criar_conta(conn):
                 
                 df_final = pd.concat([df_logins, novo_user], ignore_index=True)
                 conn.update(spreadsheet=URL_RANKING, worksheet="Logins", data=df_final)
+
+                # 2. Salva também em aba ESPECÍFICA DO CANAL (ex: "Logins - DV")
+                # Define nome da aba, removendo caracteres ruins se necessário
+                nome_aba_canal = f"Logins - {imobiliaria.strip()}"
+                
+                try:
+                    try:
+                        df_canal = conn.read(spreadsheet=URL_RANKING, worksheet=nome_aba_canal)
+                        df_final_canal = pd.concat([df_canal, novo_user], ignore_index=True)
+                    except:
+                        # Aba não existe ainda, cria nova
+                        df_final_canal = novo_user
+                    
+                    conn.update(spreadsheet=URL_RANKING, worksheet=nome_aba_canal, data=df_final_canal)
+                except Exception as e_canal:
+                    st.warning(f"Cadastro salvo no geral, mas falha ao criar aba do canal: {e_canal}")
                 
                 st.success("Cadastro realizado com sucesso! Faça login para continuar.")
                 time.sleep(1.5)
