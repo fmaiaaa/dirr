@@ -15,8 +15,8 @@ Alterações Realizadas:
    - Lógica de carregamento de histórico lendo apenas de 'Cadastros'.
    - Integração de envio de e-mail via SMTP (smtplib).
 8. Atualizações (Update Atual):
-   - Melhoria no tratamento de erro de e-mail (SMTPAuthenticationError).
-   - Mensagem explicativa sobre "Senha de App" do Google quando der erro 535.
+   - Tratamento avançado de erro SMTP (ehlo/starttls).
+   - Limpeza automática de strings nos secrets (strip) para evitar erro de espaço.
 =============================================================================
 """
 
@@ -698,10 +698,14 @@ def enviar_email_smtp(destinatario, nome_cliente, pdf_bytes):
     if "email" not in st.secrets:
         return False, "Configurações de e-mail (secrets) não encontradas."
     
-    smtp_server = st.secrets["email"]["smtp_server"]
-    smtp_port = st.secrets["email"]["smtp_port"]
-    sender_email = st.secrets["email"]["sender_email"]
-    sender_password = st.secrets["email"]["sender_password"]
+    # Limpeza de credenciais para remover espaços em branco que causam erro 535
+    try:
+        smtp_server = st.secrets["email"]["smtp_server"].strip()
+        smtp_port = int(st.secrets["email"]["smtp_port"])
+        sender_email = st.secrets["email"]["sender_email"].strip()
+        sender_password = st.secrets["email"]["sender_password"].strip()
+    except Exception as e:
+        return False, f"Erro ao ler configurações de e-mail: {e}"
 
     msg = MIMEMultipart()
     msg['From'] = sender_email
@@ -718,13 +722,15 @@ def enviar_email_smtp(destinatario, nome_cliente, pdf_bytes):
 
     try:
         server = smtplib.SMTP(smtp_server, smtp_port)
+        server.ehlo() # Identificação inicial explícita
         server.starttls()
+        server.ehlo() # Reidentificação após TLS
         server.login(sender_email, sender_password)
         server.sendmail(sender_email, destinatario, msg.as_string())
         server.quit()
         return True, "E-mail enviado com sucesso!"
     except smtplib.SMTPAuthenticationError:
-        return False, "Erro de Autenticação (535): O Google bloqueou o acesso. Se você usa Gmail, é obrigatório gerar uma 'Senha de App' (App Password) nas configurações de segurança da sua conta Google e usar essa senha no lugar da sua senha normal nos secrets."
+        return False, "Erro de Autenticação (535): O Google bloqueou o acesso. Verifique se você está usando a 'Senha de App' (App Password) de 16 caracteres e não sua senha normal. Espaços em branco na senha também causam isso (o código agora tenta limpá-los automaticamente)."
     except Exception as e:
         return False, f"Erro ao enviar e-mail: {e}"
 
