@@ -1,34 +1,23 @@
 # -*- coding: utf-8 -*-
 """
 =============================================================================
-SISTEMA DE SIMULAÇÃO IMOBILIÁRIA - DIRE RIO V3 (COM LOGIN E CADASTRO)
+SISTEMA DE SIMULAÇÃO IMOBILIÁRIA - DIRE RIO V3 (COM LOGIN, CADASTRO E ABAS DINÂMICAS)
 =============================================================================
 Alterações Realizadas:
 1. Implementação de Sistema de Login (Mantido).
 2. Manutenção das funcionalidades anteriores.
-3. Novos Inputs e Fluxo:
+3. Novos Inputs e Fluxo (Updates Anteriores):
    - Campos CPF, Data Nascimento, Gênero.
-   - Busca de clientes (Nome - CPF) para autopreenchimento.
-   - Botão para SALVAR dados na planilha "Cadastros" ao concluir.
-   - Mapeamento detalhado das colunas de salvamento.
-4. Ajustes UI e Fluxo (Update Anterior):
-   - Data de Nascimento: Estilo CSS unificado e range de datas liberado (1900-Hoje).
-   - Nova Aba 'selection': Seleção de unidade separada da recomendação.
-   - Fluxo Encurtado: Direto para a aba de seleção.
-   - Correção Salvamento: Tratamento de erro robusto para aba 'Cadastros'.
-5. Correções de Erros (Update Anterior):
-   - Correção KeyError 'CLASSIFICAÇÃO': Normalização automática do nome da coluna.
-   - Correção CSS Data: Ajuste de background-color para igualar aos inputs de texto.
-   - Layout Aba Inicial: Campos de dados pessoais em largura total (empilhados).
-   - Correção UnboundLocalError: Definição da variável 'd' na aba de seleção.
-6. Atualizações (Update Anterior):
-   - Refinamento CSS Data: Correção visual para alinhar cor de fundo e borda.
-   - Feature E-mail: Opção de envio de resumo por e-mail na etapa final.
-7. Atualizações (Update Atual):
-   - CSS Data: Cor de fundo #f0f2f6 para igualar aos outros boxes.
-   - Botões Iniciais: Largura total, Caminho Completo primeiro.
-   - Aba Resumo: Download movido para o final, layout de e-mail ajustado.
-   - Fluxo Conclusão: Botão salvar redireciona para o início e limpa sessão.
+   - Busca de clientes.
+   - Botões de fluxo e layout ajustados.
+4. Funcionalidade "Criar Conta" (Update Atual):
+   - Pop-up (st.dialog) para cadastro de novos corretores.
+   - Campos: Imobiliária, Cargo, Nome, Email, Senha.
+   - Gravação na aba "Logins".
+5. Lógica de Salvamento Dinâmica (Update Atual):
+   - Ao salvar a simulação, o sistema identifica a Imobiliária do usuário.
+   - Os dados são salvos em uma aba com o NOME DA IMOBILIÁRIA.
+   - Se a aba não existir, ela é criada automaticamente.
 =============================================================================
 """
 
@@ -117,44 +106,51 @@ def carregar_dados_sistema():
             df_logins = conn.read(spreadsheet=URL_RANKING, worksheet="Logins")
             df_logins.columns = [str(c).strip() for c in df_logins.columns]
             
-            col_email = next((c for c in df_logins.columns if "e-mail" in c.lower()), "Digite o e-mail")
-            col_senha = next((c for c in df_logins.columns if "senha" in c.lower()), "Digite uma senha")
+            # Mapeamento flexível das colunas de login
+            # Esperamos: Email, Senha, Imobiliaria, Cargo, Nome
+            col_map = {
+                'email': next((c for c in df_logins.columns if "e-mail" in c.lower() or "email" in c.lower()), "Email"),
+                'senha': next((c for c in df_logins.columns if "senha" in c.lower()), "Senha"),
+                'imobiliaria': next((c for c in df_logins.columns if "imob" in c.lower() or "canal" in c.lower()), "Imobiliaria"),
+                'cargo': next((c for c in df_logins.columns if "cargo" in c.lower()), "Cargo"),
+                'nome': next((c for c in df_logins.columns if "nome" in c.lower()), "Nome")
+            }
             
-            if col_email in df_logins.columns and col_senha in df_logins.columns:
-                df_logins = df_logins[[col_email, col_senha]].rename(columns={col_email: 'email', col_senha: 'senha'})
-                df_logins['email'] = df_logins['email'].astype(str).str.strip().str.lower()
-                df_logins['senha'] = df_logins['senha'].astype(str).str.strip()
-            else:
-                df_logins = pd.DataFrame(columns=['email', 'senha'])
+            # Filtra apenas as colunas que existem no DF lido
+            cols_to_keep = [v for k, v in col_map.items() if v in df_logins.columns]
+            df_logins = df_logins[cols_to_keep]
+            
+            # Renomeia para padronizar o acesso interno
+            rename_dict = {v: k for k, v in col_map.items() if v in df_logins.columns}
+            df_logins = df_logins.rename(columns=rename_dict)
+            
+            # Garante que as colunas essenciais existam no DF, mesmo que vazias, para evitar KeyErrors
+            for req_col in ['email', 'senha', 'imobiliaria', 'cargo', 'nome']:
+                if req_col not in df_logins.columns:
+                    df_logins[req_col] = ""
+
+            df_logins['email'] = df_logins['email'].astype(str).str.strip().str.lower()
+            df_logins['senha'] = df_logins['senha'].astype(str).str.strip()
+            
         except Exception:
-            df_logins = pd.DataFrame(columns=['email', 'senha'])
+            df_logins = pd.DataFrame(columns=['email', 'senha', 'imobiliaria', 'cargo', 'nome'])
 
         # --- CARREGAR CADASTROS (CLIENTES) ---
-        # Tenta carregar a aba "Cadastros" onde os dados serão salvos/lidos para busca
+        # Apenas para busca, tentamos carregar uma aba geral ou a primeira aba de clientes que encontrarmos
+        # Para simplificar a busca global, vamos ler 'Cadastros' se existir, ou ignorar por enquanto se for dinâmico
         try:
             df_cadastros = conn.read(spreadsheet=URL_RANKING, worksheet="Cadastros")
-            # Normalizar colunas se necessário, mas vamos confiar na estrutura salva
         except Exception:
-            # Se não existir, cria um DF vazio com as colunas esperadas para evitar erros
-            cols_esperadas = [
-                "Nome", "CPF", "Data de Nascimento", "Prazo Financiamento",
-                "Renda Part. 1", "Renda Part. 2", "Renda Part. 3", "Renda Part. 4",
-                "Ranking", "Política de Pro Soluto", "Fator Social", "Cotista FGTS",
-                "Financiamento Aprovado", "Subsídio Máximo", "Pro Soluto Médio",
-                "Capacidade de Entrada", "Poder de Aquisição Médio",
-                "Empreendimento Final", "Unidade Final", "Preço Unidade Final",
-                "Financiamento Final", "FGTS + Subsídio Final", "Pro Soluto Final",
-                "Número de Parcelas do Pro Soluto", "Mensalidade PS",
-                "Ato", "Ato 30", "Ato 60", "Ato 90"
-            ]
-            df_cadastros = pd.DataFrame(columns=cols_esperadas)
+            # Se não existir aba 'Cadastros', retornamos vazio. 
+            # A busca de clientes antigos fica limitada se os dados estiverem espalhados em abas.
+            # (Futuramente pode-se implementar leitura de múltiplas abas)
+            df_cadastros = pd.DataFrame()
 
         # --- CARREGAR POLÍTICAS ---
         try:
             df_politicas = conn.read(spreadsheet=URL_RANKING) # Aba padrão (primeira)
             df_politicas.columns = [str(c).strip() for c in df_politicas.columns]
             
-            # Normalização da coluna de Classificação para evitar KeyError
             col_classificacao = next((c for c in df_politicas.columns if 'CLASSIFICA' in c.upper()), 'CLASSIFICAÇÃO')
             
             df_politicas = df_politicas.rename(columns={
@@ -371,11 +367,10 @@ def configurar_layout():
             border: none !important; 
             background-color: transparent !important;
         }}
-        /* Força fundo branco para todos os outros inputs para contraste ou mantem consistencia */
+        /* Força fundo branco/cinza para todos os outros inputs */
         div[data-baseweb="input"] {{
-            background-color: #f0f2f6 !important; /* Uniformizando todos para a cor pedida se desejado, ou mantendo branco */
+            background-color: #f0f2f6 !important; 
         }}
-        /* Mas o pedido foi especifico para o box de data ficar igual aos outros. Se os outros sao #f0f2f6, entao data deve ser tambem. */
         
         div[data-testid="stNumberInput"] button:hover {{
             background-color: {COR_VERMELHO} !important;
@@ -666,8 +661,49 @@ def gerar_resumo_pdf(d):
         return None
 
 # =============================================================================
-# 5. TELA DE LOGIN
+# 5. TELA DE LOGIN & CADASTRO
 # =============================================================================
+
+@st.dialog("Criar Nova Conta")
+def modal_criar_conta(conn):
+    st.markdown("Preencha os dados abaixo para solicitar acesso.")
+    with st.form("form_cadastro_usuario"):
+        imobiliaria = st.text_input("Imobiliária / Canal IMOB")
+        cargo = st.text_input("Cargo")
+        nome = st.text_input("Nome Completo")
+        email = st.text_input("E-mail")
+        senha = st.text_input("Senha", type="password")
+        
+        submitted = st.form_submit_button("Cadastrar")
+        
+        if submitted:
+            if not imobiliaria or not nome or not email or not senha:
+                st.error("Preencha todos os campos obrigatórios.")
+            else:
+                try:
+                    # Lê planilha atual para append
+                    try:
+                        df_logins = conn.read(spreadsheet=URL_RANKING, worksheet="Logins")
+                    except:
+                        df_logins = pd.DataFrame(columns=['Email', 'Senha', 'Imobiliaria', 'Cargo', 'Nome'])
+                    
+                    novo_user = pd.DataFrame([{
+                        'Email': email.strip().lower(),
+                        'Senha': senha.strip(),
+                        'Imobiliaria': imobiliaria.strip(),
+                        'Cargo': cargo.strip(),
+                        'Nome': nome.strip()
+                    }])
+                    
+                    df_final = pd.concat([df_logins, novo_user], ignore_index=True)
+                    conn.update(spreadsheet=URL_RANKING, worksheet="Logins", data=df_final)
+                    
+                    st.success("Cadastro realizado com sucesso! Faça login para continuar.")
+                    time.sleep(1.5)
+                    st.rerun()
+                    
+                except Exception as e:
+                    st.error(f"Erro ao salvar cadastro: {e}")
 
 def tela_login(df_logins):
     c1, c2, c3 = st.columns([1, 1.5, 1])
@@ -695,10 +731,20 @@ def tela_login(df_logins):
                 if not usuario_valido.empty:
                     st.session_state['logged_in'] = True
                     st.session_state['user_email'] = email_clean
+                    
+                    # Salva a imobiliária do usuário na sessão para usar no salvamento
+                    imob_user = usuario_valido.iloc[0].get('imobiliaria', 'Geral')
+                    st.session_state['user_imobiliaria'] = str(imob_user).strip() if pd.notnull(imob_user) else 'Geral'
+                    
                     st.success("Login realizado com sucesso!")
                     st.rerun()
                 else:
                     st.error("E-mail ou senha incorretos.")
+        
+        st.markdown("<div style='text-align: center; margin-top: 10px;'>OU</div>", unsafe_allow_html=True)
+        
+        if st.button("Criar Conta", use_container_width=True):
+            modal_criar_conta(st.connection("gsheets", type=GSheetsConnection))
 
 # =============================================================================
 # 6. COMPONENTES DE INTERAÇÃO (SIMULADOR)
@@ -1315,6 +1361,11 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
             try:
                 conn_save = st.connection("gsheets", type=GSheetsConnection)
                 
+                # Identifica qual aba salvar
+                aba_destino = st.session_state.get('user_imobiliaria', 'Cadastros')
+                if not aba_destino or aba_destino == 'nan':
+                    aba_destino = 'Cadastros'
+                
                 # Monta a lista de rendas individuais (garantindo 4 slots)
                 rendas_ind = d.get('rendas_lista', [])
                 while len(rendas_ind) < 4:
@@ -1355,26 +1406,25 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
                 
                 df_novo = pd.DataFrame([nova_linha])
                 
-                # Tratamento robusto para leitura da aba Cadastros
+                # Tenta ler aba existente, se não, cria novo DF
                 try:
-                    df_existente = conn_save.read(spreadsheet=URL_RANKING, worksheet="Cadastros")
+                    df_existente = conn_save.read(spreadsheet=URL_RANKING, worksheet=aba_destino)
                     df_final_save = pd.concat([df_existente, df_novo], ignore_index=True)
-                except Exception as e:
+                except Exception:
+                    # Assume que a aba não existe ou está vazia
                     df_final_save = df_novo
                 
-                conn_save.update(spreadsheet=URL_RANKING, worksheet="Cadastros", data=df_final_save)
-                st.success("Simulação salva com sucesso! Reiniciando...")
+                # Salva na aba específica da imobiliária
+                conn_save.update(spreadsheet=URL_RANKING, worksheet=aba_destino, data=df_final_save)
+                
+                st.success(f"Simulação salva com sucesso na aba '{aba_destino}'! Reiniciando...")
                 time.sleep(2)
                 st.session_state.dados_cliente = {}
                 st.session_state.passo_simulacao = 'input'
                 st.rerun()
                 
             except Exception as e:
-                msg_erro = str(e)
-                if "Cadastros" in msg_erro:
-                    st.error("Erro: A aba 'Cadastros' não foi encontrada na planilha. Por favor, crie uma aba com este nome exato na planilha de Ranking.")
-                else:
-                    st.error(f"Erro ao salvar dados: {e}")
+                st.error(f"Erro ao salvar dados: {e}")
 
         st.markdown("<br>", unsafe_allow_html=True)
         
