@@ -10,15 +10,13 @@ Alterações Realizadas:
 4. Funcionalidade "Criar Conta" removida (Cadastro via Forms).
 5. Adaptação para leitura de Logins via Google Forms.
 6. Remoção da busca de clientes na base.
-7. Atualizações (Update Atual):
-   - Remoção da lógica de envio de códigos por email.
-   - Remoção do modal de criação de conta interna.
-   - Adaptação do carregamento de logins para colunas do Google Forms.
-   - Remoção do SelectBox de busca de clientes na aba de inputs.
-8. Atualizações (Último Pedido):
+7. Atualizações (Update Anterior):
    - Centralização do salvamento na aba 'Cadastros'.
    - Lógica de carregamento de histórico lendo apenas de 'Cadastros'.
    - Integração de envio de e-mail via SMTP (smtplib).
+8. Atualizações (Update Atual):
+   - Melhoria no tratamento de erro de e-mail (SMTPAuthenticationError).
+   - Mensagem explicativa sobre "Senha de App" do Google quando der erro 535.
 =============================================================================
 """
 
@@ -725,6 +723,8 @@ def enviar_email_smtp(destinatario, nome_cliente, pdf_bytes):
         server.sendmail(sender_email, destinatario, msg.as_string())
         server.quit()
         return True, "E-mail enviado com sucesso!"
+    except smtplib.SMTPAuthenticationError:
+        return False, "Erro de Autenticação (535): O Google bloqueou o acesso. Se você usa Gmail, é obrigatório gerar uma 'Senha de App' (App Password) nas configurações de segurança da sua conta Google e usar essa senha no lugar da sua senha normal nos secrets."
     except Exception as e:
         return False, f"Erro ao enviar e-mail: {e}"
 
