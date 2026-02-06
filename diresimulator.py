@@ -7,30 +7,12 @@ Alterações Realizadas:
 1. Implementação de Sistema de Login (Mantido).
 2. Manutenção das funcionalidades anteriores.
 3. Novos Inputs e Fluxo (Updates Anteriores).
-4. Funcionalidade "Criar Conta" (Update Anterior):
-   - Pop-up (st.dialog) para cadastro.
-   - Gravação em abas dinâmicas.
-5. Atualizações (Update Anterior):
-   - Correção CPF Busca.
-   - CSS Botões.
-   - Layout Resumo.
-   - Locale PT-BR.
-   - CSS Data.
-   - Aba Fechamento.
-   - Aba Resumo.
-6. Atualizações (Update Anterior):
-   - Remoção da Aba 'Potential' (Poder de Compra Estimado).
-   - Fluxo: Início -> Recomendação -> Seleção -> Fechamento -> Resumo.
-   - Aba 'Guide':
-     - Ordenação de estoque por Viabilidade (Poder/Preço).
-     - Remoção de labels de texto.
-7. Atualizações (Update Anterior):
-   - Correção Preço Recomendação: Iteração via dict para garantir valor correto.
-   - Restauração de Filtros: Filtros de Bairro, Empreendimento e Preço na aba 'Estoque Geral'.
-   - Unificação Botão Resumo: Botão único que abre pop-up para Baixar PDF ou Enviar Email.
-   - Posicionamento: Botão de opções colocado antes da linha divisória final.
-8. Correção de Erro (Update Atual):
-   - Remoção de caracteres de formatação Markdown que causavam SyntaxError no final do arquivo.
+4. Funcionalidade "Criar Conta" (Update Anterior).
+5. Atualizações (Update Anterior).
+6. Atualizações (Update Atual):
+   - Correção SyntaxError no final do arquivo.
+   - Aba Fechamento: Botão "Avançar" sempre visível.
+   - Validação no clique: Impede avanço se houver saldo a cobrir.
 =============================================================================
 """
 
@@ -74,11 +56,11 @@ ID_FINAN = "1wJD3tXe1e8FxL4mVEfNKGdtaS__Dl4V6-sm1G6qfL0s"
 ID_RANKING = "1N00McOjO1O_MuKyQhp-CVhpAet_9Lfq-VqVm1FmPV00"
 ID_ESTOQUE = "1VG-hgBkddyssN1OXgIA33CVsKGAdqT-5kwbgizxWDZQ"
 
-URL_FINAN = f"[https://docs.google.com/spreadsheets/d/](https://docs.google.com/spreadsheets/d/){ID_FINAN}/edit#gid=0"
-URL_RANKING = f"[https://docs.google.com/spreadsheets/d/](https://docs.google.com/spreadsheets/d/){ID_RANKING}/edit#gid=0"
-URL_ESTOQUE = f"[https://docs.google.com/spreadsheets/d/](https://docs.google.com/spreadsheets/d/){ID_ESTOQUE}/edit#gid=0"
+URL_FINAN = f"https://docs.google.com/spreadsheets/d/{ID_FINAN}/edit#gid=0"
+URL_RANKING = f"https://docs.google.com/spreadsheets/d/{ID_RANKING}/edit#gid=0"
+URL_ESTOQUE = f"https://docs.google.com/spreadsheets/d/{ID_ESTOQUE}/edit#gid=0"
 
-URL_FAVICON_RESERVA = "[https://direcional.com.br/wp-content/uploads/2021/04/cropped-favicon-direcional-32x32.png](https://direcional.com.br/wp-content/uploads/2021/04/cropped-favicon-direcional-32x32.png)"
+URL_FAVICON_RESERVA = "https://direcional.com.br/wp-content/uploads/2021/04/cropped-favicon-direcional-32x32.png"
 
 COR_AZUL_ESC = "#002c5d"
 COR_VERMELHO = "#e30613"
@@ -141,40 +123,41 @@ def carregar_dados_sistema():
             df_logins = conn.read(spreadsheet=URL_RANKING, worksheet="Logins")
             df_logins.columns = [str(c).strip() for c in df_logins.columns]
             
-            # Mapeamento flexível das colunas de login
-            col_map = {
-                'email': next((c for c in df_logins.columns if "e-mail" in c.lower() or "email" in c.lower()), "Email"),
-                'senha': next((c for c in df_logins.columns if "senha" in c.lower()), "Senha"),
-                'imobiliaria': next((c for c in df_logins.columns if "imob" in c.lower() or "canal" in c.lower()), "Imobiliaria"),
-                'cargo': next((c for c in df_logins.columns if "cargo" in c.lower()), "Cargo"),
-                'nome': next((c for c in df_logins.columns if "nome" in c.lower()), "Nome")
-            }
-            
-            cols_to_keep = [v for k, v in col_map.items() if v in df_logins.columns]
-            df_logins = df_logins[cols_to_keep]
-            
-            rename_dict = {v: k for k, v in col_map.items() if v in df_logins.columns}
-            df_logins = df_logins.rename(columns=rename_dict)
-            
-            for req_col in ['email', 'senha', 'imobiliaria', 'cargo', 'nome']:
-                if req_col not in df_logins.columns:
-                    df_logins[req_col] = ""
+            # Normalização de colunas
+            colunas_padrao = ['Email', 'Senha', 'Imobiliaria', 'Cargo', 'Nome', 'Codigo']
+            mapa_renomeacao = {}
+            for col in df_logins.columns:
+                c_lower = col.lower()
+                if "email" in c_lower or "e-mail" in c_lower: mapa_renomeacao[col] = 'Email'
+                elif "senha" in c_lower: mapa_renomeacao[col] = 'Senha'
+                elif "imob" in c_lower or "canal" in c_lower: mapa_renomeacao[col] = 'Imobiliaria'
+                elif "cargo" in c_lower: mapa_renomeacao[col] = 'Cargo'
+                elif "nome" in c_lower: mapa_renomeacao[col] = 'Nome'
+                elif "código" in c_lower or "codigo" in c_lower or "tentativa" in c_lower: mapa_renomeacao[col] = 'Codigo'
 
-            df_logins['email'] = df_logins['email'].astype(str).str.strip().str.lower()
-            df_logins['senha'] = df_logins['senha'].astype(str).str.strip()
+            df_logins = df_logins.rename(columns=mapa_renomeacao)
+            for col in colunas_padrao:
+                if col not in df_logins.columns:
+                    df_logins[col] = ""
+
+            df_logins = df_logins[colunas_padrao].copy()
+            df_logins['Email'] = df_logins['Email'].astype(str).str.strip().str.lower()
+            df_logins['Senha'] = df_logins['Senha'].astype(str).str.strip()
+            df_logins['Codigo'] = df_logins['Codigo'].astype(str).str.strip()
             
         except Exception:
-            df_logins = pd.DataFrame(columns=['email', 'senha', 'imobiliaria', 'cargo', 'nome'])
+            df_logins = pd.DataFrame(columns=['Email', 'Senha', 'Imobiliaria', 'Cargo', 'Nome', 'Codigo'])
 
         # --- CARREGAR CADASTROS (CLIENTES) ---
         try:
             df_cadastros = conn.read(spreadsheet=URL_RANKING, worksheet="Cadastros")
+            df_cadastros.columns = [str(c).strip() for c in df_cadastros.columns]
         except Exception:
             df_cadastros = pd.DataFrame()
 
         # --- CARREGAR POLÍTICAS ---
         try:
-            df_politicas = conn.read(spreadsheet=URL_RANKING) # Aba padrão (primeira)
+            df_politicas = conn.read(spreadsheet=URL_RANKING) 
             df_politicas.columns = [str(c).strip() for c in df_politicas.columns]
             
             col_classificacao = next((c for c in df_politicas.columns if 'CLASSIFICA' in c.upper()), 'CLASSIFICAÇÃO')
@@ -341,7 +324,7 @@ def configurar_layout():
     
     st.markdown(f"""
         <style>
-        @import url('[https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800;900&family=Inter:wght@300;400;500;600;700&display=swap](https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800;900&family=Inter:wght@300;400;500;600;700&display=swap)');
+        @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800;900&family=Inter:wght@300;400;500;600;700&display=swap');
         
         html, body, [data-testid="stAppViewContainer"] {{
             font-family: 'Inter', sans-serif;
@@ -697,6 +680,7 @@ def gerar_resumo_pdf(d):
 
 @st.dialog("Criar Nova Conta")
 def modal_criar_conta(conn):
+    # Inicializa estado se não existir
     if 'signup_stage' not in st.session_state:
         st.session_state.signup_stage = 'form'
 
@@ -727,52 +711,51 @@ def modal_criar_conta(conn):
                 st.error("Preencha todos os campos obrigatórios.")
             else:
                 try:
-                    df_logins = conn.read(spreadsheet=URL_RANKING, worksheet="Logins")
-                    mapa = {}
-                    for c in df_logins.columns:
-                        if "email" in c.lower(): mapa[c] = 'Email'
-                    df_check = df_logins.rename(columns=mapa)
+                    # 1. Salva na planilha geral 'Logins' com Codigo VAZIO
+                    try:
+                        df_logins = conn.read(spreadsheet=URL_RANKING, worksheet="Logins")
+                    except:
+                        df_logins = pd.DataFrame(columns=['Email', 'Senha', 'Imobiliaria', 'Cargo', 'Nome', 'Codigo'])
                     
-                    email_limpo = email.strip().lower()
-                    if 'Email' in df_check.columns and not df_check[df_check['Email'] == email_limpo].empty:
-                        st.error("E-mail já cadastrado.")
-                    else:
-                        novo_user = pd.DataFrame([{
-                            'Email': email_limpo,
-                            'Senha': senha.strip(),
-                            'Imobiliaria': imobiliaria.strip(),
-                            'Cargo': cargo.strip(),
-                            'Nome': nome.strip(),
-                            'Codigo': "" 
-                        }])
-                        
-                        df_final = pd.concat([df_logins, novo_user], ignore_index=True)
-                        conn.update(spreadsheet=URL_RANKING, worksheet="Logins", data=df_final)
+                    # Força as colunas corretas para evitar erros de schema
+                    novo_user = pd.DataFrame([{
+                        'Email': email.strip().lower(),
+                        'Senha': senha.strip(),
+                        'Imobiliaria': imobiliaria.strip(),
+                        'Cargo': cargo.strip(),
+                        'Nome': nome.strip(),
+                        'Codigo': "" 
+                    }])
+                    
+                    # Concat e salva (o Apps Script detectará a nova linha e preencherá o código)
+                    df_final = pd.concat([df_logins, novo_user], ignore_index=True)
+                    conn.update(spreadsheet=URL_RANKING, worksheet="Logins", data=df_final)
 
-                        nome_aba_canal = f"Logins - {imobiliaria.strip()}"
+                    # 2. Salva na aba específica também
+                    nome_aba_canal = f"Logins - {imobiliaria.strip()}"
+                    try:
                         try:
-                            try:
-                                df_canal = conn.read(spreadsheet=URL_RANKING, worksheet=nome_aba_canal)
-                                df_final_canal = pd.concat([df_canal, novo_user], ignore_index=True)
-                            except:
-                                df_final_canal = novo_user
-                            conn.update(spreadsheet=URL_RANKING, worksheet=nome_aba_canal, data=df_final_canal)
+                            df_canal = conn.read(spreadsheet=URL_RANKING, worksheet=nome_aba_canal)
+                            df_final_canal = pd.concat([df_canal, novo_user], ignore_index=True)
                         except:
-                            pass 
-                        
-                        st.session_state.signup_stage = 'verification'
-                        st.session_state.signup_email = email_limpo
-                        st.session_state['fluxo_cadastro_ativo'] = True 
-                        st.rerun()
-                        
+                            df_final_canal = novo_user
+                        conn.update(spreadsheet=URL_RANKING, worksheet=nome_aba_canal, data=df_final_canal)
+                    except:
+                        pass 
+                    
+                    # Atualiza o estado para mostrar a verificação na próxima renderização do modal
+                    st.session_state.signup_stage = 'verification'
+                    st.session_state.signup_email = email.strip().lower()
+                    st.rerun()
+                    
                 except Exception as e:
                     st.error(f"Erro ao iniciar cadastro: {e}")
 
     elif st.session_state.signup_stage == 'verification':
         st.markdown(f"### Verificação de E-mail")
         st.markdown(f"Um código de 6 dígitos foi enviado para **{st.session_state.signup_email}**. Insira-o abaixo:")
-        st.caption("Aguarde alguns instantes para o envio do e-mail.")
         
+        # Input do código
         codigo_input = st.text_input("Código de Verificação", max_chars=6, placeholder="123456", key="verify_code_input")
         
         col_btn_v1, col_btn_v2 = st.columns(2)
@@ -798,19 +781,18 @@ def modal_criar_conta(conn):
                         if user_row.empty:
                             st.error("Usuário não encontrado.")
                         else:
-                            raw_code = str(user_row.iloc[-1]['Codigo']).strip()
-                            if raw_code.endswith('.0'): raw_code = raw_code[:-2]
+                            codigo_real = str(user_row.iloc[-1]['Codigo']).strip()
+                            # Verifica se o código bate. Se vier float da planilha, converte pra int/str limpo
+                            if codigo_real.endswith('.0'): codigo_real = codigo_real[:-2]
 
-                            if raw_code == codigo_input.strip():
+                            if codigo_real == codigo_input.strip():
                                 st.success("Conta verificada com sucesso! Faça login.")
                                 time.sleep(2)
                                 del st.session_state.signup_stage
                                 del st.session_state.signup_email
-                                if 'fluxo_cadastro_ativo' in st.session_state:
-                                    del st.session_state['fluxo_cadastro_ativo']
-                                st.rerun() 
-                            elif not raw_code or raw_code == "nan" or raw_code == "":
-                                st.info("Aguardando o sistema gerar o código... Tente novamente em 5 segundos.")
+                                st.rerun() # Fecha o modal e volta pro login
+                            elif not codigo_real or codigo_real == "nan":
+                                st.info("Aguardando geração do código...")
                             else:
                                 st.error("Código incorreto.")
                     except Exception as e:
@@ -864,8 +846,7 @@ def tela_login(df_logins):
                     st.error("E-mail ou senha incorretos.")
         st.markdown("<div style='text-align: center; margin-top: 10px;'>OU</div>", unsafe_allow_html=True)
         if st.button("Criar Conta", use_container_width=True):
-            st.session_state['fluxo_cadastro_ativo'] = True
-            st.rerun()
+            modal_criar_conta(st.connection("gsheets", type=GSheetsConnection))
 
 # =============================================================================
 # 6. COMPONENTES DE INTERAÇÃO (SIMULADOR)
@@ -1184,6 +1165,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
 
         if comp_r > d.get('limit_ps_renda', 1): st.warning(f"Atenção: Parcela Pro Soluto excede o limite de {d.get('limit_ps_renda', 0)*100:.0f}% da renda.")
         
+        # Bloqueio visual e funcional
         if abs(gap_final) > 1:
             st.error(f"Atenção: A conta não fecha. Falta cobrir R$ {fmt_br(gap_final)} ou há excesso de pagamento.")
 
@@ -1191,6 +1173,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
         st.session_state.dados_cliente.update({'finan_usado': f_u, 'fgts_sub_usado': fgts_u, 'ps_usado': ps_u, 'ps_parcelas': parc, 'ps_mensal': v_parc, 'entrada_total': total_entrada_cash, 'ato_final': st.session_state.ato_1, 'ato_30': st.session_state.ato_2, 'ato_60': st.session_state.ato_3, 'ato_90': st.session_state.ato_4})
         
         st.markdown("---")
+        # Botão de avançar sempre visível, validação no click
         if st.button("Avançar para Resumo de Compra", type="primary", use_container_width=True, key="btn_to_summary_v28"):
             if abs(gap_final) <= 1:
                 st.session_state.passo_simulacao = 'summary'
