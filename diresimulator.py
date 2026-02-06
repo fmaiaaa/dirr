@@ -7,14 +7,14 @@ Alterações Realizadas:
 1. Implementação de Sistema de Login (Mantido).
 2. Manutenção das funcionalidades anteriores.
 3. Novos Inputs e Fluxo (Updates Anteriores).
-4. Funcionalidade "Criar Conta" (Update Anterior).
-5. Atualizações (Update Anterior).
-6. Atualizações (Update Atual):
-   - Correção SyntaxError no final do arquivo (removido ponto final após main()).
-   - Refatoração da lógica do Modal de Cadastro para uso de Callback (on_click).
-     Isso corrige o erro onde o popup de verificação não aparecia após o envio.
-   - Aba Fechamento: Botão "Avançar" sempre visível.
-   - Validação no clique: Impede avanço se houver saldo a cobrir.
+4. Funcionalidade "Criar Conta" removida (Cadastro via Forms).
+5. Adaptação para leitura de Logins via Google Forms.
+6. Remoção da busca de clientes na base.
+7. Atualizações (Update Atual):
+   - Remoção da lógica de envio de códigos por email.
+   - Remoção do modal de criação de conta interna.
+   - Adaptação do carregamento de logins para colunas do Google Forms.
+   - Remoção do SelectBox de busca de clientes na aba de inputs.
 =============================================================================
 """
 
@@ -120,35 +120,51 @@ def carregar_dados_sistema():
                 except: return 0.0
             return 0.0
 
-        # --- CARREGAR LOGINS ---
+        # --- CARREGAR LOGINS (Adaptação para Google Forms) ---
         try:
+            # A planilha agora vem do Forms, então as colunas mudaram
             df_logins = conn.read(spreadsheet=URL_RANKING, worksheet="Logins")
             df_logins.columns = [str(c).strip() for c in df_logins.columns]
             
-            # Normalização de colunas
-            colunas_padrao = ['Email', 'Senha', 'Imobiliaria', 'Cargo', 'Nome', 'Codigo']
+            # Mapeamento baseado nas colunas do Forms:
+            # Carimbo de data/hora -> (Ignorar ou usar para log)
+            # Imobiliária/Canal IMOB -> Imobiliaria
+            # Cargo -> Cargo
+            # Nome -> Nome
+            # Email -> Email
+            # Escolha uma senha para o simulador -> Senha
+            
             mapa_renomeacao = {}
             for col in df_logins.columns:
                 c_lower = col.lower()
-                if "email" in c_lower or "e-mail" in c_lower: mapa_renomeacao[col] = 'Email'
-                elif "senha" in c_lower: mapa_renomeacao[col] = 'Senha'
-                elif "imob" in c_lower or "canal" in c_lower: mapa_renomeacao[col] = 'Imobiliaria'
-                elif "cargo" in c_lower: mapa_renomeacao[col] = 'Cargo'
-                elif "nome" in c_lower: mapa_renomeacao[col] = 'Nome'
-                elif "código" in c_lower or "codigo" in c_lower or "tentativa" in c_lower: mapa_renomeacao[col] = 'Codigo'
+                if "escolha uma senha" in c_lower or "senha" in c_lower:
+                    mapa_renomeacao[col] = 'Senha'
+                elif "imobiliária" in c_lower or "canal" in c_lower or "imob" in c_lower:
+                    mapa_renomeacao[col] = 'Imobiliaria'
+                elif "email" in c_lower or "e-mail" in c_lower:
+                    mapa_renomeacao[col] = 'Email'
+                elif "nome" in c_lower:
+                    mapa_renomeacao[col] = 'Nome'
+                elif "cargo" in c_lower:
+                    mapa_renomeacao[col] = 'Cargo'
 
             df_logins = df_logins.rename(columns=mapa_renomeacao)
-            for col in colunas_padrao:
+            
+            # Colunas necessárias para o sistema
+            colunas_necessarias = ['Email', 'Senha', 'Imobiliaria', 'Cargo', 'Nome']
+            for col in colunas_necessarias:
                 if col not in df_logins.columns:
-                    df_logins[col] = ""
+                    df_logins[col] = "" # Cria vazia se não achar
 
-            df_logins = df_logins[colunas_padrao].copy()
+            df_logins = df_logins[colunas_necessarias].copy()
             df_logins['Email'] = df_logins['Email'].astype(str).str.strip().str.lower()
             df_logins['Senha'] = df_logins['Senha'].astype(str).str.strip()
-            df_logins['Codigo'] = df_logins['Codigo'].astype(str).str.strip()
+            
+            # Remove duplicatas de email, mantendo o último cadastro (caso alguém preencha o forms de novo)
+            df_logins = df_logins.drop_duplicates(subset=['Email'], keep='last')
             
         except Exception:
-            df_logins = pd.DataFrame(columns=['Email', 'Senha', 'Imobiliaria', 'Cargo', 'Nome', 'Codigo'])
+            df_logins = pd.DataFrame(columns=['Email', 'Senha', 'Imobiliaria', 'Cargo', 'Nome'])
 
         # --- CARREGAR CADASTROS (CLIENTES) ---
         try:
@@ -680,139 +696,6 @@ def gerar_resumo_pdf(d):
 # 5. TELA DE LOGIN & CADASTRO
 # =============================================================================
 
-@st.dialog("Criar Nova Conta")
-def modal_criar_conta(conn):
-    # Inicializa estado se não existir
-    if 'signup_stage' not in st.session_state:
-        st.session_state.signup_stage = 'form'
-
-    if st.session_state.signup_stage == 'form':
-        st.markdown("Preencha os dados abaixo para solicitar acesso.")
-        
-        opts_imob = ["Canal IMOB", "DV", "RV", "Trip", "Swell", "Outro"]
-        opts_cargo = ["Coordenador Comercial", "Coordenador IMOB", "Gerente Regional", "Gerente de Vendas", "Corretor", "Outro"]
-
-        st.selectbox("Imobiliária / Canal IMOB", opts_imob, key="reg_imob")
-        if st.session_state.reg_imob == "Outro":
-            st.text_input("Digite o nome da Imobiliária/Canal", key="reg_imob_text")
-        
-        st.selectbox("Cargo", opts_cargo, key="reg_cargo")
-        if st.session_state.reg_cargo == "Outro":
-            st.text_input("Digite o Cargo", key="reg_cargo_text")
-        
-        st.text_input("Nome Completo", key="reg_nome")
-        st.text_input("E-mail", key="reg_email")
-        st.text_input("Senha", type="password", key="reg_senha")
-        
-        def submeter_cadastro(conn_obj):
-            """Callback para processar cadastro sem depender de st.rerun() manual que fecha o modal"""
-            # Recupera valores do session_state
-            imob_sel = st.session_state.get('reg_imob')
-            imob_txt = st.session_state.get('reg_imob_text', '')
-            imobiliaria = imob_txt if imob_sel == "Outro" else imob_sel
-            
-            cargo_sel = st.session_state.get('reg_cargo')
-            cargo_txt = st.session_state.get('reg_cargo_text', '')
-            cargo = cargo_txt if cargo_sel == "Outro" else cargo_sel
-            
-            nome = st.session_state.get('reg_nome', '')
-            email = st.session_state.get('reg_email', '')
-            senha = st.session_state.get('reg_senha', '')
-            
-            if not imobiliaria or not nome or not email or not senha or not cargo:
-                st.error("Preencha todos os campos obrigatórios.")
-            else:
-                try:
-                    # 1. Salva na planilha geral 'Logins' com Codigo VAZIO
-                    try:
-                        df_logins = conn_obj.read(spreadsheet=URL_RANKING, worksheet="Logins")
-                    except:
-                        df_logins = pd.DataFrame(columns=['Email', 'Senha', 'Imobiliaria', 'Cargo', 'Nome', 'Codigo'])
-                    
-                    # Força as colunas corretas para evitar erros de schema
-                    novo_user = pd.DataFrame([{
-                        'Email': email.strip().lower(),
-                        'Senha': senha.strip(),
-                        'Imobiliaria': imobiliaria.strip(),
-                        'Cargo': cargo.strip(),
-                        'Nome': nome.strip(),
-                        'Codigo': "" 
-                    }])
-                    
-                    # Concat e salva (o Apps Script detectará a nova linha e preencherá o código)
-                    df_final = pd.concat([df_logins, novo_user], ignore_index=True)
-                    conn_obj.update(spreadsheet=URL_RANKING, worksheet="Logins", data=df_final)
-
-                    # 2. Salva na aba específica também
-                    nome_aba_canal = f"Logins - {imobiliaria.strip()}"
-                    try:
-                        try:
-                            df_canal = conn_obj.read(spreadsheet=URL_RANKING, worksheet=nome_aba_canal)
-                            df_final_canal = pd.concat([df_canal, novo_user], ignore_index=True)
-                        except:
-                            df_final_canal = novo_user
-                        conn_obj.update(spreadsheet=URL_RANKING, worksheet=nome_aba_canal, data=df_final_canal)
-                    except:
-                        pass 
-                    
-                    # Atualiza o estado para mostrar a verificação na próxima renderização
-                    st.session_state.signup_stage = 'verification'
-                    st.session_state.signup_email = email.strip().lower()
-                    # NOTA: Não chamamos st.rerun() aqui. O fim do callback dispara o rerun automático.
-                    
-                except Exception as e:
-                    st.error(f"Erro ao iniciar cadastro: {e}")
-
-        st.button("Cadastrar e Enviar Código", type="primary", use_container_width=True, on_click=submeter_cadastro, args=(conn,))
-
-    elif st.session_state.signup_stage == 'verification':
-        email_display = st.session_state.get('signup_email', 'seu email')
-        st.markdown(f"### Verificação de E-mail")
-        st.markdown(f"Um código de 6 dígitos foi enviado para **{email_display}**. Insira-o abaixo:")
-        
-        # Input do código
-        codigo_input = st.text_input("Código de Verificação", max_chars=6, placeholder="123456", key="verify_code_input")
-        
-        col_btn_v1, col_btn_v2 = st.columns(2)
-        with col_btn_v1:
-            if st.button("Voltar", use_container_width=True):
-                st.session_state.signup_stage = 'form'
-                st.rerun()
-        with col_btn_v2:
-            if st.button("Validar Cadastro", type="primary", use_container_width=True):
-                if not codigo_input:
-                    st.warning("Digite o código.")
-                else:
-                    try:
-                        df_check = conn.read(spreadsheet=URL_RANKING, worksheet="Logins")
-                        mapa = {}
-                        for c in df_check.columns:
-                            if "email" in c.lower(): mapa[c] = 'Email'
-                            if "codigo" in c.lower() or "código" in c.lower(): mapa[c] = 'Codigo'
-                        
-                        df_check = df_check.rename(columns=mapa)
-                        user_row = df_check[df_check['Email'] == st.session_state.signup_email]
-                        
-                        if user_row.empty:
-                            st.error("Usuário não encontrado.")
-                        else:
-                            codigo_real = str(user_row.iloc[-1]['Codigo']).strip()
-                            # Verifica se o código bate. Se vier float da planilha, converte pra int/str limpo
-                            if codigo_real.endswith('.0'): codigo_real = codigo_real[:-2]
-
-                            if codigo_real == codigo_input.strip():
-                                st.success("Conta verificada com sucesso! Faça login.")
-                                time.sleep(2)
-                                del st.session_state.signup_stage
-                                del st.session_state.signup_email
-                                st.rerun() # Fecha o modal e volta pro login
-                            elif not codigo_real or codigo_real == "nan":
-                                st.info("Aguardando geração do código...")
-                            else:
-                                st.error("Código incorreto.")
-                    except Exception as e:
-                        st.error(f"Erro na validação: {e}")
-
 @st.dialog("Opções de Resumo")
 def modal_opcoes_resumo(pdf_bytes, nome_cliente):
     st.markdown("Escolha uma das opções abaixo:")
@@ -859,9 +742,6 @@ def tela_login(df_logins):
                     st.rerun()
                 else:
                     st.error("E-mail ou senha incorretos.")
-        st.markdown("<div style='text-align: center; margin-top: 10px;'>OU</div>", unsafe_allow_html=True)
-        if st.button("Criar Conta", use_container_width=True):
-            modal_criar_conta(st.connection("gsheets", type=GSheetsConnection))
 
 # =============================================================================
 # 6. COMPONENTES DE INTERAÇÃO (SIMULADOR)
@@ -899,36 +779,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
     # --- ETAPA 1: INPUT ---
     if st.session_state.passo_simulacao == 'input':
         st.markdown("### Dados do Cliente")
-        if not df_cadastros.empty:
-            try:
-                df_cadastros['cpf_str'] = df_cadastros['CPF'].astype(str).apply(limpar_cpf_visual)
-            except: df_cadastros['cpf_str'] = ""
-            df_cadastros['search_label'] = df_cadastros['Nome'].astype(str) + " - " + df_cadastros['cpf_str']
-            opcoes_clientes = [""] + sorted(df_cadastros[df_cadastros['search_label'].str.len() > 3]['search_label'].unique().tolist())
-            cliente_selecionado = st.selectbox("Nome do Cliente (Buscar na Base)", opcoes_clientes, index=0, key="busca_cliente_v3", placeholder="Digite para buscar...")
-            
-            if cliente_selecionado and cliente_selecionado != "":
-                dados_cli = df_cadastros[df_cadastros['search_label'] == cliente_selecionado].iloc[0]
-                if st.session_state.get('last_search') != cliente_selecionado:
-                    st.session_state.dados_cliente['nome'] = str(dados_cli.get('Nome', ''))
-                    st.session_state.dados_cliente['cpf'] = limpar_cpf_visual(dados_cli.get('CPF', ''))
-                    try:
-                        d_nasc = pd.to_datetime(dados_cli.get('Data de Nascimento'), errors='coerce')
-                        if not pd.isnull(d_nasc): st.session_state.dados_cliente['data_nascimento'] = d_nasc.date()
-                    except: pass
-                    st.session_state.dados_cliente['qtd_participantes'] = 1 
-                    rendas_recup = []
-                    for i in range(1, 5):
-                        try:
-                            r_val = float(str(dados_cli.get(f'Renda Part. {i}', 0)).replace(',','.'))
-                            if r_val > 0: rendas_recup.append(r_val)
-                        except: pass
-                    if rendas_recup:
-                        st.session_state.dados_cliente['rendas_lista'] = rendas_recup
-                        st.session_state.dados_cliente['qtd_participantes'] = len(rendas_recup)
-                        st.session_state.dados_cliente['renda'] = sum(rendas_recup)
-                    st.session_state.last_search = cliente_selecionado
-                    st.rerun()
+        # Lógica de busca de clientes removida conforme solicitado
 
         nome = st.text_input("Nome Completo", value=st.session_state.dados_cliente.get('nome', ""), placeholder="Nome Completo", key="in_nome_v28")
         cpf_val = st.text_input("CPF", value=st.session_state.dados_cliente.get('cpf', ""), placeholder="000.000.000-00", key="in_cpf_v3")
