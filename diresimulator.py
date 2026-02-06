@@ -17,12 +17,16 @@ Alterações Realizadas:
    - Correção CPF Busca.
    - CSS Botões.
    - Layout Resumo.
-6. Atualizações (Update Atual):
+6. Atualizações (Update Anterior):
    - Locale PT-BR: Configuração para datas.
-   - CSS Data: Altura e cor (#f0f2f6) corrigidas para match exato.
+   - CSS Data: Altura e cor (#f0f2f6) corrigidas.
    - Aba Potencial: Removido card "Pro Soluto Médio".
-   - Aba Fechamento: Input Pro Soluto movido para o final da lista.
+   - Aba Fechamento: Input Pro Soluto movido para o final.
    - Aba Resumo: Botões de ação com mesma largura.
+7. Atualizações (Update Atual):
+   - Termômetro de Viabilidade: Adicionado na aba de seleção.
+     - Indicador visual (barra de progresso customizada).
+     - Lógica baseada no gap entre Poder de Compra e Valor de Venda.
 =============================================================================
 """
 
@@ -1265,6 +1269,47 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
 
                 uni_escolhida_id = st.selectbox("Escolha a Unidade:", options=current_uni_ids, index=idx_uni, format_func=label_uni, key="sel_uni_new_v3")
 
+            # --- TERMÔMETRO DE VIABILIDADE ---
+            if uni_escolhida_id:
+                u_row = unidades_disp[unidades_disp['Identificador'] == uni_escolhida_id].iloc[0]
+                
+                # Recalcula poder para a unidade específica
+                v_aval = u_row['Valor de Avaliação Bancária']
+                v_venda = u_row['Valor de Venda']
+                
+                fin_t, sub_t, _ = motor.obter_enquadramento(d.get('renda', 0), d.get('social', False), d.get('cotista', True), v_aval)
+                poder_t, _ = motor.calcular_poder_compra(d.get('renda', 0), fin_t, sub_t, d.get('perc_ps', 0), v_venda)
+                
+                gap = poder_t - v_venda
+                
+                # Lógica de cores e texto
+                if gap >= 0:
+                    cor_term = "#22c55e" # Verde
+                    texto_term = "ALTA VIABILIDADE"
+                    largura_bar = "100%"
+                    msg_term = "O poder de compra cobre o valor do imóvel."
+                elif gap >= - (v_venda * 0.1): # Até 10% de falta
+                    cor_term = "#eab308" # Amarelo
+                    texto_term = "MÉDIA VIABILIDADE"
+                    largura_bar = "60%"
+                    msg_term = "Valor um pouco acima do potencial. Necessário aporte adicional."
+                else:
+                    cor_term = "#ef4444" # Vermelho
+                    texto_term = "BAIXA VIABILIDADE"
+                    largura_bar = "25%"
+                    msg_term = "Valor muito acima do potencial calculado."
+
+                st.markdown(f"""
+                    <div style="margin-top: 20px; padding: 15px; border: 1px solid #e2e8f0; border-radius: 10px; background-color: #f8fafc;">
+                        <p style="margin: 0; font-weight: 700; font-size: 0.9rem; color: #002c5d;">TERMÔMETRO DE VIABILIDADE</p>
+                        <div style="width: 100%; background-color: #e2e8f0; border-radius: 5px; height: 10px; margin: 10px 0;">
+                            <div style="width: {largura_bar}; background-color: {cor_term}; height: 100%; border-radius: 5px; transition: width 0.5s;"></div>
+                        </div>
+                        <p style="margin: 0; font-weight: 800; color: {cor_term};">{texto_term}</p>
+                        <p style="margin: 5px 0 0 0; font-size: 0.8rem; color: #64748b;">{msg_term}</p>
+                    </div>
+                """, unsafe_allow_html=True)
+
             st.markdown("<br>", unsafe_allow_html=True)
             
             if st.button("Avançar para Fechamento Financeiro", type="primary", use_container_width=True, key="btn_fech_new_v3"):
@@ -1400,8 +1445,6 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
         if PDF_ENABLED:
             pdf_data = gerar_resumo_pdf(d)
             if pdf_data:
-                # Usando colunas com vertical_alignment="bottom" para alinhar visualmente com outros elementos se necessário
-                # Aqui está isolado, então colunas normais funcionam bem.
                 _, col_btn_center, _ = st.columns([1, 1.2, 1])
                 with col_btn_center:
                     st.download_button(
