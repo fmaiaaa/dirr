@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 =============================================================================
-SISTEMA DE SIMULAÇÃO IMOBILIÁRIA - DIRE RIO V10 (FINAL ADJUSTED DATA & POLICY)
+SISTEMA DE SIMULAÇÃO IMOBILIÁRIA - DIRE RIO V11 (FINAL LOGIC & DATA FIX)
 =============================================================================
 Instruções para Google Colab:
 1. Crie um arquivo chamado 'app.py' com este conteúdo.
@@ -267,6 +267,7 @@ class MotorRecomendacao:
     def obter_enquadramento(self, renda, social, cotista, valor_avaliacao=250000):
         if self.df_finan.empty: return 0.0, 0.0, "N/A"
         
+        # Definição de Faixa Atualizada
         if valor_avaliacao <= 275000: faixa = "F2"
         elif valor_avaliacao <= 350000: faixa = "F3"
         else: faixa = "F4"
@@ -871,20 +872,23 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
             def calcular_viabilidade_unidade(row):
                 v_venda = row['Valor de Venda']
                 v_aval = row['Valor de Avaliação Bancária']
+                # Ensure float
+                try: v_venda = float(v_venda)
+                except: v_venda = 0.0
+                try: v_aval = float(v_aval)
+                except: v_aval = v_venda
+
                 fin, sub, fx_n = motor.obter_enquadramento(d.get('renda', 0), d.get('social', False), d.get('cotista', True), v_aval)
                 
-                # Formula de Viabilidade: 2*Renda + Fin + Sub + PS_Max >= Valor
-                # PS_Max = Valor * perc_ps
-                ps_max = v_venda * d.get('perc_ps', 0)
-                potencial_total = (2 * d.get('renda', 0)) + fin + sub + ps_max
+                # Formula requested: PS(Unidade) + FinMax + SubMax + 2xRenda >= V_Venda
+                ps_max_val = v_venda * d.get('perc_ps', 0.10) # Using percentage from policy
                 
-                # Poder de compra (usado para cards de sugestao) ainda segue a lógica padrão
-                poder, _ = motor.calcular_poder_compra(d.get('renda', 0), fin, sub, d.get('perc_ps', 0), v_venda)
+                capacity = ps_max_val + fin + sub + (2 * d.get('renda', 0))
                 
-                cobertura = (poder / v_venda) * 100 if v_venda > 0 else 0
-                is_viavel = potencial_total >= v_venda
+                cobertura = (capacity / v_venda) * 100 if v_venda > 0 else 0
+                is_viavel = capacity >= v_venda
                 
-                return pd.Series([poder, cobertura, is_viavel, fin, sub])
+                return pd.Series([capacity, cobertura, is_viavel, fin, sub])
 
             df_disp_total[['Poder_Compra', 'Cobertura', 'Viavel', 'Finan_Unid', 'Sub_Unid']] = df_disp_total.apply(calcular_viabilidade_unidade, axis=1)
             # Filtra Viáveis
