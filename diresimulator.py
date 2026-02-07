@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 =============================================================================
-SISTEMA DE SIMULAÇÃO IMOBILIÁRIA - DIRE RIO V3 (FINAL PROFILE EDITION)
+SISTEMA DE SIMULAÇÃO IMOBILIÁRIA - DIRE RIO V3 (FINAL ADJUSTED)
 =============================================================================
 Instruções para Google Colab:
 1. Crie um arquivo chamado 'app.py' com este conteúdo.
@@ -28,8 +28,15 @@ from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from email.mime.application import MIMEApplication
 
+# Tenta importar fpdf
 try:
-    from PIL import Image, ImageOps, ImageDraw
+    from fpdf import FPDF
+    PDF_ENABLED = True
+except ImportError:
+    PDF_ENABLED = False
+
+try:
+    from PIL import Image
 except ImportError:
     Image = None
 import os
@@ -42,13 +49,6 @@ except:
         locale.setlocale(locale.LC_ALL, 'pt_BR')
     except:
         pass
-
-# Tenta importar fpdf
-try:
-    from fpdf import FPDF
-    PDF_ENABLED = True
-except ImportError:
-    PDF_ENABLED = False
 
 # =============================================================================
 # 0. CONSTANTES E UTILITÁRIOS
@@ -63,7 +63,7 @@ URL_ESTOQUE = f"https://docs.google.com/spreadsheets/d/{ID_ESTOQUE}/edit#gid=0"
 
 URL_FAVICON_RESERVA = "https://direcional.com.br/wp-content/uploads/2021/04/cropped-favicon-direcional-32x32.png"
 
-# Paleta de Cores (Design V3)
+# Paleta de Cores
 COR_AZUL_ESC = "#002c5d"
 COR_VERMELHO = "#e30613"
 COR_FUNDO = "#fcfdfe"
@@ -85,22 +85,16 @@ def limpar_cpf_visual(valor):
     return ""
 
 def validar_cpf(cpf):
-    """Validação matemática de CPF conforme algoritmo oficial"""
     cpf = re.sub(r'\D', '', str(cpf))
     if len(cpf) != 11 or len(set(cpf)) == 1: return False
-    
-    # 1º Dígito
     soma = sum(int(cpf[i]) * (10 - i) for i in range(9))
     resto = (soma * 10) % 11
     if resto == 10: resto = 0
     if resto != int(cpf[9]): return False
-    
-    # 2º Dígito
     soma = sum(int(cpf[i]) * (11 - i) for i in range(10))
     resto = (soma * 10) % 11
     if resto == 10: resto = 0
     if resto != int(cpf[10]): return False
-    
     return True
 
 def calcular_cor_gradiente(valor):
@@ -121,7 +115,6 @@ def calcular_cor_gradiente(valor):
 def carregar_dados_sistema():
     try:
         if "connections" not in st.secrets:
-            # Fallback seguro se não houver secrets configurados no Colab
             return pd.DataFrame(), pd.DataFrame(), pd.DataFrame(), pd.DataFrame(), pd.DataFrame()
 
         conn = st.connection("gsheets", type=GSheetsConnection)
@@ -145,15 +138,15 @@ def carregar_dados_sistema():
         try:
             df_logins = conn.read(spreadsheet=URL_RANKING, worksheet="Logins")
             df_logins.columns = [str(c).strip() for c in df_logins.columns]
-            mapa_renomeacao = {}
+            mapa = {}
             for col in df_logins.columns:
                 c_low = col.lower()
-                if "senha" in c_low: mapa_renomeacao[col] = 'Senha'
-                elif "imob" in c_low or "canal" in c_low: mapa_renomeacao[col] = 'Imobiliaria'
-                elif "email" in c_low: mapa_renomeacao[col] = 'Email'
-                elif "nome" in c_low: mapa_renomeacao[col] = 'Nome'
-                elif "cargo" in c_low: mapa_renomeacao[col] = 'Cargo'
-            df_logins = df_logins.rename(columns=mapa_renomeacao)
+                if "senha" in c_low: mapa[col] = 'Senha'
+                elif "imob" in c_low or "canal" in c_low: mapa[col] = 'Imobiliaria'
+                elif "email" in c_low: mapa[col] = 'Email'
+                elif "nome" in c_low: mapa[col] = 'Nome'
+                elif "cargo" in c_low: mapa[col] = 'Cargo'
+            df_logins = df_logins.rename(columns=mapa)
             for c in ['Email', 'Senha', 'Imobiliaria', 'Cargo', 'Nome']:
                 if c not in df_logins.columns: df_logins[c] = ""
             df_logins['Email'] = df_logins['Email'].astype(str).str.strip().str.lower()
@@ -260,8 +253,7 @@ class MotorRecomendacao:
         ps = valor_unidade * perc_ps
         return (2 * renda) + finan + fgts_sub + ps, ps
 
-# CONFIGURACAO DE DESIGN (FONTE 3 - BOTÕES LARGOS E CARDS)
-def configurar_layout():
+def configuring_layout():
     favicon = URL_FAVICON_RESERVA
     if os.path.exists("favicon.png") and Image:
         try: favicon = Image.open("favicon.png")
@@ -292,7 +284,6 @@ def configurar_layout():
 
         .block-container {{ max-width: 1400px !important; padding: 4rem 2rem !important; }}
         
-        /* Inputs & Widgets */
         div[data-baseweb="input"] {{
             border-radius: 8px !important;
             border: 1px solid #e2e8f0 !important;
@@ -322,11 +313,10 @@ def configurar_layout():
 
         div[data-testid="stToggle"] div[aria-checked="true"] {{ background-color: {COR_VERMELHO} !important; }}
         
-        /* BOTÕES LARGOS E DESIGN PREMIUM (FONTE 3) */
         .stButton button {{ 
             font-family: 'Inter', sans-serif;
             border-radius: 8px !important; 
-            padding: 20px 40px !important; /* Mais grossos conforme solicitado */
+            padding: 20px 40px !important; 
             width: 100% !important;
             font-weight: 700 !important; 
             text-transform: uppercase;
@@ -382,7 +372,6 @@ def configurar_layout():
             opacity: 0.8;
         }}
         
-        /* Cards de Recomendação */
         .card, .fin-box, .recommendation-card, .login-card {{ 
             background: #ffffff; 
             padding: 25px; 
@@ -451,23 +440,33 @@ def configurar_layout():
         .metric-label {{ color: {COR_AZUL_ESC} !important; opacity: 0.7; font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.15em; margin-bottom: 8px; }}
         .metric-value {{ color: {COR_AZUL_ESC} !important; font-size: 1.8rem; font-weight: 800; font-family: 'Montserrat', sans-serif; }}
 
-        /* BADGES (FONTE 3) */
+        /* BADGES */
         .badge-ideal {{ background-color: #22c55e; color: white; padding: 6px 14px; border-radius: 20px; font-weight: bold; font-size: 0.85rem; margin-top: 10px; text-transform: uppercase; letter-spacing: 0.05em; }}
         .badge-seguro {{ background-color: #eab308; color: white; padding: 6px 14px; border-radius: 20px; font-weight: bold; font-size: 0.85rem; margin-top: 10px; text-transform: uppercase; letter-spacing: 0.05em; }}
         .badge-facilitado {{ background-color: #f97316; color: white; padding: 6px 14px; border-radius: 20px; font-weight: bold; font-size: 0.85rem; margin-top: 10px; text-transform: uppercase; letter-spacing: 0.05em; }}
         .badge-multi {{ background: linear-gradient(90deg, #eab308 0%, #f97316 100%); color: white; padding: 6px 14px; border-radius: 20px; font-weight: bold; font-size: 0.85rem; margin-top: 10px; text-transform: uppercase; letter-spacing: 0.05em; }}
 
-        /* Sidebar (FONTE 1) */
+        /* Sidebar Styling */
         [data-testid="stSidebar"] {{ background-color: #fff; border-right: 1px solid {COR_BORDA}; }}
-        .profile-container {{ text-align: center; margin-bottom: 10px; }}
-        .profile-name {{ font-weight: 800; font-size: 1.1rem; color: {COR_AZUL_ESC}; margin-top: 5px; }}
-        .profile-role {{ font-size: 0.85rem; color: #64748b; font-weight: 600; }}
+        .profile-container {{ text-align: center; margin-bottom: 10px; padding: 15px; background: #f8fafc; border-radius: 12px; }}
+        .profile-name {{ font-weight: 800; font-size: 1.1rem; color: {COR_AZUL_ESC}; }}
+        .profile-role {{ font-size: 0.85rem; color: #64748b; font-weight: 600; margin-bottom: 5px; }}
+        .profile-sub {{ font-size: 0.8rem; color: #94a3b8; }}
+        
+        .hist-item {{ display: block; width: 100%; text-align: left; padding: 12px; margin-bottom: 8px; border-radius: 8px; background: #fff; border: 1px solid {COR_BORDA}; color: {COR_AZUL_ESC}; font-size: 0.85rem; transition: all 0.2s; }}
+        .hist-item:hover {{ border-color: {COR_VERMELHO}; background: #fff5f5; }}
+
+        /* Tabs Centered */
+        div[data-baseweb="tab-list"] {{ justify-content: center !important; gap: 40px; margin-bottom: 40px; }}
+        button[data-baseweb="tab"] p {{ color: {COR_AZUL_ESC} !important; opacity: 0.6; font-weight: 700 !important; font-family: 'Montserrat', sans-serif !important; font-size: 0.9rem !important; text-transform: uppercase; letter-spacing: 0.1em; }}
+        button[data-baseweb="tab"][aria-selected="true"] p {{ color: {COR_AZUL_ESC} !important; opacity: 1; }}
+        div[data-baseweb="tab-highlight"] {{ background-color: {COR_VERMELHO} !important; height: 3px !important; }}
         
         .footer {{ text-align: center; padding: 80px 0; color: {COR_AZUL_ESC} !important; font-size: 0.8rem; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; opacity: 0.6; }}
         </style>
     """, unsafe_allow_html=True)
 
-# ... (Funções PDF e Email - Fonte 2) ...
+# ... (Funções PDF e Email) ...
 def gerar_resumo_pdf(d):
     if not PDF_ENABLED: return None
     try:
@@ -563,6 +562,27 @@ def tela_login(df_logins):
                     st.success("Login realizado!"); st.rerun()
                 else: st.error("Credenciais inválidas.")
 
+@st.dialog("Opções de Exportação")
+def show_export_dialog(d):
+    st.markdown("Escolha como deseja exportar o resumo da simulação.")
+    pdf_data = gerar_resumo_pdf(d)
+    
+    if pdf_data:
+        st.download_button(label="📄 Baixar PDF", data=pdf_data, file_name=f"Resumo_Direcional_{d.get('nome', 'Cliente')}.pdf", mime="application/pdf", use_container_width=True)
+    else:
+        st.warning("Geração de PDF indisponível.")
+    
+    st.markdown("---")
+    st.markdown("**Enviar por E-mail**")
+    email = st.text_input("Endereço de e-mail", placeholder="cliente@exemplo.com")
+    if st.button("✉️ Enviar Email", use_container_width=True):
+        if email and "@" in email:
+            sucesso, msg = enviar_email_smtp(email, d.get('nome', 'Cliente'), pdf_data)
+            if sucesso: st.success(msg)
+            else: st.error(msg)
+        else:
+            st.error("E-mail inválido")
+
 # =============================================================================
 # APLICAÇÃO PRINCIPAL
 # =============================================================================
@@ -572,68 +592,70 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
     motor = MotorRecomendacao(df_finan, df_estoque, df_politicas)
     if 'dados_cliente' not in st.session_state: st.session_state.dados_cliente = {}
 
-    # --- SIDEBAR PERFIL (ATUALIZADA: MENU POP-UP) ---
+    # --- SIDEBAR PERFIL (ATUALIZADA: SEM FOTO, DADOS DIRETOS) ---
     with st.sidebar:
-        # Foto Circular e Menu no Topo
-        if 'profile_pic' not in st.session_state: st.session_state['profile_pic'] = None
-        
-        img_show = st.session_state['profile_pic'] if st.session_state['profile_pic'] else Image.new('RGB', (150, 150), color='#f1f5f9')
-        
-        # Máscara circular
-        mask = Image.new('L', (150, 150), 0)
-        ImageDraw.Draw(mask).ellipse((0, 0, 150, 150), fill=255)
-        img_show = ImageOps.fit(img_show, mask.size, centering=(0.5, 0.5))
-        img_show.putalpha(mask)
-        
-        # Centraliza Avatar
-        c_av1, c_av2, c_av3 = st.columns([1, 2, 1])
-        with c_av2: st.image(img_show, width=130)
-        
-        # Menu Popover (Bolinha de Perfil)
         user_name = st.session_state.get('user_name', 'Corretor').upper()
-        with st.popover(f"Olá, {user_name}", use_container_width=True):
-            st.markdown(f"<small>Cargo: {st.session_state.get('user_cargo', 'Consultor').upper()}</small>", unsafe_allow_html=True)
-            st.markdown("---")
-            menu_opcao = st.radio("Menu", ["Editar Perfil", "Histórico"], label_visibility="collapsed")
-            
-            if menu_opcao == "Editar Perfil":
-                uploaded = st.file_uploader("Alterar foto", type=["jpg", "png"])
-                if uploaded: 
-                    st.session_state['profile_pic'] = Image.open(uploaded)
-                    st.rerun()
-            
-            elif menu_opcao == "Histórico":
-                try:
-                    conn = st.connection("gsheets", type=GSheetsConnection)
-                    df_h = conn.read(spreadsheet=URL_RANKING, worksheet="Cadastros")
-                    if not df_h.empty and 'Nome do Corretor' in df_h.columns:
-                        my_hist = df_h[df_h['Nome do Corretor'] == st.session_state.get('user_name')].tail(10)
-                        if not my_hist.empty:
-                            for idx, row in my_hist.iterrows():
-                                label = f"{row.get('Nome', 'Cli')} | {row.get('Empreendimento Final', 'Emp')}"
-                                if st.button(label, key=f"hist_{idx}", use_container_width=True):
-                                    # Carrega dados
-                                    st.session_state.dados_cliente = {
-                                        'nome': row.get('Nome'), 'empreendimento_nome': row.get('Empreendimento Final'),
-                                        'unidade_id': row.get('Unidade Final'),
-                                        'imovel_valor': float(str(row.get('Preço Unidade Final', 0)).replace('R$','').replace('.','').replace(',','.')),
-                                        'finan_estimado': float(str(row.get('Financiamento Aprovado', 0)).replace('R$','').replace('.','').replace(',','.')),
-                                        'fgts_sub': float(str(row.get('Subsídio Máximo', 0)).replace('R$','').replace('.','').replace(',','.')),
-                                        'finan_usado': float(str(row.get('Financiamento Final', 0)).replace('R$','').replace('.','').replace(',','.')),
-                                        'fgts_sub_usado': float(str(row.get('FGTS + Subsídio Final', 0)).replace('R$','').replace('.','').replace(',','.')),
-                                        'ps_usado': float(str(row.get('Pro Soluto Final', 0)).replace('R$','').replace('.','').replace(',','.')),
-                                        'ps_parcelas': int(float(str(row.get('Número de Parcelas do Pro Soluto', 0)).replace(',','.'))),
-                                        'ps_mensal': float(str(row.get('Mensalidade PS', 0)).replace('R$','').replace('.','').replace(',','.')),
-                                        'ato_final': float(str(row.get('Ato', 0)).replace('R$','').replace('.','').replace(',','.')),
-                                        'ato_30': float(str(row.get('Ato 30', 0)).replace('R$','').replace('.','').replace(',','.')),
-                                        'ato_60': float(str(row.get('Ato 60', 0)).replace('R$','').replace('.','').replace(',','.')),
-                                        'ato_90': float(str(row.get('Ato 90', 0)).replace('R$','').replace('.','').replace(',','.')),
-                                    }
-                                    st.session_state.dados_cliente['entrada_total'] = st.session_state.dados_cliente['ato_final'] + st.session_state.dados_cliente['ato_30'] + st.session_state.dados_cliente['ato_60'] + st.session_state.dados_cliente['ato_90']
-                                    st.session_state.passo_simulacao = 'summary'
-                                    st.rerun()
-                        else: st.caption("Nenhum histórico recente.")
-                except: st.caption("Erro ao carregar histórico.")
+        user_cargo = st.session_state.get('user_cargo', 'Consultor').upper()
+        user_imob = st.session_state.get('user_imobiliaria', 'Direcional').upper()
+        
+        st.markdown(f"""
+        <div class="profile-container">
+            <div class="profile-name">{user_name}</div>
+            <div class="profile-role">{user_cargo}</div>
+            <div class="profile-sub">{user_imob}</div>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        st.markdown("---")
+        st.markdown("#### Histórico de Simulações")
+        
+        search_term = st.text_input("Buscar cliente...", placeholder="Digite o nome", label_visibility="collapsed")
+        
+        try:
+            conn = st.connection("gsheets", type=GSheetsConnection)
+            df_h = conn.read(spreadsheet=URL_RANKING, worksheet="Cadastros")
+            if not df_h.empty and 'Nome do Corretor' in df_h.columns:
+                # Filtra pelo corretor
+                my_hist = df_h[df_h['Nome do Corretor'] == st.session_state.get('user_name')]
+                
+                # Filtra pela busca se houver
+                if search_term:
+                    my_hist = my_hist[my_hist['Nome'].astype(str).str.contains(search_term, case=False, na=False)]
+                
+                # Ordena e pega os últimos
+                my_hist = my_hist.tail(15).iloc[::-1] # Inverte para mostrar mais recente primeiro
+                
+                if not my_hist.empty:
+                    for idx, row in my_hist.iterrows():
+                        label = f"{row.get('Nome', 'Cli')} | {row.get('Empreendimento Final', 'Emp')}"
+                        # Botões diretos, um embaixo do outro
+                        if st.button(label, key=f"hist_{idx}", use_container_width=True):
+                            # Carrega dados
+                            st.session_state.dados_cliente = {
+                                'nome': row.get('Nome'), 'empreendimento_nome': row.get('Empreendimento Final'),
+                                'unidade_id': row.get('Unidade Final'),
+                                'imovel_valor': float(str(row.get('Preço Unidade Final', 0)).replace('R$','').replace('.','').replace(',','.')),
+                                'finan_estimado': float(str(row.get('Financiamento Aprovado', 0)).replace('R$','').replace('.','').replace(',','.')),
+                                'fgts_sub': float(str(row.get('Subsídio Máximo', 0)).replace('R$','').replace('.','').replace(',','.')),
+                                'finan_usado': float(str(row.get('Financiamento Final', 0)).replace('R$','').replace('.','').replace(',','.')),
+                                'fgts_sub_usado': float(str(row.get('FGTS + Subsídio Final', 0)).replace('R$','').replace('.','').replace(',','.')),
+                                'ps_usado': float(str(row.get('Pro Soluto Final', 0)).replace('R$','').replace('.','').replace(',','.')),
+                                'ps_parcelas': int(float(str(row.get('Número de Parcelas do Pro Soluto', 0)).replace(',','.'))),
+                                'ps_mensal': float(str(row.get('Mensalidade PS', 0)).replace('R$','').replace('.','').replace(',','.')),
+                                'ato_final': float(str(row.get('Ato', 0)).replace('R$','').replace('.','').replace(',','.')),
+                                'ato_30': float(str(row.get('Ato 30', 0)).replace('R$','').replace('.','').replace(',','.')),
+                                'ato_60': float(str(row.get('Ato 60', 0)).replace('R$','').replace('.','').replace(',','.')),
+                                'ato_90': float(str(row.get('Ato 90', 0)).replace('R$','').replace('.','').replace(',','.')),
+                            }
+                            st.session_state.dados_cliente['entrada_total'] = st.session_state.dados_cliente['ato_final'] + st.session_state.dados_cliente['ato_30'] + st.session_state.dados_cliente['ato_60'] + st.session_state.dados_cliente['ato_90']
+                            st.session_state.passo_simulacao = 'summary'
+                            st.rerun()
+                else:
+                    st.caption("Nenhum histórico encontrado.")
+            else:
+                st.caption("Sem dados.")
+        except:
+            st.caption("Erro ao carregar histórico.")
 
     # --- ETAPA 1: INPUT ---
     if passo == 'input':
@@ -690,60 +712,22 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
             limit_ps_r = politica_row['FX_RENDA_1'] if renda_total_calc < politica_row['FAIXA_RENDA'] else politica_row['FX_RENDA_2']
             f_faixa_ref, s_faixa_ref, fx_nome_ref = motor.obter_enquadramento(renda_total_calc, social, cotista, valor_avaliacao=240000)
             
-            # Recalcula Potencial Médio (V3 Logic)
-            v_medio_est = df_estoque[df_estoque['Status'] == 'Disponível']['Valor de Venda'].mean() if not df_estoque.empty else 0
-            ps_medio_est = v_medio_est * politica_row['PROSOLUTO']
-            cap_entrada = 2 * renda_total_calc
-            poder_aquisicao = f_faixa_ref + s_faixa_ref + ps_medio_est + cap_entrada
-
             st.session_state.dados_cliente.update({
                 'nome': nome, 'cpf': limpar_cpf_visual(cpf_val), 'data_nascimento': data_nasc, 'genero': genero,
                 'renda': renda_total_calc, 'rendas_lista': lista_rendas_input,
                 'social': social, 'cotista': cotista, 'ranking': ranking, 'politica': politica_ps,
                 'perc_ps': politica_row['PROSOLUTO'], 'prazo_ps_max': int(politica_row['PARCELAS']),
                 'limit_ps_renda': limit_ps_r, 'finan_f_ref': f_faixa_ref, 'sub_f_ref': s_faixa_ref,
-                'ps_medio_ref': ps_medio_est, 'cap_entrada_ref': cap_entrada, 'poder_aquisicao_ref': poder_aquisicao,
                 'qtd_participantes': qtd_part, 'prazo_financiamento': prazo_finan
             })
             st.session_state.passo_simulacao = destino
             st.rerun()
 
-        if st.button("Caminho Completo (Ver Potencial)", type="primary", use_container_width=True, key="btn_completo_v3"): processar_avanco('potential')
-        if st.button("Simulação Direta (Ir para Imóveis)", use_container_width=True, key="btn_direto_v3"): processar_avanco('guide') # Direto para recomendação/seleção
+        # Botão único para avançar para a recomendação
+        if st.button("AVANÇAR PARA RECOMENDAÇÃO", type="primary", use_container_width=True, key="btn_avancar_guide"):
+            processar_avanco('guide')
 
-    # --- ETAPA 2: POTENCIAL (V3 FLOW) ---
-    elif passo == 'potential':
-        d = st.session_state.dados_cliente
-        st.markdown(f"### Valor Potencial de Compra - {d.get('nome', 'Cliente')}")
-        
-        fin_ref = d.get('finan_f_ref', 0)
-        sub_ref = d.get('sub_f_ref', 0)
-        ps_medio = d.get('ps_medio_ref', 0)
-        dobro_renda = d.get('cap_entrada_ref', 0)
-        pot_final = d.get('poder_aquisicao_ref', 0)
-        
-        m1, m2, m3, m4 = st.columns(4)
-        with m1: st.markdown(f'<div class="card"><p class="metric-label">Financiamento Aprovado</p><p class="metric-value">R$ {fmt_br(fin_ref)}</p></div>', unsafe_allow_html=True)
-        with m2: st.markdown(f'<div class="card"><p class="metric-label">Subsídio Aprovado</p><p class="metric-value">R$ {fmt_br(sub_ref)}</p></div>', unsafe_allow_html=True)
-        with m3: st.markdown(f'<div class="card"><p class="metric-label">Pro Soluto Médio</p><p class="metric-value">R$ {fmt_br(ps_medio)}</p></div>', unsafe_allow_html=True)
-        with m4: st.markdown(f'<div class="card"><p class="metric-label">Capacidade de Entrada</p><p class="metric-value">R$ {fmt_br(dobro_renda)}</p></div>', unsafe_allow_html=True)
-
-        st.markdown(f"""
-            <div class="card" style="border-top: 4px solid {COR_AZUL_ESC}; background: #ffffff; min-height: 120px;">
-                <p class="metric-label" style="color: {COR_AZUL_ESC}; font-size: 0.8rem;">Poder de Aquisição Médio</p>
-                <p class="metric-value" style="font-size: 2.8rem; color: {COR_AZUL_ESC};">R$ {fmt_br(pot_final)}</p>
-            </div>
-        """, unsafe_allow_html=True)
-        
-        st.markdown('<div class="custom-alert">Este valor é apenas uma estimativa guia. A viabilidade real será calculada para cada unidade individualmente na próxima etapa.</div>', unsafe_allow_html=True)
-        
-        if st.button("Avançar para Recomendação de Imóveis", type="primary", use_container_width=True, key="btn_s2_v28"):
-            st.session_state.passo_simulacao = 'guide'; st.rerun()
-        st.write("")
-        if st.button("Voltar para Dados do Cliente", use_container_width=True, key="btn_edit_v28"):
-            st.session_state.passo_simulacao = 'input'; st.rerun()
-
-    # --- ETAPA 3: RECOMENDAÇÃO GRANULAR (V3 LOGIC) ---
+    # --- ETAPA 2: RECOMENDAÇÃO (Direto do Input) ---
     elif passo == 'guide':
         d = st.session_state.dados_cliente
         st.markdown(f"### Recomendação de Imóveis")
@@ -765,34 +749,34 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
             df_viaveis = df_disp_total[df_disp_total['Viavel']].copy()
             df_panorama = df_viaveis[df_viaveis['Viavel']]
         
-        # Abas de Recomendação
-        tab_sugestoes, tab_estoque = st.tabs(["Sugestões Inteligentes", "Estoque Geral"])
+        # PANORAMA DE PRODUTOS
+        st.markdown("#### Panorama de Produtos Viáveis")
+        if df_panorama.empty:
+            st.markdown('<div class="custom-alert">Nenhum empreendimento 100% viável encontrado. Veja abaixo opções que podem se encaixar.</div>', unsafe_allow_html=True)
+        else:
+            emp_counts = df_panorama.groupby('Empreendimento').size().to_dict()
+            items = list(emp_counts.items())
+            cols_per_row = 3
+            for i in range(0, len(items), cols_per_row):
+                row_items = items[i:i+cols_per_row]
+                row_cols = st.columns(len(row_items))
+                for idx, (emp, qtd) in enumerate(row_items):
+                    with row_cols[idx]:
+                        st.markdown(f"""
+                            <div class="card" style="min-height: 80px; padding: 15px; border-top: 3px solid {COR_VERMELHO};">
+                                <p style="margin:0; font-weight:700; color:{COR_AZUL_ESC};">{emp}</p>
+                                <p style="margin:5px 0 0 0; font-size:0.85rem; color:{COR_TEXTO_MUTED};">{qtd} unidades viaveis</p>
+                            </div>
+                        """, unsafe_allow_html=True)
+
+        st.write("")
+        # ABAS DE SELEÇÃO CENTRALIZADAS
+        tab_sugestoes, tab_estoque = st.tabs(["SUGESTÕES DE UNIDADES", "ESTOQUE GERAL"])
 
         with tab_sugestoes:
-            # PANORAMA DE PRODUTOS
-            st.markdown("#### Panorama de Produtos Viáveis")
-            if df_panorama.empty:
-                st.markdown('<div class="custom-alert">Nenhum empreendimento 100% viável encontrado. Veja abaixo opções que podem se encaixar.</div>', unsafe_allow_html=True)
-            else:
-                emp_counts = df_panorama.groupby('Empreendimento').size().to_dict()
-                items = list(emp_counts.items())
-                cols_per_row = 3
-                for i in range(0, len(items), cols_per_row):
-                    row_items = items[i:i+cols_per_row]
-                    row_cols = st.columns(len(row_items))
-                    for idx, (emp, qtd) in enumerate(row_items):
-                        with row_cols[idx]:
-                            st.markdown(f"""
-                                <div class="card" style="min-height: 80px; padding: 15px; border-top: 3px solid {COR_VERMELHO};">
-                                    <p style="margin:0; font-weight:700; color:{COR_AZUL_ESC};">{emp}</p>
-                                    <p style="margin:5px 0 0 0; font-size:0.85rem; color:{COR_TEXTO_MUTED};">{qtd} unidades viaveis</p>
-                                </div>
-                            """, unsafe_allow_html=True)
-
-            st.write("")
-            st.markdown("#### Destaques de Unidades")
+            st.markdown("<br>", unsafe_allow_html=True)
             emp_names_rec = sorted(df_disp_total['Empreendimento'].unique().tolist())
-            emp_rec = st.selectbox("Escolha um empreendimento para ver destaques:", options=["Todos"] + emp_names_rec, key="sel_emp_rec_v28")
+            emp_rec = st.selectbox("Escolha um empreendimento para obter recomendações:", options=["Todos"] + emp_names_rec, key="sel_emp_rec_v28")
             df_pool = df_disp_total if emp_rec == "Todos" else df_disp_total[df_disp_total['Empreendimento'] == emp_rec]
             
             if df_pool.empty: st.markdown('<div class="custom-alert">Nenhuma unidade encontrada.</div>', unsafe_allow_html=True)
@@ -835,12 +819,13 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
                             if len(card['labels']) > 1 and "SEGURO" in card['labels'] and "FACILITADO" in card['labels']: labels_html = f'<span class="badge-multi">SEGURO & FACILITADO</span>'
                             st.markdown(f'''
                             <div class="recommendation-card" style="border-top: 4px solid {COR_AZUL_ESC}; height: 100%; justify-content: flex-start;">
-                                <b style="color:{COR_AZUL_ESC}; font-size:1.1rem;">{card['emp']}</b><br>
-                                <div class="price-tag" style="font-size:1.4rem; margin:10px 0;">R$ {fmt_br(card['preco'])}</div>
+                                <span style="font-size:0.65rem; color:{COR_AZUL_ESC}; opacity:0.8;">PERFIL</span><br>
                                 <div style="margin-top:5px; margin-bottom:15px;">{labels_html}</div>
+                                <b style="color:{COR_AZUL_ESC}; font-size:1.1rem;">{card['emp']}</b><br>
                                 <div style="font-size:0.85rem; color:{COR_TEXTO_MUTED}; text-align:center; border-top:1px solid #eee; padding-top:10px; width:100%;">
-                                    <b>Unidades (Ex):</b><br>{card['unidades']}
+                                    <b>Unidade(s):</b><br>{card['unidades']}
                                 </div>
+                                <div class="price-tag" style="font-size:1.4rem; margin:10px 0;">R$ {fmt_br(card['preco'])}</div>
                             </div>''', unsafe_allow_html=True)
 
         with tab_estoque:
@@ -883,11 +868,11 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
                 )
 
         st.markdown("---")
-        if st.button("Avançar para Seleção de Unidade", type="primary", use_container_width=True, key="btn_goto_selection"): st.session_state.passo_simulacao = 'selection'; st.rerun()
+        if st.button("AVANÇAR PARA SELEÇÃO DE UNIDADE", type="primary", use_container_width=True, key="btn_goto_selection"): st.session_state.passo_simulacao = 'selection'; st.rerun()
         st.write(""); 
-        if st.button("Voltar para Valor Potencial", use_container_width=True, key="btn_pot_v28"): st.session_state.passo_simulacao = 'potential'; st.rerun()
+        if st.button("VOLTAR PARA DADOS DO CLIENTE", use_container_width=True, key="btn_pot_v28"): st.session_state.passo_simulacao = 'input'; st.rerun()
 
-    # --- ETAPA 4: SELEÇÃO + TERMOMETRO ---
+    # --- ETAPA 3: SELEÇÃO + TERMOMETRO ---
     elif passo == 'selection':
         d = st.session_state.dados_cliente
         st.markdown(f"### Seleção de Unidade")
@@ -952,7 +937,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
                     st.session_state.passo_simulacao = 'payment_flow'; st.rerun()
             if st.button("Voltar", use_container_width=True): st.session_state.passo_simulacao = 'guide'; st.rerun()
 
-    # --- ETAPA 5: FECHAMENTO FINANCEIRO ---
+    # --- ETAPA 4: FECHAMENTO FINANCEIRO ---
     elif passo == 'payment_flow':
         d = st.session_state.dados_cliente
         st.markdown(f"### Fechamento Financeiro")
@@ -1057,7 +1042,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
             else: st.error(f"O saldo a cobrir deve ser zerado.")
         if st.button("Voltar", use_container_width=True): st.session_state.passo_simulacao = 'selection'; st.rerun()
 
-    # --- ETAPA 6: RESUMO ---
+    # --- ETAPA 5: RESUMO ---
     elif passo == 'summary':
         d = st.session_state.dados_cliente
         st.markdown(f"### Resumo da Simulação - {d.get('nome', 'Cliente')}")
@@ -1070,17 +1055,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
 
         st.markdown("---")
         if st.button("Opções de Resumo (PDF / E-mail)", use_container_width=True):
-            if PDF_ENABLED:
-                pdf_data = gerar_resumo_pdf(d)
-                with st.expander("Opções de Exportação", expanded=True):
-                    if pdf_data: st.download_button(label="📄 Baixar PDF", data=pdf_data, file_name=f"Resumo_Direcional_{d.get('nome', 'Cliente')}.pdf", mime="application/pdf", use_container_width=True)
-                    email = st.text_input("Endereço de e-mail", placeholder="cliente@exemplo.com")
-                    if st.button("✉️ Enviar Email", use_container_width=True):
-                        if email and "@" in email:
-                            sucesso, msg = enviar_email_smtp(email, d.get('nome', 'Cliente'), pdf_data)
-                            if sucesso: st.success(msg)
-                            else: st.error(msg)
-            else: st.warning("Geração de PDF indisponível.")
+            show_export_dialog(d)
 
         st.markdown("---")
         if st.button("CONCLUIR E SALVAR SIMULAÇÃO", type="primary", use_container_width=True):
