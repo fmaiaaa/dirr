@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 =============================================================================
-SISTEMA DE SIMULAÇÃO IMOBILIÁRIA - DIRE RIO V16 (ULTRA MODERN UI)
+SISTEMA DE SIMULAÇÃO IMOBILIÁRIA - DIRE RIO V17 (ENTERPRISE EDITION)
 =============================================================================
 Instruções para Google Colab:
 1. Crie um arquivo chamado 'app.py' com este conteúdo.
@@ -53,7 +53,7 @@ except:
 # =============================================================================
 # 0. CONSTANTES E UTILITÁRIOS
 # =============================================================================
-# IDs das Planilhas (Substitua se mudarem)
+# IDs das Planilhas
 ID_FINAN = "1wJD3tXe1e8FxL4mVEfNKGdtaS__Dl4V6-sm1G6qfL0s"
 ID_RANKING = "1N00McOjO1O_MuKyQhp-CVhpAet_9Lfq-VqVm1FmPV00"
 ID_ESTOQUE = "1VG-hgBkddyssN1OXgIA33CVsKGAdqT-5kwbgizxWDZQ"
@@ -64,15 +64,15 @@ URL_ESTOQUE = f"https://docs.google.com/spreadsheets/d/{ID_ESTOQUE}/edit#gid=0"
 
 URL_FAVICON_RESERVA = "https://direcional.com.br/wp-content/uploads/2021/04/cropped-favicon-direcional-32x32.png"
 
-# Paleta de Cores - Design System Moderno
-COR_AZUL_ESC = "#002c5d"   # Primary Brand
-COR_VERMELHO = "#e30613"   # Accent Brand
-COR_FUNDO_APP = "#F3F5F9"  # Ultra Light Grey Background
-COR_CARD_BG = "#FFFFFF"    # Pure White Cards
-COR_TEXTO_PRI = "#1E293B"  # Slate 800
-COR_TEXTO_SEC = "#64748B"  # Slate 500
+# Paleta de Cores - Enterprise Design System
+COR_AZUL_ESC = "#002c5d"   # Brand Primary
+COR_VERMELHO = "#e30613"   # Brand Accent
+COR_FUNDO_APP = "#F8FAFC"  # Ultra Light Slate Background
+COR_CARD_BG = "#FFFFFF"    # Surface Color
+COR_TEXTO_PRI = "#1E293B"  # Slate 800 (High Contrast)
+COR_TEXTO_SEC = "#64748B"  # Slate 500 (Low Contrast)
 COR_BORDER = "#E2E8F0"     # Slate 200
-COR_INPUT_BG = "#F8FAFC"   # Slate 50
+COR_INPUT_BG = "#F1F5F9"   # Slate 100 for Inputs
 
 def fmt_br(valor):
     try:
@@ -104,8 +104,7 @@ def validar_cpf(cpf):
 def calcular_cor_gradiente(valor):
     valor = max(0, min(100, valor))
     fator = valor / 100
-    # Gradiente Moderno: De Vermelho Alerta (#EF4444) para Azul Sucesso (#3B82F6) -> Ajustado para Brand Colors
-    # Vermelho Brand (#e30613) -> Azul Brand (#002c5d)
+    # Gradiente Linear: Vermelho Brand (#e30613) -> Azul Brand (#002c5d)
     r = int(227 * (1 - fator) + 0 * fator)
     g = int(6 * (1 - fator) + 44 * fator)
     b = int(19 * (1 - fator) + 93 * fator)
@@ -116,17 +115,14 @@ def calcular_parcela_financiamento(valor_financiado, meses, taxa_anual_pct, sist
     if valor_financiado <= 0 or meses <= 0:
         return 0.0
     
-    # Taxa mensal
     i_mensal = (1 + taxa_anual_pct/100)**(1/12) - 1
     
     if sistema == "PRICE":
-        # PMT = PV * [ i(1+i)^n ] / [ (1+i)^n - 1 ]
         try:
             parcela = valor_financiado * (i_mensal * (1 + i_mensal)**meses) / ((1 + i_mensal)**meses - 1)
         except:
             parcela = 0.0
     else: # SAC
-        # Primeira parcela = Amortização + Juros sobre saldo total
         amortizacao = valor_financiado / meses
         juros = valor_financiado * i_mensal
         parcela = amortizacao + juros
@@ -160,7 +156,7 @@ def carregar_dados_sistema():
                 except: return 0.0
             return 0.0
 
-        # --- 1. Logins ---
+        # --- Logins ---
         try:
             df_logins = conn.read(spreadsheet=URL_RANKING, worksheet="Logins")
             df_logins.columns = [str(c).strip() for c in df_logins.columns]
@@ -181,20 +177,18 @@ def carregar_dados_sistema():
         except: 
             df_logins = pd.DataFrame(columns=['Email', 'Senha', 'Imobiliaria', 'Cargo', 'Nome'])
 
-        # --- 2. Cadastros (Histórico) ---
+        # --- Cadastros (Histórico) ---
         try:
-            # Tenta ler Simulações primeiro
             df_cadastros = conn.read(spreadsheet=URL_RANKING, worksheet="Simulações")
             df_cadastros.columns = [str(c).strip() for c in df_cadastros.columns]
         except: 
             try:
-                # Fallback para Cadastros se Simulações falhar ou não existir
                 df_cadastros = conn.read(spreadsheet=URL_RANKING, worksheet="Cadastros")
                 df_cadastros.columns = [str(c).strip() for c in df_cadastros.columns]
             except:
                 df_cadastros = pd.DataFrame()
 
-        # --- 3. Políticas ---
+        # --- Políticas ---
         try:
             df_politicas = conn.read(spreadsheet=URL_RANKING)
             df_politicas.columns = [str(c).strip() for c in df_politicas.columns]
@@ -205,7 +199,7 @@ def carregar_dados_sistema():
         except: 
             df_politicas = pd.DataFrame()
 
-        # --- 4. Financeiro ---
+        # --- Financeiro ---
         try:
             df_finan = conn.read(spreadsheet=URL_FINAN)
             df_finan.columns = [str(c).strip() for c in df_finan.columns]
@@ -213,7 +207,7 @@ def carregar_dados_sistema():
         except: 
             df_finan = pd.DataFrame()
 
-        # --- 5. Estoque ---
+        # --- Estoque ---
         try:
             df_raw = conn.read(spreadsheet=URL_ESTOQUE)
             df_raw.columns = [str(c).strip() for c in df_raw.columns]
@@ -269,7 +263,6 @@ class MotorRecomendacao:
     def obter_enquadramento(self, renda, social, cotista, valor_avaliacao=250000):
         if self.df_finan.empty: return 0.0, 0.0, "N/A"
         
-        # Definição de Faixa Atualizada
         if valor_avaliacao <= 275000: faixa = "F2"
         elif valor_avaliacao <= 350000: faixa = "F3"
         else: faixa = "F4"
@@ -304,7 +297,7 @@ def configurar_layout():
     
     st.markdown(f"""
         <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Poppins:wght@400;500;600;700;800&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Manrope:wght@400;500;600;700;800&display=swap');
         
         /* --- GLOBAL RESET & VARS --- */
         :root {{
@@ -316,36 +309,38 @@ def configurar_layout():
             --text-sub: {COR_TEXTO_SEC};
             --input-bg: {COR_INPUT_BG};
             --border: {COR_BORDER};
-            --radius-md: 12px;
+            --radius-md: 10px;
             --radius-lg: 16px;
-            --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
-            --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
-            --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+            --shadow-sm: 0 1px 3px 0 rgba(0, 0, 0, 0.05);
+            --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
+            --shadow-lg: 0 12px 24px -6px rgba(0, 0, 0, 0.08), 0 4px 10px -4px rgba(0, 0, 0, 0.04);
+            --transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
         }}
 
         html, body, [data-testid="stAppViewContainer"] {{
             font-family: 'Inter', sans-serif;
             color: var(--text-main);
             background-color: var(--bg-color);
-            line-height: 1.5;
+            line-height: 1.6;
         }}
         
         /* --- TYPOGRAPHY --- */
         h1, h2, h3, h4 {{
-            font-family: 'Poppins', sans-serif !important;
+            font-family: 'Manrope', sans-serif !important;
             color: var(--primary) !important;
-            font-weight: 700 !important;
-            letter-spacing: -0.02em;
+            font-weight: 800 !important;
+            letter-spacing: -0.025em;
         }}
         
         p, label, .stMarkdown {{
             color: var(--text-main) !important;
+            font-family: 'Inter', sans-serif;
         }}
 
         /* --- CONTAINER ADJUSTMENTS --- */
         .block-container {{
-            max-width: 1200px !important;
-            padding-top: 3rem !important;
+            max-width: 1280px !important;
+            padding-top: 2rem !important;
             padding-bottom: 5rem !important;
         }}
 
@@ -358,7 +353,7 @@ def configurar_layout():
             border: 1px solid var(--border);
             box-shadow: var(--shadow-md);
             padding: 24px;
-            transition: all 0.3s ease;
+            transition: var(--transition);
         }}
         
         div.card:hover, div.fin-box:hover, div.recommendation-card:hover {{
@@ -370,7 +365,7 @@ def configurar_layout():
         /* --- INPUTS & WIDGETS --- */
         /* Base Input Style */
         .stTextInput input, .stNumberInput input, .stDateInput input, div[data-baseweb="select"] > div {{
-            background-color: var(--input-bg) !important;
+            background-color: white !important;
             border: 1px solid var(--border) !important;
             border-radius: var(--radius-md) !important;
             height: 48px !important;
@@ -378,25 +373,28 @@ def configurar_layout():
             color: var(--text-main) !important;
             font-size: 0.95rem !important;
             padding-left: 12px !important;
-            transition: all 0.2s ease;
+            transition: var(--transition);
+            box-shadow: var(--shadow-sm);
         }}
 
         /* Focus State */
         div[data-baseweb="input"]:focus-within, div[data-baseweb="select"]:focus-within > div {{
             border-color: var(--accent) !important;
-            box-shadow: 0 0 0 3px rgba(227, 6, 19, 0.1) !important;
+            box-shadow: 0 0 0 3px rgba(227, 6, 19, 0.15) !important;
             background-color: #fff !important;
         }}
         
         /* Date Input Wrapper Fix */
         div[data-testid="stDateInput"] > div {{
-            background-color: var(--input-bg) !important;
+            background-color: white !important;
             border: 1px solid var(--border) !important;
             border-radius: var(--radius-md) !important;
+            box-shadow: var(--shadow-sm);
         }}
         div[data-testid="stDateInput"] div[data-baseweb="input"] {{
             border: none !important;
             background-color: transparent !important;
+            box-shadow: none !important;
         }}
 
         /* Number Input +/- Buttons */
@@ -413,24 +411,24 @@ def configurar_layout():
 
         /* --- BUTTONS --- */
         .stButton button {{
-            font-family: 'Poppins', sans-serif;
-            font-weight: 600;
+            font-family: 'Manrope', sans-serif;
+            font-weight: 700;
             border-radius: var(--radius-md) !important;
             height: 48px !important; /* Default height */
-            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1) !important;
+            transition: var(--transition) !important;
             text-transform: uppercase;
             letter-spacing: 0.05em;
             font-size: 0.85rem !important;
+            box-shadow: var(--shadow-sm);
         }}
 
         /* Primary Action Buttons (Large) */
-        /* We target specific keys via layout order, but generally Primary style */
         .stButton button[kind="primary"] {{
             background: linear-gradient(135deg, #e30613 0%, #b9050f 100%) !important;
             color: white !important;
             border: none !important;
             box-shadow: 0 4px 12px rgba(227, 6, 19, 0.25) !important;
-            height: 60px !important; /* Larger for main actions */
+            height: 60px !important; 
             font-size: 1rem !important;
         }}
         .stButton button[kind="primary"]:hover {{
@@ -440,124 +438,132 @@ def configurar_layout():
 
         /* Secondary/Standard Buttons */
         .stButton button:not([kind="primary"]) {{
-            background-color: var(--input-bg) !important;
+            background-color: white !important;
             color: var(--text-main) !important;
             border: 1px solid var(--border) !important;
         }}
         .stButton button:not([kind="primary"]):hover {{
             border-color: var(--primary) !important;
             color: var(--primary) !important;
-            background-color: #fff !important;
+            background-color: var(--input-bg) !important;
+            box-shadow: var(--shadow-md);
         }}
         
         /* Download Button Specifics */
         .stDownloadButton button {{
-            background-color: var(--input-bg) !important;
+            background-color: white !important;
             color: var(--text-main) !important;
             border: 1px solid var(--border) !important;
             border-radius: var(--radius-md) !important;
             height: 48px !important;
             width: 100% !important;
-            font-weight: 600;
+            font-weight: 700;
+            text-transform: uppercase;
         }}
         .stDownloadButton button:hover {{
             border-color: var(--primary) !important;
             color: var(--primary) !important;
+            background-color: var(--input-bg) !important;
         }}
 
         /* Sidebar Buttons (Smaller) */
         [data-testid="stSidebar"] .stButton button {{
             height: auto !important;
-            min-height: 36px !important;
-            padding: 8px 12px !important;
-            font-size: 0.75rem !important;
-            background: #fff !important;
-            margin-bottom: 6px !important;
+            min-height: 40px !important;
+            padding: 10px 14px !important;
+            font-size: 0.8rem !important;
+            background: white !important;
+            margin-bottom: 8px !important;
             border: 1px solid var(--border) !important;
             justify-content: flex-start !important;
             text-align: left !important;
-            box-shadow: none !important;
+            box-shadow: var(--shadow-sm) !important;
         }}
         [data-testid="stSidebar"] .stButton button:hover {{
             border-color: var(--accent) !important;
             background: #fff5f5 !important;
+            transform: translateX(4px);
         }}
 
         /* --- HEADER --- */
         .header-container {{
             text-align: center;
-            padding: 60px 20px;
+            padding: 70px 20px;
             background: white;
-            border-radius: 0 0 40px 40px;
+            border-radius: 0 0 30px 30px;
             box-shadow: var(--shadow-lg);
             margin-bottom: 50px;
             position: relative;
-            border-bottom: 4px solid var(--primary);
+            border-bottom: 5px solid var(--primary);
+            background: radial-gradient(circle at center, #ffffff 0%, #f1f5f9 100%);
         }}
         .header-title {{
             color: var(--primary);
-            font-size: 2.5rem;
+            font-size: 3rem;
             margin: 0;
             text-transform: uppercase;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.05);
         }}
         .header-subtitle {{
             color: var(--text-sub);
-            font-size: 0.9rem;
-            font-weight: 500;
+            font-size: 0.95rem;
+            font-weight: 600;
             margin-top: 10px;
             text-transform: uppercase;
-            letter-spacing: 0.1em;
+            letter-spacing: 0.15em;
         }}
 
         /* --- BADGES & TAGS --- */
         .badge-ideal, .badge-seguro, .badge-facilitado, .badge-multi {{
             background-color: var(--accent) !important;
             color: white;
-            padding: 4px 12px;
+            padding: 6px 14px;
             border-radius: 100px;
-            font-weight: 700;
-            font-size: 0.75rem;
+            font-weight: 800;
+            font-size: 0.7rem;
             text-transform: uppercase;
-            letter-spacing: 0.05em;
+            letter-spacing: 0.08em;
             display: inline-block;
-            margin-bottom: 8px;
-            box-shadow: 0 2px 5px rgba(227, 6, 19, 0.3);
+            margin-bottom: 12px;
+            box-shadow: 0 4px 10px rgba(227, 6, 19, 0.2);
         }}
 
         /* --- CUSTOM ALERTS & BOXES --- */
         .custom-alert {{
-            background: linear-gradient(135deg, var(--primary) 0%, #001f42 100%);
+            background: var(--primary);
             padding: 20px;
             border-radius: var(--radius-md);
             margin-bottom: 30px;
             text-align: center;
-            font-weight: 500;
+            font-weight: 600;
             color: white !important;
-            box-shadow: var(--shadow-md);
+            box-shadow: var(--shadow-lg);
+            border-left: 6px solid var(--accent);
         }}
         
         .price-tag {{
             color: var(--accent);
-            font-weight: 800;
-            font-size: 1.6rem;
-            font-family: 'Poppins', sans-serif;
-            margin-top: 5px;
+            font-weight: 900;
+            font-size: 1.8rem;
+            font-family: 'Manrope', sans-serif;
+            margin-top: 8px;
+            text-shadow: 0 1px 2px rgba(0,0,0,0.1);
         }}
         
         .summary-header {{
             background: var(--primary);
             color: white !important;
-            padding: 16px;
+            padding: 18px;
             border-radius: var(--radius-md) var(--radius-md) 0 0;
-            font-weight: 700;
+            font-weight: 800;
             text-align: center;
             text-transform: uppercase;
-            font-size: 0.85rem;
-            letter-spacing: 0.1em;
+            font-size: 0.9rem;
+            letter-spacing: 0.12em;
         }}
         .summary-body {{
             background: white;
-            padding: 30px;
+            padding: 32px;
             border: 1px solid var(--border);
             border-top: none;
             border-radius: 0 0 var(--radius-md) var(--radius-md);
@@ -569,14 +575,15 @@ def configurar_layout():
         /* --- FOOTER --- */
         .footer {{
             text-align: center;
-            padding: 60px 0;
+            padding: 80px 0;
             color: var(--text-sub) !important;
-            font-size: 0.75rem;
-            font-weight: 600;
-            letter-spacing: 0.1em;
+            font-size: 0.8rem;
+            font-weight: 700;
+            letter-spacing: 0.15em;
             text-transform: uppercase;
             border-top: 1px solid var(--border);
-            margin-top: 40px;
+            margin-top: 60px;
+            background: linear-gradient(to bottom, transparent, rgba(0,0,0,0.02));
         }}
         
         /* --- SIDEBAR --- */
@@ -586,13 +593,14 @@ def configurar_layout():
         }}
         .profile-container {{
             text-align: center;
-            padding: 20px;
-            background: var(--input-bg);
-            border-radius: var(--radius-md);
+            padding: 24px;
+            background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
+            border-radius: var(--radius-lg);
             border: 1px solid var(--border);
+            margin-bottom: 20px;
         }}
-        .profile-name {{ font-weight: 700; font-size: 1rem; color: var(--primary); }}
-        .profile-role {{ font-size: 0.8rem; color: var(--text-sub); font-weight: 500; }}
+        .profile-name {{ font-weight: 800; font-size: 1.1rem; color: var(--primary); font-family: 'Manrope', sans-serif; }}
+        .profile-role {{ font-size: 0.85rem; color: var(--text-sub); font-weight: 600; text-transform: uppercase; margin-top: 4px; }}
         </style>
     """, unsafe_allow_html=True)
 
@@ -630,7 +638,6 @@ def gerar_resumo_pdf(d):
         pdf.ln(8)
         adicionar_secao_pdf("ENGENHARIA FINANCEIRA")
         adicionar_linha_detalhe("Financiamento Bancário Estimado", f"R$ {fmt_br(d.get('finan_usado', 0))}")
-        # Added installment info to PDF
         prazo_val = d.get('prazo_financiamento', 360)
         adicionar_linha_detalhe("Sistema de Amortização", f"{d.get('sistema_amortizacao', 'SAC')} - {prazo_val}x")
         adicionar_linha_detalhe("Parcela Estimada Financiamento", f"R$ {fmt_br(d.get('parcela_financiamento', 0))}")
@@ -747,25 +754,18 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
         search_term = st.text_input("Buscar cliente...", placeholder="Digite o nome", label_visibility="collapsed")
         
         try:
-            # Reutiliza o DataFrame carregado e garante que é uma cópia
             df_h = df_cadastros.copy()
-            
             if not df_h.empty:
-                # Normalização de nome de coluna para garantir match
                 col_corretor = next((c for c in df_h.columns if 'Nome do Corretor' in c), None)
                 col_nome_cliente = next((c for c in df_h.columns if c == 'Nome'), None)
-                col_data_sim = next((c for c in df_h.columns if 'Data' in c and '/' in str(df_h[c].iloc[0])), None) # Tenta achar coluna de data
+                col_data_sim = next((c for c in df_h.columns if 'Data' in c and '/' in str(df_h[c].iloc[0])), None)
 
                 if col_corretor:
-                    # Filtra pelo corretor (usando strip e upper para garantir)
                     my_hist = df_h[df_h[col_corretor].astype(str).str.strip().str.upper() == user_name.strip()]
-                    
-                    # Filtra pela busca se houver
                     if search_term and col_nome_cliente:
                         my_hist = my_hist[my_hist[col_nome_cliente].astype(str).str.contains(search_term, case=False, na=False)]
                     
-                    # Ordena e pega os últimos
-                    my_hist = my_hist.tail(15).iloc[::-1] # Inverte para mostrar mais recente primeiro
+                    my_hist = my_hist.tail(15).iloc[::-1]
                     
                     if not my_hist.empty:
                         for idx, row in my_hist.iterrows():
@@ -774,15 +774,13 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
                             c_data = ""
                             if col_data_sim and pd.notnull(row.get(col_data_sim)):
                                 try:
-                                    c_data = str(row.get(col_data_sim)).split('.')[0] # Remove microsegundos se houver
+                                    c_data = str(row.get(col_data_sim)).split('.')[0]
                                 except: pass
                             
                             label = f"{c_nome} | {c_emp}"
                             if c_data: label += f"\n{c_data}"
                             
-                            # Botões diretos, um embaixo do outro
                             if st.button(label, key=f"hist_{idx}", use_container_width=True):
-                                # Carrega dados
                                 st.session_state.dados_cliente = {
                                     'nome': row.get('Nome'), 'empreendimento_nome': row.get('Empreendimento Final'),
                                     'unidade_id': row.get('Unidade Final'),
@@ -823,7 +821,6 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
                 st.markdown(f"<small style='color: {COR_VERMELHO};'>CPF inválido</small>", unsafe_allow_html=True)
             
             d_nasc_default = st.session_state.dados_cliente.get('data_nascimento', date(1990, 1, 1))
-            # Correção para conversão de string se vier do histórico
             if isinstance(d_nasc_default, str):
                 try: d_nasc_default = datetime.strptime(d_nasc_default, '%Y-%m-%d').date()
                 except: d_nasc_default = date(1990, 1, 1)
@@ -834,7 +831,6 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
         st.markdown("---")
         
         with st.container():
-            # Layout Ajustado: Participantes full width, sem prazo aqui
             qtd_part = st.number_input("Participantes na Renda", min_value=1, max_value=4, value=st.session_state.dados_cliente.get('qtd_participantes', 1), step=1, key="qtd_part_v3")
             
             cols_renda = st.columns(qtd_part)
@@ -850,9 +846,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
         st.markdown("---")
 
         with st.container():
-            # Correção da Lista de Rankings
             rank_opts = ["DIAMANTE", "OURO", "PRATA", "BRONZE", "AÇO"]
-                
             ranking = st.selectbox("Ranking do Cliente", options=rank_opts, index=0, key="in_rank_v28")
             politica_ps = st.selectbox("Política de Pro Soluto", ["Direcional", "Emcash"], key="in_pol_v28")
             social = st.toggle("Fator Social", value=st.session_state.dados_cliente.get('social', False), key="in_soc_v28")
@@ -866,10 +860,8 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
             if not validar_cpf(cpf_val): st.markdown(f'<div class="custom-alert">CPF Inválido. Corrija para continuar.</div>', unsafe_allow_html=True); return
             if renda_total_calc <= 0: st.markdown(f'<div class="custom-alert">A renda total deve ser maior que zero.</div>', unsafe_allow_html=True); return
 
-            # Lógica de Política Pro Soluto (Percentuais Fixos por Ranking)
             class_b = 'EMCASH' if politica_ps == "Emcash" else ranking
             
-            # Default logic for percentages based on Ranking
             map_ps_percent = {
                 'EMCASH': 0.25,
                 'DIAMANTE': 0.25,
@@ -878,18 +870,14 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
                 'BRONZE': 0.15,
                 'AÇO': 0.12
             }
-            
             perc_ps_max = map_ps_percent.get(class_b, 0.12)
             
-            # Lógica FIXA de parcelas solicitada pelo usuário
             if politica_ps == "Emcash":
                 prazo_ps_max = 66
             else:
                 prazo_ps_max = 84
 
-            # Fator de comprometimento de renda (mantido do original, embora não explicitado na ultima query, é bom ter)
             limit_ps_r = 0.30 
-
             f_faixa_ref, s_faixa_ref, fx_nome_ref = motor.obter_enquadramento(renda_total_calc, social, cotista, valor_avaliacao=240000)
             
             st.session_state.dados_cliente.update({
@@ -903,11 +891,10 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
             st.session_state.passo_simulacao = destino
             st.rerun()
 
-        # Botões de Avanço (Empilhados) - Fora de Colunas para ficarem grandes
         if st.button("RECOMENDAR IMÓVEIS", type="primary", use_container_width=True, key="btn_avancar_guide"):
             processar_avanco('guide')
         
-        st.write("") # Espaçamento
+        st.write("") 
         
         if st.button("IR PARA SELEÇÃO (DIRETO)", use_container_width=True, key="btn_avancar_direto"):
             processar_avanco('selection')
@@ -924,7 +911,6 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
             def calcular_viabilidade_unidade(row):
                 v_venda = row['Valor de Venda']
                 v_aval = row['Valor de Avaliação Bancária']
-                # Ensure float
                 try: v_venda = float(v_venda)
                 except: v_venda = 0.0
                 try: v_aval = float(v_aval)
@@ -932,31 +918,24 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
 
                 fin, sub, fx_n = motor.obter_enquadramento(d.get('renda', 0), d.get('social', False), d.get('cotista', True), v_aval)
                 
-                # Formula requested: PS(Unidade) + FinMax + SubMax + 2xRenda >= V_Venda
-                ps_max_val = v_venda * d.get('perc_ps', 0.10) # Using percentage from policy
-                
+                ps_max_val = v_venda * d.get('perc_ps', 0.10)
                 capacity = ps_max_val + fin + sub + (2 * d.get('renda', 0))
-                
                 cobertura = (capacity / v_venda) * 100 if v_venda > 0 else 0
                 is_viavel = capacity >= v_venda
                 
                 return pd.Series([capacity, cobertura, is_viavel, fin, sub])
 
             df_disp_total[['Poder_Compra', 'Cobertura', 'Viavel', 'Finan_Unid', 'Sub_Unid']] = df_disp_total.apply(calcular_viabilidade_unidade, axis=1)
-            # Filtra Viáveis
             df_viaveis = df_disp_total[df_disp_total['Viavel']].copy()
         
-        # ABAS DE SELEÇÃO ATUALIZADAS
         tab_viaveis, tab_sugestoes, tab_estoque = st.tabs(["EMPREENDIMENTOS VIÁVEIS", "RECOMENDAÇÃO DE UNIDADES", "ESTOQUE GERAL"])
 
         with tab_viaveis:
              st.markdown("<br>", unsafe_allow_html=True)
              if df_viaveis.empty:
                  if not df_disp_total.empty:
-                    # Fallback: Empreendimento da unidade mais barata do estoque total
                     cheapest = df_disp_total.sort_values('Valor de Venda', ascending=True).iloc[0]
                     emp_fallback = cheapest['Empreendimento']
-                    # MENSAGEM DE ALERTA REMOVIDA AQUI
                     st.markdown(f"""
                             <div class="card" style="min-height: 80px; padding: 15px; border-top: 3px solid {COR_AZUL_ESC};">
                                 <p style="margin:0; font-weight:700; color:{COR_AZUL_ESC};">{emp_fallback}</p>
@@ -966,7 +945,6 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
                  else:
                     st.error("Sem estoque disponível.")
              else:
-                # Mostra empreendimentos com unidades viáveis
                 emp_counts = df_viaveis.groupby('Empreendimento').size().to_dict()
                 items = list(emp_counts.items())
                 cols_per_row = 3
@@ -975,7 +953,6 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
                     row_cols = st.columns(len(row_items))
                     for idx, (emp, qtd) in enumerate(row_items):
                         with row_cols[idx]:
-                            # Card Azul para empreendimentos viáveis
                             st.markdown(f"""
                                 <div class="card" style="min-height: 80px; padding: 15px; border-top: 3px solid {COR_AZUL_ESC};">
                                     <p style="margin:0; font-weight:700; color:{COR_AZUL_ESC};">{emp}</p>
@@ -991,36 +968,16 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
             
             if df_pool.empty: st.markdown('<div class="custom-alert">Nenhuma unidade encontrada.</div>', unsafe_allow_html=True)
             else:
-                # LOGIC ADJUSTMENT: 
-                # Facilitado = Cheapest Viable
-                # Ideal = Best Fit (Highest Price 100% Covered)
-                # Seguro = Highest Coverage (often same as Facilitado but focusing on safety)
-                
-                # Check viabilidade based on pool
                 pool_viavel = df_pool[df_pool['Viavel']]
-                
-                cand_facil = pd.DataFrame()
-                cand_ideal = pd.DataFrame()
-                cand_seguro = pd.DataFrame()
+                cand_facil = pd.DataFrame(); cand_ideal = pd.DataFrame(); cand_seguro = pd.DataFrame()
 
                 if not pool_viavel.empty:
-                    # Facilitado: Lowest Price
                     cand_facil = pool_viavel.sort_values('Valor de Venda', ascending=True).head(1)
-                    
-                    # Ideal: Highest Price within budget (100% coverage)
-                    # Assuming Viavel means potential >= price, check coverage explicitly
                     ideal_pool = pool_viavel[pool_viavel['Cobertura'] >= 100]
-                    if not ideal_pool.empty:
-                        cand_ideal = ideal_pool.sort_values('Valor de Venda', ascending=False).head(1)
-                    else:
-                        cand_ideal = pool_viavel.sort_values('Cobertura', ascending=False).head(1)
-
-                    # Seguro: Highest Coverage (Safest bet)
+                    if not ideal_pool.empty: cand_ideal = ideal_pool.sort_values('Valor de Venda', ascending=False).head(1)
+                    else: cand_ideal = pool_viavel.sort_values('Cobertura', ascending=False).head(1)
                     cand_seguro = pool_viavel.sort_values('Cobertura', ascending=False).head(1)
-                
-                # Fallback if no full viability but pool exists (show something)
                 elif not df_pool.empty:
-                     # Just show cheapest as Facilitado
                      cand_facil = df_pool.sort_values('Valor de Venda', ascending=True).head(1)
 
                 def extract_info(df_cand, label, css_class):
@@ -1035,28 +992,18 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
                 info_facil = extract_info(cand_facil, "FACILITADO", "badge-facilitado")
                 
                 cards_finais = []
-                
-                # Deduplicate logic simply by checking price equality if multiple exist
-                # Priority: Ideal, Seguro, Facil
-                
                 if info_ideal: cards_finais.append(info_ideal)
-                
                 if info_seguro:
-                    # Check if already added
                     exists = False
                     for c in cards_finais:
                         if c['preco'] == info_seguro['preco']: 
-                            c['labels'].append("SEGURO")
-                            exists = True
+                            c['labels'].append("SEGURO"); exists = True
                     if not exists: cards_finais.append(info_seguro)
-                
                 if info_facil:
                     exists = False
                     for c in cards_finais:
                         if c['preco'] == info_facil['preco']: 
-                            c['labels'].append("FACILITADO")
-                            c['css'] = "badge-multi" # update style
-                            exists = True
+                            c['labels'].append("FACILITADO"); c['css'] = "badge-multi"; exists = True
                     if not exists: cards_finais.append(info_facil)
                 
                 if not cards_finais: st.warning("Nenhuma recomendação disponível.")
@@ -1084,11 +1031,9 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
                 f_cols = st.columns([1.2, 1.5, 1, 1, 1])
                 with f_cols[0]: f_bairro = st.multiselect("Bairro:", options=sorted(df_disp_total['Bairro'].unique()), key="f_bairro_tab_v28")
                 with f_cols[1]: f_emp = st.multiselect("Empreendimento:", options=sorted(df_disp_total['Empreendimento'].unique()), key="f_emp_tab_v28")
-                # Filtro de Cobertura Selectbox
                 with f_cols[2]: 
                     cob_opts = ["Todas", "Acima de 10%", "Acima de 20%", "Acima de 30%", "Acima de 40%", "Acima de 50%", "Acima de 60%", "Acima de 70%", "Acima de 80%", "Acima de 90%", "100%"]
                     f_cob_sel = st.selectbox("Cobertura Mínima:", options=cob_opts, key="f_cob_sel_v28")
-                    
                     cob_min_val = 0
                     if "10%" in f_cob_sel: cob_min_val = 10
                     elif "20%" in f_cob_sel: cob_min_val = 20
@@ -1107,14 +1052,11 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
                 df_tab = df_disp_total.copy()
                 if f_bairro: df_tab = df_tab[df_tab['Bairro'].isin(f_bairro)]
                 if f_emp: df_tab = df_tab[df_tab['Empreendimento'].isin(f_emp)]
-                # Filtra pela cobertura minima
                 df_tab = df_tab[df_tab['Cobertura'] >= cob_min_val]
                 df_tab = df_tab[df_tab['Valor de Venda'] <= f_pmax]
                 
-                if f_ordem == "Menor Preço": 
-                    df_tab = df_tab.sort_values('Valor de Venda', ascending=True)
-                else: 
-                    df_tab = df_tab.sort_values('Valor de Venda', ascending=False)
+                if f_ordem == "Menor Preço": df_tab = df_tab.sort_values('Valor de Venda', ascending=True)
+                else: df_tab = df_tab.sort_values('Valor de Venda', ascending=False)
                 
                 df_tab_view = df_tab.copy()
                 df_tab_view['Valor de Venda'] = df_tab_view['Valor de Venda'].apply(fmt_br)
@@ -1123,8 +1065,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
 
                 st.dataframe(
                     df_tab_view[['Identificador', 'Bairro', 'Empreendimento', 'Valor de Venda', 'Poder_Compra', 'Cobertura']], 
-                    use_container_width=True, 
-                    hide_index=True,
+                    use_container_width=True, hide_index=True,
                     column_config={
                         "Identificador": st.column_config.TextColumn("Unidade"),
                         "Valor de Venda": st.column_config.TextColumn("Preço (R$)"),
@@ -1182,12 +1123,12 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
                     cor_term = calcular_cor_gradiente(percentual_cobertura)
                     
                     st.markdown(f"""
-                    <div style="margin-top: 20px; padding: 15px; border: 1px solid #e2e8f0; border-radius: 10px; background-color: #f8fafc; text-align: center;">
-                        <p style="margin: 0; font-weight: 700; font-size: 0.9rem; color: #002c5d;">TERMÔMETRO DE VIABILIDADE</p>
-                        <div style="width: 100%; background-color: #e2e8f0; border-radius: 5px; height: 10px; margin: 10px 0;">
-                            <div style="width: {percentual_cobertura}%; background-color: {cor_term}; height: 100%; border-radius: 5px; transition: width 0.5s;"></div>
+                    <div style="margin-top: 20px; padding: 20px; border: 1px solid #e2e8f0; border-radius: 12px; background-color: #ffffff; text-align: center; box-shadow: 0 4px 6px rgba(0,0,0,0.05);">
+                        <p style="margin: 0; font-weight: 700; font-size: 0.95rem; color: #002c5d; text-transform: uppercase; letter-spacing: 0.05em;">Termômetro de Viabilidade</p>
+                        <div style="width: 100%; background-color: #f1f5f9; border-radius: 100px; height: 12px; margin: 15px 0; overflow: hidden;">
+                            <div style="width: {percentual_cobertura}%; background: linear-gradient(90deg, #e30613 0%, {cor_term} 100%); height: 100%; border-radius: 100px; transition: width 0.6s cubic-bezier(0.4, 0, 0.2, 1);"></div>
                         </div>
-                        <small>{percentual_cobertura:.1f}% Coberto</small>
+                        <small style="font-weight: 600; color: {COR_TEXTO_SEC};">{percentual_cobertura:.1f}% Coberto</small>
                     </div>""", unsafe_allow_html=True)
 
             st.markdown("<br>", unsafe_allow_html=True)
@@ -1211,7 +1152,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
         u_nome = d.get('empreendimento_nome', 'N/A')
         u_unid = d.get('unidade_id', 'N/A')
         
-        st.markdown(f'<div class="custom-alert">{u_nome} - {u_unid} (R$ {fmt_br(u_valor)})</div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="custom-alert">{u_nome} - {u_unid}<br><span style="font-size: 1.2em; font-weight: 800;">R$ {fmt_br(u_valor)}</span></div>', unsafe_allow_html=True)
         
         # 1. Valor Financiamento (Full width)
         f_u = st.number_input("Financiamento", value=float(d.get('finan_estimado', 0)), step=1000.0, key="fin_u_v28")
@@ -1227,7 +1168,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
         fgts_u = st.number_input("FGTS + Subsídio", value=float(d.get('fgts_sub', 0)), step=1000.0, key="fgt_u_v28")
         st.markdown(f'<span class="inline-ref">Subsídio Máximo: R$ {fmt_br(d.get("fgts_sub", 0))}</span>', unsafe_allow_html=True)
         
-        st.markdown("<hr style='margin: 10px 0;'>", unsafe_allow_html=True)
+        st.markdown("<hr style='margin: 15px 0; border-color: #e2e8f0;'>", unsafe_allow_html=True)
         
         # Inicialização do saldo restante para a primeira vez
         saldo_restante_inicial = max(0.0, u_valor - f_u - fgts_u)
@@ -1259,7 +1200,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
             st.rerun()
 
         # Botões de Distribuição Automática Alinhados
-        st.markdown('<label style="font-size: 0.8rem; font-weight: 600;">Distribuir Atos Automaticamente:</label>', unsafe_allow_html=True)
+        st.markdown('<label style="font-size: 0.8rem; font-weight: 600; color: #64748b;">Distribuir Atos Automaticamente:</label>', unsafe_allow_html=True)
         col_dist1, col_dist2, col_dist3, col_dist4 = st.columns(4)
         
         with col_dist1: 
@@ -1290,7 +1231,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
         st.session_state.ato_3 = st.session_state['ato_3_v28']
         st.session_state.ato_4 = st.session_state['ato_4_v28']
 
-        st.markdown("<hr style='margin: 10px 0;'>", unsafe_allow_html=True)
+        st.markdown("<hr style='margin: 15px 0; border-color: #e2e8f0;'>", unsafe_allow_html=True)
         col_ps_val, col_ps_parc = st.columns(2)
         
         ps_max_real = u_valor * d.get('perc_ps', 0)
@@ -1310,13 +1251,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
         with fin1: st.markdown(f"""<div class="fin-box" style="border-top: 6px solid {COR_AZUL_ESC};"><b>VALOR DO IMÓVEL</b><br>R$ {fmt_br(u_valor)}</div>""", unsafe_allow_html=True)
         with fin2: st.markdown(f"""<div class="fin-box" style="border-top: 6px solid {COR_VERMELHO};"><b>MENSALIDADE PS</b><br>R$ {fmt_br(v_parc)} ({parc}x)</div>""", unsafe_allow_html=True)
         
-        # Validação visual do saldo
-        # Se gap_final != 0, mantém o alerta vermelho visualmente se for erro, ou AZUL se for apenas info.
-        # O usuário pediu "atualize a cor do destaque... para o azul que está na caixa de valor do imovel".
-        # Vamos manter o box azul (COR_AZUL_ESC), mas o st.error abaixo cuidará do alerta textual.
-        
         cor_saldo = COR_AZUL_ESC 
-        
         with fin3: st.markdown(f"""<div class="fin-box" style="border-top: 6px solid {cor_saldo};"><b>SALDO A COBRIR</b><br>R$ {fmt_br(gap_final)}</div>""", unsafe_allow_html=True)
 
         if abs(gap_final) > 1:
@@ -1401,9 +1336,9 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
                     "Cotista FGTS": "Sim" if d.get('cotista') else "Não",
                     "Financiamento Aprovado": d.get('finan_f_ref', 0), 
                     "Subsídio Máximo": d.get('sub_f_ref', 0), 
-                    "Pro Soluto Médio": d.get('ps_usado', 0), # Usando o valor efetivo como referência
+                    "Pro Soluto Médio": d.get('ps_usado', 0),
                     "Capacidade de Entrada": capacidade_entrada, 
-                    "Poder de Aquisição Médio": (2 * d.get('renda', 0)) + d.get('finan_f_ref', 0) + d.get('sub_f_ref', 0) + (d.get('imovel_valor', 0) * 0.10), # Estimativa
+                    "Poder de Aquisição Médio": (2 * d.get('renda', 0)) + d.get('finan_f_ref', 0) + d.get('sub_f_ref', 0) + (d.get('imovel_valor', 0) * 0.10),
                     "Empreendimento Final": d.get('empreendimento_nome'), 
                     "Unidade Final": d.get('unidade_id'), 
                     "Preço Unidade Final": d.get('imovel_valor', 0),
@@ -1434,7 +1369,6 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
 
     st.markdown("<br><br>", unsafe_allow_html=True)
     
-    # Botão Sair fora da coluna para herdar estilo grande
     if st.button("Sair do Sistema", key="btn_logout_bottom", use_container_width=True): 
         st.session_state['logged_in'] = False
         st.rerun()
