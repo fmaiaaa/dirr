@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 =============================================================================
-SISTEMA DE SIMULAÇÃO IMOBILIÁRIA - DIRE RIO V26.1 (FIX & INTERACTIVE NAV)
+SISTEMA DE SIMULAÇÃO IMOBILIÁRIA - DIRE RIO V26.2 (SYNTAX FIX)
 =============================================================================
 Instruções para Google Colab:
 1. Crie um arquivo chamado 'app.py' com este conteúdo.
