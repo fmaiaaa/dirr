@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 =============================================================================
-SISTEMA DE SIMULAÇÃO IMOBILIÁRIA - DIRE RIO V29 (FINAL FIXES & LOGIC)
+SISTEMA DE SIMULAÇÃO IMOBILIÁRIA - DIRE RIO V32 (FINAL LOGIC & LAYOUT)
 =============================================================================
 Instruções para Google Colab:
 1. Crie um arquivo chamado 'app.py' com este conteúdo.
@@ -112,15 +112,12 @@ def safe_float_convert(val):
 
 def calcular_cor_gradiente(valor):
     """
-    Gradiente Linear Puro: Vermelho (#e30613) -> Azul (#002c5d)
+    Interpola linearmente entre Vermelho (#e30613) e Azul (#002c5d)
     0% -> Vermelho
     100% -> Azul
     """
     valor = max(0, min(100, valor))
     f = valor / 100.0
-    
-    # RGB Vermelho: 227, 6, 19
-    # RGB Azul: 0, 44, 93
     
     r = int(227 + (0 - 227) * f)
     g = int(6 + (44 - 6) * f)
@@ -208,8 +205,9 @@ def carregar_dados_sistema():
         try:
             df_politicas = conn.read(spreadsheet=URL_RANKING)
             df_politicas.columns = [str(c).strip() for c in df_politicas.columns]
+            # Rename for consistency
             col_class = next((c for c in df_politicas.columns if 'CLASSIFICA' in c.upper() or 'RANKING' in c.upper()), 'CLASSIFICAÇÃO')
-            df_politicas = df_politicas.rename(columns={col_class: 'CLASSIFICAÇÃO', 'FAIXA RENDA': 'FAIXA_RENDA', 'FX RENDA 1': 'FX_RENDA_1', 'FX RENDA 2': 'FX_RENDA_2'})
+            df_politicas = df_politicas.rename(columns={col_class: 'CLASSIFICAÇÃO'})
         except: df_politicas = pd.DataFrame()
 
         # Finan
@@ -229,9 +227,12 @@ def carregar_dados_sistema():
             df_estoque = df_raw.rename(columns=mapa_estoque)
             df_estoque['Valor de Venda'] = df_estoque['Valor de Venda'].apply(limpar_moeda) if 'Valor de Venda' in df_estoque.columns else 0.0
             df_estoque['Valor de Avaliação Bancária'] = df_estoque['Valor de Avaliação Bancária'].apply(limpar_moeda) if 'Valor de Avaliação Bancária' in df_estoque.columns else df_estoque['Valor de Venda']
-            df_estoque = df_estoque[(df_estoque['Valor de Venda'] > 0) & (df_estoque['Empreendimento'].notnull())].copy()
-            if 'Identificador' not in df_estoque.columns: df_estoque['Identificador'] = df_estoque.index.astype(str)
-            if 'Bairro' not in df_estoque.columns: df_estoque['Bairro'] = 'Rio de Janeiro'
+            
+            # Filtro Status: Disponível ou Mirror
+            if 'Status' in df_estoque.columns:
+                df_estoque = df_estoque[df_estoque['Status'].astype(str).str.strip().isin(['Disponível', 'Mirror'])].copy()
+            
+            df_estoque = df_estoque[(df_estoque['Valor de Venda'] > 0) & (df_estoque['Empreendimento'].notnull())]
 
             def extrair_dados_unid(id_unid, tipo):
                 try:
@@ -265,9 +266,11 @@ class MotorRecomendacao:
 
     def obter_enquadramento(self, renda, social, cotista, valor_avaliacao=250000):
         if self.df_finan.empty: return 0.0, 0.0, "N/A"
+        
         if valor_avaliacao <= 275000: faixa = "F2"
         elif valor_avaliacao <= 350000: faixa = "F3"
         else: faixa = "F4"
+        
         renda_col = pd.to_numeric(self.df_finan['Renda'], errors='coerce').fillna(0)
         idx = (renda_col - float(renda)).abs().idxmin()
         row = self.df_finan.iloc[idx]
@@ -301,10 +304,19 @@ def configurar_layout():
 
         h1, h2, h3, h4 {{
             font-family: 'Montserrat', sans-serif !important;
-            text-align: center !important;
             color: {COR_AZUL_ESC} !important;
             font-weight: 800;
             letter-spacing: -0.04em;
+        }}
+        
+        /* Centralizar titulos principais */
+        .header-title, .header-subtitle, .summary-header, .custom-alert {{
+            text-align: center;
+        }}
+        
+        /* Popup headers alinhados a esquerda */
+        div[role="dialog"] h1, div[role="dialog"] h2, div[role="dialog"] h3 {{
+             text-align: left !important;
         }}
 
         .stMarkdown p, .stText, label, .stSelectbox label, .stTextInput label, .stNumberInput label {{
@@ -359,13 +371,27 @@ def configurar_layout():
             background-color: transparent !important;
         }}
 
-        div[data-testid="stNumberInput"] button {{
-             height: 48px !important;
-             border-color: #e2e8f0 !important;
-             background-color: {COR_INPUT_BG} !important;
-             color: {COR_AZUL_ESC} !important;
+        /* FIX NUMBER INPUT HEIGHT MATCHING FOR STOCK FILTER */
+        div[data-testid="stNumberInput"] {{
+            height: 48px !important;
         }}
-
+        div[data-testid="stNumberInput"] > div {{
+            height: 48px !important;
+            border: 1px solid #e2e8f0 !important; /* Force border match */
+            border-radius: 8px !important;
+        }}
+        div[data-testid="stNumberInput"]:focus-within > div {{
+             border-color: {COR_VERMELHO} !important;
+             box-shadow: 0 0 0 1px {COR_VERMELHO} !important;
+        }}
+        
+        div[data-testid="stNumberInput"] button {{
+             height: 46px !important;
+             border-color: transparent !important;
+             background-color: transparent !important;
+             color: {COR_AZUL_ESC} !important;
+             margin-top: 0px !important;
+        }}
         div[data-testid="stNumberInput"] button:hover {{ background-color: #e2e8f0 !important; }}
 
         .stButton button {{
@@ -442,13 +468,7 @@ def configurar_layout():
             position: relative;
         }}
         .header-title {{
-            font-family: 'Montserrat', sans-serif;
-            color: {COR_AZUL_ESC};
             font-size: 3rem;
-            font-weight: 900;
-            margin: 0;
-            text-transform: uppercase;
-            letter-spacing: 0.2em;
         }}
         .header-subtitle {{
             color: {COR_AZUL_ESC};
@@ -478,32 +498,11 @@ def configurar_layout():
             box-shadow: 0 10px 30px -10px rgba(227,6,19,0.1);
         }}
 
-        .summary-header {{
-            font-family: 'Montserrat', sans-serif;
-            background: {COR_AZUL_ESC};
-            color: #ffffff !important;
-            padding: 20px;
-            border-radius: 12px 12px 0 0;
-            font-weight: 800;
-            text-align: center;
-            text-transform: uppercase;
-            letter-spacing: 0.15em;
-            font-size: 0.9rem;
-        }}
-        .summary-body {{
-            background: #ffffff;
-            padding: 40px;
-            border: 1px solid {COR_BORDA};
-            border-radius: 0 0 12px 12px;
-            margin-bottom: 40px;
-            color: {COR_AZUL_ESC};
-        }}
         .custom-alert {{
             background-color: {COR_AZUL_ESC};
             padding: 25px;
             border-radius: 8px;
             margin-bottom: 30px;
-            text-align: center;
             font-weight: 600;
             color: #ffffff !important;
             display: flex;
@@ -517,18 +516,7 @@ def configurar_layout():
             font-size: 1.5rem;
             margin-top: 5px;
         }}
-        .inline-ref {{
-            font-size: 0.72rem;
-            color: {COR_AZUL_ESC};
-            margin-top: -12px;
-            margin-bottom: 15px;
-            font-weight: 700;
-            text-transform: uppercase;
-            letter-spacing: 0.05em;
-            display: block;
-            opacity: 0.9;
-        }}
-
+        
         .metric-label {{ color: {COR_AZUL_ESC} !important; opacity: 0.7; font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.15em; margin-bottom: 8px; }}
         .metric-value {{ color: {COR_AZUL_ESC} !important; font-size: 1.8rem; font-weight: 800; font-family: 'Montserrat', sans-serif; }}
 
@@ -578,7 +566,7 @@ def configurar_layout():
         button[data-baseweb="tab"][aria-selected="true"] p {{ color: {COR_AZUL_ESC} !important; opacity: 1; }}
         div[data-baseweb="tab-highlight"] {{ background-color: {COR_VERMELHO} !important; height: 3px !important; }}
 
-        /* --- STEPPER (Visual CSS - Non-interactive) --- */
+        /* --- STEPPER VISUAL (CSS ONLY) --- */
         .stepper-container {{
             display: flex;
             justify-content: space-between;
@@ -697,32 +685,44 @@ def gerar_resumo_pdf(d):
     try:
         pdf = FPDF()
         pdf.add_page()
-        pdf.set_auto_page_break(auto=True, margin=15)
+        # Margem automática menor para aproveitar espaço
+        pdf.set_auto_page_break(auto=True, margin=5)
+        
         AZUL_RGB, VERMELHO_RGB, BRANCO_RGB, FUNDO_SECAO = (0, 44, 93), (227, 6, 19), (255, 255, 255), (248, 250, 252)
+        
+        # Barra superior
         pdf.set_fill_color(*AZUL_RGB); pdf.rect(0, 0, 210, 3, 'F')
         if os.path.exists("favicon.png"):
             try: pdf.image("favicon.png", 10, 8, 10)
             except: pass
-        pdf.ln(15); pdf.set_text_color(*AZUL_RGB); pdf.set_font("Helvetica", 'B', 22); pdf.cell(0, 12, "RELATORIO DE VIABILIDADE", ln=True, align='C')
-        pdf.set_font("Helvetica", '', 9); pdf.cell(0, 6, "SIMULADOR IMOBILIARIO DV - DOCUMENTO EXECUTIVO", ln=True, align='C'); pdf.ln(15)
-        pdf.set_fill_color(*FUNDO_SECAO); pdf.rect(10, pdf.get_y(), 190, 24, 'F'); pdf.set_xy(15, pdf.get_y() + 6)
-        pdf.set_text_color(*AZUL_RGB); pdf.set_font("Helvetica", 'B', 13); pdf.cell(0, 6, f"CLIENTE: {d.get('nome', 'Nao informado').upper()}", ln=True)
-        pdf.set_x(15); pdf.set_font("Helvetica", '', 10); pdf.cell(0, 6, f"Renda Familiar: R$ {fmt_br(d.get('renda', 0))}", ln=True); pdf.ln(15)
+        
+        # Título reduzido espaçamento
+        pdf.ln(10) 
+        pdf.set_text_color(*AZUL_RGB); pdf.set_font("Helvetica", 'B', 18); pdf.cell(0, 8, "RELATORIO DE VIABILIDADE", ln=True, align='C')
+        pdf.set_font("Helvetica", '', 7); pdf.cell(0, 5, "SIMULADOR IMOBILIARIO DV - DOCUMENTO EXECUTIVO", ln=True, align='C')
+        
+        # Dados Cliente (Espaço reduzido)
+        pdf.ln(5)
+        pdf.set_fill_color(*FUNDO_SECAO); pdf.rect(10, pdf.get_y(), 190, 14, 'F'); pdf.set_xy(15, pdf.get_y() + 3)
+        pdf.set_text_color(*AZUL_RGB); pdf.set_font("Helvetica", 'B', 10); pdf.cell(0, 4, f"CLIENTE: {d.get('nome', 'Nao informado').upper()}", ln=True)
+        pdf.set_x(15); pdf.set_font("Helvetica", '', 8); pdf.cell(0, 4, f"Renda Familiar: R$ {fmt_br(d.get('renda', 0))}", ln=True)
+        pdf.ln(5)
 
         def adicionar_secao_pdf(titulo):
-            pdf.set_fill_color(*AZUL_RGB); pdf.set_text_color(*BRANCO_RGB); pdf.set_font("Helvetica", 'B', 10); pdf.cell(0, 10, f"   {titulo}", ln=True, fill=True); pdf.ln(4)
+            pdf.set_fill_color(*AZUL_RGB); pdf.set_text_color(*BRANCO_RGB); pdf.set_font("Helvetica", 'B', 8); pdf.cell(0, 7, f"   {titulo}", ln=True, fill=True); pdf.ln(1)
 
         def adicionar_linha_detalhe(label, valor, destaque=False):
-            pdf.set_x(15); pdf.set_text_color(*AZUL_RGB); pdf.set_font("Helvetica", '', 10); pdf.cell(110, 9, label, border=0)
-            if destaque: pdf.set_text_color(*VERMELHO_RGB); pdf.set_font("Helvetica", 'B', 10)
-            else: pdf.set_font("Helvetica", 'B', 10)
-            pdf.cell(0, 9, valor, border=0, ln=True, align='R'); pdf.set_draw_color(241, 245, 249); pdf.line(15, pdf.get_y(), 195, pdf.get_y())
+            pdf.set_x(15); pdf.set_text_color(*AZUL_RGB); pdf.set_font("Helvetica", '', 8); pdf.cell(110, 6, label, border=0)
+            if destaque: pdf.set_text_color(*VERMELHO_RGB); pdf.set_font("Helvetica", 'B', 8)
+            else: pdf.set_font("Helvetica", 'B', 8)
+            pdf.cell(0, 6, valor, border=0, ln=True, align='R'); pdf.set_draw_color(241, 245, 249); pdf.line(15, pdf.get_y(), 195, pdf.get_y())
 
         adicionar_secao_pdf("DADOS DO IMOVEL")
         adicionar_linha_detalhe("Empreendimento", str(d.get('empreendimento_nome')))
         adicionar_linha_detalhe("Unidade Selecionada", str(d.get('unidade_id')))
         adicionar_linha_detalhe("Valor de Venda do Imovel", f"R$ {fmt_br(d.get('imovel_valor', 0))}", destaque=True)
-        pdf.ln(8)
+        pdf.ln(3)
+        
         adicionar_secao_pdf("ENGENHARIA FINANCEIRA")
         adicionar_linha_detalhe("Financiamento Bancario Estimado", f"R$ {fmt_br(d.get('finan_usado', 0))}")
         prazo_val = d.get('prazo_financiamento', 360)
@@ -731,18 +731,20 @@ def gerar_resumo_pdf(d):
         adicionar_linha_detalhe("Subsidio + FGTS Utilizado", f"R$ {fmt_br(d.get('fgts_sub_usado', 0))}")
         adicionar_linha_detalhe("Pro Soluto Direcional", f"R$ {fmt_br(d.get('ps_usado', 0))}")
         adicionar_linha_detalhe("Mensalidade Pro Soluto", f"{d.get('ps_parcelas')}x de R$ {fmt_br(d.get('ps_mensal', 0))}")
-        pdf.ln(8)
+        pdf.ln(3)
+        
         adicionar_secao_pdf("PLANO DE ENTRADA (FLUXO DE CAIXA)")
         adicionar_linha_detalhe("VALOR TOTAL DE ENTRADA", f"R$ {fmt_br(d.get('entrada_total', 0))}", destaque=True)
         adicionar_linha_detalhe("Parcela de Ato (Imediato)", f"R$ {fmt_br(d.get('ato_final', 0))}")
         adicionar_linha_detalhe("Parcela 30 Dias", f"R$ {fmt_br(d.get('ato_30', 0))}")
         adicionar_linha_detalhe("Parcela 60 Dias", f"R$ {fmt_br(d.get('ato_60', 0))}")
         adicionar_linha_detalhe("Parcela 90 Dias", f"R$ {fmt_br(d.get('ato_90', 0))}")
-        pdf.ln(15)
-        if pdf.get_y() > 270: pdf.add_page()
-        pdf.set_font("Helvetica", 'I', 7); pdf.set_text_color(*AZUL_RGB)
+        
+        pdf.ln(5)
+        pdf.set_font("Helvetica", 'I', 6); pdf.set_text_color(*AZUL_RGB)
         pdf.cell(0, 4, f"Simulacao realizada em {d.get('data_simulacao', date.today().strftime('%d/%m/%Y'))}. Sujeito a analise de credito.", ln=True, align='C')
         pdf.cell(0, 4, "Direcional Engenharia - Rio de Janeiro", ln=True, align='C')
+        
         return bytes(pdf.output())
     except: return None
 
@@ -937,7 +939,27 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
 
         rank_opts = ["DIAMANTE", "OURO", "PRATA", "BRONZE", "AÇO"]
         ranking = st.selectbox("Ranking do Cliente", options=rank_opts, index=0, key="in_rank_v28")
+        
+        # Lógica de políticas
+        df_politicas_filtered = df_politicas[df_politicas['CLASSIFICAÇÃO'] == ranking]
+        if not df_politicas_filtered.empty:
+             perc_ps_max = float(df_politicas_filtered['PROSOLUTO'].iloc[0])
+             # Assumindo coluna PARCELAS existe no df_politicas
+             if 'PARCELAS' in df_politicas_filtered.columns:
+                 prazo_ps_max = int(df_politicas_filtered['PARCELAS'].iloc[0])
+             else:
+                 prazo_ps_max = 60 # Default
+        else:
+             perc_ps_max = 0.12 # Default
+             prazo_ps_max = 60
+
         politica_ps = st.selectbox("Política de Pro Soluto", ["Direcional", "Emcash"], key="in_pol_v28")
+        
+        # Override se for EMCASH
+        if politica_ps == "Emcash":
+             perc_ps_max = 0.25 # Exemplo, ajuste conforme regra real
+             prazo_ps_max = 66
+        
         social = st.toggle("Fator Social", value=st.session_state.dados_cliente.get('social', False), key="in_soc_v28")
         cotista = st.toggle("Cotista FGTS", value=st.session_state.dados_cliente.get('cotista', True), key="in_cot_v28")
 
@@ -949,10 +971,6 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
             if not validar_cpf(cpf_val): st.markdown(f'<div class="custom-alert">CPF Inválido. Corrija para continuar.</div>', unsafe_allow_html=True); return
             if renda_total_calc <= 0: st.markdown(f'<div class="custom-alert">A renda total deve ser maior que zero.</div>', unsafe_allow_html=True); return
 
-            class_b = 'EMCASH' if politica_ps == "Emcash" else ranking
-            map_ps_percent = {'EMCASH': 0.25, 'DIAMANTE': 0.25, 'OURO': 0.20, 'PRATA': 0.18, 'BRONZE': 0.15, 'AÇO': 0.12}
-            perc_ps_max = map_ps_percent.get(class_b, 0.12)
-            prazo_ps_max = 66 if politica_ps == "Emcash" else 84
             limit_ps_r = 0.30
             f_faixa_ref, s_faixa_ref, fx_nome_ref = motor.obter_enquadramento(renda_total_calc, social, cotista, valor_avaliacao=240000)
 
@@ -981,7 +999,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
         d = st.session_state.dados_cliente
         st.markdown(f"### Recomendação de Imóveis")
 
-        df_disp_total = df_estoque[df_estoque['Status'] == 'Disponível'].copy()
+        df_disp_total = df_estoque[df_estoque['Status'].isin(['Disponível', 'Mirror'])].copy()
 
         if df_disp_total.empty: st.markdown('<div class="custom-alert">Sem produtos viaveis no perfil selecionado.</div>', unsafe_allow_html=True); df_viaveis = pd.DataFrame()
         else:
@@ -1047,9 +1065,6 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
                 cand_facil = pd.DataFrame(); cand_ideal = pd.DataFrame(); cand_seguro = pd.DataFrame()
                 
                 # Logic: We need 3 cards: Ideal, Seguro, Facilitado.
-                # If we don't have perfect matches, we fallback to cheapest available options.
-                
-                # 1. Try to find logic matches first
                 if not pool_viavel.empty:
                     # Ideal: 100% coverage, most expensive one that fits
                     ideal_pool = pool_viavel[pool_viavel['Cobertura'] >= 100]
@@ -1062,27 +1077,10 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
                     # Facilitado: Lowest Price (easiest to buy)
                     cand_facil = pool_viavel.sort_values('Valor de Venda', ascending=True).head(1)
                 
-                # 2. Collect what we found
-                found_units = []
-                if not cand_ideal.empty: found_units.append({'type': 'IDEAL', 'row': cand_ideal.iloc[0]})
-                if not cand_seguro.empty: found_units.append({'type': 'SEGURO', 'row': cand_seguro.iloc[0]})
-                if not cand_facil.empty: found_units.append({'type': 'FACILITADO', 'row': cand_facil.iloc[0]})
-                
-                # Deduplicate based on price/id to avoid showing same unit 3 times if possible, 
-                # but user asked for 3 units always. If logic returns same unit for all 3 (e.g. only 1 unit exists),
-                # we must show it 3 times or find others?
-                # User said: "Se o 90% nao der, recomende a de 100%, a mais barata e a segunda mais barata."
-                # This implies finding *distinct* units if possible.
-                
                 # Let's get top 3 cheapest units from pool as base fallback
                 fallback_pool = df_pool.sort_values('Valor de Venda', ascending=True)
                 
                 final_cards = []
-                
-                # Strategy: Fill slots 1(Ideal), 2(Seguro), 3(Facilitado)
-                # Slot 1: Logic Ideal -> Fallback Cheapest
-                # Slot 2: Logic Seguro -> Fallback 2nd Cheapest
-                # Slot 3: Logic Facilitado -> Fallback 3rd Cheapest
                 
                 # Helper to get unique unit not already in final_cards
                 def get_fallback_unit(exclude_ids):
@@ -1095,28 +1093,24 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
                 if not cand_ideal.empty:
                     final_cards.append({'label': 'IDEAL', 'row': cand_ideal.iloc[0], 'css': 'badge-ideal'})
                 else:
-                    # Fallback 1: Cheapest (100% coverage unit not found, maybe expensive)
-                    # Logic says: "Se 100% nao der, recomende a mais barata"
                     u = get_fallback_unit([])
-                    if u is not None: final_cards.append({'label': 'IDEAL (Alternativa)', 'row': u, 'css': 'badge-ideal'})
+                    if u is not None: final_cards.append({'label': 'IDEAL', 'row': u, 'css': 'badge-ideal'})
 
                 # Card 2: SEGURO
                 exclude = [c['row']['Identificador'] for c in final_cards]
                 if not cand_seguro.empty and cand_seguro.iloc[0]['Identificador'] not in exclude:
                      final_cards.append({'label': 'SEGURO', 'row': cand_seguro.iloc[0], 'css': 'badge-seguro'})
                 else:
-                    # Fallback 2: 2nd Cheapest
                     u = get_fallback_unit(exclude)
-                    if u is not None: final_cards.append({'label': 'SEGURO (Alternativa)', 'row': u, 'css': 'badge-seguro'})
+                    if u is not None: final_cards.append({'label': 'SEGURO', 'row': u, 'css': 'badge-seguro'})
                 
                 # Card 3: FACILITADO
                 exclude = [c['row']['Identificador'] for c in final_cards]
                 if not cand_facil.empty and cand_facil.iloc[0]['Identificador'] not in exclude:
                      final_cards.append({'label': 'FACILITADO', 'row': cand_facil.iloc[0], 'css': 'badge-facilitado'})
                 else:
-                     # Fallback 3: 3rd Cheapest
                      u = get_fallback_unit(exclude)
-                     if u is not None: final_cards.append({'label': 'FACILITADO (Alternativa)', 'row': u, 'css': 'badge-facilitado'})
+                     if u is not None: final_cards.append({'label': 'FACILITADO', 'row': u, 'css': 'badge-facilitado'})
 
                 # Render
                 if not final_cards: st.warning("Nenhuma unidade encontrada.")
@@ -1197,7 +1191,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
         d = st.session_state.dados_cliente
         st.markdown(f"### Escolha de Unidade")
 
-        df_disponiveis = df_estoque[df_estoque['Status'] == 'Disponível'].copy()
+        df_disponiveis = df_estoque[df_estoque['Status'].isin(['Disponível', 'Mirror'])].copy()
 
         if df_disponiveis.empty: st.warning("Sem estoque disponível.")
         else:
@@ -1508,6 +1502,14 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
                     df_final_save = pd.concat([df_existente, df_novo], ignore_index=True)
                 except: df_final_save = df_novo
                 conn_save.update(spreadsheet=URL_RANKING, worksheet=aba_destino, data=df_final_save)
+                
+                # Auto-email Logic
+                user_email = st.session_state.get('user_email', '')
+                if user_email and "@" in user_email:
+                    pdf_bytes = gerar_resumo_pdf(d)
+                    if pdf_bytes:
+                        enviar_email_smtp(user_email, d.get('nome', 'Cliente'), pdf_bytes)
+
                 st.cache_data.clear()
                 st.markdown(f'<div class="custom-alert">Salvo em \'{aba_destino}\'!</div>', unsafe_allow_html=True); time.sleep(2); st.session_state.dados_cliente = {}; st.session_state.passo_simulacao = 'input'; scroll_to_top(); st.rerun()
             except Exception as e: st.error(f"Erro ao salvar: {e}")
