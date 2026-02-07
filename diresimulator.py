@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 =============================================================================
-SISTEMA DE SIMULAÇÃO IMOBILIÁRIA - DIRE RIO V24.1 (BUGFIX NAME ERROR)
+SISTEMA DE SIMULAÇÃO IMOBILIÁRIA - DIRE RIO V24.2 (CLICKABLE NAV & CLEAN)
 =============================================================================
 Instruções para Google Colab:
 1. Crie um arquivo chamado 'app.py' com este conteúdo.
@@ -651,90 +651,12 @@ def configurar_layout():
         button[data-baseweb="tab"][aria-selected="true"] p {{ color: {COR_AZUL_ESC} !important; opacity: 1; }}
         div[data-baseweb="tab-highlight"] {{ background-color: {COR_VERMELHO} !important; height: 3px !important; }}
 
-        /* --- STEPPER (Barra de Progresso) --- */
-        .stepper-container {{
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 3.5rem;
-            position: relative;
-            padding: 0 1rem;
-        }}
-        
-        .stepper-line-bg {{
-            position: absolute;
-            top: 24px;
-            left: 20px;
-            right: 20px;
-            height: 3px;
-            background-color: #e2e8f0;
-            z-index: 0;
-            border-radius: 99px;
-        }}
-        
-        .stepper-step {{
-            position: relative;
-            z-index: 2;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            cursor: default;
-            flex: 1;
-        }}
-        
-        .step-bubble {{
-            width: 48px;
-            height: 48px;
-            border-radius: 50%;
-            background-color: white;
-            border: 2px solid #e2e8f0;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-weight: 700;
-            font-size: 1rem;
-            color: #64748b;
-            margin-bottom: 0.75rem;
-            transition: all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
-            box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);
-        }}
-        
-        .step-label {{
-            font-size: 0.75rem;
-            font-weight: 700;
-            color: #94a3b8;
-            text-transform: uppercase;
-            letter-spacing: 0.05em;
-            transition: color 0.3s;
-        }}
-        
-        /* Active State */
-        .stepper-step.active .step-bubble {{
-            background: {COR_AZUL_ESC};
-            border-color: {COR_AZUL_ESC};
-            color: white;
-            transform: scale(1.15);
-            box-shadow: 0 0 0 6px rgba(0, 44, 93, 0.15);
-        }}
-        .stepper-step.active .step-label {{
-            color: {COR_AZUL_ESC};
-        }}
-        
-        /* Completed State */
-        .stepper-step.completed .step-bubble {{
-            background: #10b981; /* Emerald 500 */
-            border-color: #10b981;
-            color: white;
-        }}
-        .stepper-step.completed .step-label {{
-            color: #10b981;
-        }}
-
         .footer {{ text-align: center; padding: 80px 0; color: {COR_AZUL_ESC} !important; font-size: 0.8rem; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; opacity: 0.6; }}
         </style>
     """, unsafe_allow_html=True)
 
 def render_stepper(current_step_name):
+    # Dicionário de passos (Atualizado sem emojis e com novos nomes)
     steps = [
         {"id": "input", "label": "Dados do Cliente"},
         {"id": "guide", "label": "Recomendação de Imóveis"},
@@ -742,27 +664,27 @@ def render_stepper(current_step_name):
         {"id": "payment_flow", "label": "Fechamento Financeiro"},
         {"id": "summary", "label": "Resumo da Simulação"}
     ]
+    
+    # Encontra o índice atual
     current_idx = 0
     for i, s in enumerate(steps):
         if s["id"] == current_step_name:
             current_idx = i
             break
-    
-    html = '<div class="stepper-container"><div class="stepper-line-bg"></div>'
+
+    # Layout de colunas para botões clicáveis
+    cols = st.columns(len(steps))
     for i, step in enumerate(steps):
-        status_class = ""
-        icon_content = str(i + 1)
-        if i < current_idx:
-            status_class = "completed"
-            icon_content = "✓"
-        elif i == current_idx:
-            status_class = "active"
-        html += f"""<div class="stepper-step {status_class}">
-    <div class="step-bubble">{icon_content}</div>
-    <div class="step-label">{step['label']}</div>
-</div>"""
-    html += '</div>'
-    st.markdown(html, unsafe_allow_html=True)
+        with cols[i]:
+            # Define estilo primário para a etapa atual, secundário para as demais
+            btn_type = "primary" if i == current_idx else "secondary"
+            # Cria o botão. Se clicado, atualiza o estado e recarrega
+            if st.button(f"{i+1}. {step['label']}", key=f"step_btn_{i}", type=btn_type, use_container_width=True):
+                st.session_state.passo_simulacao = step['id']
+                scroll_to_top()
+                st.rerun()
+    
+    st.markdown("<div style='margin-bottom: 30px;'></div>", unsafe_allow_html=True)
 
 # ... (Funções PDF e Email) ...
 def gerar_resumo_pdf(d):
@@ -873,14 +795,14 @@ def show_export_dialog(d):
     pdf_data = gerar_resumo_pdf(d)
 
     if pdf_data:
-        st.download_button(label="📄 Baixar PDF", data=pdf_data, file_name=f"Resumo_Direcional_{d.get('nome', 'Cliente')}.pdf", mime="application/pdf", use_container_width=True)
+        st.download_button(label="Baixar PDF", data=pdf_data, file_name=f"Resumo_Direcional_{d.get('nome', 'Cliente')}.pdf", mime="application/pdf", use_container_width=True)
     else:
         st.warning("Geração de PDF indisponível.")
 
     st.markdown("---")
     st.markdown("**Enviar por E-mail**")
     email = st.text_input("Endereço de e-mail", placeholder="cliente@exemplo.com")
-    if st.button("✉️ Enviar Email", use_container_width=True):
+    if st.button("Enviar Email", use_container_width=True):
         if email and "@" in email:
             sucesso, msg = enviar_email_smtp(email, d.get('nome', 'Cliente'), pdf_data)
             if sucesso: st.success(msg)
