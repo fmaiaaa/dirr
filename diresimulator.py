@@ -1,12 +1,12 @@
 # -*- coding: utf-8 -*-
 """
 =============================================================================
-SISTEMA DE SIMULAÇÃO IMOBILIÁRIA - DIRE RIO V23 (NAV & CALC TWEAKS)
+SISTEMA DE SIMULAÇÃO IMOBILIÁRIA - DIRE RIO V23.2 (NAV UPDATE)
 =============================================================================
 Instruções para Google Colab:
 1. Crie um arquivo chamado 'app.py' com este conteúdo.
 2. Instale as dependências:
-   !pip install streamlit pandas numpy fpdf streamlit-gsheets
+   !pip install streamlit pandas numpy fpdf streamlit-gsheets pytz
 3. Rode o app:
    !streamlit run app.py & npx localtunnel --port 8501
 =============================================================================
@@ -28,6 +28,7 @@ from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from email.mime.application import MIMEApplication
 import os
+import pytz
 
 # Tenta importar fpdf e PIL
 try:
@@ -690,11 +691,11 @@ def configurar_layout():
 
 def render_stepper(current_step_name):
     steps = [
-        {"id": "input", "label": "Dados"},
-        {"id": "guide", "label": "Análise"},
-        {"id": "selection", "label": "Imóvel"},
-        {"id": "payment_flow", "label": "Pagamento"},
-        {"id": "summary", "label": "Resumo"}
+        {"id": "input", "label": "Dados do Cliente"},
+        {"id": "guide", "label": "Recomendação de Imóveis"},
+        {"id": "selection", "label": "Escolha de Unidade"},
+        {"id": "payment_flow", "label": "Fechamento Financeiro"},
+        {"id": "summary", "label": "Resumo da Simulação"}
     ]
     current_idx = 0
     for i, s in enumerate(steps):
@@ -987,12 +988,12 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
             scroll_to_top()
             st.rerun()
 
-        if st.button("Avançar para Recomendação", type="primary", use_container_width=True, key="btn_avancar_guide"):
+        if st.button("Obter recomendações", type="primary", use_container_width=True, key="btn_avancar_guide"):
             processar_avanco('guide')
 
         st.write("") 
 
-        if st.button("Avançar para Seleção (Direto)", use_container_width=True, key="btn_avancar_direto"):
+        if st.button("Ir direto para escolha de unidades", use_container_width=True, key="btn_avancar_direto"):
             processar_avanco('selection')
 
     # --- ETAPA 2: RECOMENDAÇÃO ---
@@ -1167,14 +1168,14 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
                 )
 
         st.markdown("---")
-        if st.button("Avançar para Seleção de Unidade", type="primary", use_container_width=True, key="btn_goto_selection"): st.session_state.passo_simulacao = 'selection'; scroll_to_top(); st.rerun()
+        if st.button("Avançar para Escolha de Unidade", type="primary", use_container_width=True, key="btn_goto_selection"): st.session_state.passo_simulacao = 'selection'; scroll_to_top(); st.rerun()
         st.write("");
         if st.button("Voltar para Dados do Cliente", use_container_width=True, key="btn_pot_v28"): st.session_state.passo_simulacao = 'input'; scroll_to_top(); st.rerun()
 
     # --- ETAPA 3: SELEÇÃO + TERMOMETRO ---
     elif passo == 'selection':
         d = st.session_state.dados_cliente
-        st.markdown(f"### Seleção de Unidade")
+        st.markdown(f"### Escolha de Unidade")
 
         df_disponiveis = df_estoque[df_estoque['Status'] == 'Disponível'].copy()
 
@@ -1224,7 +1225,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
                     </div>""", unsafe_allow_html=True)
 
             st.markdown("<br>", unsafe_allow_html=True)
-            if st.button("Avançar para Pagamento", type="primary", use_container_width=True):
+            if st.button("Avançar para Fechamento Financeiro", type="primary", use_container_width=True):
                 if uni_escolhida_id:
                     u_row = unidades_disp[unidades_disp['Identificador'] == uni_escolhida_id].iloc[0]
                     fin, sub, _ = motor.obter_enquadramento(d.get('renda', 0), d.get('social', False), d.get('cotista', True), u_row['Valor de Avaliação Bancária'])
@@ -1234,7 +1235,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
                         'finan_estimado': fin, 'fgts_sub': sub
                     })
                     st.session_state.passo_simulacao = 'payment_flow'; scroll_to_top(); st.rerun()
-            if st.button("Voltar para Recomendação", use_container_width=True): st.session_state.passo_simulacao = 'guide'; scroll_to_top(); st.rerun()
+            if st.button("Voltar para Recomendação de Imóveis", use_container_width=True): st.session_state.passo_simulacao = 'guide'; scroll_to_top(); st.rerun()
 
     # --- ETAPA 4: FECHAMENTO FINANCEIRO ---
     elif passo == 'payment_flow':
@@ -1387,7 +1388,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
         })
 
         st.markdown("---")
-        if st.button("Avançar para Resumo", type="primary", use_container_width=True):
+        if st.button("Avançar para Resumo da Simulação", type="primary", use_container_width=True):
             if abs(gap_final) <= 1:
                 st.session_state.passo_simulacao = 'summary'
                 scroll_to_top()
@@ -1395,7 +1396,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
             else:
                 st.error(f"Não é possível avançar. O valor total pago deve ser igual ao valor do imóvel (Saldo R$ 0,00).")
 
-        if st.button("Voltar para Seleção", use_container_width=True): st.session_state.passo_simulacao = 'selection'; scroll_to_top(); st.rerun()
+        if st.button("Voltar para Escolha de Unidade", use_container_width=True): st.session_state.passo_simulacao = 'selection'; scroll_to_top(); st.rerun()
 
     # --- ETAPA 5: RESUMO ---
     elif passo == 'summary':
@@ -1461,7 +1462,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
                     "Renda Part. 2": rendas_ind[1],
                     "Nome do Corretor": st.session_state.get('user_name', ''),
                     "Canal/Imobiliária": st.session_state.get('user_imobiliaria', ''),
-                    "Data/Horário": datetime.now().strftime("%d/%m/%Y %H:%M:%S")
+                    "Data/Horário": datetime.now(pytz.timezone('America/Sao_Paulo')).strftime("%d/%m/%Y %H:%M:%S")
                 }
                 df_novo = pd.DataFrame([nova_linha])
                 try:
@@ -1469,10 +1470,10 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
                     df_final_save = pd.concat([df_existente, df_novo], ignore_index=True)
                 except: df_final_save = df_novo
                 conn_save.update(spreadsheet=URL_RANKING, worksheet=aba_destino, data=df_final_save)
-                st.success(f"Salvo em '{aba_destino}'!"); time.sleep(2); st.session_state.dados_cliente = {}; st.session_state.passo_simulacao = 'input'; scroll_to_top(); st.rerun()
+                st.markdown(f'<div class="custom-alert">Salvo em \'{aba_destino}\'!</div>', unsafe_allow_html=True); time.sleep(2); st.session_state.dados_cliente = {}; st.session_state.passo_simulacao = 'input'; scroll_to_top(); st.rerun()
             except Exception as e: st.error(f"Erro ao salvar: {e}")
 
-        if st.button("Voltar para Pagamento", use_container_width=True): st.session_state.passo_simulacao = 'payment_flow'; scroll_to_top(); st.rerun()
+        if st.button("Voltar para Fechamento Financeiro", use_container_width=True): st.session_state.passo_simulacao = 'payment_flow'; scroll_to_top(); st.rerun()
 
     st.markdown("<br><br>", unsafe_allow_html=True)
 
