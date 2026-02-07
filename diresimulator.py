@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 =============================================================================
-SISTEMA DE SIMULAÇÃO IMOBILIÁRIA - DIRE RIO V9 (FINAL ADJUSTED UI + LOGIC V2)
+SISTEMA DE SIMULAÇÃO IMOBILIÁRIA - DIRE RIO V10 (FINAL ADJUSTED DATA & POLICY)
 =============================================================================
 Instruções para Google Colab:
 1. Crie um arquivo chamado 'app.py' com este conteúdo.
@@ -716,7 +716,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
                 # Normalização de nome de coluna para garantir match
                 col_corretor = next((c for c in df_h.columns if 'Nome do Corretor' in c), None)
                 col_nome_cliente = next((c for c in df_h.columns if c == 'Nome'), None)
-                col_data_sim = next((c for c in df_h.columns if 'Data Simula' in c or 'Carimbo' in c), None)
+                col_data_sim = next((c for c in df_h.columns if 'Data' in c and '/' in str(df_h[c].iloc[0])), None) # Tenta achar coluna de data
 
                 if col_corretor:
                     # Filtra pelo corretor (usando strip e upper para garantir)
@@ -820,20 +820,30 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
             if cpf_val and not validar_cpf(cpf_val): st.markdown(f'<div class="custom-alert">CPF Inválido. Corrija para continuar.</div>', unsafe_allow_html=True); return
             if renda_total_calc <= 0: st.markdown(f'<div class="custom-alert">A renda total deve ser maior que zero.</div>', unsafe_allow_html=True); return
 
+            # Lógica de Política Pro Soluto baseada na tabela de ranking
             class_b = 'EMCASH' if politica_ps == "Emcash" else ranking
-            politica_row = pd.Series({'FX_RENDA_1': 0.30, 'FAIXA_RENDA': 4400, 'FX_RENDA_2': 0.25, 'PROSOLUTO': 0.10, 'PARCELAS': 60})
+            
+            # Default values
+            perc_ps_max = 0.10
+            prazo_ps_max = 60
+            
             if 'CLASSIFICAÇÃO' in df_politicas.columns:
                 filtro = df_politicas[df_politicas['CLASSIFICAÇÃO'] == class_b]
-                if not filtro.empty: politica_row = filtro.iloc[0]
+                if not filtro.empty: 
+                    row_pol = filtro.iloc[0]
+                    if 'PROSOLUTO' in row_pol: perc_ps_max = row_pol['PROSOLUTO']
+                    if 'PARCELAS' in row_pol: prazo_ps_max = int(row_pol['PARCELAS'])
 
-            limit_ps_r = politica_row['FX_RENDA_1'] if renda_total_calc < politica_row['FAIXA_RENDA'] else politica_row['FX_RENDA_2']
+            # Fator de comprometimento de renda (mantido do original, embora não explicitado na ultima query, é bom ter)
+            limit_ps_r = 0.30 
+
             f_faixa_ref, s_faixa_ref, fx_nome_ref = motor.obter_enquadramento(renda_total_calc, social, cotista, valor_avaliacao=240000)
             
             st.session_state.dados_cliente.update({
                 'nome': nome, 'cpf': limpar_cpf_visual(cpf_val), 'data_nascimento': data_nasc, 'genero': genero,
                 'renda': renda_total_calc, 'rendas_lista': lista_rendas_input,
                 'social': social, 'cotista': cotista, 'ranking': ranking, 'politica': politica_ps,
-                'perc_ps': politica_row['PROSOLUTO'], 'prazo_ps_max': int(politica_row['PARCELAS']),
+                'perc_ps': perc_ps_max, 'prazo_ps_max': prazo_ps_max,
                 'limit_ps_renda': limit_ps_r, 'finan_f_ref': f_faixa_ref, 'sub_f_ref': s_faixa_ref,
                 'qtd_participantes': qtd_part
             })
@@ -1232,7 +1242,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
             st.markdown(f'<span class="inline-ref">Limite Permitido ({d.get("perc_ps", 0)*100:.0f}%): R$ {fmt_br(ps_max_real)}</span>', unsafe_allow_html=True)
             
         with col_ps_parc:
-            parc = st.number_input("Parcelas Pro Soluto", min_value=1, max_value=144, value=60, key="parc_u_v28")
+            parc = st.number_input("Parcelas Pro Soluto", min_value=1, max_value=d.get("prazo_ps_max", 60), value=min(60, d.get("prazo_ps_max", 60)), key="parc_u_v28")
             st.markdown(f'<span class="inline-ref">Prazo Máximo: {d.get("prazo_ps_max", 0)} meses</span>', unsafe_allow_html=True)
 
         v_parc = ps_u / parc if parc > 0 else 0
@@ -1301,21 +1311,44 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
                 aba_destino = 'Simulações'
                 rendas_ind = d.get('rendas_lista', [])
                 while len(rendas_ind) < 4: rendas_ind.append(0.0)
+                
+                # Capacidade de entrada pode ser o Total pago - Financiamento - Subsídio
+                capacidade_entrada = d.get('entrada_total', 0) + d.get('ps_usado', 0)
+                
                 nova_linha = {
-                    "Nome": d.get('nome'), "CPF": d.get('cpf'), "Data de Nascimento": str(d.get('data_nascimento')),
-                    "Prazo Financiamento": d.get('prazo_financiamento'), "Renda Part. 1": rendas_ind[0], 
-                    "Renda Part. 4": rendas_ind[3], "Renda Part. 3": rendas_ind[2], "Renda Part. 4.1": 0.0, 
-                    "Ranking": d.get('ranking'), "Política de Pro Soluto": d.get('politica'),
-                    "Fator Social": "Sim" if d.get('social') else "Não", "Cotista FGTS": "Sim" if d.get('cotista') else "Não",
-                    "Financiamento Aprovado": d.get('finan_f_ref', 0), "Subsídio Máximo": d.get('sub_f_ref', 0), "Pro Soluto Médio": d.get('ps_medio_ref', 0),
-                    "Capacidade de Entrada": d.get('cap_entrada_ref', 0), "Poder de Aquisição Médio": d.get('poder_aquisicao_ref', 0),
-                    "Empreendimento Final": d.get('empreendimento_nome'), "Unidade Final": d.get('unidade_id'), "Preço Unidade Final": d.get('imovel_valor', 0),
-                    "Financiamento Final": d.get('finan_usado', 0), "FGTS + Subsídio Final": d.get('fgts_sub_usado', 0),
-                    "Pro Soluto Final": d.get('ps_usado', 0), "Número de Parcelas do Pro Soluto": d.get('ps_parcelas', 0), "Mensalidade PS": d.get('ps_mensal', 0),
-                    "Ato": d.get('ato_final', 0), "Ato 30": d.get('ato_30', 0), "Ato 60": d.get('ato_60', 0), "Ato 90": d.get('ato_90', 0),
+                    "Nome": d.get('nome'), 
+                    "CPF": d.get('cpf'), 
+                    "Data de Nascimento": str(d.get('data_nascimento')),
+                    "Prazo Financiamento": d.get('prazo_financiamento'), 
+                    "Renda Part. 1": rendas_ind[0], 
+                    "Renda Part. 4": rendas_ind[3], 
+                    "Renda Part. 3": rendas_ind[2], 
+                    "Renda Part. 4.1": 0.0, 
+                    "Ranking": d.get('ranking'), 
+                    "Política de Pro Soluto": d.get('politica'),
+                    "Fator Social": "Sim" if d.get('social') else "Não", 
+                    "Cotista FGTS": "Sim" if d.get('cotista') else "Não",
+                    "Financiamento Aprovado": d.get('finan_f_ref', 0), 
+                    "Subsídio Máximo": d.get('sub_f_ref', 0), 
+                    "Pro Soluto Médio": d.get('ps_usado', 0), # Usando o valor efetivo como referência
+                    "Capacidade de Entrada": capacidade_entrada, 
+                    "Poder de Aquisição Médio": (2 * d.get('renda', 0)) + d.get('finan_f_ref', 0) + d.get('sub_f_ref', 0) + (d.get('imovel_valor', 0) * 0.10), # Estimativa
+                    "Empreendimento Final": d.get('empreendimento_nome'), 
+                    "Unidade Final": d.get('unidade_id'), 
+                    "Preço Unidade Final": d.get('imovel_valor', 0),
+                    "Financiamento Final": d.get('finan_usado', 0), 
+                    "FGTS + Subsídio Final": d.get('fgts_sub_usado', 0),
+                    "Pro Soluto Final": d.get('ps_usado', 0), 
+                    "Número de Parcelas do Pro Soluto": d.get('ps_parcelas', 0), 
+                    "Mensalidade PS": d.get('ps_mensal', 0),
+                    "Ato": d.get('ato_final', 0), 
+                    "Ato 30": d.get('ato_30', 0), 
+                    "Ato 60": d.get('ato_60', 0), 
+                    "Ato 90": d.get('ato_90', 0),
                     "Renda Part. 2": rendas_ind[1],
-                    "Nome do Corretor": st.session_state.get('user_name', ''), "Canal/Imobiliária": st.session_state.get('user_imobiliaria', ''),
-                    "Data Simulação": datetime.now().strftime("%d/%m/%Y %H:%M:%S")
+                    "Nome do Corretor": st.session_state.get('user_name', ''), 
+                    "Canal/Imobiliária": st.session_state.get('user_imobiliaria', ''),
+                    "Data/Horário": datetime.now().strftime("%d/%m/%Y %H:%M:%S")
                 }
                 df_novo = pd.DataFrame([nova_linha])
                 try:
