@@ -1,12 +1,12 @@
 # -*- coding: utf-8 -*-
 """
 =============================================================================
-SISTEMA DE SIMULAÇÃO IMOBILIÁRIA - DIRE RIO V39 (ANALYTICS COMPLETO & FIXES)
+SISTEMA DE SIMULAÇÃO IMOBILIÁRIA - DIRE RIO V40 (ANALYTICS PRO & MATPLOTLIB)
 =============================================================================
 Instruções para Google Colab:
 1. Crie um arquivo chamado 'app.py' com este conteúdo.
 2. Instale as dependências:
-   !pip install streamlit pandas numpy fpdf streamlit-gsheets pytz
+   !pip install streamlit pandas numpy fpdf streamlit-gsheets pytz matplotlib
 3. Configure os segredos (.streamlit/secrets.toml) para o envio de email.
 4. Rode o app:
    !streamlit run app.py & npx localtunnel --port 8501
@@ -30,7 +30,7 @@ from email.mime.text import MIMEText
 from email.mime.application import MIMEApplication
 import os
 import pytz
-import altair as alt
+import matplotlib.pyplot as plt
 
 # Tenta importar fpdf e PIL
 try:
@@ -156,6 +156,35 @@ def calcular_parcela_financiamento(valor_financiado, meses, taxa_anual_pct, sist
         amortizacao = valor_financiado / meses
         juros = valor_financiado * i_mensal
         return amortizacao + juros
+
+def aplicar_tema_personalizado(fonte="sans-serif"):
+    """
+    Aplica um tema global personalizado para todos os gráficos do Matplotlib.
+    """
+    plt.style.use('seaborn-v0_8-whitegrid')
+    plt.rcParams.update({
+        'font.family': fonte,
+        'axes.titlesize': 14,
+        'axes.titleweight': 'bold',
+        'axes.titlelocation': 'left',
+        'axes.labelsize': 11,
+        'axes.labelweight': 'bold',
+        'axes.spines.top': False,
+        'axes.spines.right': False,
+        'axes.spines.left': False,
+        'axes.spines.bottom': True,
+        'xtick.color': '#333333',
+        'ytick.color': '#333333',
+        'text.color': '#333333',
+        'figure.facecolor': 'white',
+        'axes.facecolor': 'white',
+        'axes.grid': True,
+        'grid.color': '#F0F0F0',
+        'grid.linestyle': '--',
+        'legend.loc': 'best',
+        'legend.frameon': False,
+        'figure.constrained_layout.use': True
+    })
 
 def scroll_to_top():
     js = """<script>var body = window.parent.document.querySelector(".main"); if (body) { body.scrollTop = 0; } window.scrollTo(0, 0);</script>"""
@@ -990,6 +1019,9 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
                                         qtd_p = i
                                         break
                                 
+                                # Calcula o total da renda (CORREÇÃO DO BUG R$ 0,00)
+                                renda_total = sum(rs)
+
                                 soc = str(row.get('Fator Social', '')).strip().lower() in ['sim', 's', 'true']
                                 cot = str(row.get('Cotista FGTS', '')).strip().lower() in ['sim', 's', 'true']
 
@@ -999,6 +1031,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
                                     'data_nascimento': row.get('Data de Nascimento'),
                                     'qtd_participantes': qtd_p,
                                     'rendas_lista': rs,
+                                    'renda': renda_total,  # Chave adicionada explicitamente
                                     'ranking': row.get('Ranking'),
                                     'politica': row.get('Política de Pro Soluto'),
                                     'social': soc,
@@ -1052,29 +1085,52 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
     if passo != 'client_analytics':
         render_stepper(passo)
 
-    # --- ABA ANALYTICS (SECURE TAB) ---
+    # --- ABA ANALYTICS (SECURE TAB - MATPLOTLIB) ---
     if passo == 'client_analytics':
         d = st.session_state.dados_cliente
-        st.markdown(f"### 📊 Painel do Cliente: {d.get('nome', 'Não Informado')}")
+        aplicar_tema_personalizado() # Apply User Theme
+
+        st.markdown(f"### Painel do Cliente: {d.get('nome', 'Não Informado')}")
 
         # --- SEÇÃO 1: FICHA DO CLIENTE ---
         with st.container():
             col1, col2, col3 = st.columns(3)
+            
+            # Format Data Nascimento
+            dn = str(d.get('data_nascimento', ''))
+            if '-' in dn:
+                try: dn = datetime.strptime(dn, '%Y-%m-%d').strftime('%d/%m/%Y')
+                except: pass
+            
+            # Format CPF
+            cpf_show = d.get('cpf', '')
+            if len(cpf_show) == 11:
+                cpf_show = f"{cpf_show[:3]}.{cpf_show[3:6]}.{cpf_show[6:9]}-{cpf_show[9:]}"
+
             with col1:
-                st.markdown("**Dados Pessoais**")
-                st.caption(f"CPF: {d.get('cpf')}")
-                st.caption(f"Nascimento: {d.get('data_nascimento')}")
-                st.caption(f"Ranking: {d.get('ranking')}")
+                st.markdown(f"""
+                <div class="summary-body" style="padding: 20px; border-left: 5px solid {COR_AZUL_ESC};">
+                    <p style="font-weight: bold; margin-bottom: 10px; color: {COR_AZUL_ESC};">Dados Pessoais</p>
+                    <p style="font-size: 0.9rem; margin: 0;">CPF: {cpf_show}</p>
+                    <p style="font-size: 0.9rem; margin: 0;">Nascimento: {dn}</p>
+                    <p style="font-size: 0.9rem; margin: 0;">Ranking: {d.get('ranking')}</p>
+                </div>""", unsafe_allow_html=True)
             with col2:
-                st.markdown("**Renda & Perfil**")
-                st.caption(f"Renda Familiar: R$ {fmt_br(d.get('renda', 0))}")
-                st.caption(f"Participantes: {d.get('qtd_participantes')}")
-                st.caption(f"FGTS: {'Sim' if d.get('cotista') else 'Não'} | Social: {'Sim' if d.get('social') else 'Não'}")
+                st.markdown(f"""
+                <div class="summary-body" style="padding: 20px; border-left: 5px solid {COR_AZUL_ESC};">
+                    <p style="font-weight: bold; margin-bottom: 10px; color: {COR_AZUL_ESC};">Renda & Perfil</p>
+                    <p style="font-size: 0.9rem; margin: 0;">Renda Familiar: R$ {fmt_br(d.get('renda', 0))}</p>
+                    <p style="font-size: 0.9rem; margin: 0;">Participantes: {d.get('qtd_participantes')}</p>
+                    <p style="font-size: 0.9rem; margin: 0;">FGTS: {'Sim' if d.get('cotista') else 'Não'} | Social: {'Sim' if d.get('social') else 'Não'}</p>
+                </div>""", unsafe_allow_html=True)
             with col3:
-                st.markdown("**Imóvel Salvo**")
-                st.caption(f"{d.get('empreendimento_nome')}")
-                st.caption(f"Unidade: {d.get('unidade_id')}")
-                st.caption(f"Valor: R$ {fmt_br(d.get('imovel_valor', 0))}")
+                st.markdown(f"""
+                <div class="summary-body" style="padding: 20px; border-left: 5px solid {COR_AZUL_ESC};">
+                    <p style="font-weight: bold; margin-bottom: 10px; color: {COR_AZUL_ESC};">Imóvel Salvo</p>
+                    <p style="font-size: 0.9rem; margin: 0;">{d.get('empreendimento_nome')}</p>
+                    <p style="font-size: 0.9rem; margin: 0;">Unidade: {d.get('unidade_id')}</p>
+                    <p style="font-size: 0.9rem; margin: 0;">Valor: <span style='color:{COR_VERMELHO}; font-weight:bold;'>R$ {fmt_br(d.get('imovel_valor', 0))}</span></p>
+                </div>""", unsafe_allow_html=True)
 
         st.markdown("---")
 
@@ -1083,94 +1139,159 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
         
         # Gráfico 1: Composição da Compra
         with g_col1:
-            st.markdown("##### 🍰 Composição da Compra")
+            st.markdown("##### Composição da Compra")
             labels = ['Ato', '30 Dias', '60 Dias', '90 Dias', 'Pro Soluto', 'Financiamento', 'FGTS/Subsídio']
             values = [
                 d.get('ato_final', 0), d.get('ato_30', 0), d.get('ato_60', 0), d.get('ato_90', 0),
                 d.get('ps_usado', 0), d.get('finan_usado', 0), d.get('fgts_sub_usado', 0)
             ]
-            # Filtra zeros
-            pie_data = [(l, v) for l, v in zip(labels, values) if v > 0]
-            if pie_data:
-                df_pie = pd.DataFrame(pie_data, columns=['Tipo', 'Valor'])
-                c = alt.Chart(df_pie).mark_arc(innerRadius=50).encode(
-                    theta=alt.Theta("Valor", stack=True),
-                    color=alt.Color("Tipo"),
-                    tooltip=["Tipo", "Valor"]
-                )
-                st.altair_chart(c, use_container_width=True)
+            
+            # Filter zeros for cleaner chart
+            clean_data = [(l, v) for l, v in zip(labels, values) if v > 0]
+            if clean_data:
+                labels_clean = [x[0] for x in clean_data]
+                values_clean = [x[1] for x in clean_data]
+                
+                fig1, ax1 = plt.subplots(figsize=(6, 4))
+                # Custom colors mapping
+                colors = ['#e30613', '#c0392b', '#94a3b8', '#64748b', '#f59e0b', '#002c5d', '#10b981']
+                
+                wedges, texts, autotexts = ax1.pie(values_clean, labels=labels_clean, autopct='%1.1f%%', 
+                                                  startangle=90, colors=colors[:len(values_clean)], pctdistance=0.85)
+                
+                # Draw white circle for donut
+                centre_circle = plt.Circle((0,0),0.70,fc='white')
+                fig1.gca().add_artist(centre_circle)
+                
+                plt.setp(autotexts, size=9, weight="bold", color="white")
+                plt.setp(texts, size=9)
+                ax1.axis('equal')
+                st.pyplot(fig1, use_container_width=True)
             else:
                 st.info("Sem dados financeiros suficientes.")
 
         # Gráfico 2: Composição de Renda
         with g_col2:
-            st.markdown("##### 👥 Composição de Renda")
+            st.markdown("##### Composição de Renda")
             rendas = d.get('rendas_lista', [])
             pie_renda = [(f"Part. {i+1}", r) for i, r in enumerate(rendas) if r > 0]
             if pie_renda:
-                df_renda = pd.DataFrame(pie_renda, columns=['Participante', 'Renda'])
-                c2 = alt.Chart(df_renda).mark_arc(innerRadius=50).encode(
-                    theta=alt.Theta("Renda", stack=True),
-                    color=alt.Color("Participante"),
-                    tooltip=["Participante", "Renda"]
-                )
-                st.altair_chart(c2, use_container_width=True)
+                labels_r = [x[0] for x in pie_renda]
+                values_r = [x[1] for x in pie_renda]
+                
+                fig2, ax2 = plt.subplots(figsize=(6, 4))
+                colors_r = ['#002c5d', '#e30613', '#f59e0b', '#10b981']
+                
+                wedges, texts, autotexts = ax2.pie(values_r, labels=labels_r, autopct='%1.1f%%', 
+                                                  startangle=90, colors=colors_r[:len(values_r)], pctdistance=0.85)
+                
+                centre_circle = plt.Circle((0,0),0.70,fc='white')
+                fig2.gca().add_artist(centre_circle)
+                
+                plt.setp(autotexts, size=9, weight="bold", color="white")
+                ax2.axis('equal')
+                st.pyplot(fig2, use_container_width=True)
             else:
                 st.caption("Renda única ou não informada.")
 
         # --- SEÇÃO 3: FLUXO DE PAGAMENTO (PRÓXIMOS 90 DIAS) ---
         st.markdown("---")
-        st.markdown("##### 📅 Fluxo de Desembolso (Estimado - 1ºs Meses)")
+        st.markdown("##### Fluxo de Desembolso (Estimado - 1ºs Meses)")
         
-        # Cálculo do fluxo
-        # Mês 0: Ato + PS (se houver entrada de PS, mas assumindo PS diluido) + 0 Finan
-        # Mês 1: Ato 30 + PS Mensal + Parc Finan
-        parc_fin = d.get('parcela_financiamento', 0) # Assumindo que já temos esse dado ou recalculamos
-        if parc_fin == 0: # Fallback simples
+        parc_fin = d.get('parcela_financiamento', 0)
+        # Fallback calc if missing
+        if parc_fin == 0:
              parc_fin = calcular_parcela_financiamento(d.get('finan_usado', 0), d.get('prazo_financiamento', 360), 8.16, "SAC")
         
         ps_mensal = d.get('ps_mensal', 0)
         
-        flow_data = {
-            "Mês": ["Ato (Hoje)", "30 Dias", "60 Dias", "90 Dias"],
-            "Total a Pagar": [
-                d.get('ato_final', 0),
-                d.get('ato_30', 0) + ps_mensal + parc_fin,
-                d.get('ato_60', 0) + ps_mensal + parc_fin,
-                d.get('ato_90', 0) + ps_mensal + parc_fin
-            ]
-        }
-        st.bar_chart(pd.DataFrame(flow_data).set_index("Mês"), color=COR_AZUL_ESC)
-        st.caption("*Considera Parcela do Financiamento + Mensalidade do Pro Soluto + Ato do mês.")
+        meses = ["Mês 0 (Ato)", "Mês 1 (30d)", "Mês 2 (60d)", "Mês 3 (90d)"]
+        # Fluxo: Ato daquele mês + PS Mensal + Parcela Finan (finan starts month 1 usually)
+        # Mês 0 só Ato e talvez PS
+        vals = [
+            d.get('ato_final', 0),
+            d.get('ato_30', 0) + ps_mensal + parc_fin,
+            d.get('ato_60', 0) + ps_mensal + parc_fin,
+            d.get('ato_90', 0) + ps_mensal + parc_fin
+        ]
+
+        fig3, ax3 = plt.subplots(figsize=(8, 3))
+        bars = ax3.bar(meses, vals, color=COR_AZUL_ESC, width=0.5)
+        
+        # Add labels
+        for bar in bars:
+            height = bar.get_height()
+            ax3.annotate(f'R$ {fmt_br(height)}',
+                        xy=(bar.get_x() + bar.get_width() / 2, height),
+                        xytext=(0, 3),  # 3 points vertical offset
+                        textcoords="offset points",
+                        ha='center', va='bottom', fontsize=9, color=COR_AZUL_ESC, weight='bold')
+
+        ax3.set_ylim(0, max(vals)*1.2 if vals else 100) # Margin for labels
+        ax3.set_yticks([]) # Hide y axis numbers for cleaner look
+        st.pyplot(fig3, use_container_width=True)
+        st.caption("Considera: Parcela Financiamento + Mensalidade PS + Entrada do mês.")
 
         # --- SEÇÃO 4: OPORTUNIDADES SEMELHANTES ---
         st.markdown("---")
-        st.markdown("##### 🏘️ Oportunidades Semelhantes (Faixa de Preço)")
+        st.markdown("##### Oportunidades Semelhantes (Faixa de Preço)")
         
         target_price = d.get('imovel_valor', 0)
         if target_price > 0:
-            min_p = target_price * 0.9
-            max_p = target_price * 1.1
-            # Filter df_estoque
+            min_p = target_price - 2500
+            max_p = target_price + 2500
+            
             similares = df_estoque[
                 (df_estoque['Valor de Venda'] >= min_p) & 
                 (df_estoque['Valor de Venda'] <= max_p) &
                 (df_estoque['Empreendimento'] != d.get('empreendimento_nome')) &
                 (df_estoque['Status'] == 'Disponível')
-            ].sort_values('Valor de Venda').head(5)
+            ].sort_values('Valor de Venda').head(10)
             
             if not similares.empty:
-                st.dataframe(
-                    similares[['Empreendimento', 'Bairro', 'Identificador', 'Valor de Venda']],
-                    hide_index=True,
-                    column_config={"Valor de Venda": st.column_config.NumberColumn("Valor", format="R$ %.2f")}
-                )
+                # Custom HTML Table
+                table_html = f"""
+                <table style="width:100%; border-collapse: collapse; font-family: 'Inter', sans-serif; font-size: 0.9rem;">
+                    <thead>
+                        <tr style="background-color: {COR_AZUL_ESC}; color: white; text-align: left;">
+                            <th style="padding: 10px; border-radius: 8px 0 0 0;">Empreendimento</th>
+                            <th style="padding: 10px;">Bairro</th>
+                            <th style="padding: 10px;">Unidade</th>
+                            <th style="padding: 10px; border-radius: 0 8px 0 0; text-align: right;">Valor</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                """
+                for _, row in similares.iterrows():
+                    table_html += f"""
+                        <tr style="border-bottom: 1px solid #eee; color: {COR_AZUL_ESC};">
+                            <td style="padding: 10px;">{row['Empreendimento']}</td>
+                            <td style="padding: 10px;">{row['Bairro']}</td>
+                            <td style="padding: 10px;">{row['Identificador']}</td>
+                            <td style="padding: 10px; text-align: right; font-weight: bold;">R$ {fmt_br(row['Valor de Venda'])}</td>
+                        </tr>
+                    """
+                table_html += "</tbody></table>"
+                st.markdown(table_html, unsafe_allow_html=True)
             else:
-                st.info("Nenhuma outra unidade encontrada nessa faixa de preço (+/- 10%).")
+                st.info("Nenhuma outra unidade encontrada nesta faixa de preço (+/- R$ 2.500).")
         
         st.markdown("<br><br>", unsafe_allow_html=True)
         
-        # --- BOTÃO VOLTAR (FULL WIDTH) ---
+        # --- BOTÃO VOLTAR (FULL WIDTH - FOOTER STYLE) ---
+        st.markdown("""
+            <style>
+            div.stButton > button {
+                width: 100%;
+                border-radius: 0px;
+                height: 60px;
+                font-size: 16px;
+                font-weight: bold;
+                text-transform: uppercase;
+            }
+            </style>
+        """, unsafe_allow_html=True)
+        
         if st.button("VOLTAR AO SIMULADOR", type="primary", use_container_width=True):
              st.session_state.passo_simulacao = 'input'
              scroll_to_top()
