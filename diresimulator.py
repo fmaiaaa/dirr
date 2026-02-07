@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 =============================================================================
-SISTEMA DE SIMULAÇÃO IMOBILIÁRIA - DIRE RIO V23.3 (SYNC & DESIGN FIX)
+SISTEMA DE SIMULAÇÃO IMOBILIÁRIA - DIRE RIO V24 (FINANCE DETAILS & CSS FIX)
 =============================================================================
 Instruções para Google Colab:
 1. Crie um arquivo chamado 'app.py' com este conteúdo.
@@ -109,33 +109,45 @@ def calcular_cor_gradiente(valor):
     valor = max(0, min(100, valor))
     fator = valor / 100
     
-    r = int(227 * (1 - fator) + 0 * fator)
-    g = int(6 * (1 - fator) + 44 * fator)
-    b = int(19 * (1 - fator) + 93 * fator)
+    r = int(227 + (0 - 227) * fator)
+    g = int(6 + (44 - 6) * fator)
+    b = int(19 + (93 - 19) * fator)
     
     return f"rgb({r},{g},{b})"
 
-def calcular_parcela_financiamento(valor_financiado, meses, taxa_anual_pct, sistema):
-    """Calcula a primeira parcela (SAC) ou parcela fixa (PRICE)"""
-    if valor_financiado <= 0 or meses <= 0:
-        return 0.0
+def calcular_comparativo_sac_price(valor, meses, taxa_anual):
+    """Calcula detalhes comparativos entre SAC e PRICE."""
+    if valor <= 0 or meses <= 0:
+        return {"SAC": {"primeira": 0, "ultima": 0, "juros": 0}, "PRICE": {"parcela": 0, "juros": 0}}
+    
+    i = (1 + taxa_anual/100)**(1/12) - 1
+    
+    # PRICE
+    try:
+        pmt_price = valor * (i * (1 + i)**meses) / ((1 + i)**meses - 1)
+        total_pago_price = pmt_price * meses
+        juros_price = total_pago_price - valor
+    except:
+        pmt_price = 0
+        juros_price = 0
 
-    # Taxa mensal
-    i_mensal = (1 + taxa_anual_pct/100)**(1/12) - 1
-
-    if sistema == "PRICE":
-        # PMT = PV * [ i(1+i)^n ] / [ (1+i)^n - 1 ]
-        try:
-            parcela = valor_financiado * (i_mensal * (1 + i_mensal)**meses) / ((1 + i_mensal)**meses - 1)
-        except:
-            parcela = 0.0
-    else: # SAC
-        # Primeira parcela = Amortização + Juros sobre saldo total
-        amortizacao = valor_financiado / meses
-        juros = valor_financiado * i_mensal
-        parcela = amortizacao + juros
-
-    return parcela
+    # SAC
+    try:
+        amort = valor / meses
+        pmt_sac_ini = amort + (valor * i)
+        pmt_sac_fim = amort + (amort * i) # Saldo devedor na última parcela é 1 amortização
+        # Soma de PA: (a1 + an) * n / 2
+        total_pago_sac = (pmt_sac_ini + pmt_sac_fim) * meses / 2
+        juros_sac = total_pago_sac - valor
+    except:
+        pmt_sac_ini = 0
+        pmt_sac_fim = 0
+        juros_sac = 0
+    
+    return {
+        "SAC": {"primeira": pmt_sac_ini, "ultima": pmt_sac_fim, "juros": juros_sac},
+        "PRICE": {"parcela": pmt_price, "juros": juros_price}
+    }
 
 def scroll_to_top():
     """Injeta JavaScript para rolar a página para o topo."""
@@ -354,7 +366,7 @@ def configurar_layout():
             background-color: #ffffff !important;
         }}
 
-        /* --- ALTURA UNIFICADA PARA TODOS OS INPUTS (48px) --- */
+        /* --- ALTURA E ALINHAMENTO UNIFICADOS PARA INPUTS --- */
         .stTextInput input, .stNumberInput input, .stDateInput input, div[data-baseweb="select"] > div {{
             height: 48px !important;
             min-height: 48px !important;
@@ -362,6 +374,17 @@ def configurar_layout():
             color: {COR_AZUL_ESC} !important;
             font-size: 1rem !important;
             line-height: 48px !important;
+            text-align: left !important; /* Força alinhamento à esquerda */
+            display: flex !important;
+            align-items: center !important; /* Centraliza verticalmente */
+        }}
+
+        /* Ajuste específico para garantir que o texto no Select fique à esquerda e centralizado */
+        div[data-baseweb="select"] span {{
+            text-align: left !important;
+            display: flex !important;
+            align-items: center !important;
+            height: 100% !important;
         }}
 
         div[data-testid="stDateInput"] > div, div[data-baseweb="select"] > div {{
@@ -753,6 +776,7 @@ def gerar_resumo_pdf(d):
         pdf.ln(8)
         adicionar_secao_pdf("ENGENHARIA FINANCEIRA")
         adicionar_linha_detalhe("Financiamento Bancário Estimado", f"R$ {fmt_br(d.get('finan_usado', 0))}")
+        # Added installment info to PDF
         prazo_val = d.get('prazo_financiamento', 360)
         adicionar_linha_detalhe("Sistema de Amortização", f"{d.get('sistema_amortizacao', 'SAC')} - {prazo_val}x")
         adicionar_linha_detalhe("Parcela Estimada Financiamento", f"R$ {fmt_br(d.get('parcela_financiamento', 0))}")
@@ -1259,13 +1283,13 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
         
         # Display estimated installments
         taxa_padrao = 8.16 # Taxa fixa padrão para estimativa (ajustar conforme necessidade)
-        sac_sample = calcular_parcela_financiamento(f_u, prazo_finan, taxa_padrao, "SAC")
-        price_sample = calcular_parcela_financiamento(f_u, prazo_finan, taxa_padrao, "PRICE")
+        sac_details = calcular_comparativo_sac_price(f_u, prazo_finan, taxa_padrao)["SAC"]
+        price_details = calcular_comparativo_sac_price(f_u, prazo_finan, taxa_padrao)["PRICE"]
         
         st.markdown(f"""
         <div style="display: flex; justify-content: space-around; margin-bottom: 20px; font-size: 0.85rem; color: #64748b;">
-            <span>1ª Parcela SAC: <b>R$ {fmt_br(sac_sample)}</b></span>
-            <span>Parcela Fixa PRICE: <b>R$ {fmt_br(price_sample)}</b></span>
+            <span><b>SAC:</b> R$ {fmt_br(sac_details['primeira'])} a R$ {fmt_br(sac_details['ultima'])} (Juros: R$ {fmt_br(sac_details['juros'])})</span>
+            <span><b>PRICE:</b> R$ {fmt_br(price_details['parcela'])} fixas (Juros: R$ {fmt_br(price_details['juros'])})</span>
         </div>
         """, unsafe_allow_html=True)
 
