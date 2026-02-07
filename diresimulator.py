@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 =============================================================================
-SISTEMA DE SIMULAÇÃO IMOBILIÁRIA - DIRE RIO V32 (ORDEM UI & REC LOGIC FIX)
+SISTEMA DE SIMULAÇÃO IMOBILIÁRIA - DIRE RIO V33 (BUG FIX SALDO & SYNC)
 =============================================================================
 Instruções para Google Colab:
 1. Crie um arquivo chamado 'app.py' com este conteúdo.
@@ -1421,10 +1421,11 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
         st.markdown("#### Distribuição da Entrada (Saldo a Pagar)")
         
         # 1. Recuperar PS da sessão ANTES de calcular o saldo para distribuição
-        # Isso garante que a conta feche mesmo que o input esteja visualmente abaixo
-        ps_u_calc = float(st.session_state.dados_cliente.get('ps_usado', 0.0))
-        if ps_u_calc is None: ps_u_calc = 0.0
-
+        # Tenta pegar do widget (input) se disponível, senão do dict
+        ps_u_calc = st.session_state.get('ps_u_view')
+        if ps_u_calc is None:
+             ps_u_calc = float(st.session_state.dados_cliente.get('ps_usado', 0.0))
+        
         # Saldo considera o PS que já está na memória
         saldo_para_atos = max(0.0, u_valor - f_u - fgts_u - ps_u_calc)
 
@@ -1536,7 +1537,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
                 scroll_to_top()
                 st.rerun()
             else:
-                st.error(f"Não é possível avançar. O valor total pago deve ser igual ao valor do imóvel (Saldo R$ 0,00).")
+                st.error(f"Não é possível avançar. Saldo pendente: R$ {fmt_br(gap_final)}")
 
         if st.button("Voltar para Escolha de Unidade", use_container_width=True): 
             # Dados já persistidos durante a interação
