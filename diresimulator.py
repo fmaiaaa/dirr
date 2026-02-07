@@ -1110,7 +1110,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
                     elif "100%" in f_cob_sel: cob_min_val = 100
 
                 with f_cols[3]: f_ordem = st.selectbox("Ordem:", ["Menor Preço", "Maior Preço"], key="f_ordem_tab_v28")
-                with f_cols[4]: f_pmax = st.number_input("Preço Máx:", value=float(df_disp_total['Valor de Venda'].max()), key="f_pmax_tab_v28", placeholder="0,00", value=None)
+                with f_cols[4]: f_pmax = st.number_input("Preço Máx:", value=float(df_disp_total['Valor de Venda'].max()), key="f_pmax_tab_v28", placeholder="0,00")
 
                 df_tab = df_disp_total.copy()
                 if f_bairro: df_tab = df_tab[df_tab['Bairro'].isin(f_bairro)]
