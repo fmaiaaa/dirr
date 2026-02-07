@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 =============================================================================
-SISTEMA DE SIMULAÇÃO IMOBILIÁRIA - DIRE RIO V15 (FINAL UI TWEAKS)
+SISTEMA DE SIMULAÇÃO IMOBILIÁRIA - DIRE RIO V16 (ULTRA MODERN UI)
 =============================================================================
 Instruções para Google Colab:
 1. Crie um arquivo chamado 'app.py' com este conteúdo.
@@ -64,13 +64,15 @@ URL_ESTOQUE = f"https://docs.google.com/spreadsheets/d/{ID_ESTOQUE}/edit#gid=0"
 
 URL_FAVICON_RESERVA = "https://direcional.com.br/wp-content/uploads/2021/04/cropped-favicon-direcional-32x32.png"
 
-# Paleta de Cores
-COR_AZUL_ESC = "#002c5d"
-COR_VERMELHO = "#e30613"
-COR_FUNDO = "#fcfdfe"
-COR_BORDA = "#eef2f6"
-COR_TEXTO_MUTED = "#64748b"
-COR_INPUT_BG = "#f0f2f6" # Cor solicitada para inputs e botões
+# Paleta de Cores - Design System Moderno
+COR_AZUL_ESC = "#002c5d"   # Primary Brand
+COR_VERMELHO = "#e30613"   # Accent Brand
+COR_FUNDO_APP = "#F3F5F9"  # Ultra Light Grey Background
+COR_CARD_BG = "#FFFFFF"    # Pure White Cards
+COR_TEXTO_PRI = "#1E293B"  # Slate 800
+COR_TEXTO_SEC = "#64748B"  # Slate 500
+COR_BORDER = "#E2E8F0"     # Slate 200
+COR_INPUT_BG = "#F8FAFC"   # Slate 50
 
 def fmt_br(valor):
     try:
@@ -102,9 +104,8 @@ def validar_cpf(cpf):
 def calcular_cor_gradiente(valor):
     valor = max(0, min(100, valor))
     fator = valor / 100
-    # Interpolação linear de Vermelho (#e30613) para Azul (#002c5d)
-    # Vermelho RGB: (227, 6, 19)
-    # Azul RGB: (0, 44, 93)
+    # Gradiente Moderno: De Vermelho Alerta (#EF4444) para Azul Sucesso (#3B82F6) -> Ajustado para Brand Colors
+    # Vermelho Brand (#e30613) -> Azul Brand (#002c5d)
     r = int(227 * (1 - fator) + 0 * fator)
     g = int(6 * (1 - fator) + 44 * fator)
     b = int(19 * (1 - fator) + 93 * fator)
@@ -303,269 +304,295 @@ def configurar_layout():
     
     st.markdown(f"""
         <style>
-        @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800;900&family=Inter:wght@300;400;500;600;700&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Poppins:wght@400;500;600;700;800&display=swap');
         
+        /* --- GLOBAL RESET & VARS --- */
+        :root {{
+            --primary: {COR_AZUL_ESC};
+            --accent: {COR_VERMELHO};
+            --bg-color: {COR_FUNDO_APP};
+            --card-bg: {COR_CARD_BG};
+            --text-main: {COR_TEXTO_PRI};
+            --text-sub: {COR_TEXTO_SEC};
+            --input-bg: {COR_INPUT_BG};
+            --border: {COR_BORDER};
+            --radius-md: 12px;
+            --radius-lg: 16px;
+            --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+            --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+            --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+        }}
+
         html, body, [data-testid="stAppViewContainer"] {{
             font-family: 'Inter', sans-serif;
-            color: {COR_AZUL_ESC}; 
-            background-color: {COR_FUNDO};
+            color: var(--text-main);
+            background-color: var(--bg-color);
+            line-height: 1.5;
         }}
         
+        /* --- TYPOGRAPHY --- */
         h1, h2, h3, h4 {{
-            font-family: 'Montserrat', sans-serif !important;
-            text-align: center !important; 
-            color: {COR_AZUL_ESC} !important; 
-            font-weight: 800;
-            letter-spacing: -0.04em;
-        }}
-
-        .stMarkdown p, .stText, label, .stSelectbox label, .stTextInput label, .stNumberInput label {{
-            color: {COR_AZUL_ESC} !important;
-        }}
-
-        .block-container {{ max-width: 1400px !important; padding: 4rem 2rem !important; }}
-        
-        div[data-baseweb="input"] {{
-            border-radius: 8px !important;
-            border: 1px solid #e2e8f0 !important;
-            background-color: {COR_INPUT_BG} !important;
-            transition: all 0.2s ease-in-out !important;
+            font-family: 'Poppins', sans-serif !important;
+            color: var(--primary) !important;
+            font-weight: 700 !important;
+            letter-spacing: -0.02em;
         }}
         
-        div[data-baseweb="input"]:focus-within {{
-            border-color: {COR_VERMELHO} !important;
-            box-shadow: 0 0 0 1px {COR_VERMELHO} !important;
-            background-color: #ffffff !important;
+        p, label, .stMarkdown {{
+            color: var(--text-main) !important;
         }}
 
-        /* --- ALTURA UNIFICADA PARA TODOS OS INPUTS (48px) --- */
+        /* --- CONTAINER ADJUSTMENTS --- */
+        .block-container {{
+            max-width: 1200px !important;
+            padding-top: 3rem !important;
+            padding-bottom: 5rem !important;
+        }}
+
+        /* --- MODERN CARD STYLE --- */
+        div.stMarkdown > div[data-testid="stMarkdownContainer"] > div.card,
+        div.stMarkdown > div[data-testid="stMarkdownContainer"] > div.fin-box,
+        div.stMarkdown > div[data-testid="stMarkdownContainer"] > div.recommendation-card {{
+            background: var(--card-bg);
+            border-radius: var(--radius-lg);
+            border: 1px solid var(--border);
+            box-shadow: var(--shadow-md);
+            padding: 24px;
+            transition: all 0.3s ease;
+        }}
+        
+        div.card:hover, div.fin-box:hover, div.recommendation-card:hover {{
+            transform: translateY(-4px);
+            box-shadow: var(--shadow-lg);
+            border-color: var(--primary);
+        }}
+
+        /* --- INPUTS & WIDGETS --- */
+        /* Base Input Style */
         .stTextInput input, .stNumberInput input, .stDateInput input, div[data-baseweb="select"] > div {{
+            background-color: var(--input-bg) !important;
+            border: 1px solid var(--border) !important;
+            border-radius: var(--radius-md) !important;
             height: 48px !important;
             min-height: 48px !important;
-            padding: 0 15px !important;
-            color: {COR_AZUL_ESC} !important;
-            font-size: 1rem !important;
-            line-height: 48px !important;
+            color: var(--text-main) !important;
+            font-size: 0.95rem !important;
+            padding-left: 12px !important;
+            transition: all 0.2s ease;
         }}
 
-        div[data-testid="stDateInput"] > div, div[data-baseweb="select"] > div {{
-            background-color: {COR_INPUT_BG} !important;
-            border: 1px solid #e2e8f0 !important;
-            border-radius: 8px !important;
-            display: flex;
-            align-items: center;
+        /* Focus State */
+        div[data-baseweb="input"]:focus-within, div[data-baseweb="select"]:focus-within > div {{
+            border-color: var(--accent) !important;
+            box-shadow: 0 0 0 3px rgba(227, 6, 19, 0.1) !important;
+            background-color: #fff !important;
         }}
         
+        /* Date Input Wrapper Fix */
+        div[data-testid="stDateInput"] > div {{
+            background-color: var(--input-bg) !important;
+            border: 1px solid var(--border) !important;
+            border-radius: var(--radius-md) !important;
+        }}
         div[data-testid="stDateInput"] div[data-baseweb="input"] {{
             border: none !important;
             background-color: transparent !important;
         }}
 
-        /* Ajuste dos botões de + e - nos Number Inputs */
+        /* Number Input +/- Buttons */
         div[data-testid="stNumberInput"] button {{
-             height: 48px !important;
-             border-color: #e2e8f0 !important;
-             background-color: {COR_INPUT_BG} !important; /* Cinza claro */
-             color: {COR_AZUL_ESC} !important;
-        }}
-        
-        div[data-testid="stNumberInput"] button:hover {{
-             background-color: #e2e8f0 !important;
-        }}
-
-        /* BOTÕES GERAIS - 60px para Nav e Ações Principais */
-        .stButton button {{ 
-            font-family: 'Inter', sans-serif;
-            border-radius: 8px !important; 
-            padding: 0 20px !important; 
-            width: 100% !important;
-            height: 60px !important; /* Altura Maior (Avançar/Voltar/Sair) */
-            font-weight: 700 !important; 
-            text-transform: uppercase;
-            letter-spacing: 0.1em;
-            font-size: 1rem !important;
-            transition: all 0.2s ease !important;
-        }}
-        
-        /* Botões dentro de Colunas (como 1x, 2x, Histórico) - Força 48px */
-        div[data-testid="column"] .stButton button, [data-testid="stSidebar"] .stButton button {{
-             min-height: 48px !important;
-             height: 48px !important;
-             font-size: 0.9rem !important;
-        }}
-        
-        /* Botões Primários (Vermelhos) */
-        .stButton button[kind="primary"] {{ 
-            background: {COR_VERMELHO} !important; 
-            color: #ffffff !important; 
-            border: none !important; 
-        }}
-        .stButton button[kind="primary"]:hover {{ 
-            background: #c40510 !important; 
-            box-shadow: 0 8px 20px -5px rgba(227, 6, 19, 0.4) !important; 
-        }}
-
-        /* Botões Secundários/Padrão (Cinza Claro) */
-        .stButton button:not([kind="primary"]) {{ 
-            background: {COR_INPUT_BG} !important; 
-            color: {COR_AZUL_ESC} !important; 
-            border: 1px solid #e2e8f0 !important; 
-        }}
-        .stButton button:not([kind="primary"]):hover {{
-            border-color: {COR_VERMELHO} !important; 
-            color: {COR_VERMELHO} !important; 
-            background: #ffffff !important;
-        }}
-        
-        /* Ajuste específico para o botão de download */
-        .stDownloadButton button {{
-            background: {COR_INPUT_BG} !important; 
-            color: {COR_AZUL_ESC} !important; 
-            border: 1px solid #e2e8f0 !important; 
+            background-color: transparent !important;
+            border: none !important;
+            color: var(--text-sub) !important;
             height: 48px !important;
         }}
-        .stDownloadButton button:hover {{
-            border-color: {COR_VERMELHO} !important; 
-            color: {COR_VERMELHO} !important; 
-            background: #ffffff !important;
-        }}
-        
-        /* Ajuste Sidebar */
-        [data-testid="stSidebar"] .stButton button {{
-            padding: 8px 12px !important;
-            font-size: 0.75rem !important;
-            margin-bottom: 2px !important;
-            height: auto !important;
-            min-height: 30px !important;
+        div[data-testid="stNumberInput"] button:hover {{
+            color: var(--primary) !important;
+            background-color: rgba(0,0,0,0.05) !important;
         }}
 
-        .header-container {{ 
-            text-align: center; 
-            padding: 70px 0; 
-            background: #ffffff; 
-            margin-bottom: 60px; 
-            border-radius: 0 0 40px 40px; 
-            border-bottom: 1px solid {COR_BORDA};
-            box-shadow: 0 15px 35px -20px rgba(0,44,93,0.1);
-            position: relative;
-        }}
-        .header-title {{ 
-            font-family: 'Montserrat', sans-serif;
-            color: {COR_AZUL_ESC}; 
-            font-size: 3rem; 
-            font-weight: 900; 
-            margin: 0; 
-            text-transform: uppercase; 
-            letter-spacing: 0.2em; 
-        }}
-        .header-subtitle {{ 
-            color: {COR_AZUL_ESC}; 
-            font-size: 1rem; 
-            font-weight: 600; 
-            margin-top: 15px; 
-            letter-spacing: 0.1em;
-            text-transform: uppercase;
-            opacity: 0.8;
-        }}
-        
-        .card, .fin-box, .recommendation-card, .login-card {{ 
-            background: #ffffff; 
-            padding: 25px; 
-            border-radius: 16px; 
-            border: 1px solid {COR_BORDA}; 
-            text-align: center; 
-            display: flex; 
-            flex-direction: column; 
-            justify-content: center; 
-            align-items: center; 
-            transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1); 
-        }}
-        .card:hover, .fin-box:hover, .recommendation-card:hover {{
-            transform: translateY(-4px);
-            border-color: {COR_VERMELHO};
-            box-shadow: 0 10px 30px -10px rgba(227,6,19,0.1);
-        }}
-        
-        .summary-header {{ 
-            font-family: 'Montserrat', sans-serif;
-            background: {COR_AZUL_ESC}; 
-            color: #ffffff !important; 
-            padding: 20px; 
-            border-radius: 12px 12px 0 0; 
-            font-weight: 800; 
-            text-align: center; 
-            text-transform: uppercase; 
-            letter-spacing: 0.15em; 
-            font-size: 0.9rem;
-        }}
-        .summary-body {{ 
-            background: #ffffff; 
-            padding: 40px; 
-            border: 1px solid {COR_BORDA}; 
-            border-radius: 0 0 12px 12px; 
-            margin-bottom: 40px; 
-            color: {COR_AZUL_ESC}; 
-        }}
-        .custom-alert {{ 
-            background-color: {COR_AZUL_ESC}; 
-            padding: 25px; 
-            border-radius: 10px; 
-            margin-bottom: 30px; 
-            text-align: center; 
-            font-weight: 400; 
-            color: #ffffff !important; 
-        }}
-        .price-tag {{ 
-            color: {COR_VERMELHO}; 
-            font-weight: 900; 
-            font-size: 1.5rem; 
-            margin-top: 5px; 
-        }}
-        .inline-ref {{
-            font-size: 0.72rem;
-            color: {COR_AZUL_ESC};
-            margin-top: -12px;
-            margin-bottom: 15px;
-            font-weight: 700;
+        /* --- BUTTONS --- */
+        .stButton button {{
+            font-family: 'Poppins', sans-serif;
+            font-weight: 600;
+            border-radius: var(--radius-md) !important;
+            height: 48px !important; /* Default height */
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1) !important;
             text-transform: uppercase;
             letter-spacing: 0.05em;
-            display: block;
-            opacity: 0.9;
-        }}
-        
-        .metric-label {{ color: {COR_AZUL_ESC} !important; opacity: 0.7; font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.15em; margin-bottom: 8px; }}
-        .metric-value {{ color: {COR_AZUL_ESC} !important; font-size: 1.8rem; font-weight: 800; font-family: 'Montserrat', sans-serif; }}
-
-        /* BADGES - Círculos em Vermelho */
-        .badge-ideal, .badge-seguro, .badge-facilitado, .badge-multi {{ 
-            background-color: {COR_VERMELHO} !important; 
-            color: white; 
-            padding: 6px 14px; 
-            border-radius: 20px; 
-            font-weight: bold; 
-            font-size: 0.85rem; 
-            margin-top: 10px; 
-            text-transform: uppercase; 
-            letter-spacing: 0.05em; 
+            font-size: 0.85rem !important;
         }}
 
-        /* Sidebar Styling */
-        [data-testid="stSidebar"] {{ background-color: #fff; border-right: 1px solid {COR_BORDA}; }}
-        .profile-container {{ text-align: center; margin-bottom: 10px; padding: 15px; background: #f8fafc; border-radius: 12px; }}
-        .profile-name {{ font-weight: 800; font-size: 1.1rem; color: {COR_AZUL_ESC}; }}
-        .profile-role {{ font-size: 0.85rem; color: #64748b; font-weight: 600; margin-bottom: 5px; }}
-        .profile-sub {{ font-size: 0.8rem; color: #94a3b8; }}
-        
-        .hist-item {{ display: block; width: 100%; text-align: left; padding: 8px; margin-bottom: 4px; border-radius: 8px; background: #fff; border: 1px solid {COR_BORDA}; color: {COR_AZUL_ESC}; font-size: 0.75rem; transition: all 0.2s; }}
-        .hist-item:hover {{ border-color: {COR_VERMELHO}; background: #fff5f5; }}
+        /* Primary Action Buttons (Large) */
+        /* We target specific keys via layout order, but generally Primary style */
+        .stButton button[kind="primary"] {{
+            background: linear-gradient(135deg, #e30613 0%, #b9050f 100%) !important;
+            color: white !important;
+            border: none !important;
+            box-shadow: 0 4px 12px rgba(227, 6, 19, 0.25) !important;
+            height: 60px !important; /* Larger for main actions */
+            font-size: 1rem !important;
+        }}
+        .stButton button[kind="primary"]:hover {{
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px rgba(227, 6, 19, 0.4) !important;
+        }}
 
-        /* Tabs Centered */
-        div[data-baseweb="tab-list"] {{ justify-content: center !important; gap: 40px; margin-bottom: 40px; }}
-        button[data-baseweb="tab"] p {{ color: {COR_AZUL_ESC} !important; opacity: 0.6; font-weight: 700 !important; font-family: 'Montserrat', sans-serif !important; font-size: 0.9rem !important; text-transform: uppercase; letter-spacing: 0.1em; }}
-        button[data-baseweb="tab"][aria-selected="true"] p {{ color: {COR_AZUL_ESC} !important; opacity: 1; }}
-        div[data-baseweb="tab-highlight"] {{ background-color: {COR_VERMELHO} !important; height: 3px !important; }}
+        /* Secondary/Standard Buttons */
+        .stButton button:not([kind="primary"]) {{
+            background-color: var(--input-bg) !important;
+            color: var(--text-main) !important;
+            border: 1px solid var(--border) !important;
+        }}
+        .stButton button:not([kind="primary"]):hover {{
+            border-color: var(--primary) !important;
+            color: var(--primary) !important;
+            background-color: #fff !important;
+        }}
         
-        .footer {{ text-align: center; padding: 80px 0; color: {COR_AZUL_ESC} !important; font-size: 0.8rem; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; opacity: 0.6; }}
+        /* Download Button Specifics */
+        .stDownloadButton button {{
+            background-color: var(--input-bg) !important;
+            color: var(--text-main) !important;
+            border: 1px solid var(--border) !important;
+            border-radius: var(--radius-md) !important;
+            height: 48px !important;
+            width: 100% !important;
+            font-weight: 600;
+        }}
+        .stDownloadButton button:hover {{
+            border-color: var(--primary) !important;
+            color: var(--primary) !important;
+        }}
+
+        /* Sidebar Buttons (Smaller) */
+        [data-testid="stSidebar"] .stButton button {{
+            height: auto !important;
+            min-height: 36px !important;
+            padding: 8px 12px !important;
+            font-size: 0.75rem !important;
+            background: #fff !important;
+            margin-bottom: 6px !important;
+            border: 1px solid var(--border) !important;
+            justify-content: flex-start !important;
+            text-align: left !important;
+            box-shadow: none !important;
+        }}
+        [data-testid="stSidebar"] .stButton button:hover {{
+            border-color: var(--accent) !important;
+            background: #fff5f5 !important;
+        }}
+
+        /* --- HEADER --- */
+        .header-container {{
+            text-align: center;
+            padding: 60px 20px;
+            background: white;
+            border-radius: 0 0 40px 40px;
+            box-shadow: var(--shadow-lg);
+            margin-bottom: 50px;
+            position: relative;
+            border-bottom: 4px solid var(--primary);
+        }}
+        .header-title {{
+            color: var(--primary);
+            font-size: 2.5rem;
+            margin: 0;
+            text-transform: uppercase;
+        }}
+        .header-subtitle {{
+            color: var(--text-sub);
+            font-size: 0.9rem;
+            font-weight: 500;
+            margin-top: 10px;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+        }}
+
+        /* --- BADGES & TAGS --- */
+        .badge-ideal, .badge-seguro, .badge-facilitado, .badge-multi {{
+            background-color: var(--accent) !important;
+            color: white;
+            padding: 4px 12px;
+            border-radius: 100px;
+            font-weight: 700;
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            display: inline-block;
+            margin-bottom: 8px;
+            box-shadow: 0 2px 5px rgba(227, 6, 19, 0.3);
+        }}
+
+        /* --- CUSTOM ALERTS & BOXES --- */
+        .custom-alert {{
+            background: linear-gradient(135deg, var(--primary) 0%, #001f42 100%);
+            padding: 20px;
+            border-radius: var(--radius-md);
+            margin-bottom: 30px;
+            text-align: center;
+            font-weight: 500;
+            color: white !important;
+            box-shadow: var(--shadow-md);
+        }}
+        
+        .price-tag {{
+            color: var(--accent);
+            font-weight: 800;
+            font-size: 1.6rem;
+            font-family: 'Poppins', sans-serif;
+            margin-top: 5px;
+        }}
+        
+        .summary-header {{
+            background: var(--primary);
+            color: white !important;
+            padding: 16px;
+            border-radius: var(--radius-md) var(--radius-md) 0 0;
+            font-weight: 700;
+            text-align: center;
+            text-transform: uppercase;
+            font-size: 0.85rem;
+            letter-spacing: 0.1em;
+        }}
+        .summary-body {{
+            background: white;
+            padding: 30px;
+            border: 1px solid var(--border);
+            border-top: none;
+            border-radius: 0 0 var(--radius-md) var(--radius-md);
+            margin-bottom: 30px;
+            color: var(--text-main);
+            box-shadow: var(--shadow-sm);
+        }}
+
+        /* --- FOOTER --- */
+        .footer {{
+            text-align: center;
+            padding: 60px 0;
+            color: var(--text-sub) !important;
+            font-size: 0.75rem;
+            font-weight: 600;
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
+            border-top: 1px solid var(--border);
+            margin-top: 40px;
+        }}
+        
+        /* --- SIDEBAR --- */
+        [data-testid="stSidebar"] {{
+            background-color: white;
+            border-right: 1px solid var(--border);
+        }}
+        .profile-container {{
+            text-align: center;
+            padding: 20px;
+            background: var(--input-bg);
+            border-radius: var(--radius-md);
+            border: 1px solid var(--border);
+        }}
+        .profile-name {{ font-weight: 700; font-size: 1rem; color: var(--primary); }}
+        .profile-role {{ font-size: 0.8rem; color: var(--text-sub); font-weight: 500; }}
         </style>
     """, unsafe_allow_html=True)
 
@@ -671,7 +698,6 @@ def tela_login(df_logins):
 
 @st.dialog("Opções de Exportação")
 def show_export_dialog(d):
-    # Using HTML to force left alignment against the global CSS !important
     st.markdown(f"<h3 style='text-align: left; color: {COR_AZUL_ESC}; margin: 0;'>Resumo da Simulação</h3>", unsafe_allow_html=True)
     st.markdown("Escolha como deseja exportar o documento.")
     pdf_data = gerar_resumo_pdf(d)
@@ -788,42 +814,49 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
     # --- ETAPA 1: INPUT ---
     if passo == 'input':
         st.markdown("### Dados do Cliente")
-        nome = st.text_input("Nome Completo", value=st.session_state.dados_cliente.get('nome', ""), placeholder="Nome Completo", key="in_nome_v28")
         
-        cpf_val = st.text_input("CPF", value=st.session_state.dados_cliente.get('cpf', ""), placeholder="000.000.000-00", key="in_cpf_v3", max_chars=14)
-        if cpf_val and not validar_cpf(cpf_val):
-            st.markdown(f"<small style='color: {COR_VERMELHO};'>CPF inválido</small>", unsafe_allow_html=True)
-        
-        d_nasc_default = st.session_state.dados_cliente.get('data_nascimento', date(1990, 1, 1))
-        # Correção para conversão de string se vier do histórico
-        if isinstance(d_nasc_default, str):
-            try: d_nasc_default = datetime.strptime(d_nasc_default, '%Y-%m-%d').date()
-            except: d_nasc_default = date(1990, 1, 1)
+        with st.container():
+            nome = st.text_input("Nome Completo", value=st.session_state.dados_cliente.get('nome', ""), placeholder="Nome Completo", key="in_nome_v28")
+            
+            cpf_val = st.text_input("CPF", value=st.session_state.dados_cliente.get('cpf', ""), placeholder="000.000.000-00", key="in_cpf_v3", max_chars=14)
+            if cpf_val and not validar_cpf(cpf_val):
+                st.markdown(f"<small style='color: {COR_VERMELHO};'>CPF inválido</small>", unsafe_allow_html=True)
+            
+            d_nasc_default = st.session_state.dados_cliente.get('data_nascimento', date(1990, 1, 1))
+            # Correção para conversão de string se vier do histórico
+            if isinstance(d_nasc_default, str):
+                try: d_nasc_default = datetime.strptime(d_nasc_default, '%Y-%m-%d').date()
+                except: d_nasc_default = date(1990, 1, 1)
 
-        data_nasc = st.date_input("Data de Nascimento", value=d_nasc_default, min_value=date(1900, 1, 1), max_value=datetime.now().date(), format="DD/MM/YYYY", key="in_dt_nasc_v3")
-        genero = st.selectbox("Gênero", ["Masculino", "Feminino", "Outro"], index=0, key="in_genero_v3")
+            data_nasc = st.date_input("Data de Nascimento", value=d_nasc_default, min_value=date(1900, 1, 1), max_value=datetime.now().date(), format="DD/MM/YYYY", key="in_dt_nasc_v3")
+            genero = st.selectbox("Gênero", ["Masculino", "Feminino", "Outro"], index=0, key="in_genero_v3")
 
         st.markdown("---")
-        # Layout Ajustado: Participantes full width, sem prazo aqui
-        qtd_part = st.number_input("Participantes na Renda", min_value=1, max_value=4, value=st.session_state.dados_cliente.get('qtd_participantes', 1), step=1, key="qtd_part_v3")
         
-        cols_renda = st.columns(qtd_part)
-        renda_total_calc = 0.0
-        lista_rendas_input = []
-        rendas_anteriores = st.session_state.dados_cliente.get('rendas_lista', [])
-        for i in range(qtd_part):
-            with cols_renda[i]:
-                def_val = float(rendas_anteriores[i]) if i < len(rendas_anteriores) else (3500.0 if i == 0 else 0.0)
-                val_r = st.number_input(f"Renda Part. {i+1}", min_value=0.0, value=def_val, step=100.0, key=f"renda_part_{i}_v3")
-                renda_total_calc += val_r; lista_rendas_input.append(val_r)
-        
-        # Correção da Lista de Rankings
-        rank_opts = ["DIAMANTE", "OURO", "PRATA", "BRONZE", "AÇO"]
+        with st.container():
+            # Layout Ajustado: Participantes full width, sem prazo aqui
+            qtd_part = st.number_input("Participantes na Renda", min_value=1, max_value=4, value=st.session_state.dados_cliente.get('qtd_participantes', 1), step=1, key="qtd_part_v3")
             
-        ranking = st.selectbox("Ranking do Cliente", options=rank_opts, index=0, key="in_rank_v28")
-        politica_ps = st.selectbox("Política de Pro Soluto", ["Direcional", "Emcash"], key="in_pol_v28")
-        social = st.toggle("Fator Social", value=st.session_state.dados_cliente.get('social', False), key="in_soc_v28")
-        cotista = st.toggle("Cotista FGTS", value=st.session_state.dados_cliente.get('cotista', True), key="in_cot_v28")
+            cols_renda = st.columns(qtd_part)
+            renda_total_calc = 0.0
+            lista_rendas_input = []
+            rendas_anteriores = st.session_state.dados_cliente.get('rendas_lista', [])
+            for i in range(qtd_part):
+                with cols_renda[i]:
+                    def_val = float(rendas_anteriores[i]) if i < len(rendas_anteriores) else (3500.0 if i == 0 else 0.0)
+                    val_r = st.number_input(f"Renda Part. {i+1}", min_value=0.0, value=def_val, step=100.0, key=f"renda_part_{i}_v3")
+                    renda_total_calc += val_r; lista_rendas_input.append(val_r)
+        
+        st.markdown("---")
+
+        with st.container():
+            # Correção da Lista de Rankings
+            rank_opts = ["DIAMANTE", "OURO", "PRATA", "BRONZE", "AÇO"]
+                
+            ranking = st.selectbox("Ranking do Cliente", options=rank_opts, index=0, key="in_rank_v28")
+            politica_ps = st.selectbox("Política de Pro Soluto", ["Direcional", "Emcash"], key="in_pol_v28")
+            social = st.toggle("Fator Social", value=st.session_state.dados_cliente.get('social', False), key="in_soc_v28")
+            cotista = st.toggle("Cotista FGTS", value=st.session_state.dados_cliente.get('cotista', True), key="in_cot_v28")
         
         st.markdown("<br>", unsafe_allow_html=True)
         
@@ -942,6 +975,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
                     row_cols = st.columns(len(row_items))
                     for idx, (emp, qtd) in enumerate(row_items):
                         with row_cols[idx]:
+                            # Card Azul para empreendimentos viáveis
                             st.markdown(f"""
                                 <div class="card" style="min-height: 80px; padding: 15px; border-top: 3px solid {COR_AZUL_ESC};">
                                     <p style="margin:0; font-weight:700; color:{COR_AZUL_ESC};">{emp}</p>
@@ -1277,6 +1311,10 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
         with fin2: st.markdown(f"""<div class="fin-box" style="border-top: 6px solid {COR_VERMELHO};"><b>MENSALIDADE PS</b><br>R$ {fmt_br(v_parc)} ({parc}x)</div>""", unsafe_allow_html=True)
         
         # Validação visual do saldo
+        # Se gap_final != 0, mantém o alerta vermelho visualmente se for erro, ou AZUL se for apenas info.
+        # O usuário pediu "atualize a cor do destaque... para o azul que está na caixa de valor do imovel".
+        # Vamos manter o box azul (COR_AZUL_ESC), mas o st.error abaixo cuidará do alerta textual.
+        
         cor_saldo = COR_AZUL_ESC 
         
         with fin3: st.markdown(f"""<div class="fin-box" style="border-top: 6px solid {cor_saldo};"><b>SALDO A COBRIR</b><br>R$ {fmt_br(gap_final)}</div>""", unsafe_allow_html=True)
