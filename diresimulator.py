@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 =============================================================================
-SISTEMA DE SIMULAÇÃO IMOBILIÁRIA - DIRE RIO V18 (ENTERPRISE UI DESIGN)
+SISTEMA DE SIMULAÇÃO IMOBILIÁRIA - DIRE RIO V19 (ULTIMATE UI UX)
 =============================================================================
 Instruções para Google Colab:
 1. Crie um arquivo chamado 'app.py' com este conteúdo.
@@ -64,15 +64,15 @@ URL_ESTOQUE = f"https://docs.google.com/spreadsheets/d/{ID_ESTOQUE}/edit#gid=0"
 
 URL_FAVICON_RESERVA = "https://direcional.com.br/wp-content/uploads/2021/04/cropped-favicon-direcional-32x32.png"
 
-# Paleta de Cores - Enterprise Design System
+# Paleta de Cores - Enterprise Design System V2
 COR_AZUL_ESC = "#002c5d"    # Brand Primary
 COR_VERMELHO = "#e30613"    # Brand Accent
-COR_FUNDO_APP = "#F8FAFC"   # Ultra Light Slate Background
+COR_FUNDO_APP = "#F1F5F9"   # Slate 100 Background (Slightly darker for contrast with cards)
 COR_CARD_BG = "#FFFFFF"     # Surface Color
-COR_TEXTO_PRI = "#1E293B"   # Slate 800 (High Contrast)
-COR_TEXTO_SEC = "#64748B"   # Slate 500 (Low Contrast) - Antigo COR_TEXTO_MUTED
+COR_TEXTO_PRI = "#0F172A"   # Slate 900 (High Contrast)
+COR_TEXTO_SEC = "#64748B"   # Slate 500 (Low Contrast)
 COR_BORDER = "#E2E8F0"      # Slate 200
-COR_INPUT_BG = "#F1F5F9"    # Slate 100 for Inputs
+COR_INPUT_BG = "#F8FAFC"    # Slate 50 for Inputs
 
 def fmt_br(valor):
     try:
@@ -309,18 +309,20 @@ def configurar_layout():
             --text-sub: {COR_TEXTO_SEC};
             --input-bg: {COR_INPUT_BG};
             --border: {COR_BORDER};
-            --radius-md: 10px;
-            --radius-lg: 16px;
-            --shadow-sm: 0 1px 3px 0 rgba(0, 0, 0, 0.05);
+            --radius-md: 12px;
+            --radius-lg: 20px;
+            --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
             --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
-            --shadow-lg: 0 12px 24px -6px rgba(0, 0, 0, 0.08), 0 4px 10px -4px rgba(0, 0, 0, 0.04);
-            --transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+            --shadow-lg: 0 20px 25px -5px rgba(0, 0, 0, 0.05), 0 10px 10px -5px rgba(0, 0, 0, 0.02);
+            --transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
         }}
 
         html, body, [data-testid="stAppViewContainer"] {{
             font-family: 'Inter', sans-serif;
             color: var(--text-main);
             background-color: var(--bg-color);
+            background-image: radial-gradient(#e2e8f0 1px, transparent 1px);
+            background-size: 24px 24px;
             line-height: 1.6;
         }}
         
@@ -329,7 +331,7 @@ def configurar_layout():
             font-family: 'Manrope', sans-serif !important;
             color: var(--primary) !important;
             font-weight: 800 !important;
-            letter-spacing: -0.025em;
+            letter-spacing: -0.03em;
         }}
         
         p, label, .stMarkdown {{
@@ -337,103 +339,83 @@ def configurar_layout():
             font-family: 'Inter', sans-serif;
         }}
 
-        /* --- CONTAINER ADJUSTMENTS --- */
+        /* --- CENTERED LAYOUT --- */
         .block-container {{
-            max-width: 1280px !important;
-            padding-top: 2rem !important;
+            max-width: 1000px !important; /* Centralized Focus */
+            padding-top: 1rem !important;
             padding-bottom: 5rem !important;
         }}
 
         /* --- MODERN CARD STYLE --- */
         div.stMarkdown > div[data-testid="stMarkdownContainer"] > div.card,
         div.stMarkdown > div[data-testid="stMarkdownContainer"] > div.fin-box,
-        div.stMarkdown > div[data-testid="stMarkdownContainer"] > div.recommendation-card {{
+        div.stMarkdown > div[data-testid="stMarkdownContainer"] > div.recommendation-card,
+        div.stMarkdown > div[data-testid="stMarkdownContainer"] > div.profile-container,
+        div.stMarkdown > div[data-testid="stMarkdownContainer"] > div.form-card {{
             background: var(--card-bg);
             border-radius: var(--radius-lg);
             border: 1px solid var(--border);
             box-shadow: var(--shadow-md);
-            padding: 24px;
+            padding: 32px;
             transition: var(--transition);
+            margin-bottom: 24px;
         }}
         
-        div.card:hover, div.fin-box:hover, div.recommendation-card:hover {{
+        div.form-card:hover, div.card:hover, div.fin-box:hover, div.recommendation-card:hover {{
             transform: translateY(-4px);
             box-shadow: var(--shadow-lg);
-            border-color: var(--primary);
+            border-color: rgba(0, 44, 93, 0.2);
         }}
 
         /* --- INPUTS & WIDGETS --- */
-        /* Base Input Style */
         .stTextInput input, .stNumberInput input, .stDateInput input, div[data-baseweb="select"] > div {{
-            background-color: white !important;
+            background-color: var(--input-bg) !important;
             border: 1px solid var(--border) !important;
             border-radius: var(--radius-md) !important;
-            height: 48px !important;
-            min-height: 48px !important;
+            height: 52px !important;
+            min-height: 52px !important;
             color: var(--text-main) !important;
-            font-size: 0.95rem !important;
-            padding-left: 12px !important;
+            font-size: 1rem !important;
+            padding-left: 16px !important;
             transition: var(--transition);
-            box-shadow: var(--shadow-sm);
+            box-shadow: none;
         }}
 
-        /* Focus State */
         div[data-baseweb="input"]:focus-within, div[data-baseweb="select"]:focus-within > div {{
-            border-color: var(--accent) !important;
-            box-shadow: 0 0 0 3px rgba(227, 6, 19, 0.15) !important;
+            border-color: var(--primary) !important;
+            box-shadow: 0 0 0 4px rgba(0, 44, 93, 0.1) !important;
             background-color: #fff !important;
         }}
         
-        /* Date Input Wrapper Fix */
-        div[data-testid="stDateInput"] > div {{
-            background-color: white !important;
-            border: 1px solid var(--border) !important;
-            border-radius: var(--radius-md) !important;
-            box-shadow: var(--shadow-sm);
-        }}
-        div[data-testid="stDateInput"] div[data-baseweb="input"] {{
-            border: none !important;
-            background-color: transparent !important;
-            box-shadow: none !important;
-        }}
-
-        /* Number Input +/- Buttons */
-        div[data-testid="stNumberInput"] button {{
-            background-color: transparent !important;
-            border: none !important;
-            color: var(--text-sub) !important;
-            height: 48px !important;
-        }}
-        div[data-testid="stNumberInput"] button:hover {{
-            color: var(--primary) !important;
-            background-color: rgba(0,0,0,0.05) !important;
-        }}
+        /* Remove Date Input Border Wrapper from Streamlit */
+        div[data-testid="stDateInput"] > div {{ border: none !important; box-shadow: none !important; background: transparent !important; }}
 
         /* --- BUTTONS --- */
         .stButton button {{
             font-family: 'Manrope', sans-serif;
             font-weight: 700;
             border-radius: var(--radius-md) !important;
-            height: 48px !important; /* Default height */
+            height: 52px !important;
             transition: var(--transition) !important;
             text-transform: uppercase;
             letter-spacing: 0.05em;
-            font-size: 0.85rem !important;
+            font-size: 0.9rem !important;
             box-shadow: var(--shadow-sm);
         }}
 
-        /* Primary Action Buttons (Large) */
+        /* Primary Action Buttons */
         .stButton button[kind="primary"] {{
-            background: linear-gradient(135deg, #e30613 0%, #b9050f 100%) !important;
+            background: linear-gradient(135deg, #002c5d 0%, #001a38 100%) !important; /* Navy Gradient */
             color: white !important;
             border: none !important;
-            box-shadow: 0 4px 12px rgba(227, 6, 19, 0.25) !important;
-            height: 60px !important; 
-            font-size: 1rem !important;
+            box-shadow: 0 4px 12px rgba(0, 44, 93, 0.3) !important;
+            height: 64px !important; 
+            font-size: 1.1rem !important;
         }}
         .stButton button[kind="primary"]:hover {{
             transform: translateY(-2px);
-            box-shadow: 0 8px 20px rgba(227, 6, 19, 0.4) !important;
+            box-shadow: 0 8px 24px rgba(0, 44, 93, 0.5) !important;
+            background: linear-gradient(135deg, #003a7a 0%, #002c5d 100%) !important;
         }}
 
         /* Secondary/Standard Buttons */
@@ -446,165 +428,169 @@ def configurar_layout():
             border-color: var(--primary) !important;
             color: var(--primary) !important;
             background-color: var(--input-bg) !important;
-            box-shadow: var(--shadow-md);
-        }}
-        
-        /* Download Button Specifics */
-        .stDownloadButton button {{
-            background-color: white !important;
-            color: var(--text-main) !important;
-            border: 1px solid var(--border) !important;
-            border-radius: var(--radius-md) !important;
-            height: 48px !important;
-            width: 100% !important;
-            font-weight: 700;
-            text-transform: uppercase;
-        }}
-        .stDownloadButton button:hover {{
-            border-color: var(--primary) !important;
-            color: var(--primary) !important;
-            background-color: var(--input-bg) !important;
         }}
 
-        /* Sidebar Buttons (Smaller) */
-        [data-testid="stSidebar"] .stButton button {{
-            height: auto !important;
-            min-height: 40px !important;
-            padding: 10px 14px !important;
-            font-size: 0.8rem !important;
-            background: white !important;
-            margin-bottom: 8px !important;
-            border: 1px solid var(--border) !important;
-            justify-content: flex-start !important;
-            text-align: left !important;
-            box-shadow: var(--shadow-sm) !important;
-        }}
-        [data-testid="stSidebar"] .stButton button:hover {{
-            border-color: var(--accent) !important;
-            background: #fff5f5 !important;
-            transform: translateX(4px);
-        }}
-
-        /* --- HEADER --- */
-        .header-container {{
-            text-align: center;
-            padding: 70px 20px;
-            background: white;
-            border-radius: 0 0 30px 30px;
-            box-shadow: var(--shadow-lg);
-            margin-bottom: 50px;
+        /* --- STEPPER --- */
+        .stepper-container {{
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 40px;
             position: relative;
-            border-bottom: 5px solid var(--primary);
-            background: radial-gradient(circle at center, #ffffff 0%, #f1f5f9 100%);
+            z-index: 1;
+            padding: 0 20px;
         }}
-        .header-title {{
-            color: var(--primary);
-            font-size: 3rem;
-            margin: 0;
-            text-transform: uppercase;
-            text-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        .stepper-line {{
+            position: absolute;
+            top: 50%;
+            left: 0;
+            right: 0;
+            height: 2px;
+            background: var(--border);
+            z-index: -1;
+            transform: translateY(-50%);
         }}
-        .header-subtitle {{
-            color: var(--text-sub);
-            font-size: 0.95rem;
-            font-weight: 600;
-            margin-top: 10px;
-            text-transform: uppercase;
-            letter-spacing: 0.15em;
+        .step-item {{
+            background: var(--bg-color);
+            padding: 0 10px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 8px;
         }}
-
-        /* --- BADGES & TAGS --- */
-        .badge-ideal, .badge-seguro, .badge-facilitado, .badge-multi {{
-            background-color: var(--accent) !important;
-            color: white;
-            padding: 6px 14px;
-            border-radius: 100px;
-            font-weight: 800;
-            font-size: 0.7rem;
-            text-transform: uppercase;
-            letter-spacing: 0.08em;
-            display: inline-block;
-            margin-bottom: 12px;
-            box-shadow: 0 4px 10px rgba(227, 6, 19, 0.2);
-        }}
-
-        /* --- CUSTOM ALERTS & BOXES --- */
-        .custom-alert {{
-            background: var(--primary);
-            padding: 20px;
-            border-radius: var(--radius-md);
-            margin-bottom: 30px;
-            text-align: center;
-            font-weight: 600;
-            color: white !important;
-            box-shadow: var(--shadow-lg);
-            border-left: 6px solid var(--accent);
-        }}
-        
-        .price-tag {{
-            color: var(--accent);
-            font-weight: 900;
-            font-size: 1.8rem;
-            font-family: 'Manrope', sans-serif;
-            margin-top: 8px;
-            text-shadow: 0 1px 2px rgba(0,0,0,0.1);
-        }}
-        
-        .summary-header {{
-            background: var(--primary);
-            color: white !important;
-            padding: 18px;
-            border-radius: var(--radius-md) var(--radius-md) 0 0;
-            font-weight: 800;
-            text-align: center;
-            text-transform: uppercase;
-            font-size: 0.9rem;
-            letter-spacing: 0.12em;
-        }}
-        .summary-body {{
+        .step-circle {{
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
             background: white;
-            padding: 32px;
+            border: 2px solid var(--border);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            font-size: 0.8rem;
+            color: var(--text-sub);
+            transition: var(--transition);
+        }}
+        .step-label {{
+            font-size: 0.75rem;
+            font-weight: 600;
+            color: var(--text-sub);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }}
+        .step-item.active .step-circle {{
+            background: var(--primary);
+            border-color: var(--primary);
+            color: white;
+            box-shadow: 0 0 0 4px rgba(0, 44, 93, 0.2);
+        }}
+        .step-item.active .step-label {{ color: var(--primary); }}
+        .step-item.completed .step-circle {{
+            background: #10B981; /* Green */
+            border-color: #10B981;
+            color: white;
+        }}
+
+        /* --- HEADER & LOGO --- */
+        .header-clean {{
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-direction: column;
+            margin-bottom: 40px;
+            padding-bottom: 20px;
+            border-bottom: 1px solid var(--border);
+        }}
+        .header-clean img {{
+            height: 48px;
+            margin-bottom: 16px;
+        }}
+        .header-title-clean {{
+            font-size: 1.5rem;
+            color: var(--primary);
+            font-weight: 800;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }}
+
+        /* --- PROFILE SIDEBAR --- */
+        [data-testid="stSidebar"] {{
+            background-color: white;
+            border-right: 1px solid var(--border);
+        }}
+        .sidebar-profile {{
+            text-align: center;
+            padding: 30px 20px;
+            background: linear-gradient(180deg, #F8FAFC 0%, #FFFFFF 100%);
+            border-radius: var(--radius-lg);
             border: 1px solid var(--border);
-            border-top: none;
-            border-radius: 0 0 var(--radius-md) var(--radius-md);
-            margin-bottom: 30px;
-            color: var(--text-main);
-            box-shadow: var(--shadow-sm);
+            margin-bottom: 24px;
+        }}
+        .sidebar-avatar {{
+            width: 64px;
+            height: 64px;
+            background: var(--primary);
+            color: white;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.5rem;
+            font-weight: 700;
+            margin: 0 auto 12px auto;
         }}
 
         /* --- FOOTER --- */
         .footer {{
             text-align: center;
-            padding: 80px 0;
+            padding: 40px 0;
             color: var(--text-sub) !important;
-            font-size: 0.8rem;
-            font-weight: 700;
-            letter-spacing: 0.15em;
+            font-size: 0.75rem;
+            font-weight: 600;
+            letter-spacing: 0.1em;
             text-transform: uppercase;
-            border-top: 1px solid var(--border);
-            margin-top: 60px;
-            background: linear-gradient(to bottom, transparent, rgba(0,0,0,0.02));
+            opacity: 0.7;
         }}
-        
-        /* --- SIDEBAR --- */
-        [data-testid="stSidebar"] {{
-            background-color: white;
-            border-right: 1px solid var(--border);
-        }}
-        .profile-container {{
-            text-align: center;
-            padding: 24px;
-            background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
-            border-radius: var(--radius-lg);
-            border: 1px solid var(--border);
-            margin-bottom: 20px;
-        }}
-        .profile-name {{ font-weight: 800; font-size: 1.1rem; color: var(--primary); font-family: 'Manrope', sans-serif; }}
-        .profile-role {{ font-size: 0.85rem; color: var(--text-sub); font-weight: 600; text-transform: uppercase; margin-top: 4px; }}
         </style>
     """, unsafe_allow_html=True)
 
-# ... (Funções PDF e Email) ...
+def render_wizard_progress(current_step_name):
+    steps = [
+        {"id": "input", "label": "Dados"},
+        {"id": "guide", "label": "Recomendação"},
+        {"id": "selection", "label": "Seleção"},
+        {"id": "payment_flow", "label": "Pagamento"},
+        {"id": "summary", "label": "Resumo"}
+    ]
+    
+    current_idx = 0
+    for i, s in enumerate(steps):
+        if s["id"] == current_step_name:
+            current_idx = i
+            break
+            
+    html = '<div class="stepper-container"><div class="stepper-line"></div>'
+    
+    for i, step in enumerate(steps):
+        status = ""
+        display_num = str(i + 1)
+        if i < current_idx:
+            status = "completed"
+            display_num = "✓"
+        elif i == current_idx:
+            status = "active"
+        
+        html += f"""
+        <div class="step-item {status}">
+            <div class="step-circle">{display_num}</div>
+            <div class="step-label">{step['label']}</div>
+        </div>
+        """
+    html += '</div>'
+    st.markdown(html, unsafe_allow_html=True)
+
+# ... (Funções PDF e Email mantidas iguais) ...
 def gerar_resumo_pdf(d):
     if not PDF_ENABLED: return None
     try:
@@ -741,15 +727,15 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
         user_imob = st.session_state.get('user_imobiliaria', 'Direcional').upper()
         
         st.markdown(f"""
-        <div class="profile-container">
-            <div class="profile-name">{user_name}</div>
+        <div class="sidebar-profile">
+            <div class="sidebar-avatar">{user_name[0] if user_name else 'C'}</div>
+            <div class="profile-name" style="font-size: 1rem;">{user_name}</div>
             <div class="profile-role">{user_cargo}</div>
-            <div class="profile-sub">{user_imob}</div>
+            <div class="profile-role" style="opacity: 0.6;">{user_imob}</div>
         </div>
         """, unsafe_allow_html=True)
         
-        st.markdown("---")
-        st.markdown("#### Histórico de Simulações")
+        st.markdown("#### Histórico Recente")
         
         search_term = st.text_input("Buscar cliente...", placeholder="Digite o nome", label_visibility="collapsed")
         
@@ -809,48 +795,57 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
         except Exception as e:
             st.caption(f"Erro histórico: {str(e)}")
 
+    # RENDER PROGRESS BAR
+    render_wizard_progress(passo)
+
     # --- ETAPA 1: INPUT ---
     if passo == 'input':
-        st.markdown("### Dados do Cliente")
+        st.markdown(f'<div style="text-align: center; margin-bottom: 20px;"><h2>Dados do Cliente</h2><p>Preencha as informações para iniciar a simulação.</p></div>', unsafe_allow_html=True)
         
-        with st.container():
-            nome = st.text_input("Nome Completo", value=st.session_state.dados_cliente.get('nome', ""), placeholder="Nome Completo", key="in_nome_v28")
-            
-            cpf_val = st.text_input("CPF", value=st.session_state.dados_cliente.get('cpf', ""), placeholder="000.000.000-00", key="in_cpf_v3", max_chars=14)
-            if cpf_val and not validar_cpf(cpf_val):
-                st.markdown(f"<small style='color: {COR_VERMELHO};'>CPF inválido</small>", unsafe_allow_html=True)
-            
+        st.markdown('<div class="form-card">', unsafe_allow_html=True)
+        st.markdown("#### Informações Pessoais")
+        col_p1, col_p2 = st.columns(2)
+        with col_p1:
+            nome = st.text_input("Nome Completo", value=st.session_state.dados_cliente.get('nome', ""), placeholder="Ex: João da Silva", key="in_nome_v28")
             d_nasc_default = st.session_state.dados_cliente.get('data_nascimento', date(1990, 1, 1))
             if isinstance(d_nasc_default, str):
                 try: d_nasc_default = datetime.strptime(d_nasc_default, '%Y-%m-%d').date()
                 except: d_nasc_default = date(1990, 1, 1)
-
             data_nasc = st.date_input("Data de Nascimento", value=d_nasc_default, min_value=date(1900, 1, 1), max_value=datetime.now().date(), format="DD/MM/YYYY", key="in_dt_nasc_v3")
+        
+        with col_p2:
+            cpf_val = st.text_input("CPF", value=st.session_state.dados_cliente.get('cpf', ""), placeholder="000.000.000-00", key="in_cpf_v3", max_chars=14)
+            if cpf_val and not validar_cpf(cpf_val):
+                st.markdown(f"<small style='color: {COR_VERMELHO};'>CPF inválido</small>", unsafe_allow_html=True)
             genero = st.selectbox("Gênero", ["Masculino", "Feminino", "Outro"], index=0, key="in_genero_v3")
-
-        st.markdown("---")
+        st.markdown('</div>', unsafe_allow_html=True)
         
-        with st.container():
-            qtd_part = st.number_input("Participantes na Renda", min_value=1, max_value=4, value=st.session_state.dados_cliente.get('qtd_participantes', 1), step=1, key="qtd_part_v3")
-            
-            cols_renda = st.columns(qtd_part)
-            renda_total_calc = 0.0
-            lista_rendas_input = []
-            rendas_anteriores = st.session_state.dados_cliente.get('rendas_lista', [])
-            for i in range(qtd_part):
-                with cols_renda[i]:
-                    def_val = float(rendas_anteriores[i]) if i < len(rendas_anteriores) else (3500.0 if i == 0 else 0.0)
-                    val_r = st.number_input(f"Renda Part. {i+1}", min_value=0.0, value=def_val, step=100.0, key=f"renda_part_{i}_v3")
-                    renda_total_calc += val_r; lista_rendas_input.append(val_r)
+        st.markdown('<div class="form-card">', unsafe_allow_html=True)
+        st.markdown("#### Composição de Renda")
+        qtd_part = st.number_input("Participantes na Renda", min_value=1, max_value=4, value=st.session_state.dados_cliente.get('qtd_participantes', 1), step=1, key="qtd_part_v3")
         
-        st.markdown("---")
+        cols_renda = st.columns(qtd_part)
+        renda_total_calc = 0.0
+        lista_rendas_input = []
+        rendas_anteriores = st.session_state.dados_cliente.get('rendas_lista', [])
+        for i in range(qtd_part):
+            with cols_renda[i]:
+                def_val = float(rendas_anteriores[i]) if i < len(rendas_anteriores) else (3500.0 if i == 0 else 0.0)
+                val_r = st.number_input(f"Renda Part. {i+1}", min_value=0.0, value=def_val, step=100.0, key=f"renda_part_{i}_v3")
+                renda_total_calc += val_r; lista_rendas_input.append(val_r)
+        st.markdown('</div>', unsafe_allow_html=True)
 
-        with st.container():
+        st.markdown('<div class="form-card">', unsafe_allow_html=True)
+        st.markdown("#### Perfil e Política")
+        col_prof1, col_prof2 = st.columns(2)
+        with col_prof1:
             rank_opts = ["DIAMANTE", "OURO", "PRATA", "BRONZE", "AÇO"]
             ranking = st.selectbox("Ranking do Cliente", options=rank_opts, index=0, key="in_rank_v28")
-            politica_ps = st.selectbox("Política de Pro Soluto", ["Direcional", "Emcash"], key="in_pol_v28")
             social = st.toggle("Fator Social", value=st.session_state.dados_cliente.get('social', False), key="in_soc_v28")
+        with col_prof2:
+            politica_ps = st.selectbox("Política de Pro Soluto", ["Direcional", "Emcash"], key="in_pol_v28")
             cotista = st.toggle("Cotista FGTS", value=st.session_state.dados_cliente.get('cotista', True), key="in_cot_v28")
+        st.markdown('</div>', unsafe_allow_html=True)
         
         st.markdown("<br>", unsafe_allow_html=True)
         
@@ -891,18 +886,18 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
             st.session_state.passo_simulacao = destino
             st.rerun()
 
-        if st.button("RECOMENDAR IMÓVEIS", type="primary", use_container_width=True, key="btn_avancar_guide"):
-            processar_avanco('guide')
-        
-        st.write("") 
-        
-        if st.button("IR PARA SELEÇÃO (DIRETO)", use_container_width=True, key="btn_avancar_direto"):
-            processar_avanco('selection')
+        col_b1, col_b2 = st.columns([2, 1])
+        with col_b1:
+            if st.button("RECOMENDAR IMÓVEIS", type="primary", use_container_width=True, key="btn_avancar_guide"):
+                processar_avanco('guide')
+        with col_b2:
+            if st.button("IR PARA SELEÇÃO", use_container_width=True, key="btn_avancar_direto"):
+                processar_avanco('selection')
 
     # --- ETAPA 2: RECOMENDAÇÃO ---
     elif passo == 'guide':
         d = st.session_state.dados_cliente
-        st.markdown(f"### Recomendação de Imóveis")
+        st.markdown(f'<div style="text-align: center; margin-bottom: 20px;"><h2>Recomendação de Imóveis</h2><p>Unidades sugeridas baseadas no perfil de <b>{d.get("nome", "Cliente")}</b></p></div>', unsafe_allow_html=True)
         
         df_disp_total = df_estoque[df_estoque['Status'] == 'Disponível'].copy()
         
@@ -1082,10 +1077,11 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
     # --- ETAPA 3: SELEÇÃO + TERMOMETRO ---
     elif passo == 'selection':
         d = st.session_state.dados_cliente
-        st.markdown(f"### Seleção de Unidade")
+        st.markdown(f'<div style="text-align: center; margin-bottom: 20px;"><h2>Seleção de Unidade</h2></div>', unsafe_allow_html=True)
         
         df_disponiveis = df_estoque[df_estoque['Status'] == 'Disponível'].copy()
         
+        st.markdown('<div class="form-card">', unsafe_allow_html=True)
         if df_disponiveis.empty: st.warning("Sem estoque disponível.")
         else:
             emp_names = sorted(df_disponiveis['Empreendimento'].unique())
@@ -1123,52 +1119,52 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
                     cor_term = calcular_cor_gradiente(percentual_cobertura)
                     
                     st.markdown(f"""
-                    <div style="margin-top: 20px; padding: 20px; border: 1px solid #e2e8f0; border-radius: 12px; background-color: #ffffff; text-align: center; box-shadow: 0 4px 6px rgba(0,0,0,0.05);">
+                    <div style="margin-top: 20px; padding: 20px; border: 1px solid #e2e8f0; border-radius: 12px; background-color: #f8fafc; text-align: center; border: 1px solid rgba(0,0,0,0.05);">
                         <p style="margin: 0; font-weight: 700; font-size: 0.95rem; color: #002c5d; text-transform: uppercase; letter-spacing: 0.05em;">Termômetro de Viabilidade</p>
-                        <div style="width: 100%; background-color: #f1f5f9; border-radius: 100px; height: 12px; margin: 15px 0; overflow: hidden;">
+                        <div style="width: 100%; background-color: #e2e8f0; border-radius: 100px; height: 16px; margin: 15px 0; overflow: hidden;">
                             <div style="width: {percentual_cobertura}%; background: linear-gradient(90deg, #e30613 0%, {cor_term} 100%); height: 100%; border-radius: 100px; transition: width 0.6s cubic-bezier(0.4, 0, 0.2, 1);"></div>
                         </div>
-                        <small style="font-weight: 600; color: {COR_TEXTO_SEC};">{percentual_cobertura:.1f}% Coberto</small>
+                        <small style="font-weight: 600; color: {COR_TEXTO_SEC}; font-size: 1rem;">{percentual_cobertura:.1f}% Coberto</small>
                     </div>""", unsafe_allow_html=True)
+        st.markdown('</div>', unsafe_allow_html=True)
 
-            st.markdown("<br>", unsafe_allow_html=True)
-            if st.button("Avançar para Fechamento", type="primary", use_container_width=True):
-                if uni_escolhida_id:
-                    u_row = unidades_disp[unidades_disp['Identificador'] == uni_escolhida_id].iloc[0]
-                    fin, sub, _ = motor.obter_enquadramento(d.get('renda', 0), d.get('social', False), d.get('cotista', True), u_row['Valor de Avaliação Bancária'])
-                    st.session_state.dados_cliente.update({
-                        'unidade_id': uni_escolhida_id, 'empreendimento_nome': emp_escolhido, 
-                        'imovel_valor': u_row['Valor de Venda'], 'imovel_avaliacao': u_row['Valor de Avaliação Bancária'], 
-                        'finan_estimado': fin, 'fgts_sub': sub
-                    })
-                    st.session_state.passo_simulacao = 'payment_flow'; st.rerun()
-            if st.button("Voltar", use_container_width=True): st.session_state.passo_simulacao = 'guide'; st.rerun()
+        st.markdown("<br>", unsafe_allow_html=True)
+        if st.button("Avançar para Fechamento", type="primary", use_container_width=True):
+            if uni_escolhida_id:
+                u_row = unidades_disp[unidades_disp['Identificador'] == uni_escolhida_id].iloc[0]
+                fin, sub, _ = motor.obter_enquadramento(d.get('renda', 0), d.get('social', False), d.get('cotista', True), u_row['Valor de Avaliação Bancária'])
+                st.session_state.dados_cliente.update({
+                    'unidade_id': uni_escolhida_id, 'empreendimento_nome': emp_escolhido, 
+                    'imovel_valor': u_row['Valor de Venda'], 'imovel_avaliacao': u_row['Valor de Avaliação Bancária'], 
+                    'finan_estimado': fin, 'fgts_sub': sub
+                })
+                st.session_state.passo_simulacao = 'payment_flow'; st.rerun()
+        if st.button("Voltar", use_container_width=True): st.session_state.passo_simulacao = 'guide'; st.rerun()
 
     # --- ETAPA 4: FECHAMENTO FINANCEIRO ---
     elif passo == 'payment_flow':
         d = st.session_state.dados_cliente
-        st.markdown(f"### Fechamento Financeiro")
+        st.markdown(f'<div style="text-align: center; margin-bottom: 20px;"><h2>Fechamento Financeiro</h2><p>{d.get("empreendimento_nome")} - Unidade {d.get("unidade_id")}</p></div>', unsafe_allow_html=True)
         u_valor = d.get('imovel_valor', 0)
-        u_nome = d.get('empreendimento_nome', 'N/A')
-        u_unid = d.get('unidade_id', 'N/A')
         
-        st.markdown(f'<div class="custom-alert">{u_nome} - {u_unid}<br><span style="font-size: 1.2em; font-weight: 800;">R$ {fmt_br(u_valor)}</span></div>', unsafe_allow_html=True)
+        st.markdown('<div class="form-card">', unsafe_allow_html=True)
+        st.markdown("#### Engenharia de Financiamento")
         
         # 1. Valor Financiamento (Full width)
         f_u = st.number_input("Financiamento", value=float(d.get('finan_estimado', 0)), step=1000.0, key="fin_u_v28")
         st.markdown(f'<span class="inline-ref">Financiamento Máximo: R$ {fmt_br(d.get("finan_estimado", 0))}</span>', unsafe_allow_html=True)
 
-        # 2. Prazo (Full width)
-        prazo_finan = st.selectbox("Prazo Financiamento (Meses)", [360, 420], key="prazo_v3_closed")
-
-        # 3. Tabela (Full width)
-        tab_fin = st.selectbox("Sistema de Amortização", ["SAC", "PRICE"], key="tab_fin_v28")
+        # 2. Prazo e Tabela
+        col_eng1, col_eng2 = st.columns(2)
+        with col_eng1:
+            prazo_finan = st.selectbox("Prazo Financiamento (Meses)", [360, 420], key="prazo_v3_closed")
+        with col_eng2:
+            tab_fin = st.selectbox("Sistema de Amortização", ["SAC", "PRICE"], key="tab_fin_v28")
 
         # FGTS (Full width)
         fgts_u = st.number_input("FGTS + Subsídio", value=float(d.get('fgts_sub', 0)), step=1000.0, key="fgt_u_v28")
         st.markdown(f'<span class="inline-ref">Subsídio Máximo: R$ {fmt_br(d.get("fgts_sub", 0))}</span>', unsafe_allow_html=True)
-        
-        st.markdown("<hr style='margin: 15px 0; border-color: #e2e8f0;'>", unsafe_allow_html=True)
+        st.markdown('</div>', unsafe_allow_html=True)
         
         # Inicialização do saldo restante para a primeira vez
         saldo_restante_inicial = max(0.0, u_valor - f_u - fgts_u)
@@ -1182,7 +1178,8 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
         is_emcash = (d.get('politica') == 'Emcash')
         if is_emcash: st.session_state.ato_4 = 0.0 
 
-        st.markdown("#### Distribuição da Entrada (Saldo a Pagar)")
+        st.markdown('<div class="form-card">', unsafe_allow_html=True)
+        st.markdown("#### Distribuição da Entrada (Ato)")
         
         ps_atual = st.session_state.get('ps_u_view', 0)
         saldo_para_atos = max(0.0, u_valor - f_u - fgts_u - ps_atual)
@@ -1200,7 +1197,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
             st.rerun()
 
         # Botões de Distribuição Automática Alinhados
-        st.markdown('<label style="font-size: 0.8rem; font-weight: 600; color: #64748b;">Distribuir Atos Automaticamente:</label>', unsafe_allow_html=True)
+        st.markdown('<label style="font-size: 0.8rem; font-weight: 600; color: #64748b;">Distribuir Automaticamente:</label>', unsafe_allow_html=True)
         col_dist1, col_dist2, col_dist3, col_dist4 = st.columns(4)
         
         with col_dist1: 
@@ -1230,18 +1227,21 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
         st.session_state.ato_2 = st.session_state['ato_2_v28']
         st.session_state.ato_3 = st.session_state['ato_3_v28']
         st.session_state.ato_4 = st.session_state['ato_4_v28']
+        st.markdown('</div>', unsafe_allow_html=True)
 
-        st.markdown("<hr style='margin: 15px 0; border-color: #e2e8f0;'>", unsafe_allow_html=True)
+        st.markdown('<div class="form-card">', unsafe_allow_html=True)
+        st.markdown("#### Pro Soluto (Pós-Chaves)")
         col_ps_val, col_ps_parc = st.columns(2)
         
         ps_max_real = u_valor * d.get('perc_ps', 0)
         with col_ps_val:
-            ps_u = st.number_input("Pro Soluto Direcional", value=0.0, step=1000.0, key="ps_u_view") 
+            ps_u = st.number_input("Valor Pro Soluto", value=0.0, step=1000.0, key="ps_u_view") 
             st.markdown(f'<span class="inline-ref">Limite Permitido ({d.get("perc_ps", 0)*100:.0f}%): R$ {fmt_br(ps_max_real)}</span>', unsafe_allow_html=True)
             
         with col_ps_parc:
-            parc = st.number_input("Parcelas Pro Soluto", min_value=1, max_value=d.get("prazo_ps_max", 60), value=min(60, d.get("prazo_ps_max", 60)), key="parc_u_v28")
+            parc = st.number_input("Nº Parcelas", min_value=1, max_value=d.get("prazo_ps_max", 60), value=min(60, d.get("prazo_ps_max", 60)), key="parc_u_v28")
             st.markdown(f'<span class="inline-ref">Prazo Máximo: {d.get("prazo_ps_max", 0)} meses</span>', unsafe_allow_html=True)
+        st.markdown('</div>', unsafe_allow_html=True)
 
         v_parc = ps_u / parc if parc > 0 else 0
         total_pago = f_u + fgts_u + ps_u + st.session_state.ato_1 + st.session_state.ato_2 + st.session_state.ato_3 + st.session_state.ato_4
@@ -1293,7 +1293,8 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
     # --- ETAPA 5: RESUMO ---
     elif passo == 'summary':
         d = st.session_state.dados_cliente
-        st.markdown(f"### Resumo da Simulação - {d.get('nome', 'Cliente')}")
+        st.markdown(f'<div style="text-align: center; margin-bottom: 20px;"><h2>Resumo da Proposta</h2><p>{d.get("nome", "Cliente")}</p></div>', unsafe_allow_html=True)
+        
         st.markdown(f'<div class="summary-header">DADOS DO IMÓVEL</div>', unsafe_allow_html=True)
         st.markdown(f"""<div class="summary-body"><b>Empreendimento:</b> {d.get('empreendimento_nome')}<br><b>Unidade:</b> {d.get('unidade_id')}<br><b>Valor de Venda:</b> <span style="color: {COR_VERMELHO}; font-weight: 800;">R$ {fmt_br(d.get('imovel_valor', 0))}</span></div>""", unsafe_allow_html=True)
         st.markdown(f'<div class="summary-header">PLANO DE FINANCIAMENTO</div>', unsafe_allow_html=True)
@@ -1383,7 +1384,14 @@ def main():
                 encoded = base64.b64encode(f.read()).decode()
                 logo_src = f"data:image/png;base64,{encoded}"
         except: pass
-    st.markdown(f'''<div class="header-container"><img src="{logo_src}" style="position: absolute; top: 30px; left: 40px; height: 50px;"><div class="header-title">SIMULADOR IMOBILIÁRIO DV</div><div class="header-subtitle">Sistema de Gestão de Vendas e Viabilidade Imobiliária</div></div>''', unsafe_allow_html=True)
+    
+    # Header Limpo
+    st.markdown(f'''
+    <div class="header-clean">
+        <img src="{logo_src}">
+        <div class="header-title-clean">SIMULADOR DIRECIONAL</div>
+        <div style="font-size: 0.9rem; color: #64748b; letter-spacing: 0.1em; text-transform: uppercase;">Gestão de Vendas</div>
+    </div>''', unsafe_allow_html=True)
     
     if 'logged_in' not in st.session_state: st.session_state['logged_in'] = False
     
