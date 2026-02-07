@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 =============================================================================
-SISTEMA DE SIMULAÇÃO IMOBILIÁRIA - DIRE RIO V33 (BUG FIX SALDO & SYNC)
+SISTEMA DE SIMULAÇÃO IMOBILIÁRIA - DIRE RIO V34 (FIX GAP CALC & SYNC)
 =============================================================================
 Instruções para Google Colab:
 1. Crie um arquivo chamado 'app.py' com este conteúdo.
@@ -1506,11 +1506,17 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
         v_parc = ps_u / parc if parc > 0 else 0
         st.session_state.dados_cliente['ps_mensal'] = v_parc
         
-        total_entrada_cash = st.session_state.dados_cliente['ato_final'] + st.session_state.dados_cliente['ato_30'] + st.session_state.dados_cliente['ato_60'] + st.session_state.dados_cliente['ato_90']
+        # RECALCULAR TOTAL ENTRADA CASH DO ESTADO ATUAL (Manual Sync)
+        s_ato_1 = float(st.session_state.dados_cliente.get('ato_final', 0.0))
+        s_ato_2 = float(st.session_state.dados_cliente.get('ato_30', 0.0))
+        s_ato_3 = float(st.session_state.dados_cliente.get('ato_60', 0.0))
+        s_ato_4 = float(st.session_state.dados_cliente.get('ato_90', 0.0))
+        total_entrada_cash = s_ato_1 + s_ato_2 + s_ato_3 + s_ato_4
         st.session_state.dados_cliente['entrada_total'] = total_entrada_cash
 
-        total_pago = f_u + fgts_u + ps_u + total_entrada_cash
-        gap_final = u_valor - total_pago
+        # CALCULO EXATO DO GAP: Imovel - PS - Finan - Ato - FGTS
+        # Usando variaveis locais atualizadas pelo input
+        gap_final = u_valor - ps_u - f_u - total_entrada_cash - fgts_u
 
         st.markdown("<hr style='margin: 10px 0;'>", unsafe_allow_html=True)
         fin1, fin2, fin3 = st.columns(3)
@@ -1521,7 +1527,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
         cor_saldo = COR_AZUL_ESC
         with fin3: st.markdown(f"""<div class="fin-box" style="border-top: 6px solid {cor_saldo};"><b>SALDO A COBRIR</b><br>R$ {fmt_br(gap_final)}</div>""", unsafe_allow_html=True)
 
-        if abs(gap_final) > 1:
+        if abs(gap_final) > 1.0:
             msg_saldo = f"Atenção: {'Falta cobrir' if gap_final > 0 else 'Valor excedente de'} R$ {fmt_br(abs(gap_final))}."
             st.error(msg_saldo)
 
@@ -1532,7 +1538,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
 
         st.markdown("---")
         if st.button("Avançar para Resumo da Simulação", type="primary", use_container_width=True):
-            if abs(gap_final) <= 1:
+            if abs(gap_final) <= 1.0:
                 st.session_state.passo_simulacao = 'summary'
                 scroll_to_top()
                 st.rerun()
