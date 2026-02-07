@@ -1,14 +1,16 @@
 # -*- coding: utf-8 -*-
 """
 =============================================================================
-SISTEMA DE SIMULAÇÃO IMOBILIÁRIA - DIRE RIO V3 (FINAL - RECOMENDAÇÃO INTELIGENTE)
+SISTEMA DE SIMULAÇÃO IMOBILIÁRIA - DIRE RIO V3 (FINAL - INTELLIGENT MERGE)
 =============================================================================
 Funcionalidades:
 1. Validação de CPF.
 2. Perfil do Corretor.
-3. Recomendações: Lógica de Poder de Compra Dinâmica + Unificação de Cards.
+3. Recomendações: 
+   - Panorama de Empreendimentos.
+   - Cards Inteligentes (Ideal/Seguro/Facilitado) com fusão dinâmica.
 4. Ranking: Correção na leitura da lista.
-5. Distribuição de Entrada: Botões funcionais.
+5. Distribuição de Entrada: Botões funcionais e elegantes.
 =============================================================================
 """
 
@@ -292,13 +294,66 @@ def configurar_layout():
     st.markdown(f"""
         <style>
         @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800;900&family=Inter:wght@300;400;500;600;700&display=swap');
-        html, body, [data-testid="stAppViewContainer"] {{ font-family: 'Inter', sans-serif; color: {COR_AZUL_ESC}; background-color: {COR_FUNDO}; }}
-        h1, h2, h3, h4 {{ font-family: 'Montserrat', sans-serif !important; text-align: center !important; color: {COR_AZUL_ESC} !important; font-weight: 800; letter-spacing: -0.04em; }}
-        .stMarkdown p, .stText, label, .stSelectbox label, .stTextInput label, .stNumberInput label {{ color: {COR_AZUL_ESC} !important; }}
+        
+        html, body, [data-testid="stAppViewContainer"] {{
+            font-family: 'Inter', sans-serif;
+            color: {COR_AZUL_ESC}; 
+            background-color: {COR_FUNDO};
+        }}
+        
+        h1, h2, h3, h4 {{
+            font-family: 'Montserrat', sans-serif !important;
+            text-align: center !important; 
+            color: {COR_AZUL_ESC} !important; 
+            font-weight: 800;
+            letter-spacing: -0.04em;
+        }}
+
+        .stMarkdown p, .stText, label, .stSelectbox label, .stTextInput label, .stNumberInput label {{
+            color: {COR_AZUL_ESC} !important;
+        }}
+
         .block-container {{ max-width: 1400px !important; padding: 4rem 2rem !important; }}
-        div[data-baseweb="input"] {{ border-radius: 8px !important; border: 1px solid #e2e8f0 !important; background-color: #f0f2f6 !important; }}
-        div[data-baseweb="input"]:focus-within {{ border-color: {COR_VERMELHO} !important; box-shadow: 0 0 0 1px {COR_VERMELHO} !important; }}
-        .stTextInput input, .stNumberInput input, .stDateInput input {{ padding: 14px 18px !important; color: {COR_AZUL_ESC} !important; }}
+        
+        div[data-baseweb="input"] {{
+            border-radius: 8px !important;
+            border: 1px solid #e2e8f0 !important;
+            background-color: #f0f2f6 !important;
+            transition: all 0.2s ease-in-out !important;
+        }}
+        
+        div[data-baseweb="input"]:focus-within {{
+            border-color: {COR_VERMELHO} !important;
+            box-shadow: 0 0 0 1px {COR_VERMELHO} !important;
+        }}
+
+        .stTextInput input, .stNumberInput input, .stDateInput input {{
+            padding: 14px 18px !important;
+            color: {COR_AZUL_ESC} !important;
+        }}
+        
+        div[data-testid="stDateInput"] {{ border-radius: 8px !important; }}
+        div[data-testid="stDateInput"] > div {{ border-radius: 8px !important; border: 1px solid #e2e8f0 !important; background-color: #f0f2f6 !important; }}
+        div[data-testid="stDateInput"] div[data-baseweb="input"] {{ border: none !important; background-color: transparent !important; }}
+        div[data-baseweb="input"] {{ background-color: #f0f2f6 !important; }}
+        
+        /* Botões */
+        .stButton button {{ 
+            font-family: 'Inter', sans-serif;
+            border-radius: 8px !important; 
+            padding: 0.5rem 1rem !important;
+            min-height: 3rem !important;
+            font-weight: 700 !important; 
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            font-size: 0.8rem !important;
+            width: 100% !important;
+            transition: all 0.2s ease !important;
+        }}
+        .stButton button[kind="primary"] {{ background: {COR_VERMELHO} !important; color: #ffffff !important; border: none !important; }}
+        .stButton button[kind="primary"]:hover {{ background: #c40510 !important; box-shadow: 0 8px 20px -5px rgba(227, 6, 19, 0.4) !important; }}
+        .stButton button:not([kind="primary"]) {{ background: #ffffff !important; color: {COR_AZUL_ESC} !important; border: 1px solid {COR_AZUL_ESC} !important; }}
+        .stButton button:not([kind="primary"]):hover {{ border-color: {COR_VERMELHO} !important; color: {COR_VERMELHO} !important; }}
         
         .header-container {{ text-align: center; padding: 70px 0; background: #ffffff; margin-bottom: 60px; border-radius: 0 0 40px 40px; border-bottom: 1px solid {COR_BORDA}; box-shadow: 0 15px 35px -20px rgba(0,44,93,0.1); position: relative; }}
         .header-title {{ font-family: 'Montserrat', sans-serif; color: {COR_AZUL_ESC}; font-size: 3rem; font-weight: 900; margin: 0; text-transform: uppercase; letter-spacing: 0.2em; }}
@@ -308,26 +363,25 @@ def configurar_layout():
         .login-card {{ min-height: 350px; box-shadow: 0 20px 50px -20px rgba(0,0,0,0.1); max-width: 450px; margin: 0 auto; }}
         .card:hover, .fin-box:hover, .recommendation-card:hover {{ transform: translateY(-4px); border-color: {COR_VERMELHO}; box-shadow: 0 10px 30px -10px rgba(227,6,19,0.1); }}
         
-        .stButton button {{ font-family: 'Inter', sans-serif; border-radius: 8px !important; min-height: 45px !important; height: 45px !important; padding: 0px 24px !important; font-weight: 700 !important; text-transform: uppercase; letter-spacing: 0.1em; font-size: 0.8rem !important; transition: all 0.2s ease !important; display: flex; align-items: center; justify-content: center; }}
-        .stButton button[kind="primary"] {{ background: {COR_VERMELHO} !important; color: #ffffff !important; border: none !important; }}
-        .stButton button[kind="primary"]:hover {{ background: #c40510 !important; box-shadow: 0 8px 20px -5px rgba(227, 6, 19, 0.4) !important; }}
-        .stButton button:not([kind="primary"]) {{ background: #ffffff !important; color: {COR_AZUL_ESC} !important; border: 1px solid {COR_AZUL_ESC} !important; }}
-        .stButton button:not([kind="primary"]):hover {{ border-color: {COR_VERMELHO} !important; color: {COR_VERMELHO} !important; }}
-        
         .summary-header {{ font-family: 'Montserrat', sans-serif; background: {COR_AZUL_ESC}; color: #ffffff !important; padding: 20px; border-radius: 12px 12px 0 0; font-weight: 800; text-align: center; text-transform: uppercase; letter-spacing: 0.15em; font-size: 0.9rem; }}
         .summary-body {{ background: #ffffff; padding: 40px; border: 1px solid {COR_BORDA}; border-radius: 0 0 12px 12px; margin-bottom: 40px; color: {COR_AZUL_ESC}; }}
         .custom-alert {{ background-color: {COR_AZUL_ESC}; padding: 25px; border-radius: 10px; margin-bottom: 30px; text-align: center; font-weight: 400; color: #ffffff !important; }}
         .price-tag {{ color: {COR_VERMELHO}; font-weight: 900; font-size: 1.5rem; margin-top: 5px; }}
+        
+        /* Badges de Categoria */
         .badge-ideal {{ background-color: #22c55e; color: white; padding: 6px 14px; border-radius: 20px; font-weight: bold; font-size: 0.85rem; margin-top: 10px; text-transform: uppercase; letter-spacing: 0.05em; }}
         .badge-seguro {{ background-color: #eab308; color: white; padding: 6px 14px; border-radius: 20px; font-weight: bold; font-size: 0.85rem; margin-top: 10px; text-transform: uppercase; letter-spacing: 0.05em; }}
         .badge-facilitado {{ background-color: #f97316; color: white; padding: 6px 14px; border-radius: 20px; font-weight: bold; font-size: 0.85rem; margin-top: 10px; text-transform: uppercase; letter-spacing: 0.05em; }}
-        .badge-multi {{ background: linear-gradient(90deg, #22c55e 0%, #eab308 100%); color: white; padding: 6px 14px; border-radius: 20px; font-weight: bold; font-size: 0.85rem; margin-top: 10px; text-transform: uppercase; letter-spacing: 0.05em; }}
-        
-        /* Ajuste Tabs */
+        .badge-multi {{ background: linear-gradient(90deg, #eab308 0%, #f97316 100%); color: white; padding: 6px 14px; border-radius: 20px; font-weight: bold; font-size: 0.85rem; margin-top: 10px; text-transform: uppercase; letter-spacing: 0.05em; }}
+        .badge-all {{ background: linear-gradient(90deg, #22c55e 0%, #f97316 100%); color: white; padding: 6px 14px; border-radius: 20px; font-weight: bold; font-size: 0.85rem; margin-top: 10px; text-transform: uppercase; letter-spacing: 0.05em; }}
+
+        /* Tabs */
         div[data-baseweb="tab-list"] {{ justify-content: center !important; gap: 40px; margin-bottom: 40px; }}
         button[data-baseweb="tab"] p {{ color: {COR_AZUL_ESC} !important; opacity: 0.6; font-weight: 700 !important; font-family: 'Montserrat', sans-serif !important; font-size: 0.9rem !important; text-transform: uppercase; letter-spacing: 0.1em; }}
         button[data-baseweb="tab"][aria-selected="true"] p {{ color: {COR_AZUL_ESC} !important; opacity: 1; }}
         div[data-baseweb="tab-highlight"] {{ background-color: {COR_VERMELHO} !important; height: 3px !important; }}
+        
+        .footer {{ text-align: center; padding: 80px 0; color: {COR_AZUL_ESC} !important; font-size: 0.8rem; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; opacity: 0.6; }}
         </style>
     """, unsafe_allow_html=True)
 
@@ -614,103 +668,126 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
 
             df_disp_total[['Poder_Compra', 'Cobertura', 'Viavel', 'Finan_Unid', 'Sub_Unid']] = df_disp_total.apply(calcular_viabilidade_unidade, axis=1)
             df_disp_total['Status Viabilidade'] = df_disp_total['Viavel'].apply(lambda x: "Viavel" if x else "Inviavel")
-            df_viaveis = df_disp_total.copy() # Mantem todas para filtro posterior, mesmo as inviáveis podem ser facilitadas
+            df_viaveis = df_disp_total[df_disp_total['Viavel']].copy() # Mantem apenas as que cobrem pelo menos o PS da política? Não, vamos filtrar por cobertura depois.
+            # Ajuste: Filtrar apenas viáveis para o panorama
+            df_panorama = df_viaveis[df_viaveis['Viavel']]
         
-        st.write(""); tab_rec, tab_list = st.tabs(["Sugestões de Unidades", "Estoque Geral"])
-        with tab_rec:
-            emp_names_rec = sorted(df_viaveis['Empreendimento'].unique().tolist())
-            emp_rec = st.selectbox("Escolha um empreendimento para obter recomendações:", options=["Todos"] + emp_names_rec, key="sel_emp_rec_v28")
-            
-            # Filtro por empreendimento
-            df_pool = df_viaveis if emp_rec == "Todos" else df_viaveis[df_viaveis['Empreendimento'] == emp_rec]
-            
-            if df_pool.empty: st.markdown('<div class="custom-alert">Nenhuma unidade encontrada.</div>', unsafe_allow_html=True)
-            else:
-                # Lógica: Encontrar a unidade MAIS CARA que atenda aos critérios
-                # Ideal: Cobertura >= 100%
-                # Seguro: Cobertura >= 90%
-                # Facilitado: Cobertura >= 75%
-                
-                # Ordenar por preço decrescente para pegar a mais cara que atende
-                pool_sorted = df_pool.sort_values('Valor de Venda', ascending=False)
-                
-                # Filtragem dos melhores candidatos
-                cand_ideal = pool_sorted[pool_sorted['Cobertura'] >= 100].head(1)
-                cand_seguro = pool_sorted[pool_sorted['Cobertura'] >= 90].head(1)
-                cand_facil = pool_sorted[pool_sorted['Cobertura'] >= 75].head(1)
-                
-                # Extrair informações para comparação e unificação
-                def extract_info(df_cand, label, css_class):
-                    if df_cand.empty: return None
-                    row = df_cand.iloc[0]
-                    # Busca todas unidades com esse MESMO preço neste empreendimento
-                    unidades_irmas = df_pool[df_pool['Valor de Venda'] == row['Valor de Venda']]['Identificador'].tolist()
-                    unidades_str = ", ".join(unidades_irmas)
-                    return {
-                        'preco': row['Valor de Venda'],
-                        'emp': row['Empreendimento'],
-                        'unidades': unidades_str,
-                        'labels': [label], # Lista para permitir merge (Ex: Ideal + Seguro)
-                        'css': css_class
-                    }
+        # --- SEÇÃO 1: PANORAMA ---
+        st.markdown("#### Panorama de Empreendimentos Viáveis")
+        if df_panorama.empty:
+            st.markdown('<div class="custom-alert">Nenhum empreendimento 100% viável encontrado. Veja abaixo opções que podem se encaixar.</div>', unsafe_allow_html=True)
+        else:
+            emp_counts = df_panorama.groupby('Empreendimento').size().to_dict()
+            items = list(emp_counts.items())
+            cols_per_row = 3
+            for i in range(0, len(items), cols_per_row):
+                row_items = items[i:i+cols_per_row]
+                row_cols = st.columns(len(row_items))
+                for idx, (emp, qtd) in enumerate(row_items):
+                    with row_cols[idx]:
+                        st.markdown(f"""
+                            <div class="card" style="min-height: 80px; padding: 15px; border-top: 3px solid {COR_VERMELHO};">
+                                <p style="margin:0; font-weight:700; color:{COR_AZUL_ESC};">{emp}</p>
+                                <p style="margin:5px 0 0 0; font-size:0.85rem; color:{COR_TEXTO_MUTED};">{qtd} unidades viaveis</p>
+                            </div>
+                        """, unsafe_allow_html=True)
 
-                info_ideal = extract_info(cand_ideal, "IDEAL", "badge-ideal")
-                info_seguro = extract_info(cand_seguro, "SEGURO", "badge-seguro")
-                info_facil = extract_info(cand_facil, "FACILITADO", "badge-facilitado")
-                
-                # Lógica de Unificação (Merge)
-                # 1. Se Ideal == Seguro == Facilitado -> Apenas 1 card "Ideal" (ou todos os labels)
-                # 2. Se Seguro == Facilitado -> Merge
-                # 3. Se Ideal == Seguro -> Merge
-                
-                cards_finais = []
-                
-                # Adiciona Ideal se existir
-                if info_ideal:
-                    cards_finais.append(info_ideal)
-                
-                # Processa Seguro
-                if info_seguro:
-                    if info_ideal and info_seguro['preco'] == info_ideal['preco']:
-                        # É a mesma unidade do Ideal, ignora ou merge labels (optei por manter só Ideal pois engloba)
-                        pass 
-                    else:
-                        cards_finais.append(info_seguro)
-                        
-                # Processa Facilitado
-                if info_facil:
-                    # Verifica se é igual ao último adicionado (seja Ideal ou Seguro)
-                    last_card = cards_finais[-1] if cards_finais else None
-                    if last_card and info_facil['preco'] == last_card['preco']:
-                        # Unifica: Adiciona label
-                        if "FACILITADO" not in last_card['labels']:
-                            last_card['labels'].append("FACILITADO")
-                            # Se virou híbrido Seguro+Facilitado, pode mudar a cor
-                            if "SEGURO" in last_card['labels']:
-                                last_card['css'] = "badge-multi"
-                    else:
-                        cards_finais.append(info_facil)
-                
-                # Renderização
-                if not cards_finais:
-                    st.warning("Nenhuma unidade atende aos critérios mínimos de viabilidade (75% de cobertura).")
+        st.write("")
+        st.markdown("#### Destaques Inteligentes")
+        
+        emp_names_rec = sorted(df_disp_total['Empreendimento'].unique().tolist())
+        emp_rec = st.selectbox("Escolha um empreendimento para ver destaques:", options=["Todos"] + emp_names_rec, key="sel_emp_rec_v28")
+        
+        # Filtro por empreendimento
+        df_pool = df_disp_total if emp_rec == "Todos" else df_disp_total[df_disp_total['Empreendimento'] == emp_rec]
+        
+        if df_pool.empty: st.markdown('<div class="custom-alert">Nenhuma unidade encontrada.</div>', unsafe_allow_html=True)
+        else:
+            # Lógica: Encontrar a unidade MAIS CARA que atenda aos critérios
+            # Ideal: Cobertura >= 100%
+            # Seguro: Cobertura >= 90%
+            # Facilitado: Cobertura >= 75%
+            
+            # Ordenar por preço decrescente para pegar a mais cara que atende
+            pool_sorted = df_pool.sort_values('Valor de Venda', ascending=False)
+            
+            # Filtragem dos melhores candidatos
+            cand_ideal = pool_sorted[pool_sorted['Cobertura'] >= 100].head(1)
+            cand_seguro = pool_sorted[pool_sorted['Cobertura'] >= 90].head(1)
+            cand_facil = pool_sorted[pool_sorted['Cobertura'] >= 75].head(1)
+            
+            # Extrair informações para comparação e unificação
+            def extract_info(df_cand, label, css_class):
+                if df_cand.empty: return None
+                row = df_cand.iloc[0]
+                # Busca todas unidades com esse MESMO preço neste empreendimento
+                unidades_irmas = df_pool[df_pool['Valor de Venda'] == row['Valor de Venda']]['Identificador'].tolist()
+                unidades_str = ", ".join(unidades_irmas)
+                return {
+                    'preco': row['Valor de Venda'],
+                    'emp': row['Empreendimento'],
+                    'unidades': unidades_str,
+                    'labels': [label], # Lista para permitir merge (Ex: Ideal + Seguro)
+                    'css': css_class
+                }
+
+            info_ideal = extract_info(cand_ideal, "IDEAL", "badge-ideal")
+            info_seguro = extract_info(cand_seguro, "SEGURO", "badge-seguro")
+            info_facil = extract_info(cand_facil, "FACILITADO", "badge-facilitado")
+            
+            # Lógica de Unificação (Merge)
+            cards_finais = []
+            
+            # Adiciona Ideal se existir
+            if info_ideal:
+                cards_finais.append(info_ideal)
+            
+            # Processa Seguro
+            if info_seguro:
+                if info_ideal and info_seguro['preco'] == info_ideal['preco']:
+                    # É a mesma unidade do Ideal, ignora ou merge labels (optei por manter só Ideal pois engloba)
+                    pass 
                 else:
-                    # Distribui colunas proporcionalmente
-                    cols = st.columns(len(cards_finais))
-                    for idx, card in enumerate(cards_finais):
-                        with cols[idx]:
-                            labels_html = "".join([f'<span class="{("badge-ideal" if l=="IDEAL" else ("badge-seguro" if l=="SEGURO" else "badge-facilitado"))}" style="margin-right:5px;">{l}</span>' for l in card['labels']])
-                            st.markdown(f'''
-                            <div class="recommendation-card" style="border-top: 4px solid {COR_AZUL_ESC}; height: 100%; justify-content: flex-start;">
-                                <b style="color:{COR_AZUL_ESC}; font-size:1.1rem;">{card['emp']}</b><br>
-                                <div class="price-tag" style="font-size:1.4rem; margin:10px 0;">R$ {fmt_br(card['preco'])}</div>
-                                <div style="margin-top:5px; margin-bottom:15px;">{labels_html}</div>
-                                <div style="font-size:0.85rem; color:{COR_TEXTO_MUTED}; text-align:center; border-top:1px solid #eee; padding-top:10px; width:100%;">
-                                    <b>Unidades disponíveis:</b><br>{card['unidades']}
-                                </div>
-                            </div>''', unsafe_allow_html=True)
+                    cards_finais.append(info_seguro)
+                    
+            # Processa Facilitado
+            if info_facil:
+                # Verifica se é igual ao último adicionado (seja Ideal ou Seguro)
+                last_card = cards_finais[-1] if cards_finais else None
+                if last_card and info_facil['preco'] == last_card['preco']:
+                    # Unifica: Adiciona label
+                    if "FACILITADO" not in last_card['labels']:
+                        last_card['labels'].append("FACILITADO")
+                        # Se virou híbrido Seguro+Facilitado, muda a cor
+                        if "SEGURO" in last_card['labels']:
+                            last_card['css'] = "badge-multi"
+                else:
+                    cards_finais.append(info_facil)
+            
+            # Renderização
+            if not cards_finais:
+                st.warning("Nenhuma unidade atende aos critérios mínimos de viabilidade (75% de cobertura).")
+            else:
+                # Distribui colunas proporcionalmente
+                cols = st.columns(len(cards_finais))
+                for idx, card in enumerate(cards_finais):
+                    with cols[idx]:
+                        labels_html = "".join([f'<span class="{("badge-ideal" if l=="IDEAL" else ("badge-seguro" if l=="SEGURO" else "badge-facilitado"))}" style="margin-right:5px;">{l}</span>' for l in card['labels']])
+                        if len(card['labels']) > 1 and "SEGURO" in card['labels'] and "FACILITADO" in card['labels']:
+                             labels_html = f'<span class="badge-multi">SEGURO & FACILITADO</span>' # Exemplo de merge visual
 
-        with tab_list:
+                        st.markdown(f'''
+                        <div class="recommendation-card" style="border-top: 4px solid {COR_AZUL_ESC}; height: 100%; justify-content: flex-start;">
+                            <b style="color:{COR_AZUL_ESC}; font-size:1.1rem;">{card['emp']}</b><br>
+                            <div class="price-tag" style="font-size:1.4rem; margin:10px 0;">R$ {fmt_br(card['preco'])}</div>
+                            <div style="margin-top:5px; margin-bottom:15px;">{labels_html}</div>
+                            <div style="font-size:0.85rem; color:{COR_TEXTO_MUTED}; text-align:center; border-top:1px solid #eee; padding-top:10px; width:100%;">
+                                <b>Unidades disponíveis:</b><br>{card['unidades']}
+                            </div>
+                        </div>''', unsafe_allow_html=True)
+
+        st.markdown("---")
+        with st.expander("Ver Estoque Geral (Tabela Completa)"):
             if df_disp_total.empty: st.markdown('<div class="custom-alert">Sem dados para exibir.</div>', unsafe_allow_html=True)
             else:
                 f_cols = st.columns([1.2, 1.5, 1, 1, 1])
@@ -719,18 +796,34 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
                 with f_cols[2]: f_status_v = st.multiselect("Viabilidade:", options=["Viavel", "Inviavel"], key="f_status_tab_v28")
                 with f_cols[3]: f_ordem = st.selectbox("Ordem:", ["Menor Preço", "Maior Preço"], key="f_ordem_tab_v28")
                 with f_cols[4]: f_pmax = st.number_input("Preço Máx:", value=float(df_disp_total['Valor de Venda'].max()), key="f_pmax_tab_v28")
+                
                 df_tab = df_disp_total.copy()
                 if f_bairro: df_tab = df_tab[df_tab['Bairro'].isin(f_bairro)]
                 if f_emp: df_tab = df_tab[df_tab['Empreendimento'].isin(f_emp)]
                 if f_status_v: df_tab = df_tab[df_tab['Status Viabilidade'].isin(f_status_v)]
                 df_tab = df_tab[df_tab['Valor de Venda'] <= f_pmax]
-                if f_ordem == "Menor Preço": df_tab = df_tab.sort_values('Valor de Venda', ascending=True)
-                else: df_tab = df_tab.sort_values('Valor de Venda', ascending=False)
+                
+                if f_ordem == "Menor Preço": 
+                    df_tab = df_tab.sort_values('Valor de Venda', ascending=True)
+                else: 
+                    df_tab = df_tab.sort_values('Valor de Venda', ascending=False)
+                
                 df_tab_view = df_tab.copy()
                 df_tab_view['Valor de Venda'] = df_tab_view['Valor de Venda'].apply(fmt_br)
                 df_tab_view['Poder_Compra'] = df_tab_view['Poder_Compra'].apply(fmt_br)
                 df_tab_view['Cobertura'] = df_tab_view['Cobertura'].apply(lambda x: f"{x:.1f}%")
-                st.dataframe(df_tab_view[['Identificador', 'Bairro', 'Empreendimento', 'Valor de Venda', 'Cobertura']], use_container_width=True, hide_index=True, column_config={"Identificador": st.column_config.TextColumn("Unidade"), "Valor de Venda": st.column_config.TextColumn("Preço (R$)"), "Cobertura": st.column_config.TextColumn("Viabilidade (%)")})
+
+                st.dataframe(
+                    df_tab_view[['Identificador', 'Bairro', 'Empreendimento', 'Valor de Venda', 'Poder_Compra', 'Cobertura', 'Status Viabilidade']], 
+                    use_container_width=True, 
+                    hide_index=True,
+                    column_config={
+                        "Identificador": st.column_config.TextColumn("Unidade"),
+                        "Valor de Venda": st.column_config.TextColumn("Preço (R$)"),
+                        "Poder_Compra": st.column_config.TextColumn("Poder Real (R$)"),
+                        "Cobertura": st.column_config.TextColumn("Cob. (%)"),
+                    }
+                )
 
         st.markdown("---")
         if st.button("Avançar para Seleção de Unidade", type="primary", use_container_width=True, key="btn_goto_selection"): st.session_state.passo_simulacao = 'selection'; st.rerun()
