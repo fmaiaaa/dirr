@@ -6,7 +6,7 @@ SISTEMA DE SIMULAÇÃO IMOBILIÁRIA - DIRE RIO V39 (ANALYTICS COMPLETO & FIXES)
 Instruções para Google Colab:
 1. Crie um arquivo chamado 'app.py' com este conteúdo.
 2. Instale as dependências:
-   !pip install streamlit pandas numpy fpdf streamlit-gsheets pytz matplotlib
+   !pip install streamlit pandas numpy fpdf streamlit-gsheets pytz
 3. Configure os segredos (.streamlit/secrets.toml) para o envio de email.
 4. Rode o app:
    !streamlit run app.py & npx localtunnel --port 8501
@@ -30,7 +30,7 @@ from email.mime.text import MIMEText
 from email.mime.application import MIMEApplication
 import os
 import pytz
-import matplotlib.pyplot as plt
+import altair as alt
 
 # Tenta importar fpdf e PIL
 try:
@@ -1092,10 +1092,13 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
             # Filtra zeros
             pie_data = [(l, v) for l, v in zip(labels, values) if v > 0]
             if pie_data:
-                fig1, ax1 = plt.subplots(figsize=(4, 4))
-                ax1.pie([x[1] for x in pie_data], labels=[x[0] for x in pie_data], autopct='%1.1f%%', startangle=90, colors=['#e30613', '#002c5d', '#64748b', '#94a3b8', '#f59e0b', '#10b981', '#3b82f6'])
-                ax1.axis('equal')
-                st.pyplot(fig1, use_container_width=False)
+                df_pie = pd.DataFrame(pie_data, columns=['Tipo', 'Valor'])
+                c = alt.Chart(df_pie).mark_arc(innerRadius=50).encode(
+                    theta=alt.Theta("Valor", stack=True),
+                    color=alt.Color("Tipo"),
+                    tooltip=["Tipo", "Valor"]
+                )
+                st.altair_chart(c, use_container_width=True)
             else:
                 st.info("Sem dados financeiros suficientes.")
 
@@ -1105,10 +1108,13 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
             rendas = d.get('rendas_lista', [])
             pie_renda = [(f"Part. {i+1}", r) for i, r in enumerate(rendas) if r > 0]
             if pie_renda:
-                fig2, ax2 = plt.subplots(figsize=(4, 4))
-                ax2.pie([x[1] for x in pie_renda], labels=[x[0] for x in pie_renda], autopct='%1.1f%%', startangle=90, colors=['#002c5d', '#e30613', '#f59e0b', '#10b981'])
-                ax2.axis('equal')
-                st.pyplot(fig2, use_container_width=False)
+                df_renda = pd.DataFrame(pie_renda, columns=['Participante', 'Renda'])
+                c2 = alt.Chart(df_renda).mark_arc(innerRadius=50).encode(
+                    theta=alt.Theta("Renda", stack=True),
+                    color=alt.Color("Participante"),
+                    tooltip=["Participante", "Renda"]
+                )
+                st.altair_chart(c2, use_container_width=True)
             else:
                 st.caption("Renda única ou não informada.")
 
