@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 =============================================================================
-SISTEMA DE SIMULAÇÃO IMOBILIÁRIA - DIRE RIO V11 (FINAL LOGIC & DATA FIX)
+SISTEMA DE SIMULAÇÃO IMOBILIÁRIA - DIRE RIO V12 (FINAL PARCELAS FIX)
 =============================================================================
 Instruções para Google Colab:
 1. Crie um arquivo chamado 'app.py' com este conteúdo.
@@ -661,7 +661,8 @@ def tela_login(df_logins):
 
 @st.dialog("Opções de Exportação")
 def show_export_dialog(d):
-    st.markdown("### Resumo da Simulação")
+    # Using HTML to force left alignment against the global CSS !important
+    st.markdown(f"<h3 style='text-align: left; color: {COR_AZUL_ESC}; margin: 0;'>Resumo da Simulação</h3>", unsafe_allow_html=True)
     st.markdown("Escolha como deseja exportar o documento.")
     pdf_data = gerar_resumo_pdf(d)
     
@@ -821,19 +822,24 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
             if cpf_val and not validar_cpf(cpf_val): st.markdown(f'<div class="custom-alert">CPF Inválido. Corrija para continuar.</div>', unsafe_allow_html=True); return
             if renda_total_calc <= 0: st.markdown(f'<div class="custom-alert">A renda total deve ser maior que zero.</div>', unsafe_allow_html=True); return
 
-            # Lógica de Política Pro Soluto baseada na tabela de ranking
+            # Lógica de Política Pro Soluto
             class_b = 'EMCASH' if politica_ps == "Emcash" else ranking
             
             # Default values
             perc_ps_max = 0.10
-            prazo_ps_max = 60
+            
+            # Lógica FIXA de parcelas solicitada pelo usuário
+            if politica_ps == "Emcash":
+                prazo_ps_max = 66
+            else:
+                prazo_ps_max = 84
             
             if 'CLASSIFICAÇÃO' in df_politicas.columns:
                 filtro = df_politicas[df_politicas['CLASSIFICAÇÃO'] == class_b]
                 if not filtro.empty: 
                     row_pol = filtro.iloc[0]
                     if 'PROSOLUTO' in row_pol: perc_ps_max = row_pol['PROSOLUTO']
-                    if 'PARCELAS' in row_pol: prazo_ps_max = int(row_pol['PARCELAS'])
+                    # Ignoramos a coluna PARCELAS da planilha pois a regra de negócio fixa (66/84) é mandatória
 
             # Fator de comprometimento de renda (mantido do original, embora não explicitado na ultima query, é bom ter)
             limit_ps_r = 0.30 
