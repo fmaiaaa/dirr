@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 =============================================================================
-SISTEMA DE SIMULAÇÃO IMOBILIÁRIA - DIRE RIO V30 (UPDATED LAYOUT & AUTO EMAIL)
+SISTEMA DE SIMULAÇÃO IMOBILIÁRIA - DIRE RIO V31 (CORREÇÃO PS & PERSISTÊNCIA)
 =============================================================================
 Instruções para Google Colab:
 1. Crie um arquivo chamado 'app.py' com este conteúdo.
@@ -112,20 +112,11 @@ def safe_float_convert(val):
         except: return 0.0
 
 def calcular_cor_gradiente(valor):
-    """
-    Interpola linearmente entre Vermelho (#e30613) e Azul (#002c5d)
-    0% -> Vermelho
-    100% -> Azul
-    """
     valor = max(0, min(100, valor))
     f = valor / 100.0
-    
-    # Vermelho: 227, 6, 19
-    # Azul: 0, 44, 93
     r = int(227 + (0 - 227) * f)
     g = int(6 + (44 - 6) * f)
     b = int(19 + (93 - 19) * f)
-    
     return f"rgb({r},{g},{b})"
 
 def calcular_comparativo_sac_price(valor, meses, taxa_anual):
@@ -1007,9 +998,18 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
     # --- ETAPA 1: INPUT ---
     if passo == 'input':
         st.markdown("### Dados do Cliente")
-        nome = st.text_input("Nome Completo", value=st.session_state.dados_cliente.get('nome', ""), placeholder="Nome Completo", key="in_nome_v28")
+        
+        # Recuperar valores da sessão ou usar defaults
+        curr_nome = st.session_state.dados_cliente.get('nome', "")
+        curr_cpf = st.session_state.dados_cliente.get('cpf', "")
+        
+        nome = st.text_input("Nome Completo", value=curr_nome, placeholder="Nome Completo", key="in_nome_v28")
+        cpf_val = st.text_input("CPF", value=curr_cpf, placeholder="000.000.000-00", key="in_cpf_v3", max_chars=14)
+        
+        # Atualizar sessão em tempo real para não perder ao navegar
+        if nome != curr_nome: st.session_state.dados_cliente['nome'] = nome
+        if cpf_val != curr_cpf: st.session_state.dados_cliente['cpf'] = cpf_val
 
-        cpf_val = st.text_input("CPF", value=st.session_state.dados_cliente.get('cpf', ""), placeholder="000.000.000-00", key="in_cpf_v3", max_chars=14)
         if cpf_val and not validar_cpf(cpf_val):
             st.markdown(f"<small style='color: {COR_VERMELHO};'>CPF inválido</small>", unsafe_allow_html=True)
 
@@ -1043,14 +1043,33 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
                 renda_total_calc += val_r; lista_rendas_input.append(val_r)
 
         rank_opts = ["DIAMANTE", "OURO", "PRATA", "BRONZE", "AÇO"]
-        ranking = st.selectbox("Ranking do Cliente", options=rank_opts, index=0, key="in_rank_v28")
-        politica_ps = st.selectbox("Política de Pro Soluto", ["Direcional", "Emcash"], key="in_pol_v28")
+        # Recuperar seleção anterior se existir
+        curr_ranking = st.session_state.dados_cliente.get('ranking', "DIAMANTE")
+        idx_ranking = rank_opts.index(curr_ranking) if curr_ranking in rank_opts else 0
+        ranking = st.selectbox("Ranking do Cliente", options=rank_opts, index=idx_ranking, key="in_rank_v28")
+        
+        politica_ps = st.selectbox("Política de Pro Soluto", ["Direcional", "Emcash"], index=0 if st.session_state.dados_cliente.get('politica') != "Emcash" else 1, key="in_pol_v28")
         social = st.toggle("Fator Social", value=st.session_state.dados_cliente.get('social', False), key="in_soc_v28")
         cotista = st.toggle("Cotista FGTS", value=st.session_state.dados_cliente.get('cotista', True), key="in_cot_v28")
 
         st.markdown("<br>", unsafe_allow_html=True)
 
         def processar_avanco(destino):
+            # Salvar estado atual antes de validar/avançar
+            st.session_state.dados_cliente.update({
+                'nome': nome, 
+                'cpf': limpar_cpf_visual(cpf_val), 
+                'data_nascimento': data_nasc, 
+                'genero': genero,
+                'renda': renda_total_calc, 
+                'rendas_lista': lista_rendas_input,
+                'social': social, 
+                'cotista': cotista, 
+                'ranking': ranking, 
+                'politica': politica_ps,
+                'qtd_participantes': qtd_part
+            })
+
             if not nome.strip(): st.markdown(f'<div class="custom-alert">Por favor, informe o Nome do Cliente para continuar.</div>', unsafe_allow_html=True); return
             if not cpf_val.strip(): st.markdown(f'<div class="custom-alert">Por favor, informe o CPF do Cliente.</div>', unsafe_allow_html=True); return
             if not validar_cpf(cpf_val): st.markdown(f'<div class="custom-alert">CPF Inválido. Corrija para continuar.</div>', unsafe_allow_html=True); return
@@ -1064,12 +1083,11 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
             f_faixa_ref, s_faixa_ref, fx_nome_ref = motor.obter_enquadramento(renda_total_calc, social, cotista, valor_avaliacao=240000)
 
             st.session_state.dados_cliente.update({
-                'nome': nome, 'cpf': limpar_cpf_visual(cpf_val), 'data_nascimento': data_nasc, 'genero': genero,
-                'renda': renda_total_calc, 'rendas_lista': lista_rendas_input,
-                'social': social, 'cotista': cotista, 'ranking': ranking, 'politica': politica_ps,
-                'perc_ps': perc_ps_max, 'prazo_ps_max': prazo_ps_max,
-                'limit_ps_renda': limit_ps_r, 'finan_f_ref': f_faixa_ref, 'sub_f_ref': s_faixa_ref,
-                'qtd_participantes': qtd_part
+                'perc_ps': perc_ps_max, 
+                'prazo_ps_max': prazo_ps_max,
+                'limit_ps_renda': limit_ps_r, 
+                'finan_f_ref': f_faixa_ref, 
+                'sub_f_ref': s_faixa_ref
             })
             st.session_state.passo_simulacao = destino
             scroll_to_top()
@@ -1153,45 +1171,21 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
                 pool_viavel = df_pool[df_pool['Viavel']]
                 cand_facil = pd.DataFrame(); cand_ideal = pd.DataFrame(); cand_seguro = pd.DataFrame()
                 
-                # Logic: We need 3 cards: Ideal, Seguro, Facilitado.
-                # If we don't have perfect matches, we fallback to cheapest available options.
-                
-                # 1. Try to find logic matches first
                 if not pool_viavel.empty:
                     # Ideal: 100% coverage, most expensive one that fits
                     ideal_pool = pool_viavel[pool_viavel['Cobertura'] >= 100]
                     if not ideal_pool.empty:
                         cand_ideal = ideal_pool.sort_values('Valor de Venda', ascending=False).head(1)
                     
-                    # Seguro: Highest Coverage (safest bet), regardless of price
+                    # Seguro: Highest Coverage
                     cand_seguro = pool_viavel.sort_values('Cobertura', ascending=False).head(1)
                     
-                    # Facilitado: Lowest Price (easiest to buy)
+                    # Facilitado: Lowest Price
                     cand_facil = pool_viavel.sort_values('Valor de Venda', ascending=True).head(1)
                 
-                # 2. Collect what we found
-                found_units = []
-                if not cand_ideal.empty: found_units.append({'type': 'IDEAL', 'row': cand_ideal.iloc[0]})
-                if not cand_seguro.empty: found_units.append({'type': 'SEGURO', 'row': cand_seguro.iloc[0]})
-                if not cand_facil.empty: found_units.append({'type': 'FACILITADO', 'row': cand_facil.iloc[0]})
-                
-                # Deduplicate based on price/id to avoid showing same unit 3 times if possible, 
-                # but user asked for 3 units always. If logic returns same unit for all 3 (e.g. only 1 unit exists),
-                # we must show it 3 times or find others?
-                # User said: "Se o 90% nao der, recomende a de 100%, a mais barata e a segunda mais barata."
-                # This implies finding *distinct* units if possible.
-                
-                # Let's get top 3 cheapest units from pool as base fallback
+                final_cards = []
                 fallback_pool = df_pool.sort_values('Valor de Venda', ascending=True)
                 
-                final_cards = []
-                
-                # Strategy: Fill slots 1(Ideal), 2(Seguro), 3(Facilitado)
-                # Slot 1: Logic Ideal -> Fallback Cheapest
-                # Slot 2: Logic Seguro -> Fallback 2nd Cheapest
-                # Slot 3: Logic Facilitado -> Fallback 3rd Cheapest
-                
-                # Helper to get unique unit not already in final_cards
                 def get_fallback_unit(exclude_ids):
                     for idx, row in fallback_pool.iterrows():
                         if row['Identificador'] not in exclude_ids:
@@ -1202,8 +1196,6 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
                 if not cand_ideal.empty:
                     final_cards.append({'label': 'IDEAL', 'row': cand_ideal.iloc[0], 'css': 'badge-ideal'})
                 else:
-                    # Fallback 1: Cheapest (100% coverage unit not found, maybe expensive)
-                    # Logic says: "Se 100% nao der, recomende a mais barata"
                     u = get_fallback_unit([])
                     if u is not None: final_cards.append({'label': 'IDEAL', 'row': u, 'css': 'badge-ideal'})
 
@@ -1212,7 +1204,6 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
                 if not cand_seguro.empty and cand_seguro.iloc[0]['Identificador'] not in exclude:
                       final_cards.append({'label': 'SEGURO', 'row': cand_seguro.iloc[0], 'css': 'badge-seguro'})
                 else:
-                    # Fallback 2: 2nd Cheapest
                     u = get_fallback_unit(exclude)
                     if u is not None: final_cards.append({'label': 'SEGURO', 'row': u, 'css': 'badge-seguro'})
                 
@@ -1221,7 +1212,6 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
                 if not cand_facil.empty and cand_facil.iloc[0]['Identificador'] not in exclude:
                       final_cards.append({'label': 'FACILITADO', 'row': cand_facil.iloc[0], 'css': 'badge-facilitado'})
                 else:
-                      # Fallback 3: 3rd Cheapest
                       u = get_fallback_unit(exclude)
                       if u is not None: final_cards.append({'label': 'FACILITADO', 'row': u, 'css': 'badge-facilitado'})
 
@@ -1266,7 +1256,6 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
                     elif "100%" in f_cob_sel: cob_min_val = 100
 
                 with f_cols[3]: f_ordem = st.selectbox("Ordem:", ["Menor Preço", "Maior Preço"], key="f_ordem_tab_v28")
-                # CSS Hack for height matching - applied via class injection on main style usually, but here specific inline if needed or via container
                 with f_cols[4]: f_pmax = st.number_input("Preço Máx:", value=None, key="f_pmax_tab_v28", placeholder="0,00")
 
                 df_tab = df_disp_total.copy()
@@ -1314,6 +1303,10 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
                 try: idx_emp = emp_names.index(st.session_state.dados_cliente['empreendimento_nome'])
                 except: idx_emp = 0
             emp_escolhido = st.selectbox("Escolha o Empreendimento:", options=emp_names, index=idx_emp, key="sel_emp_new_v3")
+            
+            # Persistir seleção
+            st.session_state.dados_cliente['empreendimento_nome'] = emp_escolhido
+
             unidades_disp = df_disponiveis[(df_disponiveis['Empreendimento'] == emp_escolhido)].copy()
             unidades_disp = unidades_disp.sort_values(['Bloco_Sort', 'Andar', 'Apto_Sort'])
 
@@ -1331,6 +1324,9 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
                     return f"{uid} - R$ {fmt_br(u['Valor de Venda'])}"
 
                 uni_escolhida_id = st.selectbox("Escolha a Unidade:", options=current_uni_ids, index=idx_uni, format_func=label_uni, key="sel_uni_new_v3")
+                
+                # Persistir seleção
+                st.session_state.dados_cliente['unidade_id'] = uni_escolhida_id
 
                 if uni_escolhida_id:
                     u_row = unidades_disp[unidades_disp['Identificador'] == uni_escolhida_id].iloc[0]
@@ -1378,19 +1374,25 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
             return None if val == 0.0 else val
 
         # 1. Valor Financiamento (Full width)
-        current_finan = get_float_or_none(float(d.get('finan_estimado', 0)))
+        # Tenta pegar valor editado pelo usuário antes de usar o estimado
+        current_finan = get_float_or_none(float(d.get('finan_usado', d.get('finan_estimado', 0))))
         f_u_input = st.number_input("Financiamento", value=current_finan, step=1000.0, key="fin_u_v28", placeholder="0,00")
         f_u = f_u_input if f_u_input is not None else 0.0
+        # Persistência imediata
+        st.session_state.dados_cliente['finan_usado'] = f_u
         st.markdown(f'<span class="inline-ref">Financiamento Máximo: R$ {fmt_br(d.get("finan_estimado", 0))}</span>', unsafe_allow_html=True)
 
         # 2. Prazo (Full width)
-        prazo_finan = st.selectbox("Prazo Financiamento (Meses)", [360, 420], key="prazo_v3_closed")
+        idx_prazo = 0 if d.get('prazo_financiamento', 360) == 360 else 1
+        prazo_finan = st.selectbox("Prazo Financiamento (Meses)", [360, 420], index=idx_prazo, key="prazo_v3_closed")
+        st.session_state.dados_cliente['prazo_financiamento'] = prazo_finan
 
         # 3. Tabela (Full width)
-        tab_fin = st.selectbox("Sistema de Amortização", ["SAC", "PRICE"], key="tab_fin_v28")
+        idx_tab = 0 if d.get('sistema_amortizacao', "SAC") == "SAC" else 1
+        tab_fin = st.selectbox("Sistema de Amortização", ["SAC", "PRICE"], index=idx_tab, key="tab_fin_v28")
+        st.session_state.dados_cliente['sistema_amortizacao'] = tab_fin
         
         # Display estimated installments (Dynamic Calculation)
-        # Using the selected 'prazo_finan' to update values immediately
         taxa_padrao = 8.16 # Taxa fixa padrão para estimativa
         sac_details = calcular_comparativo_sac_price(f_u, prazo_finan, taxa_padrao)["SAC"]
         price_details = calcular_comparativo_sac_price(f_u, prazo_finan, taxa_padrao)["PRICE"]
@@ -1403,43 +1405,58 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
         """, unsafe_allow_html=True)
 
         # FGTS (Full width)
-        current_fgts = get_float_or_none(float(d.get('fgts_sub', 0)))
+        current_fgts = get_float_or_none(float(d.get('fgts_sub_usado', d.get('fgts_sub', 0))))
         fgts_u_input = st.number_input("FGTS + Subsídio", value=current_fgts, step=1000.0, key="fgt_u_v28", placeholder="0,00")
         fgts_u = fgts_u_input if fgts_u_input is not None else 0.0
+        st.session_state.dados_cliente['fgts_sub_usado'] = fgts_u
         st.markdown(f'<span class="inline-ref">Subsídio Máximo: R$ {fmt_br(d.get("fgts_sub", 0))}</span>', unsafe_allow_html=True)
 
+        # ---------------------------------------------------------------------
+        # PRO SOLUTO AGORA VEM ANTES DA DISTRIBUIÇÃO DOS ATOS
+        # ---------------------------------------------------------------------
         st.markdown("<hr style='margin: 10px 0;'>", unsafe_allow_html=True)
+        col_ps_val, col_ps_parc = st.columns(2)
 
-        # Inicialização do saldo restante para a primeira vez
-        saldo_restante_inicial = max(0.0, u_valor - f_u - fgts_u)
-        calc_hash = f"{f_u}-{fgts_u}-{u_valor}-{d.get('unidade_id', 'none')}"
-        if 'last_calc_hash' not in st.session_state or st.session_state.last_calc_hash != calc_hash:
-            dist_val = saldo_restante_inicial / 4
-            st.session_state.ato_1 = dist_val; st.session_state.ato_2 = dist_val; st.session_state.ato_3 = dist_val; st.session_state.ato_4 = dist_val
-            st.session_state.last_calc_hash = calc_hash
+        ps_max_real = u_valor * d.get('perc_ps', 0)
+        
+        with col_ps_val:
+            # Recupera da sessão se existir, senão None
+            curr_ps = get_float_or_none(float(d.get('ps_usado', 0)))
+            ps_u_input = st.number_input("Pro Soluto Direcional", value=curr_ps, step=1000.0, key="ps_u_view", placeholder="0,00")
+            ps_u = ps_u_input if ps_u_input is not None else 0.0
+            st.session_state.dados_cliente['ps_usado'] = ps_u
+            st.markdown(f'<span class="inline-ref">Limite Permitido ({d.get("perc_ps", 0)*100:.0f}%): R$ {fmt_br(ps_max_real)}</span>', unsafe_allow_html=True)
+
+        with col_ps_parc:
+            curr_parc = d.get('ps_parcelas', min(60, d.get("prazo_ps_max", 60)))
+            parc = st.number_input("Parcelas Pro Soluto", min_value=1, max_value=d.get("prazo_ps_max", 60), value=curr_parc, key="parc_u_v28")
+            st.session_state.dados_cliente['ps_parcelas'] = parc
+            st.markdown(f'<span class="inline-ref">Prazo Máximo: {d.get("prazo_ps_max", 0)} meses</span>', unsafe_allow_html=True)
+
+        # ---------------------------------------------------------------------
+        # DISTRIBUIÇÃO DA ENTRADA
+        # ---------------------------------------------------------------------
+        st.markdown("#### Distribuição da Entrada (Saldo a Pagar)")
+        
+        # Saldo considera o PS preenchido acima
+        saldo_para_atos = max(0.0, u_valor - f_u - fgts_u - ps_u)
+
+        # Inicialização do Atos se não existirem
+        if 'ato_final' not in d: d['ato_final'] = 0.0
+        if 'ato_30' not in d: d['ato_30'] = 0.0
+        if 'ato_60' not in d: d['ato_60'] = 0.0
+        if 'ato_90' not in d: d['ato_90'] = 0.0
 
         # Verifica se é EMCASH
         is_emcash = (d.get('politica') == 'Emcash')
-        if is_emcash: st.session_state.ato_4 = 0.0
-
-        st.markdown("#### Distribuição da Entrada (Saldo a Pagar)")
-
-        ps_atual = st.session_state.get('ps_u_view', 0)
-        # Handle None from input
-        if ps_atual is None: ps_atual = 0.0
-        
-        saldo_para_atos = max(0.0, u_valor - f_u - fgts_u - ps_atual)
+        if is_emcash: d['ato_90'] = 0.0
 
         def distribuir(n_parcelas):
             val = saldo_para_atos / n_parcelas
-            st.session_state['ato_1_v28'] = val
-            st.session_state['ato_2_v28'] = val if n_parcelas >= 2 else 0.0
-            st.session_state['ato_3_v28'] = val if n_parcelas >= 3 else 0.0
-            st.session_state['ato_4_v28'] = val if n_parcelas >= 4 and not is_emcash else 0.0
-            st.session_state.ato_1 = st.session_state['ato_1_v28']
-            st.session_state.ato_2 = st.session_state['ato_2_v28']
-            st.session_state.ato_3 = st.session_state['ato_3_v28']
-            st.session_state.ato_4 = st.session_state['ato_4_v28']
+            st.session_state.dados_cliente['ato_final'] = val
+            st.session_state.dados_cliente['ato_30'] = val if n_parcelas >= 2 else 0.0
+            st.session_state.dados_cliente['ato_60'] = val if n_parcelas >= 3 else 0.0
+            st.session_state.dados_cliente['ato_90'] = val if n_parcelas >= 4 and not is_emcash else 0.0
             st.rerun()
 
         # Botões de Distribuição Automática Alinhados
@@ -1455,82 +1472,53 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
         with col_dist4:
              if st.button("4x", use_container_width=True, disabled=is_emcash, key="btn_d4"): distribuir(4)
 
-        if 'ato_1_v28' not in st.session_state: st.session_state['ato_1_v28'] = st.session_state.ato_1
-        if 'ato_2_v28' not in st.session_state: st.session_state['ato_2_v28'] = st.session_state.ato_2
-        if 'ato_3_v28' not in st.session_state: st.session_state['ato_3_v28'] = st.session_state.ato_3
-        if 'ato_4_v28' not in st.session_state: st.session_state['ato_4_v28'] = st.session_state.ato_4
-
         st.write("") # Espaçamento
         col_a, col_b = st.columns(2)
         with col_a:
-            v1 = get_float_or_none(st.session_state.ato_1)
+            v1 = get_float_or_none(d.get('ato_final', 0.0))
             r1 = st.number_input("Ato (Imediato)", key="ato_1_v28", step=100.0, value=v1, placeholder="0,00")
-            st.session_state.ato_1 = r1 if r1 is not None else 0.0
+            st.session_state.dados_cliente['ato_final'] = r1 if r1 is not None else 0.0
 
-            v3 = get_float_or_none(st.session_state.ato_3)
+            v3 = get_float_or_none(d.get('ato_60', 0.0))
             r3 = st.number_input("Ato 60 Dias", key="ato_3_v28", step=100.0, value=v3, placeholder="0,00")
-            st.session_state.ato_3 = r3 if r3 is not None else 0.0
+            st.session_state.dados_cliente['ato_60'] = r3 if r3 is not None else 0.0
 
         with col_b:
-            v2 = get_float_or_none(st.session_state.ato_2)
+            v2 = get_float_or_none(d.get('ato_30', 0.0))
             r2 = st.number_input("Ato 30 Dias", key="ato_2_v28", step=100.0, value=v2, placeholder="0,00")
-            st.session_state.ato_2 = r2 if r2 is not None else 0.0
+            st.session_state.dados_cliente['ato_30'] = r2 if r2 is not None else 0.0
 
-            v4 = get_float_or_none(st.session_state.ato_4)
+            v4 = get_float_or_none(d.get('ato_90', 0.0))
             r4 = st.number_input("Ato 90 Dias", key="ato_4_v28", step=100.0, disabled=is_emcash, value=v4, placeholder="0,00")
-            st.session_state.ato_4 = r4 if r4 is not None else 0.0
+            st.session_state.dados_cliente['ato_90'] = r4 if r4 is not None else 0.0
 
-        st.markdown("<hr style='margin: 10px 0;'>", unsafe_allow_html=True)
-        col_ps_val, col_ps_parc = st.columns(2)
-
-        ps_max_real = u_valor * d.get('perc_ps', 0)
-        with col_ps_val:
-            ps_u_input = st.number_input("Pro Soluto Direcional", value=None, step=1000.0, key="ps_u_view", placeholder="0,00")
-            ps_u = ps_u_input if ps_u_input is not None else 0.0
-            st.markdown(f'<span class="inline-ref">Limite Permitido ({d.get("perc_ps", 0)*100:.0f}%): R$ {fmt_br(ps_max_real)}</span>', unsafe_allow_html=True)
-
-        with col_ps_parc:
-            parc = st.number_input("Parcelas Pro Soluto", min_value=1, max_value=d.get("prazo_ps_max", 60), value=min(60, d.get("prazo_ps_max", 60)), key="parc_u_v28")
-            st.markdown(f'<span class="inline-ref">Prazo Máximo: {d.get("prazo_ps_max", 0)} meses</span>', unsafe_allow_html=True)
-
+        # Totais e Validação
         v_parc = ps_u / parc if parc > 0 else 0
-        total_pago = f_u + fgts_u + ps_u + st.session_state.ato_1 + st.session_state.ato_2 + st.session_state.ato_3 + st.session_state.ato_4
+        st.session_state.dados_cliente['ps_mensal'] = v_parc
+        
+        total_entrada_cash = st.session_state.dados_cliente['ato_final'] + st.session_state.dados_cliente['ato_30'] + st.session_state.dados_cliente['ato_60'] + st.session_state.dados_cliente['ato_90']
+        st.session_state.dados_cliente['entrada_total'] = total_entrada_cash
+
+        total_pago = f_u + fgts_u + ps_u + total_entrada_cash
         gap_final = u_valor - total_pago
 
+        st.markdown("<hr style='margin: 10px 0;'>", unsafe_allow_html=True)
         fin1, fin2, fin3 = st.columns(3)
         with fin1: st.markdown(f"""<div class="fin-box" style="border-top: 6px solid {COR_AZUL_ESC};"><b>VALOR DO IMÓVEL</b><br>R$ {fmt_br(u_valor)}</div>""", unsafe_allow_html=True)
         with fin2: st.markdown(f"""<div class="fin-box" style="border-top: 6px solid {COR_VERMELHO};"><b>MENSALIDADE PS</b><br>R$ {fmt_br(v_parc)} ({parc}x)</div>""", unsafe_allow_html=True)
 
         # Validação visual do saldo
         cor_saldo = COR_AZUL_ESC
-
         with fin3: st.markdown(f"""<div class="fin-box" style="border-top: 6px solid {cor_saldo};"><b>SALDO A COBRIR</b><br>R$ {fmt_br(gap_final)}</div>""", unsafe_allow_html=True)
 
         if abs(gap_final) > 1:
             msg_saldo = f"Atenção: {'Falta cobrir' if gap_final > 0 else 'Valor excedente de'} R$ {fmt_br(abs(gap_final))}."
             st.error(msg_saldo)
 
-        total_entrada_cash = st.session_state.ato_1 + st.session_state.ato_2 + st.session_state.ato_3 + st.session_state.ato_4
-
         # Calcular parcela financiamento para salvar
-        taxa_juros_padrao = 8.16 # Taxa média mercado/MCMV para estimativa
+        taxa_juros_padrao = 8.16 
         parcela_fin = calcular_parcela_financiamento(f_u, prazo_finan, taxa_juros_padrao, tab_fin)
-
-        st.session_state.dados_cliente.update({
-            'finan_usado': f_u,
-            'fgts_sub_usado': fgts_u,
-            'ps_usado': ps_u,
-            'ps_parcelas': parc,
-            'ps_mensal': v_parc,
-            'entrada_total': total_entrada_cash,
-            'ato_final': st.session_state.ato_1,
-            'ato_30': st.session_state.ato_2,
-            'ato_60': st.session_state.ato_3,
-            'ato_90': st.session_state.ato_4,
-            'sistema_amortizacao': tab_fin,
-            'prazo_financiamento': prazo_finan, # Atualiza prazo
-            'parcela_financiamento': parcela_fin
-        })
+        st.session_state.dados_cliente['parcela_financiamento'] = parcela_fin
 
         st.markdown("---")
         if st.button("Avançar para Resumo da Simulação", type="primary", use_container_width=True):
@@ -1541,7 +1529,11 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
             else:
                 st.error(f"Não é possível avançar. O valor total pago deve ser igual ao valor do imóvel (Saldo R$ 0,00).")
 
-        if st.button("Voltar para Escolha de Unidade", use_container_width=True): st.session_state.passo_simulacao = 'selection'; scroll_to_top(); st.rerun()
+        if st.button("Voltar para Escolha de Unidade", use_container_width=True): 
+            # Dados já persistidos durante a interação
+            st.session_state.passo_simulacao = 'selection'
+            scroll_to_top()
+            st.rerun()
 
     # --- ETAPA 5: RESUMO ---
     elif passo == 'summary':
