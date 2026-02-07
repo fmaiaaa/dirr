@@ -302,28 +302,33 @@ def configurar_layout():
             box-shadow: 0 0 0 1px {COR_VERMELHO} !important;
         }}
 
-        /* AJUSTE DE ALTURA UNIFICADO PARA INPUTS */
+        /* AJUSTE DE ALTURA UNIFICADO E CORRIGIDO PARA INPUTS */
         .stTextInput input, .stNumberInput input, .stDateInput input, div[data-baseweb="select"] > div {{
             height: 48px !important;
             min-height: 48px !important;
-            padding: 10px 15px !important;
+            padding: 0 15px !important; /* Ajuste de padding para centralizar sem cortar */
             color: {COR_AZUL_ESC} !important;
             font-size: 1rem !important;
+            line-height: 48px !important; /* Força alinhamento vertical */
         }}
 
-        /* Ajuste específico para o wrapper do DateInput */
-        div[data-testid="stDateInput"] > div {{
-            height: 48px !important;
-            min-height: 48px !important;
-            border-radius: 8px !important;
-            border: 1px solid #e2e8f0 !important;
+        /* Ajuste específico para o wrapper do DateInput e Selectbox para garantir fundo branco e borda igual */
+        div[data-testid="stDateInput"] > div, div[data-baseweb="select"] > div {{
             background-color: #ffffff !important;
+            border: 1px solid #e2e8f0 !important;
+            border-radius: 8px !important;
             display: flex;
             align-items: center;
+        }}
+        
+        /* Remove borda interna duplicada se houver */
+        div[data-testid="stDateInput"] div[data-baseweb="input"] {{
+            border: none !important;
         }}
 
         div[data-testid="stNumberInput"] button {{
              height: 48px !important;
+             border-color: #e2e8f0 !important;
         }}
 
         /* BOTÕES GERAIS E DE AÇÃO */
@@ -811,7 +816,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
                     # Fallback: Empreendimento da unidade mais barata do estoque total
                     cheapest = df_disp_total.sort_values('Valor de Venda', ascending=True).iloc[0]
                     emp_fallback = cheapest['Empreendimento']
-                    st.warning(f"Não foram encontradas unidades 100% cobertas com as condições atuais. Recomendamos o empreendimento mais acessível:")
+                    # MENSAGEM DE ALERTA REMOVIDA AQUI
                     st.markdown(f"""
                             <div class="card" style="min-height: 80px; padding: 15px; border-top: 3px solid {COR_VERMELHO};">
                                 <p style="margin:0; font-weight:700; color:{COR_AZUL_ESC};">{emp_fallback}</p>
