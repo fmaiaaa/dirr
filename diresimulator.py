@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 =============================================================================
-SISTEMA DE SIMULAÇÃO IMOBILIÁRIA - DIRE RIO V6 (FINAL ADJUSTED COLAB)
+SISTEMA DE SIMULAÇÃO IMOBILIÁRIA - DIRE RIO V7 (FINAL ADJUSTED UI + SAC/PRICE)
 =============================================================================
 Instruções para Google Colab:
 1. Crie um arquivo chamado 'app.py' com este conteúdo.
@@ -109,6 +109,27 @@ def calcular_cor_gradiente(valor):
         r, g, b = int(255 * (1 - fator)), 255, 0
     return f"rgb({r},{g},{b})"
 
+def calcular_parcela_financiamento(valor_financiado, meses, taxa_anual_pct, sistema):
+    """Calcula a primeira parcela (SAC) ou parcela fixa (PRICE)"""
+    if valor_financiado <= 0 or meses <= 0:
+        return 0.0
+    
+    i_mensal = (1 + taxa_anual_pct/100)**(1/12) - 1
+    
+    if sistema == "PRICE":
+        # PMT = PV * [ i(1+i)^n ] / [ (1+i)^n - 1 ]
+        try:
+            parcela = valor_financiado * (i_mensal * (1 + i_mensal)**meses) / ((1 + i_mensal)**meses - 1)
+        except:
+            parcela = 0.0
+    else: # SAC
+        # Primeira parcela = Amortização + Juros sobre saldo total
+        amortizacao = valor_financiado / meses
+        juros = valor_financiado * i_mensal
+        parcela = amortizacao + juros
+        
+    return parcela
+
 # =============================================================================
 # 1. CARREGAMENTO DE DADOS
 # =============================================================================
@@ -157,17 +178,18 @@ def carregar_dados_sistema():
         except: 
             df_logins = pd.DataFrame(columns=['Email', 'Senha', 'Imobiliaria', 'Cargo', 'Nome'])
 
-        # --- 2. Cadastros (Agora lendo Simulações se existir, senão Cadastros para histórico) ---
+        # --- 2. Cadastros (Histórico) ---
         try:
-            # Tenta ler Simulações primeiro para histórico
-            try:
-                df_cadastros = conn.read(spreadsheet=URL_RANKING, worksheet="Simulações")
-            except:
-                df_cadastros = conn.read(spreadsheet=URL_RANKING, worksheet="Cadastros")
-            
+            # Tenta ler Simulações primeiro
+            df_cadastros = conn.read(spreadsheet=URL_RANKING, worksheet="Simulações")
             df_cadastros.columns = [str(c).strip() for c in df_cadastros.columns]
         except: 
-            df_cadastros = pd.DataFrame()
+            try:
+                # Fallback para Cadastros se Simulações falhar ou não existir
+                df_cadastros = conn.read(spreadsheet=URL_RANKING, worksheet="Cadastros")
+                df_cadastros.columns = [str(c).strip() for c in df_cadastros.columns]
+            except:
+                df_cadastros = pd.DataFrame()
 
         # --- 3. Políticas ---
         try:
@@ -245,10 +267,6 @@ class MotorRecomendacao:
         if self.df_finan.empty: return 0.0, 0.0, "N/A"
         
         # Definição de Faixa Atualizada
-        # F2: Até 275.000
-        # F3: De 275.001 até 350.000
-        # F4: De 350.001 até 500.000 (ou mais)
-        
         if valor_avaliacao <= 275000: faixa = "F2"
         elif valor_avaliacao <= 350000: faixa = "F3"
         else: faixa = "F4"
@@ -259,16 +277,13 @@ class MotorRecomendacao:
         
         s, c = ('Sim' if social else 'Nao'), ('Sim' if cotista else 'Nao')
         
-        # Monta nome das colunas
         col_fin = f"Finan_Social_{s}_Cotista_{c}_{faixa}"
         col_sub = f"Subsidio_Social_{s}_Cotista_{c}_{faixa}"
         
         vf = row.get(col_fin, 0.0)
         vs = row.get(col_sub, 0.0)
         
-        # Se não encontrar na faixa específica e for F2, tenta fallback (raro com essa lógica nova mas mantido por segurança)
         if vf == 0 and faixa == "F2" and col_fin not in row:
-             # Tenta F2 padrão se existir alguma variação
              pass 
 
         return float(vf), float(vs), faixa
@@ -311,7 +326,7 @@ def configurar_layout():
         div[data-baseweb="input"] {{
             border-radius: 8px !important;
             border: 1px solid #e2e8f0 !important;
-            background-color: {COR_INPUT_BG} !important; /* Fundo cinza claro */
+            background-color: {COR_INPUT_BG} !important;
             transition: all 0.2s ease-in-out !important;
         }}
         
@@ -321,7 +336,7 @@ def configurar_layout():
             background-color: #ffffff !important;
         }}
 
-        /* AJUSTE DE ALTURA UNIFICADO E CORRIGIDO PARA INPUTS */
+        /* --- ALTURA UNIFICADA PARA TODOS OS INPUTS (48px) --- */
         .stTextInput input, .stNumberInput input, .stDateInput input, div[data-baseweb="select"] > div {{
             height: 48px !important;
             min-height: 48px !important;
@@ -344,10 +359,16 @@ def configurar_layout():
             background-color: transparent !important;
         }}
 
+        /* Ajuste dos botões de + e - nos Number Inputs */
         div[data-testid="stNumberInput"] button {{
              height: 48px !important;
              border-color: #e2e8f0 !important;
-             background-color: transparent !important;
+             background-color: {COR_INPUT_BG} !important; /* Cinza claro */
+             color: {COR_AZUL_ESC} !important;
+        }}
+        
+        div[data-testid="stNumberInput"] button:hover {{
+             background-color: #e2e8f0 !important;
         }}
 
         /* BOTÕES GERAIS */
@@ -356,7 +377,7 @@ def configurar_layout():
             border-radius: 8px !important; 
             padding: 0 20px !important; 
             width: 100% !important;
-            height: 48px !important; /* Altura unificada com Data de Nascimento */
+            height: 48px !important; /* Altura unificada */
             font-weight: 700 !important; 
             text-transform: uppercase;
             letter-spacing: 0.1em;
@@ -364,7 +385,7 @@ def configurar_layout():
             transition: all 0.2s ease !important;
         }}
         
-        /* Botões Primários (Vermelhos - Ação Principal) */
+        /* Botões Primários (Vermelhos) */
         .stButton button[kind="primary"] {{ 
             background: {COR_VERMELHO} !important; 
             color: #ffffff !important; 
@@ -375,13 +396,25 @@ def configurar_layout():
             box-shadow: 0 8px 20px -5px rgba(227, 6, 19, 0.4) !important; 
         }}
 
-        /* Botões Secundários/Padrão (Cinza Claro - #f0f2f6) */
+        /* Botões Secundários/Padrão (Cinza Claro) */
         .stButton button:not([kind="primary"]) {{ 
             background: {COR_INPUT_BG} !important; 
             color: {COR_AZUL_ESC} !important; 
             border: 1px solid #e2e8f0 !important; 
         }}
         .stButton button:not([kind="primary"]):hover {{
+            border-color: {COR_VERMELHO} !important; 
+            color: {COR_VERMELHO} !important; 
+            background: #ffffff !important;
+        }}
+        
+        /* Ajuste específico para o botão de download para parecer com o secundário */
+        .stDownloadButton button {{
+            background: {COR_INPUT_BG} !important; 
+            color: {COR_AZUL_ESC} !important; 
+            border: 1px solid #e2e8f0 !important; 
+        }}
+        .stDownloadButton button:hover {{
             border-color: {COR_VERMELHO} !important; 
             color: {COR_VERMELHO} !important; 
             background: #ffffff !important;
@@ -552,6 +585,8 @@ def gerar_resumo_pdf(d):
         pdf.ln(8)
         adicionar_secao_pdf("ENGENHARIA FINANCEIRA")
         adicionar_linha_detalhe("Financiamento Bancário Estimado", f"R$ {fmt_br(d.get('finan_usado', 0))}")
+        adicionar_linha_detalhe("Sistema de Amortização", f"{d.get('sistema_amortizacao', 'SAC')}")
+        adicionar_linha_detalhe("Parcela Estimada Financiamento", f"R$ {fmt_br(d.get('parcela_financiamento', 0))}")
         adicionar_linha_detalhe("Subsídio + FGTS Utilizado", f"R$ {fmt_br(d.get('fgts_sub_usado', 0))}")
         adicionar_linha_detalhe("Pro Soluto Direcional", f"R$ {fmt_br(d.get('ps_usado', 0))}")
         adicionar_linha_detalhe("Mensalidade Pro Soluto", f"{d.get('ps_parcelas')}x de R$ {fmt_br(d.get('ps_mensal', 0))}")
@@ -616,7 +651,7 @@ def tela_login(df_logins):
 
 @st.dialog("Opções de Exportação")
 def show_export_dialog(d):
-    st.markdown("<div style='text-align:center'>", unsafe_allow_html=True)
+    # Removido text-align center conforme pedido
     st.markdown("### Resumo da Simulação")
     st.markdown("Escolha como deseja exportar o documento.")
     pdf_data = gerar_resumo_pdf(d)
@@ -636,7 +671,6 @@ def show_export_dialog(d):
             else: st.error(msg)
         else:
             st.error("E-mail inválido")
-    st.markdown("</div>", unsafe_allow_html=True)
 
 # =============================================================================
 # APLICAÇÃO PRINCIPAL
@@ -667,7 +701,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
         search_term = st.text_input("Buscar cliente...", placeholder="Digite o nome", label_visibility="collapsed")
         
         try:
-            # Reutiliza o DataFrame carregado para evitar recargas desnecessárias
+            # Reutiliza o DataFrame carregado e garante que é uma cópia
             df_h = df_cadastros.copy()
             
             if not df_h.empty:
@@ -676,8 +710,8 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
                 col_nome_cliente = next((c for c in df_h.columns if c == 'Nome'), None)
 
                 if col_corretor:
-                    # Filtra pelo corretor (usando strip para evitar erro de espaço)
-                    my_hist = df_h[df_h[col_corretor].astype(str).str.strip() == user_name.strip()]
+                    # Filtra pelo corretor (usando strip e upper para garantir)
+                    my_hist = df_h[df_h[col_corretor].astype(str).str.strip().str.upper() == user_name.strip()]
                     
                     # Filtra pela busca se houver
                     if search_term and col_nome_cliente:
@@ -1055,11 +1089,17 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
         
         st.markdown(f'<div class="custom-alert">{u_nome} - {u_unid} (R$ {fmt_br(u_valor)})</div>', unsafe_allow_html=True)
         
-        col_fin, col_fgts = st.columns(2)
+        # Linha 1: Financiamento + Tabela
+        col_fin, col_tab = st.columns([1.5, 1])
         with col_fin: 
             f_u = st.number_input("Financiamento", value=float(d.get('finan_estimado', 0)), step=1000.0, key="fin_u_v28")
             st.markdown(f'<span class="inline-ref">Financiamento Máximo: R$ {fmt_br(d.get("finan_estimado", 0))}</span>', unsafe_allow_html=True)
-        
+        with col_tab:
+            # Opção SAC/PRICE
+            tab_fin = st.selectbox("Tabela", ["SAC", "PRICE"], key="tab_fin_v28")
+
+        # Linha 2: FGTS
+        col_fgts, col_vazio = st.columns([1.5, 1])
         with col_fgts: 
             fgts_u = st.number_input("FGTS + Subsídio", value=float(d.get('fgts_sub', 0)), step=1000.0, key="fgt_u_v28")
             st.markdown(f'<span class="inline-ref">Subsídio Máximo: R$ {fmt_br(d.get("fgts_sub", 0))}</span>', unsafe_allow_html=True)
@@ -1099,7 +1139,6 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
         st.markdown('<label style="font-size: 0.8rem; font-weight: 600;">Distribuir Atos Automaticamente:</label>', unsafe_allow_html=True)
         col_dist1, col_dist2, col_dist3, col_dist4 = st.columns(4)
         
-        # O CSS global já garante que os botões dentro de colunas tenham altura de 48px
         with col_dist1: 
              if st.button("1x", use_container_width=True, key="btn_d1"): distribuir(1)
         with col_dist2: 
@@ -1153,7 +1192,25 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
         if abs(gap_final) > 1: st.error(f"Atenção: Falta cobrir R$ {fmt_br(gap_final)}.")
 
         total_entrada_cash = st.session_state.ato_1 + st.session_state.ato_2 + st.session_state.ato_3 + st.session_state.ato_4
-        st.session_state.dados_cliente.update({'finan_usado': f_u, 'fgts_sub_usado': fgts_u, 'ps_usado': ps_u, 'ps_parcelas': parc, 'ps_mensal': v_parc, 'entrada_total': total_entrada_cash, 'ato_final': st.session_state.ato_1, 'ato_30': st.session_state.ato_2, 'ato_60': st.session_state.ato_3, 'ato_90': st.session_state.ato_4})
+        
+        # Calcular parcela financiamento para salvar
+        taxa_juros_padrao = 8.5 # Taxa média mercado/MCMV para estimativa
+        parcela_fin = calcular_parcela_financiamento(f_u, d.get('prazo_financiamento', 360), taxa_juros_padrao, tab_fin)
+
+        st.session_state.dados_cliente.update({
+            'finan_usado': f_u, 
+            'fgts_sub_usado': fgts_u, 
+            'ps_usado': ps_u, 
+            'ps_parcelas': parc, 
+            'ps_mensal': v_parc, 
+            'entrada_total': total_entrada_cash, 
+            'ato_final': st.session_state.ato_1, 
+            'ato_30': st.session_state.ato_2, 
+            'ato_60': st.session_state.ato_3, 
+            'ato_90': st.session_state.ato_4,
+            'sistema_amortizacao': tab_fin,
+            'parcela_financiamento': parcela_fin
+        })
         
         st.markdown("---")
         if st.button("Avançar para Resumo", type="primary", use_container_width=True):
@@ -1168,7 +1225,11 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
         st.markdown(f'<div class="summary-header">DADOS DO IMÓVEL</div>', unsafe_allow_html=True)
         st.markdown(f"""<div class="summary-body"><b>Empreendimento:</b> {d.get('empreendimento_nome')}<br><b>Unidade:</b> {d.get('unidade_id')}<br><b>Valor de Venda:</b> <span style="color: {COR_VERMELHO}; font-weight: 800;">R$ {fmt_br(d.get('imovel_valor', 0))}</span></div>""", unsafe_allow_html=True)
         st.markdown(f'<div class="summary-header">PLANO DE FINANCIAMENTO</div>', unsafe_allow_html=True)
-        st.markdown(f"""<div class="summary-body"><b>Financiamento Bancário:</b> R$ {fmt_br(d.get('finan_usado', 0))}<br><b>FGTS + Subsídio:</b> R$ {fmt_br(d.get('fgts_sub_usado', 0))}<br><b>Pro Soluto Total:</b> R$ {fmt_br(d.get('ps_usado', 0))} ({d.get('ps_parcelas')}x de R$ {fmt_br(d.get('ps_mensal', 0))})</div>""", unsafe_allow_html=True)
+        
+        # Exibe parcelas
+        parcela_texto = f"Parcela Estimada ({d.get('sistema_amortizacao', 'SAC')}): R$ {fmt_br(d.get('parcela_financiamento', 0))}"
+        
+        st.markdown(f"""<div class="summary-body"><b>Financiamento Bancário:</b> R$ {fmt_br(d.get('finan_usado', 0))}<br><small>{parcela_texto}</small><br><b>FGTS + Subsídio:</b> R$ {fmt_br(d.get('fgts_sub_usado', 0))}<br><b>Pro Soluto Total:</b> R$ {fmt_br(d.get('ps_usado', 0))} ({d.get('ps_parcelas')}x de R$ {fmt_br(d.get('ps_mensal', 0))})</div>""", unsafe_allow_html=True)
         st.markdown(f'<div class="summary-header">FLUXO DE ENTRADA (ATO)</div>', unsafe_allow_html=True)
         st.markdown(f"""<div class="summary-body"><b>Total de Entrada:</b> R$ {fmt_br(d.get('entrada_total', 0))}<br><hr style="border: 0; border-top: 1px solid #e2e8f0; margin: 10px 0;"><b>Ato:</b> R$ {fmt_br(d.get('ato_final', 0))}<br><b>Ato 30 Dias:</b> R$ {fmt_br(d.get('ato_30', 0))}<br><b>Ato 60 Dias:</b> R$ {fmt_br(d.get('ato_60', 0))}<br><b>Ato 90 Dias:</b> R$ {fmt_br(d.get('ato_90', 0))}</div>""", unsafe_allow_html=True)
 
@@ -1186,7 +1247,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
                 nova_linha = {
                     "Nome": d.get('nome'), "CPF": d.get('cpf'), "Data de Nascimento": str(d.get('data_nascimento')),
                     "Prazo Financiamento": d.get('prazo_financiamento'), "Renda Part. 1": rendas_ind[0], 
-                    "Renda Part. 4": rendas_ind[3], "Renda Part. 3": rendas_ind[2], "Renda Part. 4.1": 0.0, # Placeholder se não existir
+                    "Renda Part. 4": rendas_ind[3], "Renda Part. 3": rendas_ind[2], "Renda Part. 4.1": 0.0, 
                     "Ranking": d.get('ranking'), "Política de Pro Soluto": d.get('politica'),
                     "Fator Social": "Sim" if d.get('social') else "Não", "Cotista FGTS": "Sim" if d.get('cotista') else "Não",
                     "Financiamento Aprovado": d.get('finan_f_ref', 0), "Subsídio Máximo": d.get('sub_f_ref', 0), "Pro Soluto Médio": d.get('ps_medio_ref', 0),
