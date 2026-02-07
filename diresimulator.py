@@ -11,6 +11,7 @@ Funcionalidades:
    - Cards Inteligentes (Ideal/Seguro/Facilitado) com fusão dinâmica.
 4. Ranking: Correção na leitura da lista.
 5. Distribuição de Entrada: Botões funcionais e elegantes.
+6. Correção: Referências de valores restauradas no Fechamento.
 =============================================================================
 """
 
@@ -368,6 +369,18 @@ def configurar_layout():
         .custom-alert {{ background-color: {COR_AZUL_ESC}; padding: 25px; border-radius: 10px; margin-bottom: 30px; text-align: center; font-weight: 400; color: #ffffff !important; }}
         .price-tag {{ color: {COR_VERMELHO}; font-weight: 900; font-size: 1.5rem; margin-top: 5px; }}
         
+        .inline-ref {{
+            font-size: 0.72rem;
+            color: {COR_AZUL_ESC};
+            margin-top: -12px;
+            margin-bottom: 15px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            display: block;
+            opacity: 0.9;
+        }}
+
         /* Badges de Categoria */
         .badge-ideal {{ background-color: #22c55e; color: white; padding: 6px 14px; border-radius: 20px; font-weight: bold; font-size: 0.85rem; margin-top: 10px; text-transform: uppercase; letter-spacing: 0.05em; }}
         .badge-seguro {{ background-color: #eab308; color: white; padding: 6px 14px; border-radius: 20px; font-weight: bold; font-size: 0.85rem; margin-top: 10px; text-transform: uppercase; letter-spacing: 0.05em; }}
@@ -901,8 +914,13 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
         st.markdown(f'<div class="custom-alert">Unidade: {d.get("unidade_id", "N/A")} (R$ {fmt_br(u_valor)})</div>', unsafe_allow_html=True)
         
         col_fin, col_fgts = st.columns(2)
-        with col_fin: f_u = st.number_input("Financiamento", value=float(d.get('finan_estimado', 0)), step=1000.0, key="fin_u_v28")
-        with col_fgts: fgts_u = st.number_input("FGTS + Subsídio", value=float(d.get('fgts_sub', 0)), step=1000.0, key="fgt_u_v28")
+        with col_fin: 
+            f_u = st.number_input("Financiamento", value=float(d.get('finan_estimado', 0)), step=1000.0, key="fin_u_v28")
+            st.markdown(f'<span class="inline-ref">Financiamento Máximo: R$ {fmt_br(d.get("finan_estimado", 0))}</span>', unsafe_allow_html=True)
+        
+        with col_fgts: 
+            fgts_u = st.number_input("FGTS + Subsídio", value=float(d.get('fgts_sub', 0)), step=1000.0, key="fgt_u_v28")
+            st.markdown(f'<span class="inline-ref">Subsídio Máximo: R$ {fmt_br(d.get("fgts_sub", 0))}</span>', unsafe_allow_html=True)
         
         st.markdown("<hr style='margin: 10px 0;'>", unsafe_allow_html=True)
         
@@ -968,10 +986,15 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
 
         st.markdown("<hr style='margin: 10px 0;'>", unsafe_allow_html=True)
         col_ps_val, col_ps_parc = st.columns(2)
+        
+        ps_max_real = u_valor * d.get('perc_ps', 0)
         with col_ps_val:
             ps_u = st.number_input("Pro Soluto Direcional", value=0.0, step=1000.0, key="ps_u_view") 
+            st.markdown(f'<span class="inline-ref">Limite Permitido ({d.get("perc_ps", 0)*100:.0f}%): R$ {fmt_br(ps_max_real)}</span>', unsafe_allow_html=True)
+            
         with col_ps_parc:
             parc = st.number_input("Parcelas Pro Soluto", min_value=1, max_value=144, value=60, key="parc_u_v28")
+            st.markdown(f'<span class="inline-ref">Prazo Máximo: {d.get("prazo_ps_max", 0)} meses</span>', unsafe_allow_html=True)
 
         v_parc = ps_u / parc if parc > 0 else 0
         total_pago = f_u + fgts_u + ps_u + st.session_state.ato_1 + st.session_state.ato_2 + st.session_state.ato_3 + st.session_state.ato_4
