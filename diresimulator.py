@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 =============================================================================
-SISTEMA DE SIMULAÇÃO IMOBILIÁRIA - DIRE RIO V23.2 (NAV UPDATE)
+SISTEMA DE SIMULAÇÃO IMOBILIÁRIA - DIRE RIO V23.3 (SYNC & DESIGN FIX)
 =============================================================================
 Instruções para Google Colab:
 1. Crie um arquivo chamado 'app.py' com este conteúdo.
@@ -109,9 +109,9 @@ def calcular_cor_gradiente(valor):
     valor = max(0, min(100, valor))
     fator = valor / 100
     
-    r = int(227 + (0 - 227) * fator)
-    g = int(6 + (44 - 6) * fator)
-    b = int(19 + (93 - 19) * fator)
+    r = int(227 * (1 - fator) + 0 * fator)
+    g = int(6 * (1 - fator) + 44 * fator)
+    b = int(19 * (1 - fator) + 93 * fator)
     
     return f"rgb({r},{g},{b})"
 
@@ -894,7 +894,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
                                 except: pass
 
                             label = f"{c_nome} | {c_emp}"
-                            if c_data: label += f"\\n{c_data}"
+                            if c_data: label += f" | {c_data}"
 
                             if st.button(label, key=f"hist_{idx}", use_container_width=True):
                                 st.session_state.dados_cliente = {
@@ -1470,6 +1470,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
                     df_final_save = pd.concat([df_existente, df_novo], ignore_index=True)
                 except: df_final_save = df_novo
                 conn_save.update(spreadsheet=URL_RANKING, worksheet=aba_destino, data=df_final_save)
+                st.cache_data.clear()
                 st.markdown(f'<div class="custom-alert">Salvo em \'{aba_destino}\'!</div>', unsafe_allow_html=True); time.sleep(2); st.session_state.dados_cliente = {}; st.session_state.passo_simulacao = 'input'; scroll_to_top(); st.rerun()
             except Exception as e: st.error(f"Erro ao salvar: {e}")
 
