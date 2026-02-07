@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 =============================================================================
-SISTEMA DE SIMULAÇÃO IMOBILIÁRIA - DIRE RIO V36 (HISTORY LOAD FIX)
+SISTEMA DE SIMULAÇÃO IMOBILIÁRIA - DIRE RIO V37 (HISTORY WIDGET RESET)
 =============================================================================
 Instruções para Google Colab:
 1. Crie um arquivo chamado 'app.py' com este conteúdo.
@@ -1023,9 +1023,20 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
                                     st.session_state.dados_cliente['ato_90']
                                 ])
 
-                                # Limpar chaves de sessão específicas do fluxo de pagamento para forçar recarregamento
-                                keys_to_reset = ['fin_u_key', 'fgts_u_key', 'ps_u_key', 'parc_ps_key', 
-                                                 'ato_1_key', 'ato_2_key', 'ato_3_key', 'ato_4_key']
+                                # Limpar chaves de sessão específicas do fluxo de pagamento E DE INPUT para forçar recarregamento
+                                keys_to_reset = [
+                                    # Inputs
+                                    'in_nome_v28', 'in_cpf_v3', 'in_dt_nasc_v3', 'in_genero_v3', 
+                                    'qtd_part_v3', 'in_rank_v28', 'in_pol_v28', 'in_soc_v28', 'in_cot_v28',
+                                    # Pagamento
+                                    'fin_u_key', 'fgts_u_key', 'ps_u_key', 'parc_ps_key', 
+                                    'ato_1_key', 'ato_2_key', 'ato_3_key', 'ato_4_key'
+                                ]
+                                
+                                # Limpar chaves de renda
+                                for i in range(5):
+                                    keys_to_reset.append(f"renda_part_{i}_v3")
+
                                 for k in keys_to_reset:
                                     if k in st.session_state: del st.session_state[k]
 
