@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 =============================================================================
-SISTEMA DE SIMULAÇÃO IMOBILIÁRIA - DIRE RIO V12 (FINAL PARCELAS FIX)
+SISTEMA DE SIMULAÇÃO IMOBILIÁRIA - DIRE RIO V14 (FINAL DESIGN & PS LOGIC)
 =============================================================================
 Instruções para Google Colab:
 1. Crie um arquivo chamado 'app.py' com este conteúdo.
@@ -819,27 +819,30 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
         
         def processar_avanco(destino):
             if not nome.strip(): st.markdown(f'<div class="custom-alert">Por favor, informe o Nome do Cliente para continuar.</div>', unsafe_allow_html=True); return
-            if cpf_val and not validar_cpf(cpf_val): st.markdown(f'<div class="custom-alert">CPF Inválido. Corrija para continuar.</div>', unsafe_allow_html=True); return
+            if not cpf_val.strip(): st.markdown(f'<div class="custom-alert">Por favor, informe o CPF do Cliente.</div>', unsafe_allow_html=True); return
+            if not validar_cpf(cpf_val): st.markdown(f'<div class="custom-alert">CPF Inválido. Corrija para continuar.</div>', unsafe_allow_html=True); return
             if renda_total_calc <= 0: st.markdown(f'<div class="custom-alert">A renda total deve ser maior que zero.</div>', unsafe_allow_html=True); return
 
-            # Lógica de Política Pro Soluto
+            # Lógica de Política Pro Soluto (Percentuais Fixos por Ranking)
             class_b = 'EMCASH' if politica_ps == "Emcash" else ranking
             
-            # Default values
-            perc_ps_max = 0.10
+            # Default logic for percentages based on Ranking
+            map_ps_percent = {
+                'EMCASH': 0.25,
+                'DIAMANTE': 0.25,
+                'OURO': 0.20,
+                'PRATA': 0.18,
+                'BRONZE': 0.15,
+                'AÇO': 0.12
+            }
+            
+            perc_ps_max = map_ps_percent.get(class_b, 0.12)
             
             # Lógica FIXA de parcelas solicitada pelo usuário
             if politica_ps == "Emcash":
                 prazo_ps_max = 66
             else:
                 prazo_ps_max = 84
-            
-            if 'CLASSIFICAÇÃO' in df_politicas.columns:
-                filtro = df_politicas[df_politicas['CLASSIFICAÇÃO'] == class_b]
-                if not filtro.empty: 
-                    row_pol = filtro.iloc[0]
-                    if 'PROSOLUTO' in row_pol: perc_ps_max = row_pol['PROSOLUTO']
-                    # Ignoramos a coluna PARCELAS da planilha pois a regra de negócio fixa (66/84) é mandatória
 
             # Fator de comprometimento de renda (mantido do original, embora não explicitado na ultima query, é bom ter)
             limit_ps_r = 0.30 
@@ -912,7 +915,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
                     emp_fallback = cheapest['Empreendimento']
                     # MENSAGEM DE ALERTA REMOVIDA AQUI
                     st.markdown(f"""
-                            <div class="card" style="min-height: 80px; padding: 15px; border-top: 3px solid {COR_VERMELHO};">
+                            <div class="card" style="min-height: 80px; padding: 15px; border-top: 3px solid {COR_AZUL_ESC};">
                                 <p style="margin:0; font-weight:700; color:{COR_AZUL_ESC};">{emp_fallback}</p>
                                 <p style="margin:5px 0 0 0; font-size:0.85rem; color:{COR_TEXTO_MUTED};">Melhor preço disponível: R$ {fmt_br(cheapest['Valor de Venda'])}</p>
                             </div>
@@ -930,7 +933,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
                     for idx, (emp, qtd) in enumerate(row_items):
                         with row_cols[idx]:
                             st.markdown(f"""
-                                <div class="card" style="min-height: 80px; padding: 15px; border-top: 3px solid #22c55e;">
+                                <div class="card" style="min-height: 80px; padding: 15px; border-top: 3px solid {COR_AZUL_ESC};">
                                     <p style="margin:0; font-weight:700; color:{COR_AZUL_ESC};">{emp}</p>
                                     <p style="margin:5px 0 0 0; font-size:0.85rem; color:{COR_TEXTO_MUTED};">{qtd} unidades viáveis</p>
                                 </div>
@@ -1262,10 +1265,19 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
         fin1, fin2, fin3 = st.columns(3)
         with fin1: st.markdown(f"""<div class="fin-box" style="border-top: 6px solid {COR_AZUL_ESC};"><b>VALOR DO IMÓVEL</b><br>R$ {fmt_br(u_valor)}</div>""", unsafe_allow_html=True)
         with fin2: st.markdown(f"""<div class="fin-box" style="border-top: 6px solid {COR_VERMELHO};"><b>MENSALIDADE PS</b><br>R$ {fmt_br(v_parc)} ({parc}x)</div>""", unsafe_allow_html=True)
-        cor_saldo = COR_VERMELHO if abs(gap_final) > 1 else "#22c55e"
+        
+        # Validação visual do saldo
+        # Se gap_final != 0, mantém o alerta vermelho visualmente se for erro, ou AZUL se for apenas info.
+        # O usuário pediu "atualize a cor do destaque... para o azul que está na caixa de valor do imovel".
+        # Vamos manter o box azul (COR_AZUL_ESC), mas o st.error abaixo cuidará do alerta textual.
+        
+        cor_saldo = COR_AZUL_ESC 
+        
         with fin3: st.markdown(f"""<div class="fin-box" style="border-top: 6px solid {cor_saldo};"><b>SALDO A COBRIR</b><br>R$ {fmt_br(gap_final)}</div>""", unsafe_allow_html=True)
 
-        if abs(gap_final) > 1: st.error(f"Atenção: Falta cobrir R$ {fmt_br(gap_final)}.")
+        if abs(gap_final) > 1:
+            msg_saldo = f"Atenção: {'Falta cobrir' if gap_final > 0 else 'Valor excedente de'} R$ {fmt_br(abs(gap_final))}."
+            st.error(msg_saldo)
 
         total_entrada_cash = st.session_state.ato_1 + st.session_state.ato_2 + st.session_state.ato_3 + st.session_state.ato_4
         
@@ -1291,9 +1303,13 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
         
         st.markdown("---")
         if st.button("Avançar para Resumo", type="primary", use_container_width=True):
-            if abs(gap_final) <= 1: st.session_state.passo_simulacao = 'summary'; st.rerun()
-            else: st.error(f"O saldo a cobrir deve ser zerado.")
-        if st.button("Voltar", use_container_width=True): st.session_state.passo_simulacao = 'selection'; st.rerun()
+            if abs(gap_final) <= 1: 
+                st.session_state.passo_simulacao = 'summary'
+                st.rerun()
+            else: 
+                st.error(f"Não é possível avançar. O valor total pago deve ser igual ao valor do imóvel (Saldo R$ 0,00).")
+                
+        if st.button("Voltar", use_container_width=True): st.session_state.passo_simulacao = 'guide'; st.rerun()
 
     # --- ETAPA 5: RESUMO ---
     elif passo == 'summary':
