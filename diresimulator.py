@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 =============================================================================
-SISTEMA DE SIMULAÇÃO IMOBILIÁRIA - DIRE RIO V8 (FINAL ADJUSTED UI + LOGIC)
+SISTEMA DE SIMULAÇÃO IMOBILIÁRIA - DIRE RIO V9 (FINAL ADJUSTED UI + LOGIC V2)
 =============================================================================
 Instruções para Google Colab:
 1. Crie um arquivo chamado 'app.py' com este conteúdo.
@@ -371,18 +371,25 @@ def configurar_layout():
              background-color: #e2e8f0 !important;
         }}
 
-        /* BOTÕES GERAIS */
+        /* BOTÕES GERAIS - 60px para Nav e Ações Principais */
         .stButton button {{ 
             font-family: 'Inter', sans-serif;
             border-radius: 8px !important; 
             padding: 0 20px !important; 
             width: 100% !important;
-            height: 48px !important; /* Altura unificada */
+            height: 60px !important; /* Altura Maior (Avançar/Voltar/Sair) */
             font-weight: 700 !important; 
             text-transform: uppercase;
             letter-spacing: 0.1em;
-            font-size: 0.9rem !important;
+            font-size: 1rem !important;
             transition: all 0.2s ease !important;
+        }}
+        
+        /* Botões dentro de Colunas (como 1x, 2x, Histórico) - Força 48px */
+        div[data-testid="column"] .stButton button, [data-testid="stSidebar"] .stButton button {{
+             min-height: 48px !important;
+             height: 48px !important;
+             font-size: 0.9rem !important;
         }}
         
         /* Botões Primários (Vermelhos) */
@@ -408,11 +415,12 @@ def configurar_layout():
             background: #ffffff !important;
         }}
         
-        /* Ajuste específico para o botão de download para parecer com o secundário */
+        /* Ajuste específico para o botão de download */
         .stDownloadButton button {{
             background: {COR_INPUT_BG} !important; 
             color: {COR_AZUL_ESC} !important; 
             border: 1px solid #e2e8f0 !important; 
+            height: 48px !important;
         }}
         .stDownloadButton button:hover {{
             border-color: {COR_VERMELHO} !important; 
@@ -420,6 +428,7 @@ def configurar_layout():
             background: #ffffff !important;
         }}
         
+        /* Ajuste Sidebar */
         [data-testid="stSidebar"] .stButton button {{
             padding: 8px 12px !important;
             font-size: 0.75rem !important;
@@ -831,7 +840,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
             st.session_state.passo_simulacao = destino
             st.rerun()
 
-        # Botões de Avanço (Empilhados)
+        # Botões de Avanço (Empilhados) - Fora de Colunas para ficarem grandes
         if st.button("RECOMENDAR IMÓVEIS", type="primary", use_container_width=True, key="btn_avancar_guide"):
             processar_avanco('guide')
         
@@ -915,14 +924,37 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
             
             if df_pool.empty: st.markdown('<div class="custom-alert">Nenhuma unidade encontrada.</div>', unsafe_allow_html=True)
             else:
-                pool_sorted = df_pool.sort_values('Valor de Venda', ascending=False)
-                cand_ideal = pool_sorted[pool_sorted['Cobertura'] >= 100].head(1)
-                cand_seguro = pool_sorted[pool_sorted['Cobertura'] >= 90].head(1)
-                cand_facil = pool_sorted[pool_sorted['Cobertura'] >= 75].head(1)
+                # LOGIC ADJUSTMENT: 
+                # Facilitado = Cheapest Viable
+                # Ideal = Best Fit (Highest Price 100% Covered)
+                # Seguro = Highest Coverage (often same as Facilitado but focusing on safety)
                 
-                # Se não houver nada acima de 75%, mostra o mais barato como recomendação
-                if cand_facil.empty and cand_seguro.empty and cand_ideal.empty:
-                    cand_facil = pool_sorted.tail(1) # Pega o mais barato
+                # Check viabilidade based on pool
+                pool_viavel = df_pool[df_pool['Viavel']]
+                
+                cand_facil = pd.DataFrame()
+                cand_ideal = pd.DataFrame()
+                cand_seguro = pd.DataFrame()
+
+                if not pool_viavel.empty:
+                    # Facilitado: Lowest Price
+                    cand_facil = pool_viavel.sort_values('Valor de Venda', ascending=True).head(1)
+                    
+                    # Ideal: Highest Price within budget (100% coverage)
+                    # Assuming Viavel means potential >= price, check coverage explicitly
+                    ideal_pool = pool_viavel[pool_viavel['Cobertura'] >= 100]
+                    if not ideal_pool.empty:
+                        cand_ideal = ideal_pool.sort_values('Valor de Venda', ascending=False).head(1)
+                    else:
+                        cand_ideal = pool_viavel.sort_values('Cobertura', ascending=False).head(1)
+
+                    # Seguro: Highest Coverage (Safest bet)
+                    cand_seguro = pool_viavel.sort_values('Cobertura', ascending=False).head(1)
+                
+                # Fallback if no full viability but pool exists (show something)
+                elif not df_pool.empty:
+                     # Just show cheapest as Facilitado
+                     cand_facil = df_pool.sort_values('Valor de Venda', ascending=True).head(1)
 
                 def extract_info(df_cand, label, css_class):
                     if df_cand.empty: return None
@@ -936,17 +968,29 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
                 info_facil = extract_info(cand_facil, "FACILITADO", "badge-facilitado")
                 
                 cards_finais = []
+                
+                # Deduplicate logic simply by checking price equality if multiple exist
+                # Priority: Ideal, Seguro, Facil
+                
                 if info_ideal: cards_finais.append(info_ideal)
+                
                 if info_seguro:
-                    if info_ideal and info_seguro['preco'] == info_ideal['preco']: pass 
-                    else: cards_finais.append(info_seguro)
+                    # Check if already added
+                    exists = False
+                    for c in cards_finais:
+                        if c['preco'] == info_seguro['preco']: 
+                            c['labels'].append("SEGURO")
+                            exists = True
+                    if not exists: cards_finais.append(info_seguro)
+                
                 if info_facil:
-                    last_card = cards_finais[-1] if cards_finais else None
-                    if last_card and info_facil['preco'] == last_card['preco']:
-                        if "FACILITADO" not in last_card['labels']:
-                            last_card['labels'].append("FACILITADO")
-                            if "SEGURO" in last_card['labels']: last_card['css'] = "badge-multi"
-                    else: cards_finais.append(info_facil)
+                    exists = False
+                    for c in cards_finais:
+                        if c['preco'] == info_facil['preco']: 
+                            c['labels'].append("FACILITADO")
+                            c['css'] = "badge-multi" # update style
+                            exists = True
+                    if not exists: cards_finais.append(info_facil)
                 
                 if not cards_finais: st.warning("Nenhuma recomendação disponível.")
                 else:
@@ -1285,9 +1329,11 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
         if st.button("Voltar", use_container_width=True): st.session_state.passo_simulacao = 'payment_flow'; st.rerun()
 
     st.markdown("<br><br>", unsafe_allow_html=True)
-    c_out_1, c_out_2, c_out_3 = st.columns([1, 1, 1])
-    with c_out_2:
-        if st.button("Sair do Sistema", key="btn_logout_bottom", use_container_width=True): st.session_state['logged_in'] = False; st.rerun()
+    
+    # Botão Sair fora da coluna para herdar estilo grande
+    if st.button("Sair do Sistema", key="btn_logout_bottom", use_container_width=True): 
+        st.session_state['logged_in'] = False
+        st.rerun()
 
 def main():
     configurar_layout()
