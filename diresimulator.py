@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 =============================================================================
-SISTEMA DE SIMULAÇÃO IMOBILIÁRIA - DIRE RIO V26.2 (SYNTAX FIX)
+SISTEMA DE SIMULAÇÃO IMOBILIÁRIA - DIRE RIO V27 (FIXED STEPPER & SYNTAX)
 =============================================================================
 Instruções para Google Colab:
 1. Crie um arquivo chamado 'app.py' com este conteúdo.
@@ -563,16 +563,86 @@ def configurar_layout():
         button[data-baseweb="tab"][aria-selected="true"] p {{ color: {COR_AZUL_ESC} !important; opacity: 1; }}
         div[data-baseweb="tab-highlight"] {{ background-color: {COR_VERMELHO} !important; height: 3px !important; }}
 
-        .footer {{ text-align: center; padding: 80px 0; color: {COR_AZUL_ESC} !important; font-size: 0.8rem; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; opacity: 0.6; }}
-        
-        /* Stepper Buttons Styling */
-        div.stButton.stepper-btn button {{
-            border-radius: 50% !important;
-            width: 40px !important;
-            height: 40px !important;
-            padding: 0 !important;
-            margin: 0 auto !important;
+        /* --- STEPPER VISUAL (CSS ONLY) --- */
+        .stepper-container {{
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 3.5rem;
+            position: relative;
+            padding: 0 1rem;
         }}
+        
+        .stepper-line-bg {{
+            position: absolute;
+            top: 24px;
+            left: 20px;
+            right: 20px;
+            height: 3px;
+            background-color: #e2e8f0;
+            z-index: 0;
+            border-radius: 99px;
+        }}
+        
+        .stepper-step {{
+            position: relative;
+            z-index: 2;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            cursor: default;
+            flex: 1;
+        }}
+        
+        .step-bubble {{
+            width: 48px;
+            height: 48px;
+            border-radius: 50%;
+            background-color: white;
+            border: 2px solid #e2e8f0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            font-size: 1rem;
+            color: #64748b;
+            margin-bottom: 0.75rem;
+            transition: all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+            box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);
+        }}
+        
+        .step-label {{
+            font-size: 0.75rem;
+            font-weight: 700;
+            color: #94a3b8;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            transition: color 0.3s;
+        }}
+        
+        /* Active State */
+        .stepper-step.active .step-bubble {{
+            background: {COR_AZUL_ESC};
+            border-color: {COR_AZUL_ESC};
+            color: white;
+            transform: scale(1.15);
+            box-shadow: 0 0 0 6px rgba(0, 44, 93, 0.15);
+        }}
+        .stepper-step.active .step-label {{
+            color: {COR_AZUL_ESC};
+        }}
+        
+        /* Completed State */
+        .stepper-step.completed .step-bubble {{
+            background: #10b981; /* Emerald 500 */
+            border-color: #10b981;
+            color: white;
+        }}
+        .stepper-step.completed .step-label {{
+            color: #10b981;
+        }}
+
+        .footer {{ text-align: center; padding: 80px 0; color: {COR_AZUL_ESC} !important; font-size: 0.8rem; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; opacity: 0.6; }}
         </style>
     """, unsafe_allow_html=True)
 
@@ -594,92 +664,26 @@ def render_stepper(current_step_name):
             current_idx = i
             break
             
-    # Criamos um container para o stepper
-    with st.container():
-        # Linha de conexão (visual)
-        st.markdown(f"""
-        <style>
-        div[data-testid="column"] {{
-            position: relative;
-        }}
-        /* Conexão entre bolinhas (linha cinza) */
-        div[data-testid="column"]::after {{
-            content: '';
-            position: absolute;
-            top: 20px;
-            left: 50%;
-            width: 100%;
-            height: 2px;
-            background-color: #eef2f6;
-            z-index: 0;
-        }}
-        div[data-testid="column"]:last-child::after {{
-            display: none;
-        }}
+    # Constrói o HTML do Stepper (sem indentação para evitar bloco de código)
+    html = '<div class="stepper-container"><div class="stepper-line-bg"></div>'
+    
+    for i, step in enumerate(steps):
+        status_class = ""
+        icon_content = str(i + 1)
         
-        /* Estilo base dos botões dentro do stepper */
-        .stepper-scope button {{
-            border-radius: 50% !important;
-            width: 40px !important;
-            height: 40px !important;
-            min-height: 40px !important;
-            padding: 0 !important;
-            margin: 0 auto !important;
-            z-index: 1;
-            position: relative;
-            font-weight: bold !important;
-        }}
-        </style>
-        <div class="stepper-scope"></div>
-        """, unsafe_allow_html=True)
+        if i < current_idx:
+            status_class = "completed"
+            icon_content = "✓"
+        elif i == current_idx:
+            status_class = "active"
+            
+        html += f"""<div class="stepper-step {status_class}">
+    <div class="step-bubble">{icon_content}</div>
+    <div class="step-label">{step['label']}</div>
+</div>"""
 
-        cols = st.columns(len(steps))
-        for i, step in enumerate(steps):
-            with cols[i]:
-                # Se o passo já foi completado (i < current) -> Verde (#10b981)
-                # Se é o passo atual (i == current) -> Azul (#002c5d) via Primary
-                # Se é futuro -> Cinza/Branco via Secondary
-                
-                # Para conseguir o VERDE, precisamos de um hack de estilo ou usar Primary como Verde?
-                # Como o user quer "bolinhas ficando verde", vamos usar o Primary para "Completado/Ativo" 
-                # mas o CSS global define Primary como Vermelho.
-                # Solução: Injetar CSS específico para este botão baseada na chave.
-                
-                btn_key = f"step_btn_{i}"
-                is_completed = i <= current_idx # Including current as colored
-                
-                # Define cor baseada no estado
-                bg_color = "#10b981" if i < current_idx else ("#002c5d" if i == current_idx else "#ffffff")
-                text_color = "#ffffff" if i <= current_idx else "#64748b"
-                border_color = bg_color if i <= current_idx else "#eef2f6"
-                
-                # Injeta estilo específico para este botão
-                st.markdown(f"""
-                <style>
-                div.row-widget.stButton > button[kind="secondary"] {{
-                    /* fallback */
-                }}
-                /* Target by key logic is hard in pure CSS without custom component */
-                /* We use the column index trick */
-                div[data-testid="column"]:nth-of-type({i+1}) div.stButton button {{
-                    background-color: {bg_color} !important;
-                    color: {text_color} !important;
-                    border-color: {border_color} !important;
-                }}
-                </style>
-                """, unsafe_allow_html=True)
-
-                if st.button(f"{i+1}", key=btn_key, use_container_width=True):
-                    st.session_state.passo_simulacao = step['id']
-                    scroll_to_top()
-                    st.rerun()
-                
-                # Label
-                weight = "700" if i == current_idx else "400"
-                color = "#002c5d" if i == current_idx else "#64748b"
-                st.markdown(f"<div style='text-align:center; font-size:0.75rem; color:{color}; font-weight:{weight}; margin-top:5px;'>{step['label']}</div>", unsafe_allow_html=True)
-
-    st.markdown("<div style='margin-bottom: 40px;'></div>", unsafe_allow_html=True)
+    html += '</div>'
+    st.markdown(html, unsafe_allow_html=True)
 
 # ... (Funções PDF e Email mantidas iguais) ...
 def gerar_resumo_pdf(d):
@@ -715,6 +719,7 @@ def gerar_resumo_pdf(d):
         pdf.ln(8)
         adicionar_secao_pdf("ENGENHARIA FINANCEIRA")
         adicionar_linha_detalhe("Financiamento Bancario Estimado", f"R$ {fmt_br(d.get('finan_usado', 0))}")
+        # Added installment info to PDF
         prazo_val = d.get('prazo_financiamento', 360)
         adicionar_linha_detalhe("Sistema de Amortizacao", f"{d.get('sistema_amortizacao', 'SAC')} - {prazo_val}x")
         adicionar_linha_detalhe("Parcela Estimada Financiamento", f"R$ {fmt_br(d.get('parcela_financiamento', 0))}")
@@ -1110,7 +1115,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
                     elif "100%" in f_cob_sel: cob_min_val = 100
 
                 with f_cols[3]: f_ordem = st.selectbox("Ordem:", ["Menor Preço", "Maior Preço"], key="f_ordem_tab_v28")
-                with f_cols[4]: f_pmax = st.number_input("Preço Máx:", value=float(df_disp_total['Valor de Venda'].max()), key="f_pmax_tab_v28", placeholder="0,00")
+                with f_cols[4]: f_pmax = st.number_input("Preço Máx:", key="f_pmax_tab_v28", placeholder="0,00", value=None)
 
                 df_tab = df_disp_total.copy()
                 if f_bairro: df_tab = df_tab[df_tab['Bairro'].isin(f_bairro)]
