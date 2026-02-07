@@ -1,12 +1,12 @@
 # -*- coding: utf-8 -*-
 """
 =============================================================================
-SISTEMA DE SIMULAÇÃO IMOBILIÁRIA - DIRE RIO V38 (CLIENT ANALYTICS TAB)
+SISTEMA DE SIMULAÇÃO IMOBILIÁRIA - DIRE RIO V39 (ANALYTICS COMPLETO & FIXES)
 =============================================================================
 Instruções para Google Colab:
 1. Crie um arquivo chamado 'app.py' com este conteúdo.
 2. Instale as dependências:
-   !pip install streamlit pandas numpy fpdf streamlit-gsheets pytz
+   !pip install streamlit pandas numpy fpdf streamlit-gsheets pytz matplotlib
 3. Configure os segredos (.streamlit/secrets.toml) para o envio de email.
 4. Rode o app:
    !streamlit run app.py & npx localtunnel --port 8501
@@ -30,6 +30,7 @@ from email.mime.text import MIMEText
 from email.mime.application import MIMEApplication
 import os
 import pytz
+import matplotlib.pyplot as plt
 
 # Tenta importar fpdf e PIL
 try:
@@ -970,23 +971,31 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
                                 # Helper para tratamento seguro de floats
                                 def safe_get_float(r, k):
                                     return safe_float_convert(r.get(k, 0))
+                                
+                                # FIX CPF: Remove .0 e zfill 11
+                                def fix_cpf_from_row(val):
+                                    if pd.isnull(val): return ""
+                                    s = str(val)
+                                    if s.endswith('.0'): s = s[:-2]
+                                    s = re.sub(r'\D', '', s)
+                                    if 0 < len(s) < 11:
+                                        s = s.zfill(11)
+                                    return s
 
                                 # Reconstrução de Rendas e Participantes
                                 rs = [safe_get_float(row, f'Renda Part. {i}') for i in range(1, 5)]
-                                # Lógica para qtd de participantes: índice do último valor > 0
                                 qtd_p = 1
                                 for i in range(4, 0, -1):
                                     if rs[i-1] > 0:
                                         qtd_p = i
                                         break
                                 
-                                # Booleans
                                 soc = str(row.get('Fator Social', '')).strip().lower() in ['sim', 's', 'true']
                                 cot = str(row.get('Cotista FGTS', '')).strip().lower() in ['sim', 's', 'true']
 
                                 st.session_state.dados_cliente = {
                                     'nome': row.get('Nome'), 
-                                    'cpf': row.get('CPF'),
+                                    'cpf': fix_cpf_from_row(row.get('CPF')),
                                     'data_nascimento': row.get('Data de Nascimento'),
                                     'qtd_participantes': qtd_p,
                                     'rendas_lista': rs,
@@ -995,7 +1004,6 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
                                     'social': soc,
                                     'cotista': cot,
                                     
-                                    # Dados Imóvel/Simulação
                                     'empreendimento_nome': row.get('Empreendimento Final'),
                                     'unidade_id': row.get('Unidade Final'),
                                     'imovel_valor': safe_get_float(row, 'Preço Unidade Final'),
@@ -1006,7 +1014,6 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
                                     'fgts_sub_usado': safe_get_float(row, 'FGTS + Subsídio Final'),
                                     'ps_usado': safe_get_float(row, 'Pro Soluto Final'),
                                     
-                                    # Parcelas e Atos
                                     'ps_parcelas': int(float(str(row.get('Número de Parcelas do Pro Soluto', 0)).replace(',','.'))),
                                     'ps_mensal': safe_get_float(row, 'Mensalidade PS'),
                                     'ato_final': safe_get_float(row, 'Ato'),
@@ -1023,20 +1030,13 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
                                     st.session_state.dados_cliente['ato_90']
                                 ])
 
-                                # Limpar chaves de sessão específicas do fluxo de pagamento E DE INPUT para forçar recarregamento
                                 keys_to_reset = [
-                                    # Inputs
                                     'in_nome_v28', 'in_cpf_v3', 'in_dt_nasc_v3', 'in_genero_v3', 
                                     'qtd_part_v3', 'in_rank_v28', 'in_pol_v28', 'in_soc_v28', 'in_cot_v28',
-                                    # Pagamento
                                     'fin_u_key', 'fgts_u_key', 'ps_u_key', 'parc_ps_key', 
                                     'ato_1_key', 'ato_2_key', 'ato_3_key', 'ato_4_key'
                                 ]
-                                
-                                # Limpar chaves de renda
-                                for i in range(5):
-                                    keys_to_reset.append(f"renda_part_{i}_v3")
-
+                                for i in range(5): keys_to_reset.append(f"renda_part_{i}_v3")
                                 for k in keys_to_reset:
                                     if k in st.session_state: del st.session_state[k]
 
@@ -1052,74 +1052,123 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
     if passo != 'client_analytics':
         render_stepper(passo)
 
-    # --- ABA ANALYTICS ---
+    # --- ABA ANALYTICS (SECURE TAB) ---
     if passo == 'client_analytics':
         d = st.session_state.dados_cliente
-        st.markdown(f"### Painel de Inteligência - {d.get('nome', 'Cliente')}")
-        
-        # Action Bar
-        c1, c2 = st.columns([1, 3])
-        with c1:
-            if st.button("⬅ Voltar ao Simulador (Editar)", type="primary", use_container_width=True):
-                 st.session_state.passo_simulacao = 'input'
-                 scroll_to_top()
-                 st.rerun()
-        
-        # --- Client Profile Section ---
-        st.markdown("#### 👤 Perfil do Cliente")
-        k1, k2, k3, k4 = st.columns(4)
-        k1.metric("Renda Familiar", f"R$ {fmt_br(d.get('renda', 0))}")
-        
-        # Recalcular Potencial na hora para exibir
-        fin_pot, sub_pot, _ = motor.obter_enquadramento(d.get('renda', 0), d.get('social', False), d.get('cotista', True), 250000)
-        ps_pot = d.get('imovel_valor', 0) * 0.10 # Estimativa 10%
-        potencial_total = (2 * d.get('renda', 0)) + fin_pot + sub_pot + ps_pot
-        
-        k2.metric("Potencial de Compra (Est.)", f"R$ {fmt_br(potencial_total)}")
-        k3.metric("Ranking", d.get('ranking', '-'))
-        k4.metric("Imóvel Selecionado", f"R$ {fmt_br(d.get('imovel_valor', 0))}")
-        
-        # --- Financial Breakdown Chart ---
-        st.markdown("---")
-        st.markdown("#### 💰 Composição da Venda Salva")
-        
-        col_chart, col_details = st.columns([2, 1])
-        
-        with col_chart:
-            # Prepare data for chart
-            fin_data = {
-                'Componente': ['Financiamento', 'FGTS/Subsídio', 'Pro Soluto', 'Ato/Entrada'],
-                'Valor': [
-                    d.get('finan_usado', 0),
-                    d.get('fgts_sub_usado', 0),
-                    d.get('ps_usado', 0),
-                    d.get('entrada_total', 0)
-                ]
-            }
-            df_chart = pd.DataFrame(fin_data)
-            df_chart = df_chart[df_chart['Valor'] > 0] # Filter zeros
-            
-            st.bar_chart(df_chart.set_index('Componente'), color=COR_AZUL_ESC)
-            
-        with col_details:
-             st.markdown(f"**Empreendimento:** {d.get('empreendimento_nome')}")
-             st.markdown(f"**Unidade:** {d.get('unidade_id')}")
-             st.markdown(f"**Valor Venda:** R$ {fmt_br(d.get('imovel_valor', 0))}")
-             
-             st.markdown("---")
-             st.markdown("**Detalhes do Pagamento:**")
-             st.caption(f"Ato: R$ {fmt_br(d.get('ato_final', 0))}")
-             st.caption(f"30/60/90: R$ {fmt_br(d.get('ato_30', 0) + d.get('ato_60', 0) + d.get('ato_90', 0))}")
-             st.caption(f"PS Mensal: R$ {fmt_br(d.get('ps_mensal', 0))} ({d.get('ps_parcelas')}x)")
+        st.markdown(f"### 📊 Painel do Cliente: {d.get('nome', 'Não Informado')}")
 
-        # --- Income Distribution (if multiple people) ---
-        rendas = d.get('rendas_lista', [])
-        if any(r > 0 for r in rendas):
-            st.markdown("---")
-            st.markdown("#### 👥 Composição de Renda")
-            r_data = {f"Part. {i+1}": r for i, r in enumerate(rendas) if r > 0}
-            if r_data:
-                st.bar_chart(pd.DataFrame(list(r_data.values()), index=list(r_data.keys()), columns=['Renda']), color=COR_VERMELHO)
+        # --- SEÇÃO 1: FICHA DO CLIENTE ---
+        with st.container():
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                st.markdown("**Dados Pessoais**")
+                st.caption(f"CPF: {d.get('cpf')}")
+                st.caption(f"Nascimento: {d.get('data_nascimento')}")
+                st.caption(f"Ranking: {d.get('ranking')}")
+            with col2:
+                st.markdown("**Renda & Perfil**")
+                st.caption(f"Renda Familiar: R$ {fmt_br(d.get('renda', 0))}")
+                st.caption(f"Participantes: {d.get('qtd_participantes')}")
+                st.caption(f"FGTS: {'Sim' if d.get('cotista') else 'Não'} | Social: {'Sim' if d.get('social') else 'Não'}")
+            with col3:
+                st.markdown("**Imóvel Salvo**")
+                st.caption(f"{d.get('empreendimento_nome')}")
+                st.caption(f"Unidade: {d.get('unidade_id')}")
+                st.caption(f"Valor: R$ {fmt_br(d.get('imovel_valor', 0))}")
+
+        st.markdown("---")
+
+        # --- SEÇÃO 2: GRÁFICOS DE PIZZA (COMPOSIÇÃO) ---
+        g_col1, g_col2 = st.columns(2)
+        
+        # Gráfico 1: Composição da Compra
+        with g_col1:
+            st.markdown("##### 🍰 Composição da Compra")
+            labels = ['Ato', '30 Dias', '60 Dias', '90 Dias', 'Pro Soluto', 'Financiamento', 'FGTS/Subsídio']
+            values = [
+                d.get('ato_final', 0), d.get('ato_30', 0), d.get('ato_60', 0), d.get('ato_90', 0),
+                d.get('ps_usado', 0), d.get('finan_usado', 0), d.get('fgts_sub_usado', 0)
+            ]
+            # Filtra zeros
+            pie_data = [(l, v) for l, v in zip(labels, values) if v > 0]
+            if pie_data:
+                fig1, ax1 = plt.subplots(figsize=(4, 4))
+                ax1.pie([x[1] for x in pie_data], labels=[x[0] for x in pie_data], autopct='%1.1f%%', startangle=90, colors=['#e30613', '#002c5d', '#64748b', '#94a3b8', '#f59e0b', '#10b981', '#3b82f6'])
+                ax1.axis('equal')
+                st.pyplot(fig1, use_container_width=False)
+            else:
+                st.info("Sem dados financeiros suficientes.")
+
+        # Gráfico 2: Composição de Renda
+        with g_col2:
+            st.markdown("##### 👥 Composição de Renda")
+            rendas = d.get('rendas_lista', [])
+            pie_renda = [(f"Part. {i+1}", r) for i, r in enumerate(rendas) if r > 0]
+            if pie_renda:
+                fig2, ax2 = plt.subplots(figsize=(4, 4))
+                ax2.pie([x[1] for x in pie_renda], labels=[x[0] for x in pie_renda], autopct='%1.1f%%', startangle=90, colors=['#002c5d', '#e30613', '#f59e0b', '#10b981'])
+                ax2.axis('equal')
+                st.pyplot(fig2, use_container_width=False)
+            else:
+                st.caption("Renda única ou não informada.")
+
+        # --- SEÇÃO 3: FLUXO DE PAGAMENTO (PRÓXIMOS 90 DIAS) ---
+        st.markdown("---")
+        st.markdown("##### 📅 Fluxo de Desembolso (Estimado - 1ºs Meses)")
+        
+        # Cálculo do fluxo
+        # Mês 0: Ato + PS (se houver entrada de PS, mas assumindo PS diluido) + 0 Finan
+        # Mês 1: Ato 30 + PS Mensal + Parc Finan
+        parc_fin = d.get('parcela_financiamento', 0) # Assumindo que já temos esse dado ou recalculamos
+        if parc_fin == 0: # Fallback simples
+             parc_fin = calcular_parcela_financiamento(d.get('finan_usado', 0), d.get('prazo_financiamento', 360), 8.16, "SAC")
+        
+        ps_mensal = d.get('ps_mensal', 0)
+        
+        flow_data = {
+            "Mês": ["Ato (Hoje)", "30 Dias", "60 Dias", "90 Dias"],
+            "Total a Pagar": [
+                d.get('ato_final', 0),
+                d.get('ato_30', 0) + ps_mensal + parc_fin,
+                d.get('ato_60', 0) + ps_mensal + parc_fin,
+                d.get('ato_90', 0) + ps_mensal + parc_fin
+            ]
+        }
+        st.bar_chart(pd.DataFrame(flow_data).set_index("Mês"), color=COR_AZUL_ESC)
+        st.caption("*Considera Parcela do Financiamento + Mensalidade do Pro Soluto + Ato do mês.")
+
+        # --- SEÇÃO 4: OPORTUNIDADES SEMELHANTES ---
+        st.markdown("---")
+        st.markdown("##### 🏘️ Oportunidades Semelhantes (Faixa de Preço)")
+        
+        target_price = d.get('imovel_valor', 0)
+        if target_price > 0:
+            min_p = target_price * 0.9
+            max_p = target_price * 1.1
+            # Filter df_estoque
+            similares = df_estoque[
+                (df_estoque['Valor de Venda'] >= min_p) & 
+                (df_estoque['Valor de Venda'] <= max_p) &
+                (df_estoque['Empreendimento'] != d.get('empreendimento_nome')) &
+                (df_estoque['Status'] == 'Disponível')
+            ].sort_values('Valor de Venda').head(5)
+            
+            if not similares.empty:
+                st.dataframe(
+                    similares[['Empreendimento', 'Bairro', 'Identificador', 'Valor de Venda']],
+                    hide_index=True,
+                    column_config={"Valor de Venda": st.column_config.NumberColumn("Valor", format="R$ %.2f")}
+                )
+            else:
+                st.info("Nenhuma outra unidade encontrada nessa faixa de preço (+/- 10%).")
+        
+        st.markdown("<br><br>", unsafe_allow_html=True)
+        
+        # --- BOTÃO VOLTAR (FULL WIDTH) ---
+        if st.button("VOLTAR AO SIMULADOR", type="primary", use_container_width=True):
+             st.session_state.passo_simulacao = 'input'
+             scroll_to_top()
+             st.rerun()
 
     # --- ETAPA 1: INPUT ---
     elif passo == 'input':
