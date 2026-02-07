@@ -699,37 +699,158 @@ def render_stepper(current_step_name):
     html += '</div>'
     st.markdown(html, unsafe_allow_html=True)
 
-# ... (Funções PDF e Email mantidas iguais) ...
-# ===============================
-# SEÇÃO ANOTAÇÕES (preenche espaço)
-# ===============================
-pdf.ln(4)
-secao("ANOTAÇÕES")
+def gerar_resumo_pdf(d):
+    if not PDF_ENABLED:
+        return None
 
-y_inicio = pdf.get_y()
+    try:
+        pdf = FPDF()
+        pdf.add_page()
 
-# Altura reservada para rodapé
-altura_rodape = 14
+        # Margens
+        pdf.set_margins(12, 12, 12)
+        pdf.set_auto_page_break(auto=True, margin=12)
 
-altura_disponivel = pdf.h - pdf.b_margin - y_inicio - altura_rodape
+        largura_util = pdf.w - pdf.l_margin - pdf.r_margin
 
-if altura_disponivel > 10:
-    pdf.set_fill_color(250, 252, 255)
-    pdf.rect(pdf.l_margin, y_inicio, largura_util, altura_disponivel, 'F')
+        AZUL = (0, 44, 93)
+        VERMELHO = (227, 6, 19)
+        BRANCO = (255, 255, 255)
+        FUNDO_SECAO = (248, 250, 252)
 
-    # Linhas para escrita
-    pdf.set_draw_color(220, 225, 230)
-    linha_y = y_inicio + 6
-    while linha_y < y_inicio + altura_disponivel - 4:
-        pdf.line(
-            pdf.l_margin + 4,
-            linha_y,
-            pdf.l_margin + largura_util - 4,
-            linha_y
+        # Barra superior
+        pdf.set_fill_color(*AZUL)
+        pdf.rect(0, 0, pdf.w, 3, 'F')
+
+        # Logo
+        if os.path.exists("favicon.png"):
+            try:
+                pdf.image("favicon.png", pdf.l_margin, 8, 10)
+            except:
+                pass
+
+        # Título
+        pdf.ln(8)
+        pdf.set_text_color(*AZUL)
+        pdf.set_font("Helvetica", 'B', 20)
+        pdf.cell(0, 10, "RELATORIO DE VIABILIDADE", ln=True, align='C')
+
+        pdf.set_font("Helvetica", '', 9)
+        pdf.cell(0, 5, "SIMULADOR IMOBILIARIO DV - DOCUMENTO EXECUTIVO", ln=True, align='C')
+        pdf.ln(6)
+
+        # Bloco cliente
+        y = pdf.get_y()
+        pdf.set_fill_color(*FUNDO_SECAO)
+        pdf.rect(pdf.l_margin, y, largura_util, 16, 'F')
+
+        pdf.set_xy(pdf.l_margin + 4, y + 4)
+        pdf.set_font("Helvetica", 'B', 12)
+        pdf.cell(0, 5, f"CLIENTE: {d.get('nome', 'Nao informado').upper()}", ln=True)
+
+        pdf.set_x(pdf.l_margin + 4)
+        pdf.set_font("Helvetica", '', 10)
+        pdf.cell(0, 5, f"Renda Familiar: R$ {fmt_br(d.get('renda', 0))}", ln=True)
+
+        pdf.ln(6)
+
+        # Helpers
+        def secao(titulo):
+            pdf.set_fill_color(*AZUL)
+            pdf.set_text_color(*BRANCO)
+            pdf.set_font("Helvetica", 'B', 10)
+            pdf.cell(largura_util, 7, f"  {titulo}", ln=True, fill=True)
+            pdf.ln(2)
+
+        def linha(label, valor, destaque=False):
+            pdf.set_text_color(*AZUL)
+            pdf.set_font("Helvetica", '', 10)
+            pdf.cell(largura_util * 0.6, 6, label)
+
+            if destaque:
+                pdf.set_text_color(*VERMELHO)
+                pdf.set_font("Helvetica", 'B', 10)
+            else:
+                pdf.set_font("Helvetica", 'B', 10)
+
+            pdf.cell(largura_util * 0.4, 6, valor, ln=True, align='R')
+            pdf.set_draw_color(235, 238, 242)
+            pdf.line(pdf.l_margin, pdf.get_y(), pdf.l_margin + largura_util, pdf.get_y())
+
+        # ===============================
+        # CONTEÚDO
+        # ===============================
+        secao("DADOS DO IMOVEL")
+        linha("Empreendimento", str(d.get('empreendimento_nome')))
+        linha("Unidade Selecionada", str(d.get('unidade_id')))
+        linha("Valor de Venda do Imovel", f"R$ {fmt_br(d.get('imovel_valor', 0))}", True)
+
+        pdf.ln(4)
+
+        secao("ENGENHARIA FINANCEIRA")
+        linha("Financiamento Bancario Estimado", f"R$ {fmt_br(d.get('finan_usado', 0))}")
+        prazo = d.get('prazo_financiamento', 360)
+        linha("Sistema de Amortizacao", f"{d.get('sistema_amortizacao', 'SAC')} - {prazo}x")
+        linha("Parcela Estimada Financiamento", f"R$ {fmt_br(d.get('parcela_financiamento', 0))}")
+        linha("Subsidio + FGTS Utilizado", f"R$ {fmt_br(d.get('fgts_sub_usado', 0))}")
+        linha("Pro Soluto Direcional", f"R$ {fmt_br(d.get('ps_usado', 0))}")
+        linha("Mensalidade Pro Soluto", f"{d.get('ps_parcelas')}x de R$ {fmt_br(d.get('ps_mensal', 0))}")
+
+        pdf.ln(4)
+
+        secao("PLANO DE ENTRADA (FLUXO DE CAIXA)")
+        linha("VALOR TOTAL DE ENTRADA", f"R$ {fmt_br(d.get('entrada_total', 0))}", True)
+        linha("Parcela de Ato (Imediato)", f"R$ {fmt_br(d.get('ato_final', 0))}")
+        linha("Parcela 30 Dias", f"R$ {fmt_br(d.get('ato_30', 0))}")
+        linha("Parcela 60 Dias", f"R$ {fmt_br(d.get('ato_60', 0))}")
+        linha("Parcela 90 Dias", f"R$ {fmt_br(d.get('ato_90', 0))}")
+
+        # ===============================
+        # SEÇÃO ANOTAÇÕES (preenche espaço)
+        # ===============================
+        pdf.ln(4)
+        secao("ANOTAÇÕES")
+
+        y_inicio = pdf.get_y()
+        altura_rodape = 14
+        altura_disponivel = pdf.h - pdf.b_margin - y_inicio - altura_rodape
+
+        if altura_disponivel > 10:
+            pdf.set_fill_color(250, 252, 255)
+            pdf.rect(pdf.l_margin, y_inicio, largura_util, altura_disponivel, 'F')
+
+            pdf.set_draw_color(220, 225, 230)
+            linha_y = y_inicio + 6
+            while linha_y < y_inicio + altura_disponivel - 4:
+                pdf.line(
+                    pdf.l_margin + 4,
+                    linha_y,
+                    pdf.l_margin + largura_util - 4,
+                    linha_y
+                )
+                linha_y += 7
+
+            pdf.set_y(y_inicio + altura_disponivel)
+
+        # ===============================
+        # RODAPÉ
+        # ===============================
+        pdf.set_font("Helvetica", 'I', 7)
+        pdf.set_text_color(*AZUL)
+        pdf.cell(
+            0,
+            4,
+            f"Simulacao realizada em {d.get('data_simulacao', date.today().strftime('%d/%m/%Y'))}. "
+            "Sujeito a analise de credito e alteracao de tabela sem aviso previo.",
+            ln=True,
+            align='C'
         )
-        linha_y += 7
+        pdf.cell(0, 4, "Direcional Engenharia - Rio de Janeiro", ln=True, align='C')
 
-    pdf.set_y(y_inicio + altura_disponivel)
+        return bytes(pdf.output())
+
+    except:
+        return None
 
 def enviar_email_smtp(destinatario, nome_cliente, pdf_bytes):
     if "email" not in st.secrets: return False, "Configuracoes de e-mail nao encontradas."
