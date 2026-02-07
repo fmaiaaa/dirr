@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 =============================================================================
-SISTEMA DE SIMULAÇÃO IMOBILIÁRIA - DIRE RIO V25 (BUGFIX & INPUT UX)
+SISTEMA DE SIMULAÇÃO IMOBILIÁRIA - DIRE RIO V26 (INTERACTIVE STEPPER & CLEAN)
 =============================================================================
 Instruções para Google Colab:
 1. Crie um arquivo chamado 'app.py' com este conteúdo.
@@ -100,23 +100,14 @@ def validar_cpf(cpf):
     return True
 
 def safe_float_convert(val):
-    """Converte valores do GSheets/Inputs para float de forma segura, evitando erro de multiplicacao."""
+    """Converte valores do GSheets/Inputs para float de forma segura."""
     if pd.isnull(val) or val == "": return 0.0
     if isinstance(val, (int, float, np.number)): return float(val)
-    
-    # Tratamento de String
     s = str(val).replace('R$', '').strip()
-    
-    # Se ja for um numero puro em string '150000.50'
-    try:
-        return float(s)
+    try: return float(s)
     except:
-        # Se tiver formatacao brasileira '150.000,50'
-        if ',' in s and '.' in s:
-            s = s.replace('.', '').replace(',', '.')
-        elif ',' in s: 
-            s = s.replace(',', '.')
-            
+        if ',' in s and '.' in s: s = s.replace('.', '').replace(',', '.')
+        elif ',' in s: s = s.replace(',', '.')
         try: return float(s)
         except: return 0.0
 
@@ -131,17 +122,12 @@ def calcular_cor_gradiente(valor):
 def calcular_comparativo_sac_price(valor, meses, taxa_anual):
     if valor <= 0 or meses <= 0:
         return {"SAC": {"primeira": 0, "ultima": 0, "juros": 0}, "PRICE": {"parcela": 0, "juros": 0}}
-    
     i = (1 + taxa_anual/100)**(1/12) - 1
-    
-    # PRICE
     try:
         pmt_price = valor * (i * (1 + i)**meses) / ((1 + i)**meses - 1)
         total_pago_price = pmt_price * meses
         juros_price = total_pago_price - valor
     except: pmt_price = 0; juros_price = 0
-
-    # SAC
     try:
         amort = valor / meses
         pmt_sac_ini = amort + (valor * i)
@@ -149,7 +135,6 @@ def calcular_comparativo_sac_price(valor, meses, taxa_anual):
         total_pago_sac = (pmt_sac_ini + pmt_sac_fim) * meses / 2
         juros_sac = total_pago_sac - valor
     except: pmt_sac_ini = 0; pmt_sac_fim = 0; juros_sac = 0
-    
     return {
         "SAC": {"primeira": pmt_sac_ini, "ultima": pmt_sac_fim, "juros": juros_sac},
         "PRICE": {"parcela": pmt_price, "juros": juros_price}
@@ -180,9 +165,7 @@ def carregar_dados_sistema():
         if "connections" not in st.secrets:
             return pd.DataFrame(), pd.DataFrame(), pd.DataFrame(), pd.DataFrame(), pd.DataFrame()
         conn = st.connection("gsheets", type=GSheetsConnection)
-
-        def limpar_moeda(val):
-            return safe_float_convert(val)
+        def limpar_moeda(val): return safe_float_convert(val)
 
         # Logins
         try:
@@ -202,8 +185,7 @@ def carregar_dados_sistema():
         except: df_logins = pd.DataFrame(columns=['Email', 'Senha'])
 
         # Cadastros
-        try:
-            df_cadastros = conn.read(spreadsheet=URL_RANKING, worksheet="Simulações")
+        try: df_cadastros = conn.read(spreadsheet=URL_RANKING, worksheet="Simulações")
         except:
             try: df_cadastros = conn.read(spreadsheet=URL_RANKING, worksheet="Cadastros")
             except: df_cadastros = pd.DataFrame()
@@ -247,7 +229,6 @@ def carregar_dados_sistema():
                     if tipo == 'bloco': return int(np_val) if np_val else 1
                     if tipo == 'apto': return int(ns_val) if ns_val else 0
                 except: return 0 if tipo != 'bloco' else 1
-
             df_estoque['Andar'] = df_estoque['Identificador'].apply(lambda x: extrair_dados_unid(x, 'andar'))
             df_estoque['Bloco_Sort'] = df_estoque['Identificador'].apply(lambda x: extrair_dados_unid(x, 'bloco'))
             df_estoque['Apto_Sort'] = df_estoque['Identificador'].apply(lambda x: extrair_dados_unid(x, 'apto'))
@@ -331,6 +312,7 @@ def configurar_layout():
             background-color: #ffffff !important;
         }}
 
+        /* --- ALTURA E ALINHAMENTO UNIFICADOS PARA INPUTS --- */
         .stTextInput input, .stNumberInput input, .stDateInput input, div[data-baseweb="select"] > div {{
             height: 48px !important;
             min-height: 48px !important;
@@ -406,12 +388,36 @@ def configurar_layout():
             color: {COR_AZUL_ESC} !important;
             border: 1px solid #e2e8f0 !important;
         }}
+        .stButton button:not([kind="primary"]:hover) {{
+            border-color: #e2e8f0 !important;
+        }}
         .stButton button:not([kind="primary"]):hover {{
             border-color: {COR_VERMELHO} !important;
             color: {COR_VERMELHO} !important;
             background: #ffffff !important;
         }}
-
+        
+        /* Stepper Specific Styling for "Circles" using standard buttons */
+        /* Note: It's hard to make st.button perfectly round with dynamic text, but we approximate */
+        div.stButton.stepper-btn button {{
+            border-radius: 50% !important;
+            width: 40px !important;
+            height: 40px !important;
+            padding: 0 !important;
+            min-height: 40px !important;
+            margin: 0 auto !important;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);
+        }}
+        
+        /* Active/Completed State override */
+        div.stButton.stepper-btn button[kind="primary"] {{
+            background-color: #10b981 !important; /* Green for completed/active to match request */
+            border-color: #10b981 !important;
+        }}
+        
         .stDownloadButton button {{
             background: {COR_INPUT_BG} !important;
             color: {COR_AZUL_ESC} !important;
@@ -533,7 +539,6 @@ def configurar_layout():
         .metric-label {{ color: {COR_AZUL_ESC} !important; opacity: 0.7; font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.15em; margin-bottom: 8px; }}
         .metric-value {{ color: {COR_AZUL_ESC} !important; font-size: 1.8rem; font-weight: 800; font-family: 'Montserrat', sans-serif; }}
 
-        /* BADGES */
         .badge-ideal, .badge-seguro, .badge-facilitado, .badge-multi {{
             background-color: {COR_VERMELHO} !important;
             color: white;
@@ -580,15 +585,6 @@ def configurar_layout():
         button[data-baseweb="tab"][aria-selected="true"] p {{ color: {COR_AZUL_ESC} !important; opacity: 1; }}
         div[data-baseweb="tab-highlight"] {{ background-color: {COR_VERMELHO} !important; height: 3px !important; }}
 
-        .stepper-container {{
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 3.5rem;
-            position: relative;
-            padding: 0 1rem;
-        }}
-        
         .footer {{ text-align: center; padding: 80px 0; color: {COR_AZUL_ESC} !important; font-size: 0.8rem; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; opacity: 0.6; }}
         </style>
     """, unsafe_allow_html=True)
@@ -607,15 +603,26 @@ def render_stepper(current_step_name):
             current_idx = i
             break
 
+    # Using columns for interactive buttons simulating circles
     cols = st.columns(len(steps))
     for i, step in enumerate(steps):
         with cols[i]:
-            btn_type = "primary" if i == current_idx else "secondary"
-            if st.button(f"{i+1}. {step['label']}", key=f"step_btn_{i}", type=btn_type, use_container_width=True):
-                st.session_state.passo_simulacao = step['id']
-                scroll_to_top()
-                st.rerun()
-    st.markdown("<div style='margin-bottom: 30px;'></div>", unsafe_allow_html=True)
+            # Logic: Previous steps = Completed (Green), Current = Active (Green/Blueish), Future = Standard
+            # To simulate "bolinhas ficando verde", we use primary color (Red in main config, but we used Green in CSS for special class... 
+            # actually Streamlit primary is Red. 
+            # We will use "primary" for active/completed to show color.
+            
+            btn_type = "primary" if i <= current_idx else "secondary"
+            # Label is just the number to look like a circle
+            if st.button(f"{i+1}", key=f"step_btn_{i}", type=btn_type, use_container_width=True):
+                 st.session_state.passo_simulacao = step['id']
+                 scroll_to_top()
+                 st.rerun()
+            
+            # Label below
+            st.markdown(f"<div style='text-align:center; font-size:0.75rem; font-weight:700; color:#002c5d; margin-top:-10px;'>{step['label']}</div>", unsafe_allow_html=True)
+            
+    st.markdown("<div style='margin-bottom: 30px; border-bottom: 2px solid #eef2f6; margin-top: 10px;'></div>", unsafe_allow_html=True)
 
 # ... (Funções PDF e Email) ...
 def gerar_resumo_pdf(d):
@@ -629,8 +636,8 @@ def gerar_resumo_pdf(d):
         if os.path.exists("favicon.png"):
             try: pdf.image("favicon.png", 10, 8, 10)
             except: pass
-        pdf.ln(15); pdf.set_text_color(*AZUL_RGB); pdf.set_font("Helvetica", 'B', 22); pdf.cell(0, 12, "RELATÓRIO DE VIABILIDADE", ln=True, align='C')
-        pdf.set_font("Helvetica", '', 9); pdf.cell(0, 6, "SIMULADOR IMOBILIÁRIO DV - DOCUMENTO EXECUTIVO", ln=True, align='C'); pdf.ln(15)
+        pdf.ln(15); pdf.set_text_color(*AZUL_RGB); pdf.set_font("Helvetica", 'B', 22); pdf.cell(0, 12, "RELATORIO DE VIABILIDADE", ln=True, align='C')
+        pdf.set_font("Helvetica", '', 9); pdf.cell(0, 6, "SIMULADOR IMOBILIARIO DV - DOCUMENTO EXECUTIVO", ln=True, align='C'); pdf.ln(15)
         pdf.set_fill_color(*FUNDO_SECAO); pdf.rect(10, pdf.get_y(), 190, 24, 'F'); pdf.set_xy(15, pdf.get_y() + 6)
         pdf.set_text_color(*AZUL_RGB); pdf.set_font("Helvetica", 'B', 13); pdf.cell(0, 6, f"CLIENTE: {d.get('nome', 'Nao informado').upper()}", ln=True)
         pdf.set_x(15); pdf.set_font("Helvetica", '', 10); pdf.cell(0, 6, f"Renda Familiar: R$ {fmt_br(d.get('renda', 0))}", ln=True); pdf.ln(15)
@@ -644,17 +651,17 @@ def gerar_resumo_pdf(d):
             else: pdf.set_font("Helvetica", 'B', 10)
             pdf.cell(0, 9, valor, border=0, ln=True, align='R'); pdf.set_draw_color(241, 245, 249); pdf.line(15, pdf.get_y(), 195, pdf.get_y())
 
-        adicionar_secao_pdf("DADOS DO IMÓVEL")
+        adicionar_secao_pdf("DADOS DO IMOVEL")
         adicionar_linha_detalhe("Empreendimento", str(d.get('empreendimento_nome')))
         adicionar_linha_detalhe("Unidade Selecionada", str(d.get('unidade_id')))
         adicionar_linha_detalhe("Valor de Venda do Imovel", f"R$ {fmt_br(d.get('imovel_valor', 0))}", destaque=True)
         pdf.ln(8)
         adicionar_secao_pdf("ENGENHARIA FINANCEIRA")
-        adicionar_linha_detalhe("Financiamento Bancário Estimado", f"R$ {fmt_br(d.get('finan_usado', 0))}")
+        adicionar_linha_detalhe("Financiamento Bancario Estimado", f"R$ {fmt_br(d.get('finan_usado', 0))}")
         prazo_val = d.get('prazo_financiamento', 360)
-        adicionar_linha_detalhe("Sistema de Amortização", f"{d.get('sistema_amortizacao', 'SAC')} - {prazo_val}x")
+        adicionar_linha_detalhe("Sistema de Amortizacao", f"{d.get('sistema_amortizacao', 'SAC')} - {prazo_val}x")
         adicionar_linha_detalhe("Parcela Estimada Financiamento", f"R$ {fmt_br(d.get('parcela_financiamento', 0))}")
-        adicionar_linha_detalhe("Subsídio + FGTS Utilizado", f"R$ {fmt_br(d.get('fgts_sub_usado', 0))}")
+        adicionar_linha_detalhe("Subsidio + FGTS Utilizado", f"R$ {fmt_br(d.get('fgts_sub_usado', 0))}")
         adicionar_linha_detalhe("Pro Soluto Direcional", f"R$ {fmt_br(d.get('ps_usado', 0))}")
         adicionar_linha_detalhe("Mensalidade Pro Soluto", f"{d.get('ps_parcelas')}x de R$ {fmt_br(d.get('ps_mensal', 0))}")
         pdf.ln(8)
@@ -673,7 +680,7 @@ def gerar_resumo_pdf(d):
     except: return None
 
 def enviar_email_smtp(destinatario, nome_cliente, pdf_bytes):
-    if "email" not in st.secrets: return False, "Configurações de e-mail não encontradas."
+    if "email" not in st.secrets: return False, "Configuracoes de e-mail nao encontradas."
     try:
         smtp_server = st.secrets["email"]["smtp_server"].strip()
         smtp_port = int(st.secrets["email"]["smtp_port"])
@@ -682,8 +689,8 @@ def enviar_email_smtp(destinatario, nome_cliente, pdf_bytes):
     except Exception as e: return False, f"Erro config: {e}"
 
     msg = MIMEMultipart()
-    msg['From'] = sender_email; msg['To'] = destinatario; msg['Subject'] = f"Resumo da Simulação - {nome_cliente}"
-    msg.attach(MIMEText(f"Olá,\n\nSegue em anexo o resumo da simulação imobiliária para {nome_cliente}.\n\nAtenciosamente,\nDirecional Engenharia", 'plain'))
+    msg['From'] = sender_email; msg['To'] = destinatario; msg['Subject'] = f"Resumo da Simulacao - {nome_cliente}"
+    msg.attach(MIMEText(f"Ola,\n\nSegue em anexo o resumo da simulacao imobiliaria para {nome_cliente}.\n\nAtenciosamente,\nDirecional Engenharia", 'plain'))
     if pdf_bytes:
         part = MIMEApplication(pdf_bytes, Name=f"Resumo_{nome_cliente}.pdf")
         part['Content-Disposition'] = f'attachment; filename="Resumo_{nome_cliente}.pdf"'
@@ -693,7 +700,7 @@ def enviar_email_smtp(destinatario, nome_cliente, pdf_bytes):
         server.login(sender_email, sender_password); server.sendmail(sender_email, destinatario, msg.as_string()); server.quit()
         return True, "E-mail enviado com sucesso!"
     except smtplib.SMTPAuthenticationError:
-        return False, "Erro de Autenticação (535). Verifique Senha de App."
+        return False, "Erro de Autenticacao (535). Verifique Senha de App."
     except Exception as e: return False, f"Erro envio: {e}"
 
 def tela_login(df_logins):
@@ -855,7 +862,6 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
 
         for i in range(qtd_part):
             with cols_renda[i]:
-                # Default 3500 only for first participant if list is empty
                 def_val = 3500.0 if i == 0 and not rendas_anteriores else 0.0
                 current_val = get_val(i, def_val)
                 val_r = st.number_input(f"Renda Part. {i+1}", min_value=0.0, value=current_val, step=100.0, key=f"renda_part_{i}_v3", placeholder="0,00")
@@ -1077,7 +1083,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
         st.markdown("---")
         if st.button("Avançar para Escolha de Unidade", type="primary", use_container_width=True, key="btn_goto_selection"): st.session_state.passo_simulacao = 'selection'; scroll_to_top(); st.rerun()
         st.write("");
-        if st.button("Voltar para Dados do Cliente", use_container_width=True, key="btn_pot_v28"): st.session_state.passo_simulacao = 'input'; scroll_to_top(); st.rerun()
+        if st.button("Voltar para Recomendação de Imóveis", use_container_width=True, key="btn_pot_v28"): st.session_state.passo_simulacao = 'guide'; scroll_to_top(); st.rerun()
 
     # --- ETAPA 3: SELEÇÃO + TERMOMETRO ---
     elif passo == 'selection':
