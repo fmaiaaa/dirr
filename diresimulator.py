@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 =============================================================================
-SISTEMA DE SIMULAÇÃO IMOBILIÁRIA - DIRE RIO V31 (AUTO EMAIL & UI POLISH)
+SISTEMA DE SIMULAÇÃO IMOBILIÁRIA - DIRE RIO V30 (ROBUST RECS & PDF LAYOUT)
 =============================================================================
 Instruções para Google Colab:
 1. Crie um arquivo chamado 'app.py' com este conteúdo.
@@ -119,6 +119,8 @@ def calcular_cor_gradiente(valor):
     valor = max(0, min(100, valor))
     f = valor / 100.0
     
+    # Vermelho: 227, 6, 19
+    # Azul: 0, 44, 93
     r = int(227 + (0 - 227) * f)
     g = int(6 + (44 - 6) * f)
     b = int(19 + (93 - 19) * f)
@@ -296,18 +298,12 @@ def configurar_layout():
             background-color: {COR_FUNDO};
         }}
 
-        /* --- REMOVE GLOBAL CENTER ALIGNMENT FOR HEADERS --- */
-        /* Changed from 'text-align: center !important' to allow overrides */
         h1, h2, h3, h4 {{
             font-family: 'Montserrat', sans-serif !important;
+            text-align: center !important;
             color: {COR_AZUL_ESC} !important;
             font-weight: 800;
             letter-spacing: -0.04em;
-        }}
-
-        /* Specific centering for main headers, leaving popup headers alone */
-        .header-title, .header-subtitle, .summary-header, .custom-alert {{
-            text-align: center;
         }}
 
         .stMarkdown p, .stText, label, .stSelectbox label, .stTextInput label, .stNumberInput label {{
@@ -362,22 +358,13 @@ def configurar_layout():
             background-color: transparent !important;
         }}
 
-        /* FIX NUMBER INPUT HEIGHT MATCHING */
-        div[data-testid="stNumberInput"] {{
-            height: 48px !important;
-        }}
-        div[data-testid="stNumberInput"] > div {{
-            height: 48px !important;
-            border: none !important;
-        }}
-        /* Buttons inside number input */
         div[data-testid="stNumberInput"] button {{
-             height: 46px !important; /* Slightly less to fit border */
-             border-color: transparent !important;
-             background-color: transparent !important;
+             height: 48px !important;
+             border-color: #e2e8f0 !important;
+             background-color: {COR_INPUT_BG} !important;
              color: {COR_AZUL_ESC} !important;
-             margin-top: 1px !important;
         }}
+
         div[data-testid="stNumberInput"] button:hover {{ background-color: #e2e8f0 !important; }}
 
         .stButton button {{
@@ -454,7 +441,13 @@ def configurar_layout():
             position: relative;
         }}
         .header-title {{
+            font-family: 'Montserrat', sans-serif;
+            color: {COR_AZUL_ESC};
             font-size: 3rem;
+            font-weight: 900;
+            margin: 0;
+            text-transform: uppercase;
+            letter-spacing: 0.2em;
         }}
         .header-subtitle {{
             color: {COR_AZUL_ESC};
@@ -485,11 +478,13 @@ def configurar_layout():
         }}
 
         .summary-header {{
+            font-family: 'Montserrat', sans-serif;
             background: {COR_AZUL_ESC};
             color: #ffffff !important;
             padding: 20px;
             border-radius: 12px 12px 0 0;
             font-weight: 800;
+            text-align: center;
             text-transform: uppercase;
             letter-spacing: 0.15em;
             font-size: 0.9rem;
@@ -507,6 +502,7 @@ def configurar_layout():
             padding: 25px;
             border-radius: 8px;
             margin-bottom: 30px;
+            text-align: center;
             font-weight: 600;
             color: #ffffff !important;
             display: flex;
@@ -581,7 +577,7 @@ def configurar_layout():
         button[data-baseweb="tab"][aria-selected="true"] p {{ color: {COR_AZUL_ESC} !important; opacity: 1; }}
         div[data-baseweb="tab-highlight"] {{ background-color: {COR_VERMELHO} !important; height: 3px !important; }}
 
-        /* --- STEPPER VISUAL (CSS ONLY) --- */
+        /* --- STEPPER (Visual CSS - Non-interactive) --- */
         .stepper-container {{
             display: flex;
             justify-content: space-between;
@@ -694,7 +690,7 @@ def render_stepper(current_step_name):
     html += '</div>'
     st.markdown(html, unsafe_allow_html=True)
 
-# ... (Funções PDF e Email) ...
+# ... (Funções PDF e Email mantidas iguais) ...
 def gerar_resumo_pdf(d):
     if not PDF_ENABLED: return None
     try:
@@ -1073,12 +1069,22 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
                 if not cand_seguro.empty: found_units.append({'type': 'SEGURO', 'row': cand_seguro.iloc[0]})
                 if not cand_facil.empty: found_units.append({'type': 'FACILITADO', 'row': cand_facil.iloc[0]})
                 
+                # Deduplicate based on price/id to avoid showing same unit 3 times if possible, 
+                # but user asked for 3 units always. If logic returns same unit for all 3 (e.g. only 1 unit exists),
+                # we must show it 3 times or find others?
+                # User said: "Se o 90% nao der, recomende a de 100%, a mais barata e a segunda mais barata."
+                # This implies finding *distinct* units if possible.
+                
                 # Let's get top 3 cheapest units from pool as base fallback
                 fallback_pool = df_pool.sort_values('Valor de Venda', ascending=True)
                 
                 final_cards = []
                 
                 # Strategy: Fill slots 1(Ideal), 2(Seguro), 3(Facilitado)
+                # Slot 1: Logic Ideal -> Fallback Cheapest
+                # Slot 2: Logic Seguro -> Fallback 2nd Cheapest
+                # Slot 3: Logic Facilitado -> Fallback 3rd Cheapest
+                
                 # Helper to get unique unit not already in final_cards
                 def get_fallback_unit(exclude_ids):
                     for idx, row in fallback_pool.iterrows():
@@ -1090,24 +1096,28 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
                 if not cand_ideal.empty:
                     final_cards.append({'label': 'IDEAL', 'row': cand_ideal.iloc[0], 'css': 'badge-ideal'})
                 else:
+                    # Fallback 1: Cheapest (100% coverage unit not found, maybe expensive)
+                    # Logic says: "Se 100% nao der, recomende a mais barata"
                     u = get_fallback_unit([])
-                    if u is not None: final_cards.append({'label': 'IDEAL', 'row': u, 'css': 'badge-ideal'})
+                    if u is not None: final_cards.append({'label': 'IDEAL (Alternativa)', 'row': u, 'css': 'badge-ideal'})
 
                 # Card 2: SEGURO
                 exclude = [c['row']['Identificador'] for c in final_cards]
                 if not cand_seguro.empty and cand_seguro.iloc[0]['Identificador'] not in exclude:
                      final_cards.append({'label': 'SEGURO', 'row': cand_seguro.iloc[0], 'css': 'badge-seguro'})
                 else:
+                    # Fallback 2: 2nd Cheapest
                     u = get_fallback_unit(exclude)
-                    if u is not None: final_cards.append({'label': 'SEGURO', 'row': u, 'css': 'badge-seguro'})
+                    if u is not None: final_cards.append({'label': 'SEGURO (Alternativa)', 'row': u, 'css': 'badge-seguro'})
                 
                 # Card 3: FACILITADO
                 exclude = [c['row']['Identificador'] for c in final_cards]
                 if not cand_facil.empty and cand_facil.iloc[0]['Identificador'] not in exclude:
                      final_cards.append({'label': 'FACILITADO', 'row': cand_facil.iloc[0], 'css': 'badge-facilitado'})
                 else:
+                     # Fallback 3: 3rd Cheapest
                      u = get_fallback_unit(exclude)
-                     if u is not None: final_cards.append({'label': 'FACILITADO', 'row': u, 'css': 'badge-facilitado'})
+                     if u is not None: final_cards.append({'label': 'FACILITADO (Alternativa)', 'row': u, 'css': 'badge-facilitado'})
 
                 # Render
                 if not final_cards: st.warning("Nenhuma unidade encontrada.")
@@ -1499,14 +1509,6 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
                     df_final_save = pd.concat([df_existente, df_novo], ignore_index=True)
                 except: df_final_save = df_novo
                 conn_save.update(spreadsheet=URL_RANKING, worksheet=aba_destino, data=df_final_save)
-                
-                # Auto-email Logic
-                user_email = st.session_state.get('user_email', '')
-                if user_email and "@" in user_email:
-                    pdf_bytes = gerar_resumo_pdf(d)
-                    if pdf_bytes:
-                        enviar_email_smtp(user_email, d.get('nome', 'Cliente'), pdf_bytes)
-
                 st.cache_data.clear()
                 st.markdown(f'<div class="custom-alert">Salvo em \'{aba_destino}\'!</div>', unsafe_allow_html=True); time.sleep(2); st.session_state.dados_cliente = {}; st.session_state.passo_simulacao = 'input'; scroll_to_top(); st.rerun()
             except Exception as e: st.error(f"Erro ao salvar: {e}")
