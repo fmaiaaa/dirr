@@ -1,13 +1,14 @@
 # -*- coding: utf-8 -*-
 """
 =============================================================================
-SISTEMA DE SIMULAÇÃO IMOBILIÁRIA - DIRE RIO V30 (ROBUST RECS & PDF LAYOUT)
+SISTEMA DE SIMULAÇÃO IMOBILIÁRIA - DIRE RIO V30 (UPDATED LAYOUT & AUTO EMAIL)
 =============================================================================
 Instruções para Google Colab:
 1. Crie um arquivo chamado 'app.py' com este conteúdo.
 2. Instale as dependências:
    !pip install streamlit pandas numpy fpdf streamlit-gsheets pytz
-3. Rode o app:
+3. Configure os segredos (.streamlit/secrets.toml) para o envio de email.
+4. Rode o app:
    !streamlit run app.py & npx localtunnel --port 8501
 =============================================================================
 """
@@ -336,6 +337,14 @@ def configurar_layout():
             text-align: left !important;
             display: flex !important;
             align-items: center !important;
+        }}
+        
+        /* CORREÇÃO PARA ALINHAMENTO DE ALTURA NO ESTOQUE GERAL */
+        div[data-testid="stNumberInput"] div[data-baseweb="input"] {{
+            height: 48px !important;
+            min-height: 48px !important;
+            display: flex;
+            align-items: center;
         }}
 
         div[data-baseweb="select"] span {{
@@ -795,7 +804,8 @@ def tela_login(df_logins):
 
 @st.dialog("Opções de Exportação")
 def show_export_dialog(d):
-    st.markdown(f"<h3 style='text-align: left; color: {COR_AZUL_ESC}; margin: 0;'>Resumo da Simulação</h3>", unsafe_allow_html=True)
+    # Alterado para text-align: center para alinhar com o tema
+    st.markdown(f"<h3 style='text-align: center; color: {COR_AZUL_ESC}; margin: 0;'>Resumo da Simulação</h3>", unsafe_allow_html=True)
     st.markdown("Escolha como deseja exportar o documento.")
     pdf_data = gerar_resumo_pdf(d)
 
@@ -1099,25 +1109,25 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
                     # Fallback 1: Cheapest (100% coverage unit not found, maybe expensive)
                     # Logic says: "Se 100% nao der, recomende a mais barata"
                     u = get_fallback_unit([])
-                    if u is not None: final_cards.append({'label': 'IDEAL (Alternativa)', 'row': u, 'css': 'badge-ideal'})
+                    if u is not None: final_cards.append({'label': 'IDEAL', 'row': u, 'css': 'badge-ideal'})
 
                 # Card 2: SEGURO
                 exclude = [c['row']['Identificador'] for c in final_cards]
                 if not cand_seguro.empty and cand_seguro.iloc[0]['Identificador'] not in exclude:
-                     final_cards.append({'label': 'SEGURO', 'row': cand_seguro.iloc[0], 'css': 'badge-seguro'})
+                      final_cards.append({'label': 'SEGURO', 'row': cand_seguro.iloc[0], 'css': 'badge-seguro'})
                 else:
                     # Fallback 2: 2nd Cheapest
                     u = get_fallback_unit(exclude)
-                    if u is not None: final_cards.append({'label': 'SEGURO (Alternativa)', 'row': u, 'css': 'badge-seguro'})
+                    if u is not None: final_cards.append({'label': 'SEGURO', 'row': u, 'css': 'badge-seguro'})
                 
                 # Card 3: FACILITADO
                 exclude = [c['row']['Identificador'] for c in final_cards]
                 if not cand_facil.empty and cand_facil.iloc[0]['Identificador'] not in exclude:
-                     final_cards.append({'label': 'FACILITADO', 'row': cand_facil.iloc[0], 'css': 'badge-facilitado'})
+                      final_cards.append({'label': 'FACILITADO', 'row': cand_facil.iloc[0], 'css': 'badge-facilitado'})
                 else:
-                     # Fallback 3: 3rd Cheapest
-                     u = get_fallback_unit(exclude)
-                     if u is not None: final_cards.append({'label': 'FACILITADO (Alternativa)', 'row': u, 'css': 'badge-facilitado'})
+                      # Fallback 3: 3rd Cheapest
+                      u = get_fallback_unit(exclude)
+                      if u is not None: final_cards.append({'label': 'FACILITADO', 'row': u, 'css': 'badge-facilitado'})
 
                 # Render
                 if not final_cards: st.warning("Nenhuma unidade encontrada.")
@@ -1459,6 +1469,20 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
 
         st.markdown("---")
         if st.button("CONCLUIR E SALVAR SIMULAÇÃO", type="primary", use_container_width=True):
+            
+            # --- ENVIO AUTOMÁTICO DE EMAIL ---
+            broker_email = st.session_state.get('user_email')
+            if broker_email:
+                with st.spinner("Gerando PDF e enviando para seu e-mail..."):
+                    pdf_bytes_auto = gerar_resumo_pdf(d)
+                    if pdf_bytes_auto:
+                        sucesso_email, msg_email = enviar_email_smtp(broker_email, d.get('nome', 'Cliente'), pdf_bytes_auto)
+                        if sucesso_email:
+                            st.toast("PDF enviado para seu e-mail com sucesso!", icon="📧")
+                        else:
+                            st.toast(f"Falha no envio automático: {msg_email}", icon="⚠️")
+            # ---------------------------------
+            
             try:
                 conn_save = st.connection("gsheets", type=GSheetsConnection)
                 aba_destino = 'Simulações'
