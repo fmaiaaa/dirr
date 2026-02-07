@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 =============================================================================
-SISTEMA DE SIMULAÇÃO IMOBILIÁRIA - DIRE RIO V37 (HISTORY WIDGET RESET)
+SISTEMA DE SIMULAÇÃO IMOBILIÁRIA - DIRE RIO V38 (CLIENT ANALYTICS TAB)
 =============================================================================
 Instruções para Google Colab:
 1. Crie um arquivo chamado 'app.py' com este conteúdo.
@@ -1040,7 +1040,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
                                 for k in keys_to_reset:
                                     if k in st.session_state: del st.session_state[k]
 
-                                st.session_state.passo_simulacao = 'input'
+                                st.session_state.passo_simulacao = 'client_analytics'
                                 scroll_to_top()
                                 st.rerun()
                     else: st.caption("Nenhum histórico recente.")
@@ -1049,10 +1049,80 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
         except Exception as e: st.caption(f"Erro histórico: {str(e)}")
 
     # RENDER PROGRESS BAR
-    render_stepper(passo)
+    if passo != 'client_analytics':
+        render_stepper(passo)
+
+    # --- ABA ANALYTICS ---
+    if passo == 'client_analytics':
+        d = st.session_state.dados_cliente
+        st.markdown(f"### Painel de Inteligência - {d.get('nome', 'Cliente')}")
+        
+        # Action Bar
+        c1, c2 = st.columns([1, 3])
+        with c1:
+            if st.button("⬅ Voltar ao Simulador (Editar)", type="primary", use_container_width=True):
+                 st.session_state.passo_simulacao = 'input'
+                 scroll_to_top()
+                 st.rerun()
+        
+        # --- Client Profile Section ---
+        st.markdown("#### 👤 Perfil do Cliente")
+        k1, k2, k3, k4 = st.columns(4)
+        k1.metric("Renda Familiar", f"R$ {fmt_br(d.get('renda', 0))}")
+        
+        # Recalcular Potencial na hora para exibir
+        fin_pot, sub_pot, _ = motor.obter_enquadramento(d.get('renda', 0), d.get('social', False), d.get('cotista', True), 250000)
+        ps_pot = d.get('imovel_valor', 0) * 0.10 # Estimativa 10%
+        potencial_total = (2 * d.get('renda', 0)) + fin_pot + sub_pot + ps_pot
+        
+        k2.metric("Potencial de Compra (Est.)", f"R$ {fmt_br(potencial_total)}")
+        k3.metric("Ranking", d.get('ranking', '-'))
+        k4.metric("Imóvel Selecionado", f"R$ {fmt_br(d.get('imovel_valor', 0))}")
+        
+        # --- Financial Breakdown Chart ---
+        st.markdown("---")
+        st.markdown("#### 💰 Composição da Venda Salva")
+        
+        col_chart, col_details = st.columns([2, 1])
+        
+        with col_chart:
+            # Prepare data for chart
+            fin_data = {
+                'Componente': ['Financiamento', 'FGTS/Subsídio', 'Pro Soluto', 'Ato/Entrada'],
+                'Valor': [
+                    d.get('finan_usado', 0),
+                    d.get('fgts_sub_usado', 0),
+                    d.get('ps_usado', 0),
+                    d.get('entrada_total', 0)
+                ]
+            }
+            df_chart = pd.DataFrame(fin_data)
+            df_chart = df_chart[df_chart['Valor'] > 0] # Filter zeros
+            
+            st.bar_chart(df_chart.set_index('Componente'), color=COR_AZUL_ESC)
+            
+        with col_details:
+             st.markdown(f"**Empreendimento:** {d.get('empreendimento_nome')}")
+             st.markdown(f"**Unidade:** {d.get('unidade_id')}")
+             st.markdown(f"**Valor Venda:** R$ {fmt_br(d.get('imovel_valor', 0))}")
+             
+             st.markdown("---")
+             st.markdown("**Detalhes do Pagamento:**")
+             st.caption(f"Ato: R$ {fmt_br(d.get('ato_final', 0))}")
+             st.caption(f"30/60/90: R$ {fmt_br(d.get('ato_30', 0) + d.get('ato_60', 0) + d.get('ato_90', 0))}")
+             st.caption(f"PS Mensal: R$ {fmt_br(d.get('ps_mensal', 0))} ({d.get('ps_parcelas')}x)")
+
+        # --- Income Distribution (if multiple people) ---
+        rendas = d.get('rendas_lista', [])
+        if any(r > 0 for r in rendas):
+            st.markdown("---")
+            st.markdown("#### 👥 Composição de Renda")
+            r_data = {f"Part. {i+1}": r for i, r in enumerate(rendas) if r > 0}
+            if r_data:
+                st.bar_chart(pd.DataFrame(list(r_data.values()), index=list(r_data.keys()), columns=['Renda']), color=COR_VERMELHO)
 
     # --- ETAPA 1: INPUT ---
-    if passo == 'input':
+    elif passo == 'input':
         st.markdown("### Dados do Cliente")
         
         # Recuperar valores da sessão ou usar defaults
