@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 =============================================================================
-SISTEMA DE SIMULAÇÃO IMOBILIÁRIA - DIRE RIO V4 (FINAL ADJUSTED COLAB)
+SISTEMA DE SIMULAÇÃO IMOBILIÁRIA - DIRE RIO V5 (FINAL ADJUSTED UI)
 =============================================================================
 Instruções para Google Colab:
 1. Crie um arquivo chamado 'app.py' com este conteúdo.
@@ -115,9 +115,7 @@ def calcular_cor_gradiente(valor):
 @st.cache_data(ttl=300)
 def carregar_dados_sistema():
     try:
-        # Verifica segredos (necessário para gsheets no st.connection)
         if "connections" not in st.secrets:
-            # Em ambiente local sem secrets.toml configurado, retornará vazio
             return pd.DataFrame(), pd.DataFrame(), pd.DataFrame(), pd.DataFrame(), pd.DataFrame()
 
         conn = st.connection("gsheets", type=GSheetsConnection)
@@ -141,8 +139,6 @@ def carregar_dados_sistema():
         try:
             df_logins = conn.read(spreadsheet=URL_RANKING, worksheet="Logins")
             df_logins.columns = [str(c).strip() for c in df_logins.columns]
-            
-            # Mapeamento flexível de colunas
             mapa = {}
             for col in df_logins.columns:
                 c_low = col.lower()
@@ -151,49 +147,30 @@ def carregar_dados_sistema():
                 elif "email" in c_low: mapa[col] = 'Email'
                 elif "nome" in c_low: mapa[col] = 'Nome'
                 elif "cargo" in c_low: mapa[col] = 'Cargo'
-            
             df_logins = df_logins.rename(columns=mapa)
-            # Garante colunas mínimas
             for c in ['Email', 'Senha', 'Imobiliaria', 'Cargo', 'Nome']:
                 if c not in df_logins.columns: df_logins[c] = ""
-            
             df_logins['Email'] = df_logins['Email'].astype(str).str.strip().str.lower()
             df_logins['Senha'] = df_logins['Senha'].astype(str).str.strip()
-            # Remove duplicatas de email, mantendo o último
             df_logins = df_logins.drop_duplicates(subset=['Email'], keep='last')
         except: 
             df_logins = pd.DataFrame(columns=['Email', 'Senha', 'Imobiliaria', 'Cargo', 'Nome'])
 
-        # --- 2. Cadastros (Histórico) ---
+        # --- 2. Cadastros ---
         try:
             df_cadastros = conn.read(spreadsheet=URL_RANKING, worksheet="Cadastros")
-            # Remove espaços extras dos nomes das colunas para evitar erros de chave
             df_cadastros.columns = [str(c).strip() for c in df_cadastros.columns]
         except: 
             df_cadastros = pd.DataFrame()
 
         # --- 3. Políticas ---
         try:
-            df_politicas = conn.read(spreadsheet=URL_RANKING) # Tenta aba padrão se não especificada
-            # Se a aba padrão não for políticas, tenta achar pelo nome das colunas
-            if 'CLASSIFICAÇÃO' not in [str(c).strip().upper() for c in df_politicas.columns]:
-                # Tenta ler aba 'Ranking' se existir ou a primeira aba
-                 pass 
-
+            df_politicas = conn.read(spreadsheet=URL_RANKING)
             df_politicas.columns = [str(c).strip() for c in df_politicas.columns]
-            
-            # Normalização de nomes de colunas
             col_class = next((c for c in df_politicas.columns if 'CLASSIFICA' in c.upper() or 'RANKING' in c.upper()), 'CLASSIFICAÇÃO')
-            df_politicas = df_politicas.rename(columns={
-                col_class: 'CLASSIFICAÇÃO', 
-                'FAIXA RENDA': 'FAIXA_RENDA', 
-                'FX RENDA 1': 'FX_RENDA_1', 
-                'FX RENDA 2': 'FX_RENDA_2'
-            })
-            
+            df_politicas = df_politicas.rename(columns={col_class: 'CLASSIFICAÇÃO', 'FAIXA RENDA': 'FAIXA_RENDA', 'FX RENDA 1': 'FX_RENDA_1', 'FX RENDA 2': 'FX_RENDA_2'})
             for col in ['PROSOLUTO', 'FX_RENDA_1', 'FX_RENDA_2']:
-                if col in df_politicas.columns: 
-                    df_politicas[col] = df_politicas[col].apply(limpar_porcentagem)
+                if col in df_politicas.columns: df_politicas[col] = df_politicas[col].apply(limpar_porcentagem)
         except: 
             df_politicas = pd.DataFrame()
 
@@ -201,9 +178,7 @@ def carregar_dados_sistema():
         try:
             df_finan = conn.read(spreadsheet=URL_FINAN)
             df_finan.columns = [str(c).strip() for c in df_finan.columns]
-            # Converte tudo para float
-            for col in df_finan.columns: 
-                df_finan[col] = df_finan[col].apply(limpar_moeda)
+            for col in df_finan.columns: df_finan[col] = df_finan[col].apply(limpar_moeda)
         except: 
             df_finan = pd.DataFrame()
 
@@ -211,52 +186,24 @@ def carregar_dados_sistema():
         try:
             df_raw = conn.read(spreadsheet=URL_ESTOQUE)
             df_raw.columns = [str(c).strip() for c in df_raw.columns]
-            
-            # Filtro de empreendimentos permitidos (Opcional - Aba Página2)
             try:
                 df_filtro = conn.read(spreadsheet=URL_ESTOQUE, worksheet="Página2")
                 lista_permitidos = df_filtro['Nome do empreendimento'].dropna().astype(str).str.strip().unique() if 'Nome do empreendimento' in df_filtro.columns else None
-            except: 
-                lista_permitidos = None
+            except: lista_permitidos = None
 
-            # Renomeia colunas essenciais
-            mapa_estoque = {
-                'Nome do Empreendimento': 'Empreendimento', 
-                'VALOR DE VENDA': 'Valor de Venda', 
-                'Status da unidade': 'Status',
-                'Identificador': 'Identificador',
-                'Bairro': 'Bairro'
-            }
-            # Adiciona colunas se faltarem no mapa
+            mapa_estoque = {'Nome do Empreendimento': 'Empreendimento', 'VALOR DE VENDA': 'Valor de Venda', 'Status da unidade': 'Status', 'Identificador': 'Identificador', 'Bairro': 'Bairro'}
             col_aval = 'VALOR DE AVALIACAO BANCARIA' if 'VALOR DE AVALIACAO BANCARIA' in df_raw.columns else 'Valor de Avaliação Bancária'
-            if col_aval in df_raw.columns:
-                mapa_estoque[col_aval] = 'Valor de Avaliação Bancária'
+            if col_aval in df_raw.columns: mapa_estoque[col_aval] = 'Valor de Avaliação Bancária'
             
             df_estoque = df_raw.rename(columns=mapa_estoque)
+            df_estoque['Valor de Venda'] = df_estoque['Valor de Venda'].apply(limpar_moeda) if 'Valor de Venda' in df_estoque.columns else 0.0
+            df_estoque['Valor de Avaliação Bancária'] = df_estoque['Valor de Avaliação Bancária'].apply(limpar_moeda) if 'Valor de Avaliação Bancária' in df_estoque.columns else df_estoque['Valor de Venda']
             
-            # Limpeza de valores monetários
-            if 'Valor de Venda' in df_estoque.columns:
-                df_estoque['Valor de Venda'] = df_estoque['Valor de Venda'].apply(limpar_moeda)
-            else:
-                df_estoque['Valor de Venda'] = 0.0
-
-            if 'Valor de Avaliação Bancária' not in df_estoque.columns:
-                df_estoque['Valor de Avaliação Bancária'] = df_estoque['Valor de Venda']
-            else:
-                df_estoque['Valor de Avaliação Bancária'] = df_estoque['Valor de Avaliação Bancária'].apply(limpar_moeda)
-            
-            if lista_permitidos is not None:
-                df_estoque = df_estoque[df_estoque['Empreendimento'].astype(str).str.strip().isin(lista_permitidos)]
-            
-            # Filtros básicos de integridade
+            if lista_permitidos is not None: df_estoque = df_estoque[df_estoque['Empreendimento'].astype(str).str.strip().isin(lista_permitidos)]
             df_estoque = df_estoque[(df_estoque['Valor de Venda'] > 0) & (df_estoque['Empreendimento'].notnull())].copy()
-            
-            if 'Identificador' not in df_estoque.columns: 
-                df_estoque['Identificador'] = df_estoque.index.astype(str)
-            if 'Bairro' not in df_estoque.columns: 
-                df_estoque['Bairro'] = 'Rio de Janeiro'
+            if 'Identificador' not in df_estoque.columns: df_estoque['Identificador'] = df_estoque.index.astype(str)
+            if 'Bairro' not in df_estoque.columns: df_estoque['Bairro'] = 'Rio de Janeiro'
 
-            # Lógica de ordenação (Bloco/Andar/Apto)
             def extrair_dados_unid(id_unid, tipo):
                 try:
                     s = str(id_unid)
@@ -271,8 +218,7 @@ def carregar_dados_sistema():
             df_estoque['Andar'] = df_estoque['Identificador'].apply(lambda x: extrair_dados_unid(x, 'andar'))
             df_estoque['Bloco_Sort'] = df_estoque['Identificador'].apply(lambda x: extrair_dados_unid(x, 'bloco'))
             df_estoque['Apto_Sort'] = df_estoque['Identificador'].apply(lambda x: extrair_dados_unid(x, 'apto'))
-        except: 
-            df_estoque = pd.DataFrame()
+        except: df_estoque = pd.DataFrame()
 
         return df_finan, df_estoque, df_politicas, df_logins, df_cadastros
     except Exception as e:
@@ -291,36 +237,22 @@ class MotorRecomendacao:
 
     def obter_enquadramento(self, renda, social, cotista, valor_avaliacao=250000):
         if self.df_finan.empty: return 0.0, 0.0, "N/A"
-        
-        # Definição de Faixa (Ajustada)
         if valor_avaliacao <= 190000: faixa = "F1"
         elif valor_avaliacao <= 275000: faixa = "F2"
         elif valor_avaliacao <= 350000: faixa = "F3"
         else: faixa = "F4"
         
-        # Encontra a renda mais próxima
         renda_col = pd.to_numeric(self.df_finan['Renda'], errors='coerce').fillna(0)
         idx = (renda_col - float(renda)).abs().idxmin()
         row = self.df_finan.iloc[idx]
         
-        s = 'Sim' if social else 'Nao'
-        c = 'Sim' if cotista else 'Nao'
+        s, c = ('Sim' if social else 'Nao'), ('Sim' if cotista else 'Nao')
+        vf = row.get(f"Finan_Social_{s}_Cotista_{c}_{faixa}", 0.0)
+        vs = row.get(f"Subsidio_Social_{s}_Cotista_{c}_{faixa}", 0.0)
         
-        # Monta nome das colunas
-        col_fin = f"Finan_Social_{s}_Cotista_{c}_{faixa}"
-        col_sub = f"Subsidio_Social_{s}_Cotista_{c}_{faixa}"
-        
-        vf = row.get(col_fin, 0.0)
-        vs = row.get(col_sub, 0.0)
-        
-        # Fallback F1 -> F2 se não existir F1 na tabela (comum em algumas bases)
         if vf == 0 and faixa == "F1":
-            col_fin_f2 = f"Finan_Social_{s}_Cotista_{c}_F2"
-            col_sub_f2 = f"Subsidio_Social_{s}_Cotista_{c}_F2"
-            if col_fin_f2 in row:
-                vf = row.get(col_fin_f2, 0.0)
-                vs = row.get(col_sub_f2, 0.0)
-
+            vf = row.get(f"Finan_Social_{s}_Cotista_{c}_F2", 0.0)
+            vs = row.get(f"Subsidio_Social_{s}_Cotista_{c}_F2", 0.0)
         return float(vf), float(vs), faixa
 
     def calcular_poder_compra(self, renda, finan, fgts_sub, perc_ps, valor_unidade):
@@ -370,34 +302,52 @@ def configurar_layout():
             box-shadow: 0 0 0 1px {COR_VERMELHO} !important;
         }}
 
-        .stTextInput input, .stNumberInput input, .stDateInput input {{
-            padding: 14px 18px !important;
+        /* AJUSTE DE ALTURA UNIFICADO PARA INPUTS */
+        .stTextInput input, .stNumberInput input, .stDateInput input, div[data-baseweb="select"] > div {{
+            height: 48px !important;
+            min-height: 48px !important;
+            padding: 10px 15px !important;
             color: {COR_AZUL_ESC} !important;
-        }}
-        
-        div[data-testid="stDateInput"] {{ border-radius: 8px !important; }}
-        div[data-testid="stDateInput"] > div {{ border-radius: 8px !important; border: 1px solid #e2e8f0 !important; background-color: #f0f2f6 !important; }}
-        div[data-testid="stDateInput"] div[data-baseweb="input"] {{ border: none !important; background-color: transparent !important; }}
-        
-        div[data-testid="stNumberInput"] button:hover {{
-            background-color: {COR_VERMELHO} !important;
-            color: #ffffff !important;
-            border-color: {COR_VERMELHO} !important;
+            font-size: 1rem !important;
         }}
 
-        div[data-testid="stToggle"] div[aria-checked="true"] {{ background-color: {COR_VERMELHO} !important; }}
-        
+        /* Ajuste específico para o wrapper do DateInput */
+        div[data-testid="stDateInput"] > div {{
+            height: 48px !important;
+            min-height: 48px !important;
+            border-radius: 8px !important;
+            border: 1px solid #e2e8f0 !important;
+            background-color: #ffffff !important;
+            display: flex;
+            align-items: center;
+        }}
+
+        div[data-testid="stNumberInput"] button {{
+             height: 48px !important;
+        }}
+
+        /* BOTÕES GERAIS E DE AÇÃO */
         .stButton button {{ 
             font-family: 'Inter', sans-serif;
             border-radius: 8px !important; 
-            padding: 20px 40px !important; 
+            padding: 0 20px !important; 
             width: 100% !important;
+            height: 55px !important; /* Altura padrão para botões de ação */
             font-weight: 700 !important; 
             text-transform: uppercase;
             letter-spacing: 0.1em;
-            font-size: 0.8rem !important;
+            font-size: 0.9rem !important;
             transition: all 0.2s ease !important;
         }}
+        
+        /* BOTÕES DE DISTRIBUIÇÃO (1x, 2x...) - MESMA ALTURA DOS INPUTS */
+        div[data-testid="column"] .stButton button {{
+             min-height: 48px !important;
+             height: 48px !important;
+             padding: 0 !important;
+             line-height: 48px !important;
+        }}
+
         .stButton button[kind="primary"] {{ 
             background: {COR_VERMELHO} !important; 
             color: #ffffff !important; 
@@ -417,19 +367,12 @@ def configurar_layout():
             color: {COR_VERMELHO} !important; 
         }}
         
-        /* Ajuste específico para botões da sidebar (Histórico) */
         [data-testid="stSidebar"] .stButton button {{
             padding: 8px 12px !important;
             font-size: 0.75rem !important;
             margin-bottom: 2px !important;
             height: auto !important;
-            min-height: 0px !important;
-        }}
-
-        /* Ajuste para botões de distribuição (Atos) */
-        .btn-distrib button {{
-            padding: 15px 5px !important; /* Menor padding lateral */
-            font-size: 0.9rem !important;
+            min-height: 30px !important;
         }}
 
         .header-container {{ 
@@ -657,14 +600,14 @@ def show_export_dialog(d):
     pdf_data = gerar_resumo_pdf(d)
     
     if pdf_data:
-        st.download_button(label="📄 Baixar PDF", data=pdf_data, file_name=f"Resumo_Direcional_{d.get('nome', 'Cliente')}.pdf", mime="application/pdf", use_container_width=True)
+        st.download_button(label="Baixar PDF", data=pdf_data, file_name=f"Resumo_Direcional_{d.get('nome', 'Cliente')}.pdf", mime="application/pdf", use_container_width=True)
     else:
         st.warning("Geração de PDF indisponível.")
     
     st.markdown("---")
     st.markdown("**Enviar por E-mail**")
     email = st.text_input("Endereço de e-mail", placeholder="cliente@exemplo.com")
-    if st.button("✉️ Enviar Email", use_container_width=True):
+    if st.button("Enviar Email", use_container_width=True):
         if email and "@" in email:
             sucesso, msg = enviar_email_smtp(email, d.get('nome', 'Cliente'), pdf_data)
             if sucesso: st.success(msg)
@@ -791,9 +734,8 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
                 val_r = st.number_input(f"Renda Part. {i+1}", min_value=0.0, value=def_val, step=100.0, key=f"renda_part_{i}_v3")
                 renda_total_calc += val_r; lista_rendas_input.append(val_r)
         
-        rank_opts = ["DIAMANTE"]
-        if not df_politicas.empty and 'CLASSIFICAÇÃO' in df_politicas.columns:
-            rank_opts = [x for x in df_politicas['CLASSIFICAÇÃO'].dropna().unique().tolist() if x.upper() != "EMCASH"] or ["DIAMANTE"]
+        # Correção da Lista de Rankings
+        rank_opts = ["DIAMANTE", "OURO", "PRATA", "BRONZE", "AÇO"]
             
         ranking = st.selectbox("Ranking do Cliente", options=rank_opts, index=0, key="in_rank_v28")
         politica_ps = st.selectbox("Política de Pro Soluto", ["Direcional", "Emcash"], key="in_pol_v28")
@@ -827,14 +769,14 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
             st.session_state.passo_simulacao = destino
             st.rerun()
 
-        # Botões de Avanço (Lado a Lado)
-        col_btn1, col_btn2 = st.columns(2)
-        with col_btn1:
-            if st.button("RECOMENDAR IMÓVEIS", type="primary", use_container_width=True, key="btn_avancar_guide"):
-                processar_avanco('guide')
-        with col_btn2:
-            if st.button("IR PARA SELEÇÃO (DIRETO)", use_container_width=True, key="btn_avancar_direto"):
-                processar_avanco('selection')
+        # Botões de Avanço (Empilhados)
+        if st.button("RECOMENDAR IMÓVEIS", type="primary", use_container_width=True, key="btn_avancar_guide"):
+            processar_avanco('guide')
+        
+        st.write("") # Espaçamento
+        
+        if st.button("IR PARA SELEÇÃO (DIRETO)", use_container_width=True, key="btn_avancar_direto"):
+            processar_avanco('selection')
 
     # --- ETAPA 2: RECOMENDAÇÃO ---
     elif passo == 'guide':
@@ -850,37 +792,50 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
                 v_aval = row['Valor de Avaliação Bancária']
                 fin, sub, fx_n = motor.obter_enquadramento(d.get('renda', 0), d.get('social', False), d.get('cotista', True), v_aval)
                 poder, ps_u = motor.calcular_poder_compra(d.get('renda', 0), fin, sub, d.get('perc_ps', 0), v_venda)
+                # Viabilidade: Se o poder de compra cobre 100% do valor
                 cobertura = (poder / v_venda) * 100 if v_venda > 0 else 0
-                return pd.Series([poder, cobertura, cobertura >= 100, fin, sub])
+                is_viavel = cobertura >= 100
+                return pd.Series([poder, cobertura, is_viavel, fin, sub])
 
             df_disp_total[['Poder_Compra', 'Cobertura', 'Viavel', 'Finan_Unid', 'Sub_Unid']] = df_disp_total.apply(calcular_viabilidade_unidade, axis=1)
-            df_disp_total['Status Viabilidade'] = df_disp_total['Viavel'].apply(lambda x: "Viavel" if x else "Inviavel")
+            # Remove status textual conforme pedido, apenas calcula
             df_viaveis = df_disp_total[df_disp_total['Viavel']].copy()
-            df_panorama = df_viaveis[df_viaveis['Viavel']]
         
-        # PANORAMA DE PRODUTOS
-        st.markdown("#### Panorama de Produtos Viáveis")
-        if df_panorama.empty:
-            st.markdown('<div class="custom-alert">Nenhum empreendimento 100% viável encontrado. Veja abaixo opções que podem se encaixar.</div>', unsafe_allow_html=True)
-        else:
-            emp_counts = df_panorama.groupby('Empreendimento').size().to_dict()
-            items = list(emp_counts.items())
-            cols_per_row = 3
-            for i in range(0, len(items), cols_per_row):
-                row_items = items[i:i+cols_per_row]
-                row_cols = st.columns(len(row_items))
-                for idx, (emp, qtd) in enumerate(row_items):
-                    with row_cols[idx]:
-                        st.markdown(f"""
+        # ABAS DE SELEÇÃO ATUALIZADAS
+        tab_viaveis, tab_sugestoes, tab_estoque = st.tabs(["EMPREENDIMENTOS VIÁVEIS", "RECOMENDAÇÃO DE UNIDADES", "ESTOQUE GERAL"])
+
+        with tab_viaveis:
+             st.markdown("<br>", unsafe_allow_html=True)
+             if df_viaveis.empty:
+                 if not df_disp_total.empty:
+                    # Fallback: Empreendimento da unidade mais barata do estoque total
+                    cheapest = df_disp_total.sort_values('Valor de Venda', ascending=True).iloc[0]
+                    emp_fallback = cheapest['Empreendimento']
+                    st.warning(f"Não foram encontradas unidades 100% cobertas com as condições atuais. Recomendamos o empreendimento mais acessível:")
+                    st.markdown(f"""
                             <div class="card" style="min-height: 80px; padding: 15px; border-top: 3px solid {COR_VERMELHO};">
-                                <p style="margin:0; font-weight:700; color:{COR_AZUL_ESC};">{emp}</p>
-                                <p style="margin:5px 0 0 0; font-size:0.85rem; color:{COR_TEXTO_MUTED};">{qtd} unidades viaveis</p>
+                                <p style="margin:0; font-weight:700; color:{COR_AZUL_ESC};">{emp_fallback}</p>
+                                <p style="margin:5px 0 0 0; font-size:0.85rem; color:{COR_TEXTO_MUTED};">Melhor preço disponível: R$ {fmt_br(cheapest['Valor de Venda'])}</p>
                             </div>
                         """, unsafe_allow_html=True)
-
-        st.write("")
-        # ABAS DE SELEÇÃO CENTRALIZADAS
-        tab_sugestoes, tab_estoque = st.tabs(["SUGESTÕES DE UNIDADES", "ESTOQUE GERAL"])
+                 else:
+                    st.error("Sem estoque disponível.")
+             else:
+                # Mostra empreendimentos com unidades viáveis
+                emp_counts = df_viaveis.groupby('Empreendimento').size().to_dict()
+                items = list(emp_counts.items())
+                cols_per_row = 3
+                for i in range(0, len(items), cols_per_row):
+                    row_items = items[i:i+cols_per_row]
+                    row_cols = st.columns(len(row_items))
+                    for idx, (emp, qtd) in enumerate(row_items):
+                        with row_cols[idx]:
+                            st.markdown(f"""
+                                <div class="card" style="min-height: 80px; padding: 15px; border-top: 3px solid #22c55e;">
+                                    <p style="margin:0; font-weight:700; color:{COR_AZUL_ESC};">{emp}</p>
+                                    <p style="margin:5px 0 0 0; font-size:0.85rem; color:{COR_TEXTO_MUTED};">{qtd} unidades viáveis</p>
+                                </div>
+                            """, unsafe_allow_html=True)
 
         with tab_sugestoes:
             st.markdown("<br>", unsafe_allow_html=True)
@@ -895,6 +850,10 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
                 cand_seguro = pool_sorted[pool_sorted['Cobertura'] >= 90].head(1)
                 cand_facil = pool_sorted[pool_sorted['Cobertura'] >= 75].head(1)
                 
+                # Se não houver nada acima de 75%, mostra o mais barato como recomendação
+                if cand_facil.empty and cand_seguro.empty and cand_ideal.empty:
+                    cand_facil = pool_sorted.tail(1) # Pega o mais barato
+
                 def extract_info(df_cand, label, css_class):
                     if df_cand.empty: return None
                     row = df_cand.iloc[0]
@@ -919,7 +878,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
                             if "SEGURO" in last_card['labels']: last_card['css'] = "badge-multi"
                     else: cards_finais.append(info_facil)
                 
-                if not cards_finais: st.warning("Nenhuma unidade atende aos critérios mínimos (75% cobertura).")
+                if not cards_finais: st.warning("Nenhuma recomendação disponível.")
                 else:
                     cols = st.columns(len(cards_finais))
                     for idx, card in enumerate(cards_finais):
@@ -944,14 +903,16 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
                 f_cols = st.columns([1.2, 1.5, 1, 1, 1])
                 with f_cols[0]: f_bairro = st.multiselect("Bairro:", options=sorted(df_disp_total['Bairro'].unique()), key="f_bairro_tab_v28")
                 with f_cols[1]: f_emp = st.multiselect("Empreendimento:", options=sorted(df_disp_total['Empreendimento'].unique()), key="f_emp_tab_v28")
-                with f_cols[2]: f_status_v = st.multiselect("Viabilidade:", options=["Viavel", "Inviavel"], key="f_status_tab_v28")
+                # Filtro de Cobertura %
+                with f_cols[2]: f_cob_min = st.slider("% Cobertura Mínima:", 0, 100, 0, key="f_cob_min_tab_v28")
                 with f_cols[3]: f_ordem = st.selectbox("Ordem:", ["Menor Preço", "Maior Preço"], key="f_ordem_tab_v28")
                 with f_cols[4]: f_pmax = st.number_input("Preço Máx:", value=float(df_disp_total['Valor de Venda'].max()), key="f_pmax_tab_v28")
                 
                 df_tab = df_disp_total.copy()
                 if f_bairro: df_tab = df_tab[df_tab['Bairro'].isin(f_bairro)]
                 if f_emp: df_tab = df_tab[df_tab['Empreendimento'].isin(f_emp)]
-                if f_status_v: df_tab = df_tab[df_tab['Status Viabilidade'].isin(f_status_v)]
+                # Filtra pela cobertura minima
+                df_tab = df_tab[df_tab['Cobertura'] >= f_cob_min]
                 df_tab = df_tab[df_tab['Valor de Venda'] <= f_pmax]
                 
                 if f_ordem == "Menor Preço": 
@@ -965,14 +926,14 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
                 df_tab_view['Cobertura'] = df_tab_view['Cobertura'].apply(lambda x: f"{x:.1f}%")
 
                 st.dataframe(
-                    df_tab_view[['Identificador', 'Bairro', 'Empreendimento', 'Valor de Venda', 'Poder_Compra', 'Cobertura', 'Status Viabilidade']], 
+                    df_tab_view[['Identificador', 'Bairro', 'Empreendimento', 'Valor de Venda', 'Poder_Compra', 'Cobertura']], 
                     use_container_width=True, 
                     hide_index=True,
                     column_config={
                         "Identificador": st.column_config.TextColumn("Unidade"),
                         "Valor de Venda": st.column_config.TextColumn("Preço (R$)"),
                         "Poder_Compra": st.column_config.TextColumn("Poder Real (R$)"),
-                        "Cobertura": st.column_config.TextColumn("Cob. (%)"),
+                        "Cobertura": st.column_config.TextColumn("% Cobertura"),
                     }
                 )
 
@@ -1051,7 +1012,10 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
         d = st.session_state.dados_cliente
         st.markdown(f"### Fechamento Financeiro")
         u_valor = d.get('imovel_valor', 0)
-        st.markdown(f'<div class="custom-alert">Unidade: {d.get("unidade_id", "N/A")} (R$ {fmt_br(u_valor)})</div>', unsafe_allow_html=True)
+        u_nome = d.get('empreendimento_nome', 'N/A')
+        u_unid = d.get('unidade_id', 'N/A')
+        
+        st.markdown(f'<div class="custom-alert">{u_nome} - {u_unid} (R$ {fmt_br(u_valor)})</div>', unsafe_allow_html=True)
         
         col_fin, col_fgts = st.columns(2)
         with col_fin: 
@@ -1097,7 +1061,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
         st.markdown('<label style="font-size: 0.8rem; font-weight: 600;">Distribuir Atos Automaticamente:</label>', unsafe_allow_html=True)
         col_dist1, col_dist2, col_dist3, col_dist4 = st.columns(4)
         
-        # Uso de classe CSS específica para altura dos botões
+        # O CSS global já garante que os botões dentro de colunas tenham altura de 48px
         with col_dist1: 
              if st.button("1x", use_container_width=True, key="btn_d1"): distribuir(1)
         with col_dist2: 
