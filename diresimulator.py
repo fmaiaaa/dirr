@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 =============================================================================
-SISTEMA DE SIMULAÇÃO IMOBILIÁRIA - DIRE RIO V27 (FIXED STEPPER & SYNTAX)
+SISTEMA DE SIMULAÇÃO IMOBILIÁRIA - DIRE RIO V28 (FINAL PDF & STEPPER)
 =============================================================================
 Instruções para Google Colab:
 1. Crie um arquivo chamado 'app.py' com este conteúdo.
@@ -114,6 +114,7 @@ def safe_float_convert(val):
 def calcular_cor_gradiente(valor):
     valor = max(0, min(100, valor))
     fator = valor / 100
+    # Vermelho (227, 6, 19) -> Azul (0, 44, 93)
     r = int(227 + (0 - 227) * fator)
     g = int(6 + (44 - 6) * fator)
     b = int(19 + (93 - 19) * fator)
@@ -123,11 +124,15 @@ def calcular_comparativo_sac_price(valor, meses, taxa_anual):
     if valor <= 0 or meses <= 0:
         return {"SAC": {"primeira": 0, "ultima": 0, "juros": 0}, "PRICE": {"parcela": 0, "juros": 0}}
     i = (1 + taxa_anual/100)**(1/12) - 1
+    
+    # PRICE
     try:
         pmt_price = valor * (i * (1 + i)**meses) / ((1 + i)**meses - 1)
         total_pago_price = pmt_price * meses
         juros_price = total_pago_price - valor
     except: pmt_price = 0; juros_price = 0
+
+    # SAC
     try:
         amort = valor / meses
         pmt_sac_ini = amort + (valor * i)
@@ -135,6 +140,7 @@ def calcular_comparativo_sac_price(valor, meses, taxa_anual):
         total_pago_sac = (pmt_sac_ini + pmt_sac_fim) * meses / 2
         juros_sac = total_pago_sac - valor
     except: pmt_sac_ini = 0; pmt_sac_fim = 0; juros_sac = 0
+    
     return {
         "SAC": {"primeira": pmt_sac_ini, "ultima": pmt_sac_fim, "juros": juros_sac},
         "PRICE": {"parcela": pmt_price, "juros": juros_price}
@@ -563,7 +569,7 @@ def configurar_layout():
         button[data-baseweb="tab"][aria-selected="true"] p {{ color: {COR_AZUL_ESC} !important; opacity: 1; }}
         div[data-baseweb="tab-highlight"] {{ background-color: {COR_VERMELHO} !important; height: 3px !important; }}
 
-        /* --- STEPPER (Barra de Progresso) --- */
+        /* --- STEPPER (Visual CSS) --- */
         .stepper-container {{
             display: flex;
             justify-content: space-between;
@@ -648,11 +654,11 @@ def configurar_layout():
 
 def render_stepper(current_step_name):
     steps = [
-        {"id": "input", "label": "Dados do Cliente"},
-        {"id": "guide", "label": "Recomendação de Imóveis"},
-        {"id": "selection", "label": "Escolha de Unidade"},
-        {"id": "payment_flow", "label": "Fechamento Financeiro"},
-        {"id": "summary", "label": "Resumo da Simulação"}
+        {"id": "input", "label": "Dados"},
+        {"id": "guide", "label": "Análise"},
+        {"id": "selection", "label": "Imóvel"},
+        {"id": "payment_flow", "label": "Pagamento"},
+        {"id": "summary", "label": "Resumo"}
     ]
     current_idx = 0
     for i, s in enumerate(steps):
@@ -682,32 +688,34 @@ def gerar_resumo_pdf(d):
     try:
         pdf = FPDF()
         pdf.add_page()
-        pdf.set_auto_page_break(auto=True, margin=15)
+        pdf.set_auto_page_break(auto=True, margin=10)
         AZUL_RGB, VERMELHO_RGB, BRANCO_RGB, FUNDO_SECAO = (0, 44, 93), (227, 6, 19), (255, 255, 255), (248, 250, 252)
         pdf.set_fill_color(*AZUL_RGB); pdf.rect(0, 0, 210, 3, 'F')
         if os.path.exists("favicon.png"):
             try: pdf.image("favicon.png", 10, 8, 10)
             except: pass
-        pdf.ln(15); pdf.set_text_color(*AZUL_RGB); pdf.set_font("Helvetica", 'B', 22); pdf.cell(0, 12, "RELATORIO DE VIABILIDADE", ln=True, align='C')
-        pdf.set_font("Helvetica", '', 9); pdf.cell(0, 6, "SIMULADOR IMOBILIARIO DV - DOCUMENTO EXECUTIVO", ln=True, align='C'); pdf.ln(15)
-        pdf.set_fill_color(*FUNDO_SECAO); pdf.rect(10, pdf.get_y(), 190, 24, 'F'); pdf.set_xy(15, pdf.get_y() + 6)
-        pdf.set_text_color(*AZUL_RGB); pdf.set_font("Helvetica", 'B', 13); pdf.cell(0, 6, f"CLIENTE: {d.get('nome', 'Nao informado').upper()}", ln=True)
-        pdf.set_x(15); pdf.set_font("Helvetica", '', 10); pdf.cell(0, 6, f"Renda Familiar: R$ {fmt_br(d.get('renda', 0))}", ln=True); pdf.ln(15)
+        pdf.ln(12); pdf.set_text_color(*AZUL_RGB); pdf.set_font("Helvetica", 'B', 20); pdf.cell(0, 10, "RELATORIO DE VIABILIDADE", ln=True, align='C')
+        pdf.set_font("Helvetica", '', 8); pdf.cell(0, 6, "SIMULADOR IMOBILIARIO DV - DOCUMENTO EXECUTIVO", ln=True, align='C'); pdf.ln(10)
+        
+        # Bloco Cliente mais compacto
+        pdf.set_fill_color(*FUNDO_SECAO); pdf.rect(10, pdf.get_y(), 190, 18, 'F'); pdf.set_xy(15, pdf.get_y() + 4)
+        pdf.set_text_color(*AZUL_RGB); pdf.set_font("Helvetica", 'B', 11); pdf.cell(0, 5, f"CLIENTE: {d.get('nome', 'Nao informado').upper()}", ln=True)
+        pdf.set_x(15); pdf.set_font("Helvetica", '', 9); pdf.cell(0, 5, f"Renda Familiar: R$ {fmt_br(d.get('renda', 0))}", ln=True); pdf.ln(12)
 
         def adicionar_secao_pdf(titulo):
-            pdf.set_fill_color(*AZUL_RGB); pdf.set_text_color(*BRANCO_RGB); pdf.set_font("Helvetica", 'B', 10); pdf.cell(0, 10, f"   {titulo}", ln=True, fill=True); pdf.ln(4)
+            pdf.set_fill_color(*AZUL_RGB); pdf.set_text_color(*BRANCO_RGB); pdf.set_font("Helvetica", 'B', 9); pdf.cell(0, 8, f"   {titulo}", ln=True, fill=True); pdf.ln(2)
 
         def adicionar_linha_detalhe(label, valor, destaque=False):
-            pdf.set_x(15); pdf.set_text_color(*AZUL_RGB); pdf.set_font("Helvetica", '', 10); pdf.cell(110, 9, label, border=0)
-            if destaque: pdf.set_text_color(*VERMELHO_RGB); pdf.set_font("Helvetica", 'B', 10)
-            else: pdf.set_font("Helvetica", 'B', 10)
-            pdf.cell(0, 9, valor, border=0, ln=True, align='R'); pdf.set_draw_color(241, 245, 249); pdf.line(15, pdf.get_y(), 195, pdf.get_y())
+            pdf.set_x(15); pdf.set_text_color(*AZUL_RGB); pdf.set_font("Helvetica", '', 9); pdf.cell(110, 7, label, border=0)
+            if destaque: pdf.set_text_color(*VERMELHO_RGB); pdf.set_font("Helvetica", 'B', 9)
+            else: pdf.set_font("Helvetica", 'B', 9)
+            pdf.cell(0, 7, valor, border=0, ln=True, align='R'); pdf.set_draw_color(241, 245, 249); pdf.line(15, pdf.get_y(), 195, pdf.get_y())
 
         adicionar_secao_pdf("DADOS DO IMOVEL")
         adicionar_linha_detalhe("Empreendimento", str(d.get('empreendimento_nome')))
         adicionar_linha_detalhe("Unidade Selecionada", str(d.get('unidade_id')))
         adicionar_linha_detalhe("Valor de Venda do Imovel", f"R$ {fmt_br(d.get('imovel_valor', 0))}", destaque=True)
-        pdf.ln(8)
+        pdf.ln(6)
         adicionar_secao_pdf("ENGENHARIA FINANCEIRA")
         adicionar_linha_detalhe("Financiamento Bancario Estimado", f"R$ {fmt_br(d.get('finan_usado', 0))}")
         prazo_val = d.get('prazo_financiamento', 360)
@@ -716,15 +724,16 @@ def gerar_resumo_pdf(d):
         adicionar_linha_detalhe("Subsidio + FGTS Utilizado", f"R$ {fmt_br(d.get('fgts_sub_usado', 0))}")
         adicionar_linha_detalhe("Pro Soluto Direcional", f"R$ {fmt_br(d.get('ps_usado', 0))}")
         adicionar_linha_detalhe("Mensalidade Pro Soluto", f"{d.get('ps_parcelas')}x de R$ {fmt_br(d.get('ps_mensal', 0))}")
-        pdf.ln(8)
+        pdf.ln(6)
         adicionar_secao_pdf("PLANO DE ENTRADA (FLUXO DE CAIXA)")
         adicionar_linha_detalhe("VALOR TOTAL DE ENTRADA", f"R$ {fmt_br(d.get('entrada_total', 0))}", destaque=True)
         adicionar_linha_detalhe("Parcela de Ato (Imediato)", f"R$ {fmt_br(d.get('ato_final', 0))}")
         adicionar_linha_detalhe("Parcela 30 Dias", f"R$ {fmt_br(d.get('ato_30', 0))}")
         adicionar_linha_detalhe("Parcela 60 Dias", f"R$ {fmt_br(d.get('ato_60', 0))}")
         adicionar_linha_detalhe("Parcela 90 Dias", f"R$ {fmt_br(d.get('ato_90', 0))}")
-        pdf.ln(15)
-        if pdf.get_y() > 270: pdf.add_page()
+        
+        pdf.ln(10)
+        # Rodapé na mesma página
         pdf.set_font("Helvetica", 'I', 7); pdf.set_text_color(*AZUL_RGB)
         pdf.cell(0, 4, f"Simulacao realizada em {d.get('data_simulacao', date.today().strftime('%d/%m/%Y'))}. Sujeito a analise de credito.", ln=True, align='C')
         pdf.cell(0, 4, "Direcional Engenharia - Rio de Janeiro", ln=True, align='C')
@@ -1227,7 +1236,8 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
         # 3. Tabela (Full width)
         tab_fin = st.selectbox("Sistema de Amortização", ["SAC", "PRICE"], key="tab_fin_v28")
         
-        # Display estimated installments
+        # Display estimated installments (Dynamic Calculation)
+        # Using the selected 'prazo_finan' to update values immediately
         taxa_padrao = 8.16 # Taxa fixa padrão para estimativa
         sac_details = calcular_comparativo_sac_price(f_u, prazo_finan, taxa_padrao)["SAC"]
         price_details = calcular_comparativo_sac_price(f_u, prazo_finan, taxa_padrao)["PRICE"]
