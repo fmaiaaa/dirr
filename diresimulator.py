@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 =============================================================================
-SISTEMA DE SIMULAÇÃO IMOBILIÁRIA - DIRE RIO V41 (FIX LAYOUT & ALTAIR)
+SISTEMA DE SIMULAÇÃO IMOBILIÁRIA - DIRE RIO V42 (PRO CHARTS & HTML FIX)
 =============================================================================
 Instruções para Google Colab:
 1. Crie um arquivo chamado 'app.py' com este conteúdo.
@@ -1060,7 +1060,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
     if passo == 'client_analytics':
         d = st.session_state.dados_cliente
         
-        st.markdown(f"### 📊 Painel do Cliente: {d.get('nome', 'Não Informado')}")
+        st.markdown(f"### Painel do Cliente: {d.get('nome', 'Não Informado')}")
 
         # --- SEÇÃO 1: FICHA DO CLIENTE ---
         with st.container():
@@ -1109,7 +1109,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
         
         # Gráfico 1: Composição da Compra
         with g_col1:
-            st.markdown("##### 🍰 Composição da Compra")
+            st.markdown("##### Composição da Compra")
             labels = ['Ato', '30 Dias', '60 Dias', '90 Dias', 'Pro Soluto', 'Financiamento', 'FGTS/Subsídio']
             values = [
                 d.get('ato_final', 0), d.get('ato_30', 0), d.get('ato_60', 0), d.get('ato_90', 0),
@@ -1121,47 +1121,57 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
             if clean_data:
                 df_pie = pd.DataFrame(clean_data, columns=['Tipo', 'Valor'])
                 
+                # Define cores personalizadas para cada tipo de pagamento
+                color_scale = alt.Scale(domain=['Ato', '30 Dias', '60 Dias', '90 Dias', 'Pro Soluto', 'Financiamento', 'FGTS/Subsídio'],
+                                        range=['#e30613', '#c0392b', '#94a3b8', '#64748b', '#f59e0b', '#002c5d', '#10b981'])
+
                 base = alt.Chart(df_pie).encode(theta=alt.Theta("Valor", stack=True))
                 pie = base.mark_arc(innerRadius=60).encode(
-                    color=alt.Color("Tipo"),
+                    color=alt.Color("Tipo", scale=color_scale),
                     order=alt.Order("Valor", sort="descending"),
-                    tooltip=["Tipo", "Valor"]
+                    tooltip=[alt.Tooltip("Tipo"), alt.Tooltip("Valor", format=",.2f")]
                 )
                 text = base.mark_text(radius=90).encode(
                     text=alt.Text("Valor", format=",.2f"),
                     order=alt.Order("Valor", sort="descending"),
                     color=alt.value("black")  
                 )
-                st.altair_chart(pie, use_container_width=True)
+                st.altair_chart(pie + text, use_container_width=True)
             else:
                 st.info("Sem dados financeiros suficientes.")
 
         # Gráfico 2: Composição de Renda
         with g_col2:
-            st.markdown("##### 👥 Composição de Renda")
+            st.markdown("##### Composição de Renda")
             rendas = d.get('rendas_lista', [])
             pie_renda = [(f"Part. {i+1}", r) for i, r in enumerate(rendas) if r > 0]
             if pie_renda:
                 df_renda = pd.DataFrame(pie_renda, columns=['Participante', 'Renda'])
                 
+                color_scale_renda = alt.Scale(domain=[f"Part. {i+1}" for i in range(len(pie_renda))],
+                                              range=['#002c5d', '#e30613', '#f59e0b', '#10b981'])
+
                 base = alt.Chart(df_renda).encode(theta=alt.Theta("Renda", stack=True))
                 pie = base.mark_arc(innerRadius=60).encode(
-                    color=alt.Color("Participante"),
+                    color=alt.Color("Participante", scale=color_scale_renda),
                     order=alt.Order("Renda", sort="descending"),
-                    tooltip=["Participante", "Renda"]
+                    tooltip=[alt.Tooltip("Participante"), alt.Tooltip("Renda", format=",.2f")]
                 )
-                st.altair_chart(pie, use_container_width=True)
+                text = base.mark_text(radius=90).encode(
+                     text=alt.Text("Renda", format=",.2f"),
+                     order=alt.Order("Renda", sort="descending"),
+                     color=alt.value("black")
+                )
+                st.altair_chart(pie + text, use_container_width=True)
             else:
                 st.caption("Renda única ou não informada.")
 
         # --- SEÇÃO 3: FLUXO DE PAGAMENTO (PRÓXIMOS 90 DIAS) ---
         st.markdown("---")
-        st.markdown("##### 📅 Fluxo de Desembolso (Estimado - 1ºs Meses)")
+        st.markdown("##### Fluxo de Desembolso (Estimado - 1ºs Meses)")
         
         # Cálculo do fluxo
-        # Mês 0: Ato + PS (se houver entrada de PS, mas assumindo PS diluido) + 0 Finan
-        # Mês 1: Ato 30 + PS Mensal + Parc Finan
-        parc_fin = d.get('parcela_financiamento', 0) # Assumindo que já temos esse dado ou recalculamos
+        parc_fin = d.get('parcela_financiamento', 0) 
         if parc_fin == 0: # Fallback simples
              parc_fin = calcular_parcela_financiamento(d.get('finan_usado', 0), d.get('prazo_financiamento', 360), 8.16, "SAC")
         
@@ -1177,10 +1187,10 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
             ]
         })
         
-        c = alt.Chart(flow_data).mark_bar().encode(
-            x=alt.X('Mês', sort=None),
-            y='Total a Pagar',
-            tooltip=['Mês', 'Total a Pagar']
+        c = alt.Chart(flow_data).mark_bar(color=COR_AZUL_ESC).encode(
+            x=alt.X('Mês', sort=None, axis=alt.Axis(labelAngle=0)),
+            y=alt.Y('Total a Pagar', axis=alt.Axis(title='Valor (R$)')),
+            tooltip=[alt.Tooltip('Mês'), alt.Tooltip('Total a Pagar', format=",.2f")]
         ).properties(height=300)
         
         st.altair_chart(c, use_container_width=True)
@@ -1188,43 +1198,25 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
 
         # --- SEÇÃO 4: OPORTUNIDADES SEMELHANTES ---
         st.markdown("---")
-        st.markdown("##### 🏘️ Oportunidades Semelhantes (Faixa de Preço)")
+        st.markdown("##### Oportunidades Semelhantes (Faixa de Preço)")
         
         target_price = d.get('imovel_valor', 0)
         if target_price > 0:
-            min_p = target_price * 0.9
-            max_p = target_price * 1.1
-            # Filter df_estoque
+            min_p = target_price - 2500
+            max_p = target_price + 2500
+            
             similares = df_estoque[
                 (df_estoque['Valor de Venda'] >= min_p) & 
                 (df_estoque['Valor de Venda'] <= max_p) &
                 (df_estoque['Empreendimento'] != d.get('empreendimento_nome')) &
                 (df_estoque['Status'] == 'Disponível')
-            ].sort_values('Valor de Venda').head(5)
+            ].sort_values('Valor de Venda').head(10)
             
             if not similares.empty:
-                # Custom HTML Table
-                table_html = f"""
-                <table style="width:100%; border-collapse: collapse; font-family: 'Inter', sans-serif; font-size: 0.9rem;">
-                    <thead>
-                        <tr style="background-color: {COR_AZUL_ESC}; color: white; text-align: left;">
-                            <th style="padding: 10px; border-radius: 8px 0 0 0;">Empreendimento</th>
-                            <th style="padding: 10px;">Bairro</th>
-                            <th style="padding: 10px;">Unidade</th>
-                            <th style="padding: 10px; border-radius: 0 8px 0 0; text-align: right;">Valor</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                """
+                # Custom HTML Table without leading indentation to prevent markdown code blocks
+                table_html = f"""<table style="width:100%; border-collapse: collapse; font-family: 'Inter', sans-serif; font-size: 0.9rem;"><thead><tr style="background-color: {COR_AZUL_ESC}; color: white; text-align: left;"><th style="padding: 10px; border-radius: 8px 0 0 0;">Empreendimento</th><th style="padding: 10px;">Bairro</th><th style="padding: 10px;">Unidade</th><th style="padding: 10px; border-radius: 0 8px 0 0; text-align: right;">Valor</th></tr></thead><tbody>"""
                 for _, row in similares.iterrows():
-                    table_html += f"""
-                        <tr style="border-bottom: 1px solid #eee; color: {COR_AZUL_ESC};">
-                            <td style="padding: 10px;">{row['Empreendimento']}</td>
-                            <td style="padding: 10px;">{row['Bairro']}</td>
-                            <td style="padding: 10px;">{row['Identificador']}</td>
-                            <td style="padding: 10px; text-align: right; font-weight: bold;">R$ {fmt_br(row['Valor de Venda'])}</td>
-                        </tr>
-                    """
+                    table_html += f"""<tr style="border-bottom: 1px solid #eee; color: {COR_AZUL_ESC};"><td style="padding: 10px;">{row['Empreendimento']}</td><td style="padding: 10px;">{row['Bairro']}</td><td style="padding: 10px;">{row['Identificador']}</td><td style="padding: 10px; text-align: right; font-weight: bold;">R$ {fmt_br(row['Valor de Venda'])}</td></tr>"""
                 table_html += "</tbody></table>"
                 st.markdown(table_html, unsafe_allow_html=True)
             else:
@@ -1486,7 +1478,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
                         batch = final_cards[i:i+3]
                         n_cols = len(batch)
                         
-                        cols = st.columns(n_cols)
+                        cols = st.columns(3) # Always 3 cols to keep size consistent
                         
                         for j in range(n_cols):
                             card = batch[j]
@@ -1502,6 +1494,9 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
                                         </div>
                                         <div class="price-tag" style="font-size:1.4rem; margin:10px 0;">R$ {fmt_br(row['Valor de Venda'])}</div>
                                     </div>''', unsafe_allow_html=True)
+                        
+                        # Se sobrarem colunas (j < 2), elas ficam vazias e a linha alinhada a esquerda
+                        # Se quiser que o ultimo item ocupe tudo, precisa de logica complexa de st.columns variavel
 
         with tab_estoque:
             if df_disp_total.empty:
