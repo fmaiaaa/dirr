@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 =============================================================================
-SISTEMA DE SIMULAÇÃO IMOBILIÁRIA - DIRE RIO V24 (FINANCE DETAILS & CSS FIX)
+SISTEMA DE SIMULAÇÃO IMOBILIÁRIA - DIRE RIO V24.1 (BUGFIX NAME ERROR)
 =============================================================================
 Instruções para Google Colab:
 1. Crie um arquivo chamado 'app.py' com este conteúdo.
@@ -148,6 +148,28 @@ def calcular_comparativo_sac_price(valor, meses, taxa_anual):
         "SAC": {"primeira": pmt_sac_ini, "ultima": pmt_sac_fim, "juros": juros_sac},
         "PRICE": {"parcela": pmt_price, "juros": juros_price}
     }
+
+def calcular_parcela_financiamento(valor_financiado, meses, taxa_anual_pct, sistema):
+    """Calcula a primeira parcela (SAC) ou parcela fixa (PRICE)"""
+    if valor_financiado <= 0 or meses <= 0:
+        return 0.0
+
+    # Taxa mensal
+    i_mensal = (1 + taxa_anual_pct/100)**(1/12) - 1
+
+    if sistema == "PRICE":
+        # PMT = PV * [ i(1+i)^n ] / [ (1+i)^n - 1 ]
+        try:
+            parcela = valor_financiado * (i_mensal * (1 + i_mensal)**meses) / ((1 + i_mensal)**meses - 1)
+        except:
+            parcela = 0.0
+    else: # SAC
+        # Primeira parcela = Amortização + Juros sobre saldo total
+        amortizacao = valor_financiado / meses
+        juros = valor_financiado * i_mensal
+        parcela = amortizacao + juros
+
+    return parcela
 
 def scroll_to_top():
     """Injeta JavaScript para rolar a página para o topo."""
