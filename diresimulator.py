@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 =============================================================================
-SISTEMA DE SIMULAÇÃO IMOBILIÁRIA - DIRE RIO V43 (FIX LAYOUT & PRO CHARTS)
+SISTEMA DE SIMULAÇÃO IMOBILIÁRIA - DIRE RIO V44 (INTERACTIVE CHARTS)
 =============================================================================
 Instruções para Google Colab:
 1. Crie um arquivo chamado 'app.py' com este conteúdo.
@@ -379,6 +379,11 @@ def configurar_layout():
             letter-spacing: 0.1em;
             font-size: 1rem !important;
             transition: all 0.2s ease !important;
+        }}
+        
+        /* Efeito de clique e hover para interatividade */
+        .stButton button:active {{
+            transform: scale(0.98);
         }}
 
         div[data-testid="column"] .stButton button, [data-testid="stSidebar"] .stButton button {{
@@ -1125,21 +1130,28 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
                 color_scale = alt.Scale(domain=['Ato', '30 Dias', '60 Dias', '90 Dias', 'Pro Soluto', 'Financiamento', 'FGTS/Subsídio'],
                                         range=['#e30613', '#c0392b', '#94a3b8', '#64748b', '#f59e0b', '#002c5d', '#10b981'])
 
+                # Selection for interactivity
+                hover = alt.selection_point(on='mouseover', empty=False, fields=['Tipo'])
+
                 base = alt.Chart(df_pie).encode(theta=alt.Theta("Valor", stack=True))
-                pie = base.mark_arc(innerRadius=60).encode(
+                pie = base.mark_arc(innerRadius=60, outerRadius=120).encode(
                     color=alt.Color("Tipo", scale=color_scale, legend=None),
                     order=alt.Order("Valor", sort="descending"),
-                    tooltip=[alt.Tooltip("Tipo"), alt.Tooltip("Valor", format=",.2f")]
-                )
-                text = base.mark_text(radius=90).encode(
+                    tooltip=[alt.Tooltip("Tipo"), alt.Tooltip("Valor", format=",.2f")],
+                    opacity=alt.condition(hover, alt.value(1), alt.value(0.7)),
+                    stroke=alt.condition(hover, alt.value('white'), alt.value(None)),
+                    strokeWidth=alt.condition(hover, alt.value(2), alt.value(0))
+                ).add_params(hover)
+                
+                text = base.mark_text(radius=140).encode(
                     text=alt.Text("Valor", format=",.2f"),
                     order=alt.Order("Valor", sort="descending"),
-                    color=alt.value("black")  
+                    color=alt.value(COR_AZUL_ESC)  
                 )
                 
                 # Combined chart with legends hidden to be cleaner, adding labels directly might be better but lets keep it simple first
                 # Actually lets add a legend to the side
-                final_pie = pie.encode(color=alt.Color("Tipo", scale=color_scale, legend=alt.Legend(orient="bottom", columns=2)))
+                final_pie = pie.encode(color=alt.Color("Tipo", scale=color_scale, legend=alt.Legend(orient="bottom", columns=2, title=None)))
                 st.altair_chart(final_pie, use_container_width=True)
             else:
                 st.info("Sem dados financeiros suficientes.")
@@ -1155,12 +1167,18 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
                 color_scale_renda = alt.Scale(domain=[f"Part. {i+1}" for i in range(len(pie_renda))],
                                               range=['#002c5d', '#e30613', '#f59e0b', '#10b981'])
 
+                hover_renda = alt.selection_point(on='mouseover', empty=False, fields=['Participante'])
+
                 base = alt.Chart(df_renda).encode(theta=alt.Theta("Renda", stack=True))
-                pie = base.mark_arc(innerRadius=60).encode(
-                    color=alt.Color("Participante", scale=color_scale_renda, legend=alt.Legend(orient="bottom")),
+                pie = base.mark_arc(innerRadius=60, outerRadius=120).encode(
+                    color=alt.Color("Participante", scale=color_scale_renda, legend=alt.Legend(orient="bottom", title=None)),
                     order=alt.Order("Renda", sort="descending"),
-                    tooltip=[alt.Tooltip("Participante"), alt.Tooltip("Renda", format=",.2f")]
-                )
+                    tooltip=[alt.Tooltip("Participante"), alt.Tooltip("Renda", format=",.2f")],
+                    opacity=alt.condition(hover_renda, alt.value(1), alt.value(0.7)),
+                    stroke=alt.condition(hover_renda, alt.value('white'), alt.value(None)),
+                    strokeWidth=alt.condition(hover_renda, alt.value(2), alt.value(0))
+                ).add_params(hover_renda)
+
                 st.altair_chart(pie, use_container_width=True)
             else:
                 st.caption("Renda única ou não informada.")
@@ -1186,11 +1204,14 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
             ]
         })
         
-        c = alt.Chart(flow_data).mark_bar(color=COR_AZUL_ESC).encode(
+        hover_bar = alt.selection_point(on='mouseover', empty=False)
+
+        c = alt.Chart(flow_data).mark_bar().encode(
             x=alt.X('Mês', sort=None, axis=alt.Axis(labelAngle=0, title=None, grid=False)),
             y=alt.Y('Total a Pagar', axis=alt.Axis(title=None, grid=False, labels=False)), # Clean Y axis
+            color=alt.condition(hover_bar, alt.value(COR_AZUL_ESC), alt.value("#a0c4ff")),
             tooltip=[alt.Tooltip('Mês'), alt.Tooltip('Total a Pagar', format=",.2f")]
-        ).properties(height=250)
+        ).add_params(hover_bar).properties(height=250)
         
         # Add text labels on bars
         text = c.mark_text(
