@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 =============================================================================
-SISTEMA DE SIMULAÇÃO IMOBILIÁRIA - DIRE RIO V35 (REFACTOR FLUXO & REC)
+SISTEMA DE SIMULAÇÃO IMOBILIÁRIA - DIRE RIO V36 (HISTORY LOAD FIX)
 =============================================================================
 Instruções para Google Colab:
 1. Crie um arquivo chamado 'app.py' com este conteúdo.
@@ -967,24 +967,69 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
                             if c_data: label += f" | {c_data}"
 
                             if st.button(label, key=f"hist_{idx}", use_container_width=True):
+                                # Helper para tratamento seguro de floats
+                                def safe_get_float(r, k):
+                                    return safe_float_convert(r.get(k, 0))
+
+                                # Reconstrução de Rendas e Participantes
+                                rs = [safe_get_float(row, f'Renda Part. {i}') for i in range(1, 5)]
+                                # Lógica para qtd de participantes: índice do último valor > 0
+                                qtd_p = 1
+                                for i in range(4, 0, -1):
+                                    if rs[i-1] > 0:
+                                        qtd_p = i
+                                        break
+                                
+                                # Booleans
+                                soc = str(row.get('Fator Social', '')).strip().lower() in ['sim', 's', 'true']
+                                cot = str(row.get('Cotista FGTS', '')).strip().lower() in ['sim', 's', 'true']
+
                                 st.session_state.dados_cliente = {
-                                    'nome': row.get('Nome'), 'empreendimento_nome': row.get('Empreendimento Final'),
+                                    'nome': row.get('Nome'), 
+                                    'cpf': row.get('CPF'),
+                                    'data_nascimento': row.get('Data de Nascimento'),
+                                    'qtd_participantes': qtd_p,
+                                    'rendas_lista': rs,
+                                    'ranking': row.get('Ranking'),
+                                    'politica': row.get('Política de Pro Soluto'),
+                                    'social': soc,
+                                    'cotista': cot,
+                                    
+                                    # Dados Imóvel/Simulação
+                                    'empreendimento_nome': row.get('Empreendimento Final'),
                                     'unidade_id': row.get('Unidade Final'),
-                                    'imovel_valor': safe_float_convert(row.get('Preço Unidade Final', 0)),
-                                    'finan_estimado': safe_float_convert(row.get('Financiamento Aprovado', 0)),
-                                    'fgts_sub': safe_float_convert(row.get('Subsídio Máximo', 0)),
-                                    'finan_usado': safe_float_convert(row.get('Financiamento Final', 0)),
-                                    'fgts_sub_usado': safe_float_convert(row.get('FGTS + Subsídio Final', 0)),
-                                    'ps_usado': safe_float_convert(row.get('Pro Soluto Final', 0)),
+                                    'imovel_valor': safe_get_float(row, 'Preço Unidade Final'),
+                                    'finan_estimado': safe_get_float(row, 'Financiamento Aprovado'),
+                                    'fgts_sub': safe_get_float(row, 'Subsídio Máximo'),
+                                    
+                                    'finan_usado': safe_get_float(row, 'Financiamento Final'),
+                                    'fgts_sub_usado': safe_get_float(row, 'FGTS + Subsídio Final'),
+                                    'ps_usado': safe_get_float(row, 'Pro Soluto Final'),
+                                    
+                                    # Parcelas e Atos
                                     'ps_parcelas': int(float(str(row.get('Número de Parcelas do Pro Soluto', 0)).replace(',','.'))),
-                                    'ps_mensal': safe_float_convert(row.get('Mensalidade PS', 0)),
-                                    'ato_final': safe_float_convert(row.get('Ato', 0)),
-                                    'ato_30': safe_float_convert(row.get('Ato 30', 0)),
-                                    'ato_60': safe_float_convert(row.get('Ato 60', 0)),
-                                    'ato_90': safe_float_convert(row.get('Ato 90', 0)),
+                                    'ps_mensal': safe_get_float(row, 'Mensalidade PS'),
+                                    'ato_final': safe_get_float(row, 'Ato'),
+                                    'ato_30': safe_get_float(row, 'Ato 30'),
+                                    'ato_60': safe_get_float(row, 'Ato 60'),
+                                    'ato_90': safe_get_float(row, 'Ato 90'),
+                                    'prazo_financiamento': int(float(str(row.get('Prazo Financiamento', 360)).replace(',','.'))) if row.get('Prazo Financiamento') else 360
                                 }
-                                st.session_state.dados_cliente['entrada_total'] = st.session_state.dados_cliente['ato_final'] + st.session_state.dados_cliente['ato_30'] + st.session_state.dados_cliente['ato_60'] + st.session_state.dados_cliente['ato_90']
-                                st.session_state.passo_simulacao = 'summary'
+                                
+                                st.session_state.dados_cliente['entrada_total'] = sum([
+                                    st.session_state.dados_cliente['ato_final'],
+                                    st.session_state.dados_cliente['ato_30'],
+                                    st.session_state.dados_cliente['ato_60'],
+                                    st.session_state.dados_cliente['ato_90']
+                                ])
+
+                                # Limpar chaves de sessão específicas do fluxo de pagamento para forçar recarregamento
+                                keys_to_reset = ['fin_u_key', 'fgts_u_key', 'ps_u_key', 'parc_ps_key', 
+                                                 'ato_1_key', 'ato_2_key', 'ato_3_key', 'ato_4_key']
+                                for k in keys_to_reset:
+                                    if k in st.session_state: del st.session_state[k]
+
+                                st.session_state.passo_simulacao = 'input'
                                 scroll_to_top()
                                 st.rerun()
                     else: st.caption("Nenhum histórico recente.")
@@ -1016,7 +1061,10 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
         d_nasc_default = st.session_state.dados_cliente.get('data_nascimento', date(1990, 1, 1))
         if isinstance(d_nasc_default, str):
             try: d_nasc_default = datetime.strptime(d_nasc_default, '%Y-%m-%d').date()
-            except: d_nasc_default = date(1990, 1, 1)
+            except: 
+                # Try dd/mm/yyyy just in case
+                try: d_nasc_default = datetime.strptime(d_nasc_default, '%d/%m/%Y').date()
+                except: d_nasc_default = date(1990, 1, 1)
 
         data_nasc = st.date_input("Data de Nascimento", value=d_nasc_default, min_value=date(1900, 1, 1), max_value=datetime.now().date(), format="DD/MM/YYYY", key="in_dt_nasc_v3")
         genero = st.selectbox("Gênero", ["Masculino", "Feminino", "Outro"], index=0, key="in_genero_v3")
