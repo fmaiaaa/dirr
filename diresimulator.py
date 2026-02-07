@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 =============================================================================
-SISTEMA DE SIMULAÇÃO IMOBILIÁRIA - DIRE RIO V28 (FINAL PDF & STEPPER)
+SISTEMA DE SIMULAÇÃO IMOBILIÁRIA - DIRE RIO V29 (FINAL FIXES & LOGIC)
 =============================================================================
 Instruções para Google Colab:
 1. Crie um arquivo chamado 'app.py' com este conteúdo.
@@ -100,7 +100,6 @@ def validar_cpf(cpf):
     return True
 
 def safe_float_convert(val):
-    """Converte valores do GSheets/Inputs para float de forma segura."""
     if pd.isnull(val) or val == "": return 0.0
     if isinstance(val, (int, float, np.number)): return float(val)
     s = str(val).replace('R$', '').strip()
@@ -112,12 +111,21 @@ def safe_float_convert(val):
         except: return 0.0
 
 def calcular_cor_gradiente(valor):
+    """
+    Gradiente Linear Puro: Vermelho (#e30613) -> Azul (#002c5d)
+    0% -> Vermelho
+    100% -> Azul
+    """
     valor = max(0, min(100, valor))
-    fator = valor / 100
-    # Vermelho (227, 6, 19) -> Azul (0, 44, 93)
-    r = int(227 + (0 - 227) * fator)
-    g = int(6 + (44 - 6) * fator)
-    b = int(19 + (93 - 19) * fator)
+    f = valor / 100.0
+    
+    # RGB Vermelho: 227, 6, 19
+    # RGB Azul: 0, 44, 93
+    
+    r = int(227 + (0 - 227) * f)
+    g = int(6 + (44 - 6) * f)
+    b = int(19 + (93 - 19) * f)
+    
     return f"rgb({r},{g},{b})"
 
 def calcular_comparativo_sac_price(valor, meses, taxa_anual):
@@ -318,6 +326,7 @@ def configurar_layout():
             background-color: #ffffff !important;
         }}
 
+        /* --- ALTURA E ALINHAMENTO UNIFICADOS PARA INPUTS --- */
         .stTextInput input, .stNumberInput input, .stDateInput input, div[data-baseweb="select"] > div {{
             height: 48px !important;
             min-height: 48px !important;
@@ -569,7 +578,7 @@ def configurar_layout():
         button[data-baseweb="tab"][aria-selected="true"] p {{ color: {COR_AZUL_ESC} !important; opacity: 1; }}
         div[data-baseweb="tab-highlight"] {{ background-color: {COR_VERMELHO} !important; height: 3px !important; }}
 
-        /* --- STEPPER (Visual CSS) --- */
+        /* --- STEPPER (Visual CSS - Non-interactive) --- */
         .stepper-container {{
             display: flex;
             justify-content: space-between;
@@ -688,34 +697,32 @@ def gerar_resumo_pdf(d):
     try:
         pdf = FPDF()
         pdf.add_page()
-        pdf.set_auto_page_break(auto=True, margin=10)
+        pdf.set_auto_page_break(auto=True, margin=15)
         AZUL_RGB, VERMELHO_RGB, BRANCO_RGB, FUNDO_SECAO = (0, 44, 93), (227, 6, 19), (255, 255, 255), (248, 250, 252)
         pdf.set_fill_color(*AZUL_RGB); pdf.rect(0, 0, 210, 3, 'F')
         if os.path.exists("favicon.png"):
             try: pdf.image("favicon.png", 10, 8, 10)
             except: pass
-        pdf.ln(12); pdf.set_text_color(*AZUL_RGB); pdf.set_font("Helvetica", 'B', 20); pdf.cell(0, 10, "RELATORIO DE VIABILIDADE", ln=True, align='C')
-        pdf.set_font("Helvetica", '', 8); pdf.cell(0, 6, "SIMULADOR IMOBILIARIO DV - DOCUMENTO EXECUTIVO", ln=True, align='C'); pdf.ln(10)
-        
-        # Bloco Cliente mais compacto
-        pdf.set_fill_color(*FUNDO_SECAO); pdf.rect(10, pdf.get_y(), 190, 18, 'F'); pdf.set_xy(15, pdf.get_y() + 4)
-        pdf.set_text_color(*AZUL_RGB); pdf.set_font("Helvetica", 'B', 11); pdf.cell(0, 5, f"CLIENTE: {d.get('nome', 'Nao informado').upper()}", ln=True)
-        pdf.set_x(15); pdf.set_font("Helvetica", '', 9); pdf.cell(0, 5, f"Renda Familiar: R$ {fmt_br(d.get('renda', 0))}", ln=True); pdf.ln(12)
+        pdf.ln(15); pdf.set_text_color(*AZUL_RGB); pdf.set_font("Helvetica", 'B', 22); pdf.cell(0, 12, "RELATORIO DE VIABILIDADE", ln=True, align='C')
+        pdf.set_font("Helvetica", '', 9); pdf.cell(0, 6, "SIMULADOR IMOBILIARIO DV - DOCUMENTO EXECUTIVO", ln=True, align='C'); pdf.ln(15)
+        pdf.set_fill_color(*FUNDO_SECAO); pdf.rect(10, pdf.get_y(), 190, 24, 'F'); pdf.set_xy(15, pdf.get_y() + 6)
+        pdf.set_text_color(*AZUL_RGB); pdf.set_font("Helvetica", 'B', 13); pdf.cell(0, 6, f"CLIENTE: {d.get('nome', 'Nao informado').upper()}", ln=True)
+        pdf.set_x(15); pdf.set_font("Helvetica", '', 10); pdf.cell(0, 6, f"Renda Familiar: R$ {fmt_br(d.get('renda', 0))}", ln=True); pdf.ln(15)
 
         def adicionar_secao_pdf(titulo):
-            pdf.set_fill_color(*AZUL_RGB); pdf.set_text_color(*BRANCO_RGB); pdf.set_font("Helvetica", 'B', 9); pdf.cell(0, 8, f"   {titulo}", ln=True, fill=True); pdf.ln(2)
+            pdf.set_fill_color(*AZUL_RGB); pdf.set_text_color(*BRANCO_RGB); pdf.set_font("Helvetica", 'B', 10); pdf.cell(0, 10, f"   {titulo}", ln=True, fill=True); pdf.ln(4)
 
         def adicionar_linha_detalhe(label, valor, destaque=False):
-            pdf.set_x(15); pdf.set_text_color(*AZUL_RGB); pdf.set_font("Helvetica", '', 9); pdf.cell(110, 7, label, border=0)
-            if destaque: pdf.set_text_color(*VERMELHO_RGB); pdf.set_font("Helvetica", 'B', 9)
-            else: pdf.set_font("Helvetica", 'B', 9)
-            pdf.cell(0, 7, valor, border=0, ln=True, align='R'); pdf.set_draw_color(241, 245, 249); pdf.line(15, pdf.get_y(), 195, pdf.get_y())
+            pdf.set_x(15); pdf.set_text_color(*AZUL_RGB); pdf.set_font("Helvetica", '', 10); pdf.cell(110, 9, label, border=0)
+            if destaque: pdf.set_text_color(*VERMELHO_RGB); pdf.set_font("Helvetica", 'B', 10)
+            else: pdf.set_font("Helvetica", 'B', 10)
+            pdf.cell(0, 9, valor, border=0, ln=True, align='R'); pdf.set_draw_color(241, 245, 249); pdf.line(15, pdf.get_y(), 195, pdf.get_y())
 
         adicionar_secao_pdf("DADOS DO IMOVEL")
         adicionar_linha_detalhe("Empreendimento", str(d.get('empreendimento_nome')))
         adicionar_linha_detalhe("Unidade Selecionada", str(d.get('unidade_id')))
         adicionar_linha_detalhe("Valor de Venda do Imovel", f"R$ {fmt_br(d.get('imovel_valor', 0))}", destaque=True)
-        pdf.ln(6)
+        pdf.ln(8)
         adicionar_secao_pdf("ENGENHARIA FINANCEIRA")
         adicionar_linha_detalhe("Financiamento Bancario Estimado", f"R$ {fmt_br(d.get('finan_usado', 0))}")
         prazo_val = d.get('prazo_financiamento', 360)
@@ -724,16 +731,15 @@ def gerar_resumo_pdf(d):
         adicionar_linha_detalhe("Subsidio + FGTS Utilizado", f"R$ {fmt_br(d.get('fgts_sub_usado', 0))}")
         adicionar_linha_detalhe("Pro Soluto Direcional", f"R$ {fmt_br(d.get('ps_usado', 0))}")
         adicionar_linha_detalhe("Mensalidade Pro Soluto", f"{d.get('ps_parcelas')}x de R$ {fmt_br(d.get('ps_mensal', 0))}")
-        pdf.ln(6)
+        pdf.ln(8)
         adicionar_secao_pdf("PLANO DE ENTRADA (FLUXO DE CAIXA)")
         adicionar_linha_detalhe("VALOR TOTAL DE ENTRADA", f"R$ {fmt_br(d.get('entrada_total', 0))}", destaque=True)
         adicionar_linha_detalhe("Parcela de Ato (Imediato)", f"R$ {fmt_br(d.get('ato_final', 0))}")
         adicionar_linha_detalhe("Parcela 30 Dias", f"R$ {fmt_br(d.get('ato_30', 0))}")
         adicionar_linha_detalhe("Parcela 60 Dias", f"R$ {fmt_br(d.get('ato_60', 0))}")
         adicionar_linha_detalhe("Parcela 90 Dias", f"R$ {fmt_br(d.get('ato_90', 0))}")
-        
-        pdf.ln(10)
-        # Rodapé na mesma página
+        pdf.ln(15)
+        if pdf.get_y() > 270: pdf.add_page()
         pdf.set_font("Helvetica", 'I', 7); pdf.set_text_color(*AZUL_RGB)
         pdf.cell(0, 4, f"Simulacao realizada em {d.get('data_simulacao', date.today().strftime('%d/%m/%Y'))}. Sujeito a analise de credito.", ln=True, align='C')
         pdf.cell(0, 4, "Direcional Engenharia - Rio de Janeiro", ln=True, align='C')
@@ -1039,56 +1045,95 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
             else:
                 pool_viavel = df_pool[df_pool['Viavel']]
                 cand_facil = pd.DataFrame(); cand_ideal = pd.DataFrame(); cand_seguro = pd.DataFrame()
-
+                
+                # Logic: We need 3 cards: Ideal, Seguro, Facilitado.
+                # If we don't have perfect matches, we fallback to cheapest available options.
+                
+                # 1. Try to find logic matches first
                 if not pool_viavel.empty:
-                    cand_facil = pool_viavel.sort_values('Valor de Venda', ascending=True).head(1)
+                    # Ideal: 100% coverage, most expensive one that fits
                     ideal_pool = pool_viavel[pool_viavel['Cobertura'] >= 100]
-                    if not ideal_pool.empty: cand_ideal = ideal_pool.sort_values('Valor de Venda', ascending=False).head(1)
-                    else: cand_ideal = pool_viavel.sort_values('Cobertura', ascending=False).head(1)
+                    if not ideal_pool.empty:
+                        cand_ideal = ideal_pool.sort_values('Valor de Venda', ascending=False).head(1)
+                    
+                    # Seguro: Highest Coverage (safest bet), regardless of price
                     cand_seguro = pool_viavel.sort_values('Cobertura', ascending=False).head(1)
-                elif not df_pool.empty:
-                     cand_facil = df_pool.sort_values('Valor de Venda', ascending=True).head(1)
+                    
+                    # Facilitado: Lowest Price (easiest to buy)
+                    cand_facil = pool_viavel.sort_values('Valor de Venda', ascending=True).head(1)
+                
+                # 2. Collect what we found
+                found_units = []
+                if not cand_ideal.empty: found_units.append({'type': 'IDEAL', 'row': cand_ideal.iloc[0]})
+                if not cand_seguro.empty: found_units.append({'type': 'SEGURO', 'row': cand_seguro.iloc[0]})
+                if not cand_facil.empty: found_units.append({'type': 'FACILITADO', 'row': cand_facil.iloc[0]})
+                
+                # Deduplicate based on price/id to avoid showing same unit 3 times if possible, 
+                # but user asked for 3 units always. If logic returns same unit for all 3 (e.g. only 1 unit exists),
+                # we must show it 3 times or find others?
+                # User said: "Se o 90% nao der, recomende a de 100%, a mais barata e a segunda mais barata."
+                # This implies finding *distinct* units if possible.
+                
+                # Let's get top 3 cheapest units from pool as base fallback
+                fallback_pool = df_pool.sort_values('Valor de Venda', ascending=True)
+                
+                final_cards = []
+                
+                # Strategy: Fill slots 1(Ideal), 2(Seguro), 3(Facilitado)
+                # Slot 1: Logic Ideal -> Fallback Cheapest
+                # Slot 2: Logic Seguro -> Fallback 2nd Cheapest
+                # Slot 3: Logic Facilitado -> Fallback 3rd Cheapest
+                
+                # Helper to get unique unit not already in final_cards
+                def get_fallback_unit(exclude_ids):
+                    for idx, row in fallback_pool.iterrows():
+                        if row['Identificador'] not in exclude_ids:
+                            return row
+                    return None
 
-                def extract_info(df_cand, label, css_class):
-                    if df_cand.empty: return None
-                    row = df_cand.iloc[0]
-                    unidades_irmas = df_pool[df_pool['Valor de Venda'] == row['Valor de Venda']]['Identificador'].tolist()
-                    unidades_str = ", ".join(unidades_irmas[:5]) + ("..." if len(unidades_irmas)>5 else "")
-                    return {'preco': row['Valor de Venda'], 'emp': row['Empreendimento'], 'unidades': unidades_str, 'labels': [label], 'css': css_class}
-
-                info_ideal = extract_info(cand_ideal, "IDEAL", "badge-ideal")
-                info_seguro = extract_info(cand_seguro, "SEGURO", "badge-seguro")
-                info_facil = extract_info(cand_facil, "FACILITADO", "badge-facilitado")
-
-                cards_finais = []
-                if info_ideal: cards_finais.append(info_ideal)
-                if info_seguro:
-                    exists = False
-                    for c in cards_finais:
-                        if c['preco'] == info_seguro['preco']: c['labels'].append("SEGURO"); exists = True
-                    if not exists: cards_finais.append(info_seguro)
-                if info_facil:
-                    exists = False
-                    for c in cards_finais:
-                        if c['preco'] == info_facil['preco']: c['labels'].append("FACILITADO"); c['css'] = "badge-multi"; exists = True
-                    if not exists: cards_finais.append(info_facil)
-
-                if not cards_finais: st.warning("Nenhuma recomendação disponível.")
+                # Card 1: IDEAL
+                if not cand_ideal.empty:
+                    final_cards.append({'label': 'IDEAL', 'row': cand_ideal.iloc[0], 'css': 'badge-ideal'})
                 else:
-                    cols = st.columns(len(cards_finais))
-                    for idx, card in enumerate(cards_finais):
+                    # Fallback 1: Cheapest (100% coverage unit not found, maybe expensive)
+                    # Logic says: "Se 100% nao der, recomende a mais barata"
+                    u = get_fallback_unit([])
+                    if u is not None: final_cards.append({'label': 'IDEAL (Alternativa)', 'row': u, 'css': 'badge-ideal'})
+
+                # Card 2: SEGURO
+                exclude = [c['row']['Identificador'] for c in final_cards]
+                if not cand_seguro.empty and cand_seguro.iloc[0]['Identificador'] not in exclude:
+                     final_cards.append({'label': 'SEGURO', 'row': cand_seguro.iloc[0], 'css': 'badge-seguro'})
+                else:
+                    # Fallback 2: 2nd Cheapest
+                    u = get_fallback_unit(exclude)
+                    if u is not None: final_cards.append({'label': 'SEGURO (Alternativa)', 'row': u, 'css': 'badge-seguro'})
+                
+                # Card 3: FACILITADO
+                exclude = [c['row']['Identificador'] for c in final_cards]
+                if not cand_facil.empty and cand_facil.iloc[0]['Identificador'] not in exclude:
+                     final_cards.append({'label': 'FACILITADO', 'row': cand_facil.iloc[0], 'css': 'badge-facilitado'})
+                else:
+                     # Fallback 3: 3rd Cheapest
+                     u = get_fallback_unit(exclude)
+                     if u is not None: final_cards.append({'label': 'FACILITADO (Alternativa)', 'row': u, 'css': 'badge-facilitado'})
+
+                # Render
+                if not final_cards: st.warning("Nenhuma unidade encontrada.")
+                else:
+                    cols = st.columns(len(final_cards))
+                    for idx, card in enumerate(final_cards):
+                        row = card['row']
                         with cols[idx]:
-                            labels_html = "".join([f'<span class="{("badge-ideal" if l=="IDEAL" else ("badge-seguro" if l=="SEGURO" else "badge-facilitado"))}" style="margin-right:5px;">{l}</span>' for l in card['labels']])
-                            if len(card['labels']) > 1 and "SEGURO" in card['labels'] and "FACILITADO" in card['labels']: labels_html = f'<span class="badge-multi">SEGURO & FACILITADO</span>'
                             st.markdown(f'''
                             <div class="recommendation-card" style="border-top: 4px solid {COR_AZUL_ESC}; height: 100%; justify-content: flex-start;">
                                 <span style="font-size:0.65rem; color:{COR_AZUL_ESC}; opacity:0.8;">PERFIL</span><br>
-                                <div style="margin-top:5px; margin-bottom:15px;">{labels_html}</div>
-                                <b style="color:{COR_AZUL_ESC}; font-size:1.1rem;">{card['emp']}</b><br>
+                                <div style="margin-top:5px; margin-bottom:15px;"><span class="{card['css']}">{card['label']}</span></div>
+                                <b style="color:{COR_AZUL_ESC}; font-size:1.1rem;">{row['Empreendimento']}</b><br>
                                 <div style="font-size:0.85rem; color:{COR_TEXTO_MUTED}; text-align:center; border-top:1px solid #eee; padding-top:10px; width:100%;">
-                                    <b>Unidade(s):</b><br>{card['unidades']}
+                                    <b>Unidade: {row['Identificador']}</b>
                                 </div>
-                                <div class="price-tag" style="font-size:1.4rem; margin:10px 0;">R$ {fmt_br(card['preco'])}</div>
+                                <div class="price-tag" style="font-size:1.4rem; margin:10px 0;">R$ {fmt_br(row['Valor de Venda'])}</div>
                             </div>''', unsafe_allow_html=True)
 
         with tab_estoque:
@@ -1114,6 +1159,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
                     elif "100%" in f_cob_sel: cob_min_val = 100
 
                 with f_cols[3]: f_ordem = st.selectbox("Ordem:", ["Menor Preço", "Maior Preço"], key="f_ordem_tab_v28")
+                # CSS Hack for height matching - applied via class injection on main style usually, but here specific inline if needed or via container
                 with f_cols[4]: f_pmax = st.number_input("Preço Máx:", value=None, key="f_pmax_tab_v28", placeholder="0,00")
 
                 df_tab = df_disp_total.copy()
@@ -1193,7 +1239,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
                     <div style="margin-top: 20px; padding: 15px; border: 1px solid #e2e8f0; border-radius: 10px; background-color: #f8fafc; text-align: center;">
                         <p style="margin: 0; font-weight: 700; font-size: 0.9rem; color: #002c5d;">TERMÔMETRO DE VIABILIDADE</p>
                         <div style="width: 100%; background-color: #e2e8f0; border-radius: 5px; height: 10px; margin: 10px 0;">
-                            <div style="width: {percentual_cobertura}%; background-color: {cor_term}; height: 100%; border-radius: 5px; transition: width 0.5s;"></div>
+                            <div style="width: {percentual_cobertura}%; background: linear-gradient(90deg, #e30613 0%, #002c5d 100%); height: 100%; border-radius: 5px; transition: width 0.5s;"></div>
                         </div>
                         <small>{percentual_cobertura:.1f}% Coberto</small>
                     </div>""", unsafe_allow_html=True)
