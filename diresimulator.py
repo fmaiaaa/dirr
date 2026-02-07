@@ -1094,7 +1094,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
         if st.button("Sair do Sistema", key="btn_logout_bottom", use_container_width=True): st.session_state['logged_in'] = False; st.rerun()
 
 def main():
-    configurar_layout()
+    configuring_layout()
     df_finan, df_estoque, df_politicas, df_logins, df_cadastros = carregar_dados_sistema()
     logo_src = URL_FAVICON_RESERVA
     if os.path.exists("favicon.png"):
