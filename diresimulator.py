@@ -708,19 +708,19 @@ def gerar_resumo_pdf(d):
         pdf = FPDF()
         pdf.add_page()
 
-        # Margens equilibradas
-        pdf.set_margins(left=12, top=12, right=12)
+        # Margens
+        pdf.set_margins(12, 12, 12)
         pdf.set_auto_page_break(auto=True, margin=12)
 
         largura_util = pdf.w - pdf.l_margin - pdf.r_margin
 
-        AZUL_RGB = (0, 44, 93)
-        VERMELHO_RGB = (227, 6, 19)
-        BRANCO_RGB = (255, 255, 255)
+        AZUL = (0, 44, 93)
+        VERMELHO = (227, 6, 19)
+        BRANCO = (255, 255, 255)
         FUNDO_SECAO = (248, 250, 252)
 
-        # Barra superior
-        pdf.set_fill_color(*AZUL_RGB)
+        # Barra topo
+        pdf.set_fill_color(*AZUL)
         pdf.rect(0, 0, pdf.w, 3, 'F')
 
         # Logo
@@ -732,16 +732,15 @@ def gerar_resumo_pdf(d):
 
         # Título
         pdf.ln(8)
-        pdf.set_text_color(*AZUL_RGB)
+        pdf.set_text_color(*AZUL)
         pdf.set_font("Helvetica", 'B', 20)
         pdf.cell(0, 10, "RELATORIO DE VIABILIDADE", ln=True, align='C')
 
         pdf.set_font("Helvetica", '', 9)
         pdf.cell(0, 5, "SIMULADOR IMOBILIARIO DV - DOCUMENTO EXECUTIVO", ln=True, align='C')
-
         pdf.ln(6)
 
-        # Bloco cliente
+        # Cliente
         y = pdf.get_y()
         pdf.set_fill_color(*FUNDO_SECAO)
         pdf.rect(pdf.l_margin, y, largura_util, 16, 'F')
@@ -757,72 +756,64 @@ def gerar_resumo_pdf(d):
         pdf.ln(6)
 
         # Helpers
-        def adicionar_secao_pdf(titulo):
-            pdf.set_fill_color(*AZUL_RGB)
-            pdf.set_text_color(*BRANCO_RGB)
+        def secao(titulo):
+            pdf.set_fill_color(*AZUL)
+            pdf.set_text_color(*BRANCO)
             pdf.set_font("Helvetica", 'B', 10)
             pdf.cell(largura_util, 7, f"  {titulo}", ln=True, fill=True)
             pdf.ln(2)
 
-        def adicionar_linha_detalhe(label, valor, destaque=False):
-            pdf.set_text_color(*AZUL_RGB)
+        def linha(label, valor, destaque=False):
+            pdf.set_text_color(*AZUL)
             pdf.set_font("Helvetica", '', 10)
-
             pdf.cell(largura_util * 0.6, 6, label)
 
             if destaque:
-                pdf.set_text_color(*VERMELHO_RGB)
+                pdf.set_text_color(*VERMELHO)
                 pdf.set_font("Helvetica", 'B', 10)
             else:
                 pdf.set_font("Helvetica", 'B', 10)
 
             pdf.cell(largura_util * 0.4, 6, valor, ln=True, align='R')
-
             pdf.set_draw_color(235, 238, 242)
             pdf.line(pdf.l_margin, pdf.get_y(), pdf.l_margin + largura_util, pdf.get_y())
 
         # Conteúdo
-        adicionar_secao_pdf("DADOS DO IMOVEL")
-        adicionar_linha_detalhe("Empreendimento", str(d.get('empreendimento_nome')))
-        adicionar_linha_detalhe("Unidade Selecionada", str(d.get('unidade_id')))
-        adicionar_linha_detalhe(
-            "Valor de Venda do Imovel",
-            f"R$ {fmt_br(d.get('imovel_valor', 0))}",
-            destaque=True
-        )
+        secao("DADOS DO IMOVEL")
+        linha("Empreendimento", str(d.get('empreendimento_nome')))
+        linha("Unidade Selecionada", str(d.get('unidade_id')))
+        linha("Valor de Venda do Imovel", f"R$ {fmt_br(d.get('imovel_valor', 0))}", True)
 
         pdf.ln(4)
 
-        adicionar_secao_pdf("ENGENHARIA FINANCEIRA")
-        adicionar_linha_detalhe("Financiamento Bancario Estimado", f"R$ {fmt_br(d.get('finan_usado', 0))}")
+        secao("ENGENHARIA FINANCEIRA")
+        linha("Financiamento Bancario Estimado", f"R$ {fmt_br(d.get('finan_usado', 0))}")
         prazo = d.get('prazo_financiamento', 360)
-        adicionar_linha_detalhe("Sistema de Amortizacao", f"{d.get('sistema_amortizacao', 'SAC')} - {prazo}x")
-        adicionar_linha_detalhe("Parcela Estimada Financiamento", f"R$ {fmt_br(d.get('parcela_financiamento', 0))}")
-        adicionar_linha_detalhe("Subsidio + FGTS Utilizado", f"R$ {fmt_br(d.get('fgts_sub_usado', 0))}")
-        adicionar_linha_detalhe("Pro Soluto Direcional", f"R$ {fmt_br(d.get('ps_usado', 0))}")
-        adicionar_linha_detalhe(
-            "Mensalidade Pro Soluto",
-            f"{d.get('ps_parcelas')}x de R$ {fmt_br(d.get('ps_mensal', 0))}"
-        )
+        linha("Sistema de Amortizacao", f"{d.get('sistema_amortizacao', 'SAC')} - {prazo}x")
+        linha("Parcela Estimada Financiamento", f"R$ {fmt_br(d.get('parcela_financiamento', 0))}")
+        linha("Subsidio + FGTS Utilizado", f"R$ {fmt_br(d.get('fgts_sub_usado', 0))}")
+        linha("Pro Soluto Direcional", f"R$ {fmt_br(d.get('ps_usado', 0))}")
+        linha("Mensalidade Pro Soluto", f"{d.get('ps_parcelas')}x de R$ {fmt_br(d.get('ps_mensal', 0))}")
 
         pdf.ln(4)
 
-        adicionar_secao_pdf("PLANO DE ENTRADA (FLUXO DE CAIXA)")
-        adicionar_linha_detalhe(
-            "VALOR TOTAL DE ENTRADA",
-            f"R$ {fmt_br(d.get('entrada_total', 0))}",
-            destaque=True
-        )
-        adicionar_linha_detalhe("Parcela de Ato (Imediato)", f"R$ {fmt_br(d.get('ato_final', 0))}")
-        adicionar_linha_detalhe("Parcela 30 Dias", f"R$ {fmt_br(d.get('ato_30', 0))}")
-        adicionar_linha_detalhe("Parcela 60 Dias", f"R$ {fmt_br(d.get('ato_60', 0))}")
-        adicionar_linha_detalhe("Parcela 90 Dias", f"R$ {fmt_br(d.get('ato_90', 0))}")
+        secao("PLANO DE ENTRADA (FLUXO DE CAIXA)")
+        linha("VALOR TOTAL DE ENTRADA", f"R$ {fmt_br(d.get('entrada_total', 0))}", True)
+        linha("Parcela de Ato (Imediato)", f"R$ {fmt_br(d.get('ato_final', 0))}")
+        linha("Parcela 30 Dias", f"R$ {fmt_br(d.get('ato_30', 0))}")
+        linha("Parcela 60 Dias", f"R$ {fmt_br(d.get('ato_60', 0))}")
+        linha("Parcela 90 Dias", f"R$ {fmt_br(d.get('ato_90', 0))}")
 
-        # Empurra o rodapé para o fim da página
-        pdf.set_y(-22)
+        # 🔑 PREENCHIMENTO DO ESPAÇO RESTANTE
+        altura_rodape = 14
+        espaco_restante = pdf.h - pdf.b_margin - pdf.get_y() - altura_rodape
 
+        if espaco_restante > 0:
+            pdf.ln(espaco_restante)
+
+        # Rodapé
         pdf.set_font("Helvetica", 'I', 7)
-        pdf.set_text_color(*AZUL_RGB)
+        pdf.set_text_color(*AZUL)
         pdf.cell(
             0,
             4,
