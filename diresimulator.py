@@ -711,20 +711,20 @@ def gerar_resumo_pdf(d):
         if os.path.exists("favicon.png"):
             try: pdf.image("favicon.png", 10, 8, 10)
             except: pass
-        pdf.ln(12); pdf.set_text_color(*AZUL_RGB); pdf.set_font("Helvetica", 'B', 20); pdf.cell(0, 10, "RELATORIO DE VIABILIDADE", ln=True, align='C')
-        pdf.set_font("Helvetica", '', 8); pdf.cell(0, 6, "SIMULADOR IMOBILIARIO DV - DOCUMENTO EXECUTIVO", ln=True, align='C'); pdf.ln(10)
+        pdf.ln(12); pdf.set_text_color(*AZUL_RGB); pdf.set_font("Helvetica", 'B', 22); pdf.cell(0, 12, "RELATORIO DE VIABILIDADE", ln=True, align='C')
+        pdf.set_font("Helvetica", '', 10); pdf.cell(0, 6, "SIMULADOR IMOBILIARIO DV - DOCUMENTO EXECUTIVO", ln=True, align='C'); pdf.ln(10)
         
         pdf.set_fill_color(*FUNDO_SECAO); pdf.rect(10, pdf.get_y(), 190, 18, 'F'); pdf.set_xy(15, pdf.get_y() + 4)
-        pdf.set_text_color(*AZUL_RGB); pdf.set_font("Helvetica", 'B', 11); pdf.cell(0, 5, f"CLIENTE: {d.get('nome', 'Nao informado').upper()}", ln=True)
-        pdf.set_x(15); pdf.set_font("Helvetica", '', 9); pdf.cell(0, 5, f"Renda Familiar: R$ {fmt_br(d.get('renda', 0))}", ln=True); pdf.ln(12)
+        pdf.set_text_color(*AZUL_RGB); pdf.set_font("Helvetica", 'B', 13); pdf.cell(0, 5, f"CLIENTE: {d.get('nome', 'Nao informado').upper()}", ln=True)
+        pdf.set_x(15); pdf.set_font("Helvetica", '', 11); pdf.cell(0, 5, f"Renda Familiar: R$ {fmt_br(d.get('renda', 0))}", ln=True); pdf.ln(12)
 
         def adicionar_secao_pdf(titulo):
-            pdf.set_fill_color(*AZUL_RGB); pdf.set_text_color(*BRANCO_RGB); pdf.set_font("Helvetica", 'B', 9); pdf.cell(0, 8, f"   {titulo}", ln=True, fill=True); pdf.ln(2)
+            pdf.set_fill_color(*AZUL_RGB); pdf.set_text_color(*BRANCO_RGB); pdf.set_font("Helvetica", 'B', 11); pdf.cell(0, 8, f"   {titulo}", ln=True, fill=True); pdf.ln(2)
 
         def adicionar_linha_detalhe(label, valor, destaque=False):
-            pdf.set_x(15); pdf.set_text_color(*AZUL_RGB); pdf.set_font("Helvetica", '', 9); pdf.cell(110, 7, label, border=0)
-            if destaque: pdf.set_text_color(*VERMELHO_RGB); pdf.set_font("Helvetica", 'B', 9)
-            else: pdf.set_font("Helvetica", 'B', 9)
+            pdf.set_x(15); pdf.set_text_color(*AZUL_RGB); pdf.set_font("Helvetica", '', 11); pdf.cell(110, 7, label, border=0)
+            if destaque: pdf.set_text_color(*VERMELHO_RGB); pdf.set_font("Helvetica", 'B', 11)
+            else: pdf.set_font("Helvetica", 'B', 11)
             pdf.cell(0, 7, valor, border=0, ln=True, align='R'); pdf.set_draw_color(241, 245, 249); pdf.line(15, pdf.get_y(), 195, pdf.get_y())
 
         adicionar_secao_pdf("DADOS DO IMOVEL")
@@ -751,7 +751,7 @@ def gerar_resumo_pdf(d):
         pdf.ln(10)
         # Rodapé na mesma página
         pdf.set_font("Helvetica", 'I', 7); pdf.set_text_color(*AZUL_RGB)
-        pdf.cell(0, 4, f"Simulacao realizada em {d.get('data_simulacao', date.today().strftime('%d/%m/%Y'))}. Sujeito a analise de credito.", ln=True, align='C')
+        pdf.cell(0, 4, f"Simulacao realizada em {d.get('data_simulacao', date.today().strftime('%d/%m/%Y'))}. Sujeito a analise de credito e alteração de tabela sem aviso prévio.", ln=True, align='C')
         pdf.cell(0, 4, "Direcional Engenharia - Rio de Janeiro", ln=True, align='C')
         return bytes(pdf.output())
     except: return None
