@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 =============================================================================
-SISTEMA DE SIMULAÇÃO IMOBILIÁRIA - DIRE RIO V26 (INTERACTIVE STEPPER & CLEAN)
+SISTEMA DE SIMULAÇÃO IMOBILIÁRIA - DIRE RIO V26.1 (FIX & INTERACTIVE NAV)
 =============================================================================
 Instruções para Google Colab:
 1. Crie um arquivo chamado 'app.py' com este conteúdo.
@@ -312,7 +312,6 @@ def configurar_layout():
             background-color: #ffffff !important;
         }}
 
-        /* --- ALTURA E ALINHAMENTO UNIFICADOS PARA INPUTS --- */
         .stTextInput input, .stNumberInput input, .stDateInput input, div[data-baseweb="select"] > div {{
             height: 48px !important;
             min-height: 48px !important;
@@ -395,27 +394,6 @@ def configurar_layout():
             border-color: {COR_VERMELHO} !important;
             color: {COR_VERMELHO} !important;
             background: #ffffff !important;
-        }}
-        
-        /* Stepper Specific Styling for "Circles" using standard buttons */
-        /* Note: It's hard to make st.button perfectly round with dynamic text, but we approximate */
-        div.stButton.stepper-btn button {{
-            border-radius: 50% !important;
-            width: 40px !important;
-            height: 40px !important;
-            padding: 0 !important;
-            min-height: 40px !important;
-            margin: 0 auto !important;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);
-        }}
-        
-        /* Active/Completed State override */
-        div.stButton.stepper-btn button[kind="primary"] {{
-            background-color: #10b981 !important; /* Green for completed/active to match request */
-            border-color: #10b981 !important;
         }}
         
         .stDownloadButton button {{
@@ -586,10 +564,22 @@ def configurar_layout():
         div[data-baseweb="tab-highlight"] {{ background-color: {COR_VERMELHO} !important; height: 3px !important; }}
 
         .footer {{ text-align: center; padding: 80px 0; color: {COR_AZUL_ESC} !important; font-size: 0.8rem; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; opacity: 0.6; }}
+        
+        /* Stepper Buttons Styling */
+        div.stButton.stepper-btn button {{
+            border-radius: 50% !important;
+            width: 40px !important;
+            height: 40px !important;
+            padding: 0 !important;
+            margin: 0 auto !important;
+        }}
         </style>
     """, unsafe_allow_html=True)
 
 def render_stepper(current_step_name):
+    # CSS dinâmico para estilizar os botões do stepper como círculos
+    # O truque aqui é usar o índice da coluna para atingir o botão correto
+    
     steps = [
         {"id": "input", "label": "Dados do Cliente"},
         {"id": "guide", "label": "Recomendação de Imóveis"},
@@ -597,34 +587,101 @@ def render_stepper(current_step_name):
         {"id": "payment_flow", "label": "Fechamento Financeiro"},
         {"id": "summary", "label": "Resumo da Simulação"}
     ]
+    
     current_idx = 0
     for i, s in enumerate(steps):
         if s["id"] == current_step_name:
             current_idx = i
             break
+            
+    # Criamos um container para o stepper
+    with st.container():
+        # Linha de conexão (visual)
+        st.markdown(f"""
+        <style>
+        div[data-testid="column"] {{
+            position: relative;
+        }}
+        /* Conexão entre bolinhas (linha cinza) */
+        div[data-testid="column"]::after {{
+            content: '';
+            position: absolute;
+            top: 20px;
+            left: 50%;
+            width: 100%;
+            height: 2px;
+            background-color: #eef2f6;
+            z-index: 0;
+        }}
+        div[data-testid="column"]:last-child::after {{
+            display: none;
+        }}
+        
+        /* Estilo base dos botões dentro do stepper */
+        .stepper-scope button {{
+            border-radius: 50% !important;
+            width: 40px !important;
+            height: 40px !important;
+            min-height: 40px !important;
+            padding: 0 !important;
+            margin: 0 auto !important;
+            z-index: 1;
+            position: relative;
+            font-weight: bold !important;
+        }}
+        </style>
+        <div class="stepper-scope"></div>
+        """, unsafe_allow_html=True)
 
-    # Using columns for interactive buttons simulating circles
-    cols = st.columns(len(steps))
-    for i, step in enumerate(steps):
-        with cols[i]:
-            # Logic: Previous steps = Completed (Green), Current = Active (Green/Blueish), Future = Standard
-            # To simulate "bolinhas ficando verde", we use primary color (Red in main config, but we used Green in CSS for special class... 
-            # actually Streamlit primary is Red. 
-            # We will use "primary" for active/completed to show color.
-            
-            btn_type = "primary" if i <= current_idx else "secondary"
-            # Label is just the number to look like a circle
-            if st.button(f"{i+1}", key=f"step_btn_{i}", type=btn_type, use_container_width=True):
-                 st.session_state.passo_simulacao = step['id']
-                 scroll_to_top()
-                 st.rerun()
-            
-            # Label below
-            st.markdown(f"<div style='text-align:center; font-size:0.75rem; font-weight:700; color:#002c5d; margin-top:-10px;'>{step['label']}</div>", unsafe_allow_html=True)
-            
-    st.markdown("<div style='margin-bottom: 30px; border-bottom: 2px solid #eef2f6; margin-top: 10px;'></div>", unsafe_allow_html=True)
+        cols = st.columns(len(steps))
+        for i, step in enumerate(steps):
+            with cols[i]:
+                # Se o passo já foi completado (i < current) -> Verde (#10b981)
+                # Se é o passo atual (i == current) -> Azul (#002c5d) via Primary
+                # Se é futuro -> Cinza/Branco via Secondary
+                
+                # Para conseguir o VERDE, precisamos de um hack de estilo ou usar Primary como Verde?
+                # Como o user quer "bolinhas ficando verde", vamos usar o Primary para "Completado/Ativo" 
+                # mas o CSS global define Primary como Vermelho.
+                # Solução: Injetar CSS específico para este botão baseada na chave.
+                
+                btn_key = f"step_btn_{i}"
+                is_completed = i <= current_idx # Including current as colored
+                
+                # Define cor baseada no estado
+                bg_color = "#10b981" if i < current_idx else ("#002c5d" if i == current_idx else "#ffffff")
+                text_color = "#ffffff" if i <= current_idx else "#64748b"
+                border_color = bg_color if i <= current_idx else "#eef2f6"
+                
+                # Injeta estilo específico para este botão
+                st.markdown(f"""
+                <style>
+                div.row-widget.stButton > button[kind="secondary"] {{
+                    /* fallback */
+                }}
+                /* Target by key logic is hard in pure CSS without custom component */
+                /* We use the column index trick */
+                div[data-testid="column"]:nth-of-type({i+1}) div.stButton button {{
+                    background-color: {bg_color} !important;
+                    color: {text_color} !important;
+                    border-color: {border_color} !important;
+                }}
+                </style>
+                """, unsafe_allow_html=True)
 
-# ... (Funções PDF e Email) ...
+                if st.button(f"{i+1}", key=btn_key, use_container_width=True):
+                    st.session_state.passo_simulacao = step['id']
+                    scroll_to_top()
+                    st.rerun()
+                
+                # Label
+                weight = "700" if i == current_idx else "400"
+                color = "#002c5d" if i == current_idx else "#64748b"
+                st.markdown(f"<div style='text-align:center; font-size:0.75rem; color:{color}; font-weight:{weight}; margin-top:5px;'>{step['label']}</div>", unsafe_allow_html=True)
+
+    st.markdown("<div style='margin-bottom: 40px;'></div>", unsafe_allow_html=True)
+
+# ... (Funções PDF e Email mantidas iguais) ...
 def gerar_resumo_pdf(d):
     if not PDF_ENABLED: return None
     try:
@@ -1083,7 +1140,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
         st.markdown("---")
         if st.button("Avançar para Escolha de Unidade", type="primary", use_container_width=True, key="btn_goto_selection"): st.session_state.passo_simulacao = 'selection'; scroll_to_top(); st.rerun()
         st.write("");
-        if st.button("Voltar para Recomendação de Imóveis", use_container_width=True, key="btn_pot_v28"): st.session_state.passo_simulacao = 'guide'; scroll_to_top(); st.rerun()
+        if st.button("Voltar para Dados do Cliente", use_container_width=True, key="btn_pot_v28"): st.session_state.passo_simulacao = 'input'; scroll_to_top(); st.rerun()
 
     # --- ETAPA 3: SELEÇÃO + TERMOMETRO ---
     elif passo == 'selection':
