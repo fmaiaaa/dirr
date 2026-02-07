@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 =============================================================================
-SISTEMA DE SIMULAÇÃO IMOBILIÁRIA - DIRE RIO V7 (FINAL ADJUSTED UI + SAC/PRICE)
+SISTEMA DE SIMULAÇÃO IMOBILIÁRIA - DIRE RIO V8 (FINAL ADJUSTED UI + LOGIC)
 =============================================================================
 Instruções para Google Colab:
 1. Crie um arquivo chamado 'app.py' com este conteúdo.
@@ -114,6 +114,7 @@ def calcular_parcela_financiamento(valor_financiado, meses, taxa_anual_pct, sist
     if valor_financiado <= 0 or meses <= 0:
         return 0.0
     
+    # Taxa mensal
     i_mensal = (1 + taxa_anual_pct/100)**(1/12) - 1
     
     if sistema == "PRICE":
@@ -266,7 +267,6 @@ class MotorRecomendacao:
     def obter_enquadramento(self, renda, social, cotista, valor_avaliacao=250000):
         if self.df_finan.empty: return 0.0, 0.0, "N/A"
         
-        # Definição de Faixa Atualizada
         if valor_avaliacao <= 275000: faixa = "F2"
         elif valor_avaliacao <= 350000: faixa = "F3"
         else: faixa = "F4"
@@ -598,7 +598,7 @@ def gerar_resumo_pdf(d):
         adicionar_linha_detalhe("Parcela 60 Dias", f"R$ {fmt_br(d.get('ato_60', 0))}")
         adicionar_linha_detalhe("Parcela 90 Dias", f"R$ {fmt_br(d.get('ato_90', 0))}")
         pdf.set_y(-25); pdf.set_font("Helvetica", 'I', 7); pdf.set_text_color(*AZUL_RGB)
-        pdf.cell(0, 4, "Simulação sujeita a aprovação de crédito e alteração de tabela sem aviso prévio.", ln=True, align='C')
+        pdf.cell(0, 4, f"Simulacao realizada em {d.get('data_simulacao', date.today().strftime('%d/%m/%Y'))}. Sujeito a analise de credito.", ln=True, align='C')
         pdf.cell(0, 4, "Direcional Engenharia - Rio de Janeiro", ln=True, align='C')
         return bytes(pdf.output())
     except: return None
@@ -651,7 +651,6 @@ def tela_login(df_logins):
 
 @st.dialog("Opções de Exportação")
 def show_export_dialog(d):
-    # Removido text-align center conforme pedido
     st.markdown("### Resumo da Simulação")
     st.markdown("Escolha como deseja exportar o documento.")
     pdf_data = gerar_resumo_pdf(d)
@@ -708,6 +707,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
                 # Normalização de nome de coluna para garantir match
                 col_corretor = next((c for c in df_h.columns if 'Nome do Corretor' in c), None)
                 col_nome_cliente = next((c for c in df_h.columns if c == 'Nome'), None)
+                col_data_sim = next((c for c in df_h.columns if 'Data Simula' in c or 'Carimbo' in c), None)
 
                 if col_corretor:
                     # Filtra pelo corretor (usando strip e upper para garantir)
@@ -724,7 +724,15 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
                         for idx, row in my_hist.iterrows():
                             c_nome = row.get('Nome', 'Cli')
                             c_emp = row.get('Empreendimento Final', 'Emp')
+                            c_data = ""
+                            if col_data_sim and pd.notnull(row.get(col_data_sim)):
+                                try:
+                                    c_data = str(row.get(col_data_sim)).split('.')[0] # Remove microsegundos se houver
+                                except: pass
+                            
                             label = f"{c_nome} | {c_emp}"
+                            if c_data: label += f"\n{c_data}"
+                            
                             # Botões diretos, um embaixo do outro
                             if st.button(label, key=f"hist_{idx}", use_container_width=True):
                                 # Carrega dados
@@ -775,11 +783,8 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
         genero = st.selectbox("Gênero", ["Masculino", "Feminino", "Outro"], index=0, key="in_genero_v3")
 
         st.markdown("---")
-        col_p1, col_p2 = st.columns(2)
-        with col_p1: qtd_part = st.number_input("Participantes na Renda", min_value=1, max_value=4, value=st.session_state.dados_cliente.get('qtd_participantes', 1), step=1, key="qtd_part_v3")
-        with col_p2:
-            idx_prazo = 0 if st.session_state.dados_cliente.get('prazo_financiamento', 360) == 360 else 1
-            prazo_finan = st.selectbox("Prazo Financiamento (Meses)", [360, 420], index=idx_prazo, key="prazo_v3")
+        # Layout Ajustado: Participantes full width, sem prazo aqui
+        qtd_part = st.number_input("Participantes na Renda", min_value=1, max_value=4, value=st.session_state.dados_cliente.get('qtd_participantes', 1), step=1, key="qtd_part_v3")
         
         cols_renda = st.columns(qtd_part)
         renda_total_calc = 0.0
@@ -821,7 +826,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
                 'social': social, 'cotista': cotista, 'ranking': ranking, 'politica': politica_ps,
                 'perc_ps': politica_row['PROSOLUTO'], 'prazo_ps_max': int(politica_row['PARCELAS']),
                 'limit_ps_renda': limit_ps_r, 'finan_f_ref': f_faixa_ref, 'sub_f_ref': s_faixa_ref,
-                'qtd_participantes': qtd_part, 'prazo_financiamento': prazo_finan
+                'qtd_participantes': qtd_part
             })
             st.session_state.passo_simulacao = destino
             st.rerun()
@@ -848,14 +853,22 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
                 v_venda = row['Valor de Venda']
                 v_aval = row['Valor de Avaliação Bancária']
                 fin, sub, fx_n = motor.obter_enquadramento(d.get('renda', 0), d.get('social', False), d.get('cotista', True), v_aval)
-                poder, ps_u = motor.calcular_poder_compra(d.get('renda', 0), fin, sub, d.get('perc_ps', 0), v_venda)
-                # Viabilidade: Se o poder de compra cobre 100% do valor
+                
+                # Formula de Viabilidade: 2*Renda + Fin + Sub + PS_Max >= Valor
+                # PS_Max = Valor * perc_ps
+                ps_max = v_venda * d.get('perc_ps', 0)
+                potencial_total = (2 * d.get('renda', 0)) + fin + sub + ps_max
+                
+                # Poder de compra (usado para cards de sugestao) ainda segue a lógica padrão
+                poder, _ = motor.calcular_poder_compra(d.get('renda', 0), fin, sub, d.get('perc_ps', 0), v_venda)
+                
                 cobertura = (poder / v_venda) * 100 if v_venda > 0 else 0
-                is_viavel = cobertura >= 100
+                is_viavel = potencial_total >= v_venda
+                
                 return pd.Series([poder, cobertura, is_viavel, fin, sub])
 
             df_disp_total[['Poder_Compra', 'Cobertura', 'Viavel', 'Finan_Unid', 'Sub_Unid']] = df_disp_total.apply(calcular_viabilidade_unidade, axis=1)
-            # Remove status textual conforme pedido, apenas calcula
+            # Filtra Viáveis
             df_viaveis = df_disp_total[df_disp_total['Viavel']].copy()
         
         # ABAS DE SELEÇÃO ATUALIZADAS
@@ -1089,20 +1102,19 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
         
         st.markdown(f'<div class="custom-alert">{u_nome} - {u_unid} (R$ {fmt_br(u_valor)})</div>', unsafe_allow_html=True)
         
-        # Linha 1: Financiamento + Tabela
-        col_fin, col_tab = st.columns([1.5, 1])
-        with col_fin: 
-            f_u = st.number_input("Financiamento", value=float(d.get('finan_estimado', 0)), step=1000.0, key="fin_u_v28")
-            st.markdown(f'<span class="inline-ref">Financiamento Máximo: R$ {fmt_br(d.get("finan_estimado", 0))}</span>', unsafe_allow_html=True)
-        with col_tab:
-            # Opção SAC/PRICE
-            tab_fin = st.selectbox("Tabela", ["SAC", "PRICE"], key="tab_fin_v28")
+        # 1. Valor Financiamento (Full width)
+        f_u = st.number_input("Financiamento", value=float(d.get('finan_estimado', 0)), step=1000.0, key="fin_u_v28")
+        st.markdown(f'<span class="inline-ref">Financiamento Máximo: R$ {fmt_br(d.get("finan_estimado", 0))}</span>', unsafe_allow_html=True)
 
-        # Linha 2: FGTS
-        col_fgts, col_vazio = st.columns([1.5, 1])
-        with col_fgts: 
-            fgts_u = st.number_input("FGTS + Subsídio", value=float(d.get('fgts_sub', 0)), step=1000.0, key="fgt_u_v28")
-            st.markdown(f'<span class="inline-ref">Subsídio Máximo: R$ {fmt_br(d.get("fgts_sub", 0))}</span>', unsafe_allow_html=True)
+        # 2. Prazo (Full width)
+        prazo_finan = st.selectbox("Prazo Financiamento (Meses)", [360, 420], key="prazo_v3_closed")
+
+        # 3. Tabela (Full width)
+        tab_fin = st.selectbox("Sistema de Amortização", ["SAC", "PRICE"], key="tab_fin_v28")
+
+        # FGTS (Full width)
+        fgts_u = st.number_input("FGTS + Subsídio", value=float(d.get('fgts_sub', 0)), step=1000.0, key="fgt_u_v28")
+        st.markdown(f'<span class="inline-ref">Subsídio Máximo: R$ {fmt_br(d.get("fgts_sub", 0))}</span>', unsafe_allow_html=True)
         
         st.markdown("<hr style='margin: 10px 0;'>", unsafe_allow_html=True)
         
@@ -1194,8 +1206,8 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
         total_entrada_cash = st.session_state.ato_1 + st.session_state.ato_2 + st.session_state.ato_3 + st.session_state.ato_4
         
         # Calcular parcela financiamento para salvar
-        taxa_juros_padrao = 8.5 # Taxa média mercado/MCMV para estimativa
-        parcela_fin = calcular_parcela_financiamento(f_u, d.get('prazo_financiamento', 360), taxa_juros_padrao, tab_fin)
+        taxa_juros_padrao = 8.16 # Taxa média mercado/MCMV para estimativa
+        parcela_fin = calcular_parcela_financiamento(f_u, prazo_finan, taxa_juros_padrao, tab_fin)
 
         st.session_state.dados_cliente.update({
             'finan_usado': f_u, 
@@ -1209,6 +1221,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
             'ato_60': st.session_state.ato_3, 
             'ato_90': st.session_state.ato_4,
             'sistema_amortizacao': tab_fin,
+            'prazo_financiamento': prazo_finan, # Atualiza prazo
             'parcela_financiamento': parcela_fin
         })
         
@@ -1226,10 +1239,10 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
         st.markdown(f"""<div class="summary-body"><b>Empreendimento:</b> {d.get('empreendimento_nome')}<br><b>Unidade:</b> {d.get('unidade_id')}<br><b>Valor de Venda:</b> <span style="color: {COR_VERMELHO}; font-weight: 800;">R$ {fmt_br(d.get('imovel_valor', 0))}</span></div>""", unsafe_allow_html=True)
         st.markdown(f'<div class="summary-header">PLANO DE FINANCIAMENTO</div>', unsafe_allow_html=True)
         
-        # Exibe parcelas
+        # Exibe parcelas formatadas
         parcela_texto = f"Parcela Estimada ({d.get('sistema_amortizacao', 'SAC')}): R$ {fmt_br(d.get('parcela_financiamento', 0))}"
         
-        st.markdown(f"""<div class="summary-body"><b>Financiamento Bancário:</b> R$ {fmt_br(d.get('finan_usado', 0))}<br><small>{parcela_texto}</small><br><b>FGTS + Subsídio:</b> R$ {fmt_br(d.get('fgts_sub_usado', 0))}<br><b>Pro Soluto Total:</b> R$ {fmt_br(d.get('ps_usado', 0))} ({d.get('ps_parcelas')}x de R$ {fmt_br(d.get('ps_mensal', 0))})</div>""", unsafe_allow_html=True)
+        st.markdown(f"""<div class="summary-body"><b>Financiamento Bancário:</b> R$ {fmt_br(d.get('finan_usado', 0))}<br><b>{parcela_texto}</b><br><b>FGTS + Subsídio:</b> R$ {fmt_br(d.get('fgts_sub_usado', 0))}<br><b>Pro Soluto Total:</b> R$ {fmt_br(d.get('ps_usado', 0))} ({d.get('ps_parcelas')}x de R$ {fmt_br(d.get('ps_mensal', 0))})</div>""", unsafe_allow_html=True)
         st.markdown(f'<div class="summary-header">FLUXO DE ENTRADA (ATO)</div>', unsafe_allow_html=True)
         st.markdown(f"""<div class="summary-body"><b>Total de Entrada:</b> R$ {fmt_br(d.get('entrada_total', 0))}<br><hr style="border: 0; border-top: 1px solid #e2e8f0; margin: 10px 0;"><b>Ato:</b> R$ {fmt_br(d.get('ato_final', 0))}<br><b>Ato 30 Dias:</b> R$ {fmt_br(d.get('ato_30', 0))}<br><b>Ato 60 Dias:</b> R$ {fmt_br(d.get('ato_60', 0))}<br><b>Ato 90 Dias:</b> R$ {fmt_br(d.get('ato_90', 0))}</div>""", unsafe_allow_html=True)
 
@@ -1257,7 +1270,8 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
                     "Pro Soluto Final": d.get('ps_usado', 0), "Número de Parcelas do Pro Soluto": d.get('ps_parcelas', 0), "Mensalidade PS": d.get('ps_mensal', 0),
                     "Ato": d.get('ato_final', 0), "Ato 30": d.get('ato_30', 0), "Ato 60": d.get('ato_60', 0), "Ato 90": d.get('ato_90', 0),
                     "Renda Part. 2": rendas_ind[1],
-                    "Nome do Corretor": st.session_state.get('user_name', ''), "Canal/Imobiliária": st.session_state.get('user_imobiliaria', '')
+                    "Nome do Corretor": st.session_state.get('user_name', ''), "Canal/Imobiliária": st.session_state.get('user_imobiliaria', ''),
+                    "Data Simulação": datetime.now().strftime("%d/%m/%Y %H:%M:%S")
                 }
                 df_novo = pd.DataFrame([nova_linha])
                 try:
