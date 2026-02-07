@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 =============================================================================
-SISTEMA DE SIMULAÇÃO IMOBILIÁRIA - DIRE RIO V24.2 (CLICKABLE NAV & CLEAN)
+SISTEMA DE SIMULAÇÃO IMOBILIÁRIA - DIRE RIO V25 (BUGFIX & INPUT UX)
 =============================================================================
 Instruções para Google Colab:
 1. Crie um arquivo chamado 'app.py' com este conteúdo.
@@ -54,7 +54,6 @@ except:
 # =============================================================================
 # 0. CONSTANTES E UTILITÁRIOS
 # =============================================================================
-# IDs das Planilhas (Substitua se mudarem)
 ID_FINAN = "1wJD3tXe1e8FxL4mVEfNKGdtaS__Dl4V6-sm1G6qfL0s"
 ID_RANKING = "1N00McOjO1O_MuKyQhp-CVhpAet_9Lfq-VqVm1FmPV00"
 ID_ESTOQUE = "1VG-hgBkddyssN1OXgIA33CVsKGAdqT-5kwbgizxWDZQ"
@@ -71,7 +70,7 @@ COR_VERMELHO = "#e30613"
 COR_FUNDO = "#fcfdfe"
 COR_BORDA = "#eef2f6"
 COR_TEXTO_MUTED = "#64748b"
-COR_INPUT_BG = "#f0f2f6" # Cor solicitada para inputs e botões
+COR_INPUT_BG = "#f0f2f6"
 
 def fmt_br(valor):
     try:
@@ -100,23 +99,36 @@ def validar_cpf(cpf):
     if resto != int(cpf[10]): return False
     return True
 
+def safe_float_convert(val):
+    """Converte valores do GSheets/Inputs para float de forma segura, evitando erro de multiplicacao."""
+    if pd.isnull(val) or val == "": return 0.0
+    if isinstance(val, (int, float, np.number)): return float(val)
+    
+    # Tratamento de String
+    s = str(val).replace('R$', '').strip()
+    
+    # Se ja for um numero puro em string '150000.50'
+    try:
+        return float(s)
+    except:
+        # Se tiver formatacao brasileira '150.000,50'
+        if ',' in s and '.' in s:
+            s = s.replace('.', '').replace(',', '.')
+        elif ',' in s: 
+            s = s.replace(',', '.')
+            
+        try: return float(s)
+        except: return 0.0
+
 def calcular_cor_gradiente(valor):
-    """
-    Interpola linearmente entre Vermelho (#e30613) e Azul (#002c5d)
-    Vermelho: (227, 6, 19) -> 0%
-    Azul: (0, 44, 93) -> 100%
-    """
     valor = max(0, min(100, valor))
     fator = valor / 100
-    
     r = int(227 + (0 - 227) * fator)
     g = int(6 + (44 - 6) * fator)
     b = int(19 + (93 - 19) * fator)
-    
     return f"rgb({r},{g},{b})"
 
 def calcular_comparativo_sac_price(valor, meses, taxa_anual):
-    """Calcula detalhes comparativos entre SAC e PRICE."""
     if valor <= 0 or meses <= 0:
         return {"SAC": {"primeira": 0, "ultima": 0, "juros": 0}, "PRICE": {"parcela": 0, "juros": 0}}
     
@@ -127,22 +139,16 @@ def calcular_comparativo_sac_price(valor, meses, taxa_anual):
         pmt_price = valor * (i * (1 + i)**meses) / ((1 + i)**meses - 1)
         total_pago_price = pmt_price * meses
         juros_price = total_pago_price - valor
-    except:
-        pmt_price = 0
-        juros_price = 0
+    except: pmt_price = 0; juros_price = 0
 
     # SAC
     try:
         amort = valor / meses
         pmt_sac_ini = amort + (valor * i)
-        pmt_sac_fim = amort + (amort * i) # Saldo devedor na última parcela é 1 amortização
-        # Soma de PA: (a1 + an) * n / 2
+        pmt_sac_fim = amort + (amort * i)
         total_pago_sac = (pmt_sac_ini + pmt_sac_fim) * meses / 2
         juros_sac = total_pago_sac - valor
-    except:
-        pmt_sac_ini = 0
-        pmt_sac_fim = 0
-        juros_sac = 0
+    except: pmt_sac_ini = 0; pmt_sac_fim = 0; juros_sac = 0
     
     return {
         "SAC": {"primeira": pmt_sac_ini, "ultima": pmt_sac_fim, "juros": juros_sac},
@@ -150,36 +156,18 @@ def calcular_comparativo_sac_price(valor, meses, taxa_anual):
     }
 
 def calcular_parcela_financiamento(valor_financiado, meses, taxa_anual_pct, sistema):
-    """Calcula a primeira parcela (SAC) ou parcela fixa (PRICE)"""
-    if valor_financiado <= 0 or meses <= 0:
-        return 0.0
-
-    # Taxa mensal
+    if valor_financiado <= 0 or meses <= 0: return 0.0
     i_mensal = (1 + taxa_anual_pct/100)**(1/12) - 1
-
     if sistema == "PRICE":
-        # PMT = PV * [ i(1+i)^n ] / [ (1+i)^n - 1 ]
-        try:
-            parcela = valor_financiado * (i_mensal * (1 + i_mensal)**meses) / ((1 + i_mensal)**meses - 1)
-        except:
-            parcela = 0.0
-    else: # SAC
-        # Primeira parcela = Amortização + Juros sobre saldo total
+        try: return valor_financiado * (i_mensal * (1 + i_mensal)**meses) / ((1 + i_mensal)**meses - 1)
+        except: return 0.0
+    else:
         amortizacao = valor_financiado / meses
         juros = valor_financiado * i_mensal
-        parcela = amortizacao + juros
-
-    return parcela
+        return amortizacao + juros
 
 def scroll_to_top():
-    """Injeta JavaScript para rolar a página para o topo."""
-    js = """
-    <script>
-        var body = window.parent.document.querySelector(".main");
-        if (body) { body.scrollTop = 0; }
-        window.scrollTo(0, 0);
-    </script>
-    """
+    js = """<script>var body = window.parent.document.querySelector(".main"); if (body) { body.scrollTop = 0; } window.scrollTo(0, 0);</script>"""
     st.components.v1.html(js, height=0)
 
 # =============================================================================
@@ -191,25 +179,12 @@ def carregar_dados_sistema():
     try:
         if "connections" not in st.secrets:
             return pd.DataFrame(), pd.DataFrame(), pd.DataFrame(), pd.DataFrame(), pd.DataFrame()
-
         conn = st.connection("gsheets", type=GSheetsConnection)
 
-        def limpar_porcentagem(val):
-            if isinstance(val, str):
-                v = val.replace('%', '').replace(',', '.').strip()
-                try: return float(v) / 100 if float(v) > 1 else float(v)
-                except: return 0.0
-            return val
-
         def limpar_moeda(val):
-            if isinstance(val, (int, float)): return float(val)
-            if isinstance(val, str):
-                val = val.replace('R$', '').replace('.', '').replace(',', '.').strip()
-                try: return float(val)
-                except: return 0.0
-            return 0.0
+            return safe_float_convert(val)
 
-        # --- 1. Logins ---
+        # Logins
         try:
             df_logins = conn.read(spreadsheet=URL_RANKING, worksheet="Logins")
             df_logins.columns = [str(c).strip() for c in df_logins.columns]
@@ -222,64 +197,42 @@ def carregar_dados_sistema():
                 elif "nome" in c_low: mapa[col] = 'Nome'
                 elif "cargo" in c_low: mapa[col] = 'Cargo'
             df_logins = df_logins.rename(columns=mapa)
-            for c in ['Email', 'Senha', 'Imobiliaria', 'Cargo', 'Nome']:
-                if c not in df_logins.columns: df_logins[c] = ""
             df_logins['Email'] = df_logins['Email'].astype(str).str.strip().str.lower()
             df_logins['Senha'] = df_logins['Senha'].astype(str).str.strip()
-            df_logins = df_logins.drop_duplicates(subset=['Email'], keep='last')
-        except:
-            df_logins = pd.DataFrame(columns=['Email', 'Senha', 'Imobiliaria', 'Cargo', 'Nome'])
+        except: df_logins = pd.DataFrame(columns=['Email', 'Senha'])
 
-        # --- 2. Cadastros (Histórico) ---
+        # Cadastros
         try:
-            # Tenta ler Simulações primeiro
             df_cadastros = conn.read(spreadsheet=URL_RANKING, worksheet="Simulações")
-            df_cadastros.columns = [str(c).strip() for c in df_cadastros.columns]
         except:
-            try:
-                # Fallback para Cadastros se Simulações falhar ou não existir
-                df_cadastros = conn.read(spreadsheet=URL_RANKING, worksheet="Cadastros")
-                df_cadastros.columns = [str(c).strip() for c in df_cadastros.columns]
-            except:
-                df_cadastros = pd.DataFrame()
-
-        # --- 3. Políticas ---
+            try: df_cadastros = conn.read(spreadsheet=URL_RANKING, worksheet="Cadastros")
+            except: df_cadastros = pd.DataFrame()
+        
+        # Politicas
         try:
             df_politicas = conn.read(spreadsheet=URL_RANKING)
             df_politicas.columns = [str(c).strip() for c in df_politicas.columns]
             col_class = next((c for c in df_politicas.columns if 'CLASSIFICA' in c.upper() or 'RANKING' in c.upper()), 'CLASSIFICAÇÃO')
             df_politicas = df_politicas.rename(columns={col_class: 'CLASSIFICAÇÃO', 'FAIXA RENDA': 'FAIXA_RENDA', 'FX RENDA 1': 'FX_RENDA_1', 'FX RENDA 2': 'FX_RENDA_2'})
-            for col in ['PROSOLUTO', 'FX_RENDA_1', 'FX_RENDA_2']:
-                if col in df_politicas.columns: df_politicas[col] = df_politicas[col].apply(limpar_porcentagem)
-        except:
-            df_politicas = pd.DataFrame()
+        except: df_politicas = pd.DataFrame()
 
-        # --- 4. Financeiro ---
+        # Finan
         try:
             df_finan = conn.read(spreadsheet=URL_FINAN)
             df_finan.columns = [str(c).strip() for c in df_finan.columns]
             for col in df_finan.columns: df_finan[col] = df_finan[col].apply(limpar_moeda)
-        except:
-            df_finan = pd.DataFrame()
+        except: df_finan = pd.DataFrame()
 
-        # --- 5. Estoque ---
+        # Estoque
         try:
             df_raw = conn.read(spreadsheet=URL_ESTOQUE)
             df_raw.columns = [str(c).strip() for c in df_raw.columns]
-            try:
-                df_filtro = conn.read(spreadsheet=URL_ESTOQUE, worksheet="Página2")
-                lista_permitidos = df_filtro['Nome do empreendimento'].dropna().astype(str).str.strip().unique() if 'Nome do empreendimento' in df_filtro.columns else None
-            except: lista_permitidos = None
-
             mapa_estoque = {'Nome do Empreendimento': 'Empreendimento', 'VALOR DE VENDA': 'Valor de Venda', 'Status da unidade': 'Status', 'Identificador': 'Identificador', 'Bairro': 'Bairro'}
             col_aval = 'VALOR DE AVALIACAO BANCARIA' if 'VALOR DE AVALIACAO BANCARIA' in df_raw.columns else 'Valor de Avaliação Bancária'
             if col_aval in df_raw.columns: mapa_estoque[col_aval] = 'Valor de Avaliação Bancária'
-
             df_estoque = df_raw.rename(columns=mapa_estoque)
             df_estoque['Valor de Venda'] = df_estoque['Valor de Venda'].apply(limpar_moeda) if 'Valor de Venda' in df_estoque.columns else 0.0
             df_estoque['Valor de Avaliação Bancária'] = df_estoque['Valor de Avaliação Bancária'].apply(limpar_moeda) if 'Valor de Avaliação Bancária' in df_estoque.columns else df_estoque['Valor de Venda']
-
-            if lista_permitidos is not None: df_estoque = df_estoque[df_estoque['Empreendimento'].astype(str).str.strip().isin(lista_permitidos)]
             df_estoque = df_estoque[(df_estoque['Valor de Venda'] > 0) & (df_estoque['Empreendimento'].notnull())].copy()
             if 'Identificador' not in df_estoque.columns: df_estoque['Identificador'] = df_estoque.index.astype(str)
             if 'Bairro' not in df_estoque.columns: df_estoque['Bairro'] = 'Rio de Janeiro'
@@ -317,27 +270,17 @@ class MotorRecomendacao:
 
     def obter_enquadramento(self, renda, social, cotista, valor_avaliacao=250000):
         if self.df_finan.empty: return 0.0, 0.0, "N/A"
-
-        # Definição de Faixa Atualizada
         if valor_avaliacao <= 275000: faixa = "F2"
         elif valor_avaliacao <= 350000: faixa = "F3"
         else: faixa = "F4"
-
         renda_col = pd.to_numeric(self.df_finan['Renda'], errors='coerce').fillna(0)
         idx = (renda_col - float(renda)).abs().idxmin()
         row = self.df_finan.iloc[idx]
-
         s, c = ('Sim' if social else 'Nao'), ('Sim' if cotista else 'Nao')
-
         col_fin = f"Finan_Social_{s}_Cotista_{c}_{faixa}"
         col_sub = f"Subsidio_Social_{s}_Cotista_{c}_{faixa}"
-
         vf = row.get(col_fin, 0.0)
         vs = row.get(col_sub, 0.0)
-
-        if vf == 0 and faixa == "F2" and col_fin not in row:
-             pass
-
         return float(vf), float(vs), faixa
 
     def calcular_poder_compra(self, renda, finan, fgts_sub, perc_ps, valor_unidade):
@@ -388,7 +331,6 @@ def configurar_layout():
             background-color: #ffffff !important;
         }}
 
-        /* --- ALTURA E ALINHAMENTO UNIFICADOS PARA INPUTS --- */
         .stTextInput input, .stNumberInput input, .stDateInput input, div[data-baseweb="select"] > div {{
             height: 48px !important;
             min-height: 48px !important;
@@ -396,12 +338,11 @@ def configurar_layout():
             color: {COR_AZUL_ESC} !important;
             font-size: 1rem !important;
             line-height: 48px !important;
-            text-align: left !important; /* Força alinhamento à esquerda */
+            text-align: left !important;
             display: flex !important;
-            align-items: center !important; /* Centraliza verticalmente */
+            align-items: center !important;
         }}
 
-        /* Ajuste específico para garantir que o texto no Select fique à esquerda e centralizado */
         div[data-baseweb="select"] span {{
             text-align: left !important;
             display: flex !important;
@@ -422,25 +363,21 @@ def configurar_layout():
             background-color: transparent !important;
         }}
 
-        /* Ajuste dos botões de + e - nos Number Inputs */
         div[data-testid="stNumberInput"] button {{
              height: 48px !important;
              border-color: #e2e8f0 !important;
-             background-color: {COR_INPUT_BG} !important; /* Cinza claro */
+             background-color: {COR_INPUT_BG} !important;
              color: {COR_AZUL_ESC} !important;
         }}
 
-        div[data-testid="stNumberInput"] button:hover {{
-             background-color: #e2e8f0 !important;
-        }}
+        div[data-testid="stNumberInput"] button:hover {{ background-color: #e2e8f0 !important; }}
 
-        /* BOTÕES GERAIS - 60px para Nav e Ações Principais */
         .stButton button {{
             font-family: 'Inter', sans-serif;
             border-radius: 8px !important;
             padding: 0 20px !important;
             width: 100% !important;
-            height: 60px !important; /* Altura Maior (Avançar/Voltar/Sair) */
+            height: 60px !important;
             font-weight: 700 !important;
             text-transform: uppercase;
             letter-spacing: 0.1em;
@@ -448,14 +385,12 @@ def configurar_layout():
             transition: all 0.2s ease !important;
         }}
 
-        /* Botões dentro de Colunas (como 1x, 2x, Histórico) - Força 48px */
         div[data-testid="column"] .stButton button, [data-testid="stSidebar"] .stButton button {{
              min-height: 48px !important;
              height: 48px !important;
              font-size: 0.9rem !important;
         }}
 
-        /* Botões Primários (Vermelhos) */
         .stButton button[kind="primary"] {{
             background: {COR_VERMELHO} !important;
             color: #ffffff !important;
@@ -466,7 +401,6 @@ def configurar_layout():
             box-shadow: 0 8px 20px -5px rgba(227, 6, 19, 0.4) !important;
         }}
 
-        /* Botões Secundários/Padrão (Cinza Claro) */
         .stButton button:not([kind="primary"]) {{
             background: {COR_INPUT_BG} !important;
             color: {COR_AZUL_ESC} !important;
@@ -478,7 +412,6 @@ def configurar_layout():
             background: #ffffff !important;
         }}
 
-        /* Ajuste específico para o botão de download */
         .stDownloadButton button {{
             background: {COR_INPUT_BG} !important;
             color: {COR_AZUL_ESC} !important;
@@ -491,7 +424,6 @@ def configurar_layout():
             background: #ffffff !important;
         }}
 
-        /* Ajuste Sidebar */
         [data-testid="stSidebar"] .stButton button {{
             padding: 8px 12px !important;
             font-size: 0.75rem !important;
@@ -570,7 +502,7 @@ def configurar_layout():
         .custom-alert {{
             background-color: {COR_AZUL_ESC};
             padding: 25px;
-            border-radius: 8px; /* Ajustado para combinar com botões */
+            border-radius: 8px;
             margin-bottom: 30px;
             text-align: center;
             font-weight: 600;
@@ -578,7 +510,6 @@ def configurar_layout():
             display: flex;
             align-items: center;
             justify-content: center;
-            /* Tenta igualar altura do botão grande se possível, min-height ajuda */
             min-height: 60px; 
         }}
         .price-tag {{
@@ -602,7 +533,7 @@ def configurar_layout():
         .metric-label {{ color: {COR_AZUL_ESC} !important; opacity: 0.7; font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.15em; margin-bottom: 8px; }}
         .metric-value {{ color: {COR_AZUL_ESC} !important; font-size: 1.8rem; font-weight: 800; font-family: 'Montserrat', sans-serif; }}
 
-        /* BADGES - Círculos em Vermelho */
+        /* BADGES */
         .badge-ideal, .badge-seguro, .badge-facilitado, .badge-multi {{
             background-color: {COR_VERMELHO} !important;
             color: white;
@@ -615,7 +546,6 @@ def configurar_layout():
             letter-spacing: 0.05em;
         }}
 
-        /* Sidebar Styling */
         [data-testid="stSidebar"] {{ background-color: #fff; border-right: 1px solid {COR_BORDA}; }}
         
         .sidebar-profile {{
@@ -645,18 +575,25 @@ def configurar_layout():
         .hist-item {{ display: block; width: 100%; text-align: left; padding: 8px; margin-bottom: 4px; border-radius: 8px; background: #fff; border: 1px solid {COR_BORDA}; color: {COR_AZUL_ESC}; font-size: 0.75rem; transition: all 0.2s; }}
         .hist-item:hover {{ border-color: {COR_VERMELHO}; background: #fff5f5; }}
 
-        /* Tabs Centered */
         div[data-baseweb="tab-list"] {{ justify-content: center !important; gap: 40px; margin-bottom: 40px; }}
         button[data-baseweb="tab"] p {{ color: {COR_AZUL_ESC} !important; opacity: 0.6; font-weight: 700 !important; font-family: 'Montserrat', sans-serif !important; font-size: 0.9rem !important; text-transform: uppercase; letter-spacing: 0.1em; }}
         button[data-baseweb="tab"][aria-selected="true"] p {{ color: {COR_AZUL_ESC} !important; opacity: 1; }}
         div[data-baseweb="tab-highlight"] {{ background-color: {COR_VERMELHO} !important; height: 3px !important; }}
 
+        .stepper-container {{
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 3.5rem;
+            position: relative;
+            padding: 0 1rem;
+        }}
+        
         .footer {{ text-align: center; padding: 80px 0; color: {COR_AZUL_ESC} !important; font-size: 0.8rem; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; opacity: 0.6; }}
         </style>
     """, unsafe_allow_html=True)
 
 def render_stepper(current_step_name):
-    # Dicionário de passos (Atualizado sem emojis e com novos nomes)
     steps = [
         {"id": "input", "label": "Dados do Cliente"},
         {"id": "guide", "label": "Recomendação de Imóveis"},
@@ -664,26 +601,20 @@ def render_stepper(current_step_name):
         {"id": "payment_flow", "label": "Fechamento Financeiro"},
         {"id": "summary", "label": "Resumo da Simulação"}
     ]
-    
-    # Encontra o índice atual
     current_idx = 0
     for i, s in enumerate(steps):
         if s["id"] == current_step_name:
             current_idx = i
             break
 
-    # Layout de colunas para botões clicáveis
     cols = st.columns(len(steps))
     for i, step in enumerate(steps):
         with cols[i]:
-            # Define estilo primário para a etapa atual, secundário para as demais
             btn_type = "primary" if i == current_idx else "secondary"
-            # Cria o botão. Se clicado, atualiza o estado e recarrega
             if st.button(f"{i+1}. {step['label']}", key=f"step_btn_{i}", type=btn_type, use_container_width=True):
                 st.session_state.passo_simulacao = step['id']
                 scroll_to_top()
                 st.rerun()
-    
     st.markdown("<div style='margin-bottom: 30px;'></div>", unsafe_allow_html=True)
 
 # ... (Funções PDF e Email) ...
@@ -720,7 +651,6 @@ def gerar_resumo_pdf(d):
         pdf.ln(8)
         adicionar_secao_pdf("ENGENHARIA FINANCEIRA")
         adicionar_linha_detalhe("Financiamento Bancário Estimado", f"R$ {fmt_br(d.get('finan_usado', 0))}")
-        # Added installment info to PDF
         prazo_val = d.get('prazo_financiamento', 360)
         adicionar_linha_detalhe("Sistema de Amortização", f"{d.get('sistema_amortizacao', 'SAC')} - {prazo_val}x")
         adicionar_linha_detalhe("Parcela Estimada Financiamento", f"R$ {fmt_br(d.get('parcela_financiamento', 0))}")
@@ -868,18 +798,18 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
                                 st.session_state.dados_cliente = {
                                     'nome': row.get('Nome'), 'empreendimento_nome': row.get('Empreendimento Final'),
                                     'unidade_id': row.get('Unidade Final'),
-                                    'imovel_valor': float(str(row.get('Preço Unidade Final', 0)).replace('R$','').replace('.','').replace(',','.')),
-                                    'finan_estimado': float(str(row.get('Financiamento Aprovado', 0)).replace('R$','').replace('.','').replace(',','.')),
-                                    'fgts_sub': float(str(row.get('Subsídio Máximo', 0)).replace('R$','').replace('.','').replace(',','.')),
-                                    'finan_usado': float(str(row.get('Financiamento Final', 0)).replace('R$','').replace('.','').replace(',','.')),
-                                    'fgts_sub_usado': float(str(row.get('FGTS + Subsídio Final', 0)).replace('R$','').replace('.','').replace(',','.')),
-                                    'ps_usado': float(str(row.get('Pro Soluto Final', 0)).replace('R$','').replace('.','').replace(',','.')),
+                                    'imovel_valor': safe_float_convert(row.get('Preço Unidade Final', 0)),
+                                    'finan_estimado': safe_float_convert(row.get('Financiamento Aprovado', 0)),
+                                    'fgts_sub': safe_float_convert(row.get('Subsídio Máximo', 0)),
+                                    'finan_usado': safe_float_convert(row.get('Financiamento Final', 0)),
+                                    'fgts_sub_usado': safe_float_convert(row.get('FGTS + Subsídio Final', 0)),
+                                    'ps_usado': safe_float_convert(row.get('Pro Soluto Final', 0)),
                                     'ps_parcelas': int(float(str(row.get('Número de Parcelas do Pro Soluto', 0)).replace(',','.'))),
-                                    'ps_mensal': float(str(row.get('Mensalidade PS', 0)).replace('R$','').replace('.','').replace(',','.')),
-                                    'ato_final': float(str(row.get('Ato', 0)).replace('R$','').replace('.','').replace(',','.')),
-                                    'ato_30': float(str(row.get('Ato 30', 0)).replace('R$','').replace('.','').replace(',','.')),
-                                    'ato_60': float(str(row.get('Ato 60', 0)).replace('R$','').replace('.','').replace(',','.')),
-                                    'ato_90': float(str(row.get('Ato 90', 0)).replace('R$','').replace('.','').replace(',','.')),
+                                    'ps_mensal': safe_float_convert(row.get('Mensalidade PS', 0)),
+                                    'ato_final': safe_float_convert(row.get('Ato', 0)),
+                                    'ato_30': safe_float_convert(row.get('Ato 30', 0)),
+                                    'ato_60': safe_float_convert(row.get('Ato 60', 0)),
+                                    'ato_90': safe_float_convert(row.get('Ato 90', 0)),
                                 }
                                 st.session_state.dados_cliente['entrada_total'] = st.session_state.dados_cliente['ato_final'] + st.session_state.dados_cliente['ato_30'] + st.session_state.dados_cliente['ato_60'] + st.session_state.dados_cliente['ato_90']
                                 st.session_state.passo_simulacao = 'summary'
@@ -917,10 +847,19 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
         renda_total_calc = 0.0
         lista_rendas_input = []
         rendas_anteriores = st.session_state.dados_cliente.get('rendas_lista', [])
+        
+        # Helper to clear input on empty
+        def get_val(idx, default):
+            v = float(rendas_anteriores[idx]) if idx < len(rendas_anteriores) else default
+            return None if v == 0.0 else v
+
         for i in range(qtd_part):
             with cols_renda[i]:
-                def_val = float(rendas_anteriores[i]) if i < len(rendas_anteriores) else (3500.0 if i == 0 else 0.0)
-                val_r = st.number_input(f"Renda Part. {i+1}", min_value=0.0, value=def_val, step=100.0, key=f"renda_part_{i}_v3")
+                # Default 3500 only for first participant if list is empty
+                def_val = 3500.0 if i == 0 and not rendas_anteriores else 0.0
+                current_val = get_val(i, def_val)
+                val_r = st.number_input(f"Renda Part. {i+1}", min_value=0.0, value=current_val, step=100.0, key=f"renda_part_{i}_v3", placeholder="0,00")
+                if val_r is None: val_r = 0.0
                 renda_total_calc += val_r; lista_rendas_input.append(val_r)
 
         rank_opts = ["DIAMANTE", "OURO", "PRATA", "BRONZE", "AÇO"]
@@ -1108,13 +1047,13 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
                     elif "100%" in f_cob_sel: cob_min_val = 100
 
                 with f_cols[3]: f_ordem = st.selectbox("Ordem:", ["Menor Preço", "Maior Preço"], key="f_ordem_tab_v28")
-                with f_cols[4]: f_pmax = st.number_input("Preço Máx:", value=float(df_disp_total['Valor de Venda'].max()), key="f_pmax_tab_v28")
+                with f_cols[4]: f_pmax = st.number_input("Preço Máx:", value=float(df_disp_total['Valor de Venda'].max()), key="f_pmax_tab_v28", placeholder="0,00", value=None)
 
                 df_tab = df_disp_total.copy()
                 if f_bairro: df_tab = df_tab[df_tab['Bairro'].isin(f_bairro)]
                 if f_emp: df_tab = df_tab[df_tab['Empreendimento'].isin(f_emp)]
                 df_tab = df_tab[df_tab['Cobertura'] >= cob_min_val]
-                df_tab = df_tab[df_tab['Valor de Venda'] <= f_pmax]
+                if f_pmax: df_tab = df_tab[df_tab['Valor de Venda'] <= f_pmax]
 
                 if f_ordem == "Menor Preço": df_tab = df_tab.sort_values('Valor de Venda', ascending=True)
                 else: df_tab = df_tab.sort_values('Valor de Venda', ascending=False)
@@ -1215,8 +1154,13 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
 
         st.markdown(f'<div class="custom-alert">{u_nome} - {u_unid} (R$ {fmt_br(u_valor)})</div>', unsafe_allow_html=True)
 
+        def get_float_or_none(val):
+            return None if val == 0.0 else val
+
         # 1. Valor Financiamento (Full width)
-        f_u = st.number_input("Financiamento", value=float(d.get('finan_estimado', 0)), step=1000.0, key="fin_u_v28")
+        current_finan = get_float_or_none(float(d.get('finan_estimado', 0)))
+        f_u_input = st.number_input("Financiamento", value=current_finan, step=1000.0, key="fin_u_v28", placeholder="0,00")
+        f_u = f_u_input if f_u_input is not None else 0.0
         st.markdown(f'<span class="inline-ref">Financiamento Máximo: R$ {fmt_br(d.get("finan_estimado", 0))}</span>', unsafe_allow_html=True)
 
         # 2. Prazo (Full width)
@@ -1226,7 +1170,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
         tab_fin = st.selectbox("Sistema de Amortização", ["SAC", "PRICE"], key="tab_fin_v28")
         
         # Display estimated installments
-        taxa_padrao = 8.16 # Taxa fixa padrão para estimativa (ajustar conforme necessidade)
+        taxa_padrao = 8.16 # Taxa fixa padrão para estimativa
         sac_details = calcular_comparativo_sac_price(f_u, prazo_finan, taxa_padrao)["SAC"]
         price_details = calcular_comparativo_sac_price(f_u, prazo_finan, taxa_padrao)["PRICE"]
         
@@ -1238,7 +1182,9 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
         """, unsafe_allow_html=True)
 
         # FGTS (Full width)
-        fgts_u = st.number_input("FGTS + Subsídio", value=float(d.get('fgts_sub', 0)), step=1000.0, key="fgt_u_v28")
+        current_fgts = get_float_or_none(float(d.get('fgts_sub', 0)))
+        fgts_u_input = st.number_input("FGTS + Subsídio", value=current_fgts, step=1000.0, key="fgt_u_v28", placeholder="0,00")
+        fgts_u = fgts_u_input if fgts_u_input is not None else 0.0
         st.markdown(f'<span class="inline-ref">Subsídio Máximo: R$ {fmt_br(d.get("fgts_sub", 0))}</span>', unsafe_allow_html=True)
 
         st.markdown("<hr style='margin: 10px 0;'>", unsafe_allow_html=True)
@@ -1258,6 +1204,9 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
         st.markdown("#### Distribuição da Entrada (Saldo a Pagar)")
 
         ps_atual = st.session_state.get('ps_u_view', 0)
+        # Handle None from input
+        if ps_atual is None: ps_atual = 0.0
+        
         saldo_para_atos = max(0.0, u_valor - f_u - fgts_u - ps_atual)
 
         def distribuir(n_parcelas):
@@ -1293,23 +1242,30 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
         st.write("") # Espaçamento
         col_a, col_b = st.columns(2)
         with col_a:
-            st.number_input("Ato (Imediato)", key="ato_1_v28", step=100.0)
-            st.number_input("Ato 60 Dias", key="ato_3_v28", step=100.0)
-        with col_b:
-            st.number_input("Ato 30 Dias", key="ato_2_v28", step=100.0)
-            st.number_input("Ato 90 Dias", key="ato_4_v28", step=100.0, disabled=is_emcash)
+            v1 = get_float_or_none(st.session_state.ato_1)
+            r1 = st.number_input("Ato (Imediato)", key="ato_1_v28", step=100.0, value=v1, placeholder="0,00")
+            st.session_state.ato_1 = r1 if r1 is not None else 0.0
 
-        st.session_state.ato_1 = st.session_state['ato_1_v28']
-        st.session_state.ato_2 = st.session_state['ato_2_v28']
-        st.session_state.ato_3 = st.session_state['ato_3_v28']
-        st.session_state.ato_4 = st.session_state['ato_4_v28']
+            v3 = get_float_or_none(st.session_state.ato_3)
+            r3 = st.number_input("Ato 60 Dias", key="ato_3_v28", step=100.0, value=v3, placeholder="0,00")
+            st.session_state.ato_3 = r3 if r3 is not None else 0.0
+
+        with col_b:
+            v2 = get_float_or_none(st.session_state.ato_2)
+            r2 = st.number_input("Ato 30 Dias", key="ato_2_v28", step=100.0, value=v2, placeholder="0,00")
+            st.session_state.ato_2 = r2 if r2 is not None else 0.0
+
+            v4 = get_float_or_none(st.session_state.ato_4)
+            r4 = st.number_input("Ato 90 Dias", key="ato_4_v28", step=100.0, disabled=is_emcash, value=v4, placeholder="0,00")
+            st.session_state.ato_4 = r4 if r4 is not None else 0.0
 
         st.markdown("<hr style='margin: 10px 0;'>", unsafe_allow_html=True)
         col_ps_val, col_ps_parc = st.columns(2)
 
         ps_max_real = u_valor * d.get('perc_ps', 0)
         with col_ps_val:
-            ps_u = st.number_input("Pro Soluto Direcional", value=0.0, step=1000.0, key="ps_u_view")
+            ps_u_input = st.number_input("Pro Soluto Direcional", value=None, step=1000.0, key="ps_u_view", placeholder="0,00")
+            ps_u = ps_u_input if ps_u_input is not None else 0.0
             st.markdown(f'<span class="inline-ref">Limite Permitido ({d.get("perc_ps", 0)*100:.0f}%): R$ {fmt_br(ps_max_real)}</span>', unsafe_allow_html=True)
 
         with col_ps_parc:
