@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 =============================================================================
-SISTEMA DE SIMULAÇÃO IMOBILIÁRIA - DIRE RIO V17 (ENTERPRISE EDITION)
+SISTEMA DE SIMULAÇÃO IMOBILIÁRIA - DIRE RIO V17.1 (BUGFIX - VARIABLE NAME)
 =============================================================================
 Instruções para Google Colab:
 1. Crie um arquivo chamado 'app.py' com este conteúdo.
@@ -70,7 +70,7 @@ COR_VERMELHO = "#e30613"   # Brand Accent
 COR_FUNDO_APP = "#F8FAFC"  # Ultra Light Slate Background
 COR_CARD_BG = "#FFFFFF"    # Surface Color
 COR_TEXTO_PRI = "#1E293B"  # Slate 800 (High Contrast)
-COR_TEXTO_SEC = "#64748B"  # Slate 500 (Low Contrast)
+COR_TEXTO_SEC = "#64748B"  # Slate 500 (Low Contrast) - Antigo COR_TEXTO_MUTED
 COR_BORDER = "#E2E8F0"     # Slate 200
 COR_INPUT_BG = "#F1F5F9"   # Slate 100 for Inputs
 
@@ -939,7 +939,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
                     st.markdown(f"""
                             <div class="card" style="min-height: 80px; padding: 15px; border-top: 3px solid {COR_AZUL_ESC};">
                                 <p style="margin:0; font-weight:700; color:{COR_AZUL_ESC};">{emp_fallback}</p>
-                                <p style="margin:5px 0 0 0; font-size:0.85rem; color:{COR_TEXTO_MUTED};">Melhor preço disponível: R$ {fmt_br(cheapest['Valor de Venda'])}</p>
+                                <p style="margin:5px 0 0 0; font-size:0.85rem; color:{COR_TEXTO_SEC};">Melhor preço disponível: R$ {fmt_br(cheapest['Valor de Venda'])}</p>
                             </div>
                         """, unsafe_allow_html=True)
                  else:
@@ -956,7 +956,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
                             st.markdown(f"""
                                 <div class="card" style="min-height: 80px; padding: 15px; border-top: 3px solid {COR_AZUL_ESC};">
                                     <p style="margin:0; font-weight:700; color:{COR_AZUL_ESC};">{emp}</p>
-                                    <p style="margin:5px 0 0 0; font-size:0.85rem; color:{COR_TEXTO_MUTED};">{qtd} unidades viáveis</p>
+                                    <p style="margin:5px 0 0 0; font-size:0.85rem; color:{COR_TEXTO_SEC};">{qtd} unidades viáveis</p>
                                 </div>
                             """, unsafe_allow_html=True)
 
@@ -1018,7 +1018,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
                                 <span style="font-size:0.65rem; color:{COR_AZUL_ESC}; opacity:0.8;">PERFIL</span><br>
                                 <div style="margin-top:5px; margin-bottom:15px;">{labels_html}</div>
                                 <b style="color:{COR_AZUL_ESC}; font-size:1.1rem;">{card['emp']}</b><br>
-                                <div style="font-size:0.85rem; color:{COR_TEXTO_MUTED}; text-align:center; border-top:1px solid #eee; padding-top:10px; width:100%;">
+                                <div style="font-size:0.85rem; color:{COR_TEXTO_SEC}; text-align:center; border-top:1px solid #eee; padding-top:10px; width:100%;">
                                     <b>Unidade(s):</b><br>{card['unidades']}
                                 </div>
                                 <div class="price-tag" style="font-size:1.4rem; margin:10px 0;">R$ {fmt_br(card['preco'])}</div>
