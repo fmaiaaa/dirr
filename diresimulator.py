@@ -1,14 +1,14 @@
 # -*- coding: utf-8 -*-
 """
 =============================================================================
-SISTEMA DE SIMULAÇÃO IMOBILIÁRIA - DIRE RIO V3 (ATUALIZADO)
+SISTEMA DE SIMULAÇÃO IMOBILIÁRIA - DIRE RIO V3 (FINAL)
 =============================================================================
-Novas Funcionalidades (Update Atual):
-1. Perfil do Corretor: Upload de foto, Avatar Circular, Cargo e Popover de Histórico.
-2. Ranking: Correção na leitura da lista de classificações.
-3. Recomendações: Categorias IDEAL, SEGURO, FACILITADO (sem expor valores).
+Funcionalidades:
+1. Validação de CPF (Algoritmo Oficial).
+2. Perfil do Corretor (Foto Circular, Cargo, Histórico).
+3. Recomendações: Lógica "Antiga" restaurada + Filtro por Categorias (Ideal/Seguro/Facilitado).
 4. Termômetro: Gradiente linear (Vermelho -> Amarelo -> Verde).
-5. Distribuição de Entrada: Botões para divisão automática.
+5. Distribuição de Entrada: Botões funcionais e elegantes.
 6. Regra EMCASH: Bloqueio do Ato 90.
 =============================================================================
 """
@@ -35,14 +35,14 @@ except ImportError:
     Image = None
 import os
 
-# Tenta configurar locale para PT-BR
+# Configuração de Locale para Datas em Português
 try:
     locale.setlocale(locale.LC_ALL, 'pt_BR.UTF-8')
 except:
     try:
         locale.setlocale(locale.LC_ALL, 'pt_BR')
     except:
-        pass
+        pass # Fallback para sistema padrão se pt_BR não estiver instalado
 
 # Tenta importar fpdf de forma segura
 try:
@@ -84,19 +84,46 @@ def limpar_cpf_visual(valor):
     if v_nums: return v_nums.zfill(11)
     return ""
 
+def validar_cpf(cpf):
+    """
+    Valida um CPF brasileiro informado (string ou int).
+    Retorna True se válido, False caso contrário.
+    """
+    cpf = re.sub(r'\D', '', str(cpf))
+    
+    # Verifica tamanho e se todos os dígitos são iguais (ex: 111.111.111-11 é inválido)
+    if len(cpf) != 11 or len(set(cpf)) == 1:
+        return False
+    
+    # Cálculo do primeiro dígito verificador
+    soma = sum(int(cpf[i]) * (10 - i) for i in range(9))
+    resto = (soma * 10) % 11
+    digito_1 = 0 if resto == 10 or resto == 11 else resto
+    
+    if digito_1 != int(cpf[9]):
+        return False
+    
+    # Cálculo do segundo dígito verificador
+    soma = sum(int(cpf[i]) * (11 - i) for i in range(10))
+    resto = (soma * 10) % 11
+    digito_2 = 0 if resto == 10 or resto == 11 else resto
+    
+    if digito_2 != int(cpf[10]):
+        return False
+        
+    return True
+
 def calcular_cor_gradiente(valor):
     """Retorna cor RGB CSS baseada em valor 0-100 (Vermelho->Amarelo->Verde)"""
     valor = max(0, min(100, valor))
     if valor < 50:
         # 0 (Vermelho) -> 50 (Amarelo)
-        # R: 255, G: 0 -> 255
         fator = valor / 50
         r = 255
         g = int(255 * fator)
         b = 0
     else:
         # 50 (Amarelo) -> 100 (Verde)
-        # R: 255 -> 0, G: 255
         fator = (valor - 50) / 50
         r = int(255 * (1 - fator))
         g = 255
@@ -167,7 +194,6 @@ def carregar_dados_sistema():
         try:
             df_politicas = conn.read(spreadsheet=URL_RANKING) 
             df_politicas.columns = [str(c).strip() for c in df_politicas.columns]
-            # Tenta encontrar a coluna de classificação de várias formas
             col_classificacao = next((c for c in df_politicas.columns if 'CLASSIFICA' in c.upper() or 'RANKING' in c.upper() or 'TIPO' in c.upper()), 'CLASSIFICAÇÃO')
             
             df_politicas = df_politicas.rename(columns={
@@ -320,11 +346,17 @@ def configurar_layout():
         .badge-ideal {{ background-color: #22c55e; color: white; padding: 4px 12px; border-radius: 20px; font-weight: bold; font-size: 0.8rem; margin-top: 10px; }}
         .badge-seguro {{ background-color: #eab308; color: white; padding: 4px 12px; border-radius: 20px; font-weight: bold; font-size: 0.8rem; margin-top: 10px; }}
         .badge-facilitado {{ background-color: #f97316; color: white; padding: 4px 12px; border-radius: 20px; font-weight: bold; font-size: 0.8rem; margin-top: 10px; }}
+        
+        /* Ajuste Tabs */
+        div[data-baseweb="tab-list"] {{ justify-content: center !important; gap: 40px; margin-bottom: 40px; }}
+        button[data-baseweb="tab"] p {{ color: {COR_AZUL_ESC} !important; opacity: 0.6; font-weight: 700 !important; font-family: 'Montserrat', sans-serif !important; font-size: 0.9rem !important; text-transform: uppercase; letter-spacing: 0.1em; }}
+        button[data-baseweb="tab"][aria-selected="true"] p {{ color: {COR_AZUL_ESC} !important; opacity: 1; }}
+        div[data-baseweb="tab-highlight"] {{ background-color: {COR_VERMELHO} !important; height: 3px !important; }}
         </style>
     """, unsafe_allow_html=True)
 
 # =============================================================================
-# 4. FUNÇÕES AUXILIARES (PDF, EMAIL, IMAGEM)
+# 4. FUNÇÕES AUXILIARES (PDF, EMAIL)
 # =============================================================================
 
 def gerar_resumo_pdf(d):
@@ -458,39 +490,27 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
     # --- SIDEBAR: PERFIL DO CORRETOR ---
     with st.sidebar:
         st.markdown(f"<h3 style='text-align: center; color: {COR_AZUL_ESC};'>PERFIL DO CORRETOR</h3>", unsafe_allow_html=True)
-        
-        # Upload de Imagem de Perfil
         uploaded_file = st.file_uploader("Alterar Foto", type=["jpg", "png", "jpeg"], label_visibility="collapsed")
         if uploaded_file is not None:
             image = Image.open(uploaded_file)
             st.session_state['profile_pic'] = image
         
-        # Exibição do Avatar
-        if 'profile_pic' in st.session_state:
-            img = st.session_state['profile_pic']
-        else:
-            # Placeholder ou imagem padrão
-            img = Image.new('RGB', (150, 150), color='#e2e8f0') 
+        if 'profile_pic' in st.session_state: img = st.session_state['profile_pic']
+        else: img = Image.new('RGB', (150, 150), color='#e2e8f0') 
         
-        # Criar máscara circular para o avatar
         mask = Image.new('L', (150, 150), 0)
         draw = ImageDraw.Draw(mask)
         draw.ellipse((0, 0, 150, 150), fill=255)
         img = ImageOps.fit(img, mask.size, centering=(0.5, 0.5))
         img.putalpha(mask)
-        
-        # Exibir avatar centralizado
         col_av1, col_av2, col_av3 = st.columns([1, 2, 1])
-        with col_av2:
-            st.image(img, width=130)
+        with col_av2: st.image(img, width=130)
         
         st.markdown(f"<div style='text-align: center; margin-top: 10px; font-weight: bold; color: {COR_AZUL_ESC};'>{st.session_state.get('user_name', 'Corretor').upper()}</div>", unsafe_allow_html=True)
         st.markdown(f"<div style='text-align: center; font-size: 0.85rem; color: #64748b;'>{st.session_state.get('user_cargo', 'Consultor').upper()}</div>", unsafe_allow_html=True)
         st.markdown(f"<div style='text-align: center; font-size: 0.8rem; color: #94a3b8;'>{st.session_state.get('user_imobiliaria', 'Direcional')}</div>", unsafe_allow_html=True)
-        
         st.markdown("---")
         
-        # Histórico de Simulações (Popover)
         with st.popover("📂 Histórico de Simulações", use_container_width=True):
             st.markdown("**Selecione para carregar:**")
             try:
@@ -502,7 +522,6 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
                         for idx, row in meus_dados.iterrows():
                             label = f"{row.get('Nome', 'Cliente')} - {row.get('Empreendimento Final', 'N/A')}"
                             if st.button(label, key=f"hist_btn_{idx}", use_container_width=True):
-                                # Carregar dados para o resumo (Simplificado para carregar dados básicos)
                                 st.session_state.dados_cliente = {
                                     'nome': row.get('Nome'),
                                     'empreendimento_nome': row.get('Empreendimento Final'),
@@ -513,7 +532,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
                                     'ps_usado': float(str(row.get('Pro Soluto Final', 0)).replace('R$','').replace('.','').replace(',','.')),
                                     'ps_parcelas': int(float(str(row.get('Número de Parcelas do Pro Soluto', 0)).replace(',','.'))),
                                     'ps_mensal': float(str(row.get('Mensalidade PS', 0)).replace('R$','').replace('.','').replace(',','.')),
-                                    'entrada_total': 0, # Recalcular se necessário
+                                    'entrada_total': 0, 
                                     'ato_final': float(str(row.get('Ato', 0)).replace('R$','').replace('.','').replace(',','.')),
                                     'ato_30': float(str(row.get('Ato 30', 0)).replace('R$','').replace('.','').replace(',','.')),
                                     'ato_60': float(str(row.get('Ato 60', 0)).replace('R$','').replace('.','').replace(',','.')),
@@ -530,7 +549,11 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
     if st.session_state.passo_simulacao == 'input':
         st.markdown("### Dados do Cliente")
         nome = st.text_input("Nome Completo", value=st.session_state.dados_cliente.get('nome', ""), placeholder="Nome Completo", key="in_nome_v28")
-        cpf_val = st.text_input("CPF", value=st.session_state.dados_cliente.get('cpf', ""), placeholder="000.000.000-00", key="in_cpf_v3")
+        
+        cpf_val = st.text_input("CPF", value=st.session_state.dados_cliente.get('cpf', ""), placeholder="000.000.000-00", key="in_cpf_v3", max_chars=14)
+        if cpf_val and not validar_cpf(cpf_val):
+            st.markdown(f"<small style='color: {COR_VERMELHO};'>CPF inválido</small>", unsafe_allow_html=True)
+        
         d_nasc_default = st.session_state.dados_cliente.get('data_nascimento', date(1990, 1, 1))
         data_nasc = st.date_input("Data de Nascimento", value=d_nasc_default, min_value=date(1900, 1, 1), max_value=datetime.now().date(), format="DD/MM/YYYY", key="in_dt_nasc_v3")
         genero = st.selectbox("Gênero", ["Masculino", "Feminino", "Outro"], index=0, key="in_genero_v3")
@@ -552,10 +575,8 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
                 val_r = st.number_input(f"Renda Part. {i+1}", min_value=0.0, value=def_val, step=100.0, key=f"renda_part_{i}_v3")
                 renda_total_calc += val_r; lista_rendas_input.append(val_r)
         
-        # Correção no Dropdown de Ranking
-        ranking_options = ["DIAMANTE"] # Default
+        ranking_options = ["DIAMANTE"] 
         if not df_politicas.empty and 'CLASSIFICAÇÃO' in df_politicas.columns:
-            # Filtra apenas valores válidos e remove duplicatas
             raw_options = df_politicas['CLASSIFICAÇÃO'].dropna().astype(str).unique().tolist()
             ranking_options = [r for r in raw_options if r.upper() != "EMCASH" and r.strip() != ""]
             if not ranking_options: ranking_options = ["DIAMANTE"]
@@ -569,6 +590,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
         
         def processar_avanco(destino):
             if not nome.strip(): st.markdown(f'<div class="custom-alert">Por favor, informe o Nome do Cliente para continuar.</div>', unsafe_allow_html=True); return
+            if cpf_val and not validar_cpf(cpf_val): st.markdown(f'<div class="custom-alert">CPF Inválido. Corrija para continuar.</div>', unsafe_allow_html=True); return
             if renda_total_calc <= 0: st.markdown(f'<div class="custom-alert">A renda total deve ser maior que zero.</div>', unsafe_allow_html=True); return
 
             class_b = 'EMCASH' if politica_ps == "Emcash" else ranking
@@ -594,59 +616,107 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
         if st.button("Caminho Completo (Ver Recomendação de Imóveis)", type="primary", use_container_width=True, key="btn_completo_v3"): processar_avanco('guide')
         if st.button("Simulação Direta (Ir para Seleção de Unidade)", use_container_width=True, key="btn_direto_v3"): processar_avanco('selection')
 
-    # --- ETAPA 3: RECOMENDAÇÃO GRANULAR (CATEGORIAS) ---
+    # --- ETAPA 3: RECOMENDAÇÃO GRANULAR (LÓGICA ANTIGA + 3 SUG) ---
     elif st.session_state.passo_simulacao == 'guide':
         d = st.session_state.dados_cliente
         st.markdown(f"### Recomendação de Imóveis")
         df_disp_total = df_estoque[df_estoque['Status'] == 'Disponível'].copy()
         
-        if df_disp_total.empty: st.markdown('<div class="custom-alert">Sem produtos viaveis.</div>', unsafe_allow_html=True); df_viaveis = pd.DataFrame()
+        if df_disp_total.empty: st.markdown('<div class="custom-alert">Sem produtos viaveis no perfil selecionado.</div>', unsafe_allow_html=True); df_viaveis = pd.DataFrame()
         else:
-            def classificar_unidade(row):
+            def calcular_viabilidade_unidade(row):
                 v_venda = row['Valor de Venda']
-                fin, sub, _ = motor.obter_enquadramento(d.get('renda', 0), d.get('social', False), d.get('cotista', True), row['Valor de Avaliação Bancária'])
-                poder, _ = motor.calcular_poder_compra(d.get('renda', 0), fin, sub, d.get('perc_ps', 0), v_venda)
+                v_aval = row['Valor de Avaliação Bancária']
+                fin, sub, fx_n = motor.obter_enquadramento(d.get('renda', 0), d.get('social', False), d.get('cotista', True), v_aval)
+                poder, ps_u = motor.calcular_poder_compra(d.get('renda', 0), fin, sub, d.get('perc_ps', 0), v_venda)
                 cobertura = (poder / v_venda) * 100 if v_venda > 0 else 0
-                
-                categoria = None
-                if cobertura >= 100: categoria = "IDEAL"
-                elif cobertura >= 90: categoria = "SEGURO"
-                elif cobertura >= 75: categoria = "FACILITADO"
-                
-                return categoria
+                return pd.Series([poder, cobertura, cobertura >= 100, fin, sub])
 
-            df_disp_total['Categoria'] = df_disp_total.apply(classificar_unidade, axis=1)
-            df_viaveis = df_disp_total[df_disp_total['Categoria'].notnull()].copy()
+            df_disp_total[['Poder_Compra', 'Cobertura', 'Viavel', 'Finan_Unid', 'Sub_Unid']] = df_disp_total.apply(calcular_viabilidade_unidade, axis=1)
+            df_disp_total['Status Viabilidade'] = df_disp_total['Viavel'].apply(lambda x: "Viavel" if x else "Inviavel")
+            df_disp_total = df_disp_total.sort_values('Cobertura', ascending=False)
+            df_viaveis = df_disp_total[df_disp_total['Viavel']].copy()
         
-        if df_viaveis.empty: st.markdown('<div class="custom-alert">Nenhum produto encontrado nas categorias IDEAL, SEGURO ou FACILITADO.</div>', unsafe_allow_html=True)
+        st.markdown("#### Panorama de Produtos Viáveis")
+        if df_viaveis.empty: st.markdown('<div class="custom-alert">Sem produtos totalmente cobertos pelo poder de compra.</div>', unsafe_allow_html=True)
         else:
-            # Agrupar por Empreendimento e Preço para exibir cartões únicos
-            agrupado = df_viaveis.groupby(['Empreendimento', 'Valor de Venda', 'Categoria']).size().reset_index(name='Qtd')
+            emp_counts = df_viaveis.groupby('Empreendimento').size().to_dict()
+            items = list(emp_counts.items()); cols_per_row = 3
+            for i in range(0, len(items), cols_per_row):
+                row_items = items[i:i+cols_per_row]; row_cols = st.columns(len(row_items))
+                for idx, (emp, qtd) in enumerate(row_items):
+                    with row_cols[idx]: st.markdown(f'''<div class="card" style="min-height: 80px; padding: 15px; border-top: 3px solid {COR_VERMELHO};"><p style="margin:0; font-weight:700; color:{COR_AZUL_ESC};">{emp}</p><p style="margin:5px 0 0 0; font-size:0.85rem; color:{COR_TEXTO_MUTED};">{qtd} unidades viaveis</p></div>''', unsafe_allow_html=True)
+
+        st.write(""); tab_rec, tab_list = st.tabs(["Sugestões de Unidades", "Estoque Geral"])
+        with tab_rec:
+            emp_names_rec = sorted(df_disp_total['Empreendimento'].unique().tolist())
+            emp_rec = st.selectbox("Escolha um empreendimento para obter recomendações:", options=["Todos"] + emp_names_rec, key="sel_emp_rec_v28")
+            df_pool = df_disp_total if emp_rec == "Todos" else df_disp_total[df_disp_total['Empreendimento'] == emp_rec]
             
-            # Ordenar: IDEAL primeiro, depois SEGURO, depois FACILITADO
-            cat_order = {'IDEAL': 1, 'SEGURO': 2, 'FACILITADO': 3}
-            agrupado['Order'] = agrupado['Categoria'].map(cat_order)
-            agrupado = agrupado.sort_values(['Order', 'Empreendimento'])
-            
-            cols = st.columns(3)
-            for idx, row in enumerate(agrupado.to_dict('records')):
-                cat = row['Categoria']
-                style_badge = "badge-ideal" if cat == "IDEAL" else ("badge-seguro" if cat == "SEGURO" else "badge-facilitado")
+            if df_pool.empty: st.markdown('<div class="custom-alert">Nenhuma unidade encontrada.</div>', unsafe_allow_html=True)
+            else:
+                # Lógica para pegar 3 unidades: Ideal (100%), Seguro (90%), Facilitado (75%)
+                # Ordena por cobertura descrescente
+                pool_sorted = df_pool.sort_values('Cobertura', ascending=False)
                 
-                with cols[idx % 3]:
-                    st.markdown(f'''
-                    <div class="recommendation-card" style="border-top: 4px solid {COR_AZUL_ESC}; margin-bottom: 20px;">
-                        <b style="color:{COR_AZUL_ESC}; font-size:1.1rem;">{row['Empreendimento']}</b>
-                        <br>
-                        <div class="price-tag" style="font-size:1.3rem; margin:2px 0;">R$ {fmt_br(row['Valor de Venda'])}</div>
-                        <small style="color:{COR_TEXTO_MUTED};">{row['Qtd']} unidades disponíveis</small>
-                        <div class="{style_badge}">{cat}</div>
-                    </div>
-                    ''', unsafe_allow_html=True)
+                # Tenta encontrar candidatos
+                unidade_ideal = pool_sorted[pool_sorted['Cobertura'] >= 100].head(1)
+                unidade_segura = pool_sorted[(pool_sorted['Cobertura'] >= 90) & (pool_sorted['Cobertura'] < 100)].head(1)
+                unidade_facilitada = pool_sorted[(pool_sorted['Cobertura'] >= 75) & (pool_sorted['Cobertura'] < 90)].head(1)
+                
+                # Se não achar exato, pega os mais próximos disponíveis para preencher
+                sugestoes = []
+                
+                if not unidade_ideal.empty:
+                    sugestoes.append({'row': unidade_ideal.iloc[0], 'tipo': 'IDEAL', 'badge': 'badge-ideal'})
+                elif not pool_sorted.empty:
+                     # Se não tem 100%, pega o melhor possível
+                     sugestoes.append({'row': pool_sorted.iloc[0], 'tipo': 'MELHOR OPÇÃO', 'badge': 'badge-ideal'})
+
+                if not unidade_segura.empty:
+                    sugestoes.append({'row': unidade_segura.iloc[0], 'tipo': 'SEGURO', 'badge': 'badge-seguro'})
+                
+                if not unidade_facilitada.empty:
+                    sugestoes.append({'row': unidade_facilitada.iloc[0], 'tipo': 'FACILITADO', 'badge': 'badge-facilitado'})
+                
+                cols = st.columns(3)
+                for idx, item in enumerate(sugestoes):
+                    row = item['row']
+                    with cols[idx % 3]:
+                        st.markdown(f'''
+                        <div class="recommendation-card" style="border-top: 4px solid {COR_AZUL_ESC};">
+                            <b style="color:{COR_AZUL_ESC}; font-size:1.1rem;">{row['Empreendimento']}</b><br>
+                            <small style="color:{COR_AZUL_ESC}; font-size:0.95rem;">Unidade: {row['Identificador']}</small><br>
+                            <div class="price-tag" style="font-size:1.3rem; margin:2px 0;">R$ {fmt_br(row['Valor de Venda'])}</div>
+                            <div class="{item['badge']}">{item['tipo']}</div>
+                        </div>''', unsafe_allow_html=True)
+
+        with tab_list:
+            if df_disp_total.empty: st.markdown('<div class="custom-alert">Sem dados para exibir.</div>', unsafe_allow_html=True)
+            else:
+                f_cols = st.columns([1.2, 1.5, 1, 1, 1])
+                with f_cols[0]: f_bairro = st.multiselect("Bairro:", options=sorted(df_disp_total['Bairro'].unique()), key="f_bairro_tab_v28")
+                with f_cols[1]: f_emp = st.multiselect("Empreendimento:", options=sorted(df_disp_total['Empreendimento'].unique()), key="f_emp_tab_v28")
+                with f_cols[2]: f_status_v = st.multiselect("Viabilidade:", options=["Viavel", "Inviavel"], key="f_status_tab_v28")
+                with f_cols[3]: f_ordem = st.selectbox("Ordem:", ["Menor Preço", "Maior Preço"], key="f_ordem_tab_v28")
+                with f_cols[4]: f_pmax = st.number_input("Preço Máx:", value=float(df_disp_total['Valor de Venda'].max()), key="f_pmax_tab_v28")
+                df_tab = df_disp_total.copy()
+                if f_bairro: df_tab = df_tab[df_tab['Bairro'].isin(f_bairro)]
+                if f_emp: df_tab = df_tab[df_tab['Empreendimento'].isin(f_emp)]
+                if f_status_v: df_tab = df_tab[df_tab['Status Viabilidade'].isin(f_status_v)]
+                df_tab = df_tab[df_tab['Valor de Venda'] <= f_pmax]
+                if f_ordem == "Menor Preço": df_tab = df_tab.sort_values('Valor de Venda', ascending=True)
+                else: df_tab = df_tab.sort_values('Valor de Venda', ascending=False)
+                df_tab_view = df_tab.copy()
+                df_tab_view['Valor de Venda'] = df_tab_view['Valor de Venda'].apply(fmt_br)
+                df_tab_view['Poder_Compra'] = df_tab_view['Poder_Compra'].apply(fmt_br)
+                df_tab_view['Cobertura'] = df_tab_view['Cobertura'].apply(lambda x: f"{x:.1f}%")
+                st.dataframe(df_tab_view[['Identificador', 'Bairro', 'Empreendimento', 'Valor de Venda', 'Cobertura']], use_container_width=True, hide_index=True, column_config={"Identificador": st.column_config.TextColumn("Unidade"), "Valor de Venda": st.column_config.TextColumn("Preço (R$)"), "Cobertura": st.column_config.TextColumn("Viabilidade (%)")})
 
         st.markdown("---")
-        if st.button("Avançar para Seleção de Unidade", type="primary", use_container_width=True): st.session_state.passo_simulacao = 'selection'; st.rerun()
-        if st.button("Voltar", use_container_width=True): st.session_state.passo_simulacao = 'input'; st.rerun()
+        if st.button("Avançar para Seleção de Unidade", type="primary", use_container_width=True, key="btn_goto_selection"): st.session_state.passo_simulacao = 'selection'; st.rerun()
+        st.write(""); 
+        if st.button("Voltar para Dados do Cliente", use_container_width=True, key="btn_pot_v28"): st.session_state.passo_simulacao = 'input'; st.rerun()
 
     # --- ETAPA 3.5: SELEÇÃO DE UNIDADE ---
     elif st.session_state.passo_simulacao == 'selection':
@@ -738,37 +808,56 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
 
         st.markdown("#### Distribuição da Entrada (Saldo a Pagar)")
         
-        # Botões de Distribuição Automática
+        # Botões de Distribuição Automática - CORREÇÃO: Atualizam as chaves dos inputs
         col_dist1, col_dist2, col_dist3, col_dist4 = st.columns(4)
-        saldo_atual_para_distribuir = max(0.0, u_valor - f_u - fgts_u - st.session_state.get('ps_u_view', 0)) # Pro soluto pode afetar, mas aqui focamos na entrada cash
+        
+        # Saldo a distribuir agora (considera o Pro Soluto atual da tela, se houver)
+        ps_atual = st.session_state.get('ps_u_view', 0)
+        saldo_para_atos = max(0.0, u_valor - f_u - fgts_u - ps_atual)
         
         def distribuir(n_parcelas):
-            # Recalcula o saldo considerando o Pro Soluto atual na tela se possível, ou usa o saldo inicial
-            # Para simplificar, distribuímos o que falta para chegar no valor do imóvel (menos Finan e FGTS)
-            # O usuário ajusta o Pro Soluto depois se quiser
-            val = saldo_restante_inicial / n_parcelas
-            st.session_state.ato_1 = val
-            st.session_state.ato_2 = val if n_parcelas >= 2 else 0
-            st.session_state.ato_3 = val if n_parcelas >= 3 else 0
-            st.session_state.ato_4 = val if n_parcelas >= 4 and not is_emcash else 0
+            val = saldo_para_atos / n_parcelas
+            st.session_state['ato_1_v28'] = val
+            st.session_state['ato_2_v28'] = val if n_parcelas >= 2 else 0.0
+            st.session_state['ato_3_v28'] = val if n_parcelas >= 3 else 0.0
+            st.session_state['ato_4_v28'] = val if n_parcelas >= 4 and not is_emcash else 0.0
+            # Atualiza também as variáveis de suporte, caso usadas em outro lugar
+            st.session_state.ato_1 = st.session_state['ato_1_v28']
+            st.session_state.ato_2 = st.session_state['ato_2_v28']
+            st.session_state.ato_3 = st.session_state['ato_3_v28']
+            st.session_state.ato_4 = st.session_state['ato_4_v28']
+            st.rerun()
 
-        if col_dist1.button("Tudo no Ato 1", use_container_width=True): distribuir(1)
-        if col_dist2.button("Até Ato 30", use_container_width=True): distribuir(2)
-        if col_dist3.button("Até Ato 60", use_container_width=True): distribuir(3)
-        if col_dist4.button("Até Ato 90", use_container_width=True, disabled=is_emcash): distribuir(4)
+        if col_dist1.button("1x", use_container_width=True): distribuir(1)
+        if col_dist2.button("2x", use_container_width=True): distribuir(2)
+        if col_dist3.button("3x", use_container_width=True): distribuir(3)
+        if col_dist4.button("4x", use_container_width=True, disabled=is_emcash): distribuir(4)
+
+        # Inputs vinculados ao session_state via key
+        # Nota: Inicializamos as chaves se não existirem
+        if 'ato_1_v28' not in st.session_state: st.session_state['ato_1_v28'] = st.session_state.ato_1
+        if 'ato_2_v28' not in st.session_state: st.session_state['ato_2_v28'] = st.session_state.ato_2
+        if 'ato_3_v28' not in st.session_state: st.session_state['ato_3_v28'] = st.session_state.ato_3
+        if 'ato_4_v28' not in st.session_state: st.session_state['ato_4_v28'] = st.session_state.ato_4
 
         col_a, col_b = st.columns(2)
         with col_a:
-            st.session_state.ato_1 = st.number_input("Ato (Imediato)", value=float(st.session_state.ato_1), key="ato_1_v28")
-            st.session_state.ato_3 = st.number_input("Ato 60 Dias", value=float(st.session_state.ato_3), key="ato_3_v28")
+            st.number_input("Ato (Imediato)", key="ato_1_v28", step=100.0)
+            st.number_input("Ato 60 Dias", key="ato_3_v28", step=100.0)
         with col_b:
-            st.session_state.ato_2 = st.number_input("Ato 30 Dias", value=float(st.session_state.ato_2), key="ato_2_v28")
-            st.session_state.ato_4 = st.number_input("Ato 90 Dias", value=float(st.session_state.ato_4), key="ato_4_v28", disabled=is_emcash)
+            st.number_input("Ato 30 Dias", key="ato_2_v28", step=100.0)
+            st.number_input("Ato 90 Dias", key="ato_4_v28", step=100.0, disabled=is_emcash)
+
+        # Atualiza variáveis de suporte com valores dos inputs
+        st.session_state.ato_1 = st.session_state['ato_1_v28']
+        st.session_state.ato_2 = st.session_state['ato_2_v28']
+        st.session_state.ato_3 = st.session_state['ato_3_v28']
+        st.session_state.ato_4 = st.session_state['ato_4_v28']
 
         st.markdown("<hr style='margin: 10px 0;'>", unsafe_allow_html=True)
         col_ps_val, col_ps_parc = st.columns(2)
         with col_ps_val:
-            ps_u = st.number_input("Pro Soluto Direcional", value=0.0, step=1000.0, key="ps_u_view") # key usada no calculo acima
+            ps_u = st.number_input("Pro Soluto Direcional", value=0.0, step=1000.0, key="ps_u_view") 
         with col_ps_parc:
             parc = st.number_input("Parcelas Pro Soluto", min_value=1, max_value=144, value=60, key="parc_u_v28")
 
