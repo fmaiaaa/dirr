@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 =============================================================================
-SISTEMA DE SIMULAÇÃO IMOBILIÁRIA - DIRE RIO V14 (FINAL DESIGN & PS LOGIC)
+SISTEMA DE SIMULAÇÃO IMOBILIÁRIA - DIRE RIO V15 (FINAL UI TWEAKS)
 =============================================================================
 Instruções para Google Colab:
 1. Crie um arquivo chamado 'app.py' com este conteúdo.
@@ -101,12 +101,13 @@ def validar_cpf(cpf):
 
 def calcular_cor_gradiente(valor):
     valor = max(0, min(100, valor))
-    if valor < 50:
-        fator = valor / 50
-        r, g, b = 255, int(255 * fator), 0
-    else:
-        fator = (valor - 50) / 50
-        r, g, b = int(255 * (1 - fator)), 255, 0
+    fator = valor / 100
+    # Interpolação linear de Vermelho (#e30613) para Azul (#002c5d)
+    # Vermelho RGB: (227, 6, 19)
+    # Azul RGB: (0, 44, 93)
+    r = int(227 * (1 - fator) + 0 * fator)
+    g = int(6 * (1 - fator) + 44 * fator)
+    b = int(19 * (1 - fator) + 93 * fator)
     return f"rgb({r},{g},{b})"
 
 def calcular_parcela_financiamento(valor_financiado, meses, taxa_anual_pct, sistema):
@@ -535,11 +536,18 @@ def configurar_layout():
         .metric-label {{ color: {COR_AZUL_ESC} !important; opacity: 0.7; font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.15em; margin-bottom: 8px; }}
         .metric-value {{ color: {COR_AZUL_ESC} !important; font-size: 1.8rem; font-weight: 800; font-family: 'Montserrat', sans-serif; }}
 
-        /* BADGES */
-        .badge-ideal {{ background-color: #22c55e; color: white; padding: 6px 14px; border-radius: 20px; font-weight: bold; font-size: 0.85rem; margin-top: 10px; text-transform: uppercase; letter-spacing: 0.05em; }}
-        .badge-seguro {{ background-color: #eab308; color: white; padding: 6px 14px; border-radius: 20px; font-weight: bold; font-size: 0.85rem; margin-top: 10px; text-transform: uppercase; letter-spacing: 0.05em; }}
-        .badge-facilitado {{ background-color: #f97316; color: white; padding: 6px 14px; border-radius: 20px; font-weight: bold; font-size: 0.85rem; margin-top: 10px; text-transform: uppercase; letter-spacing: 0.05em; }}
-        .badge-multi {{ background: linear-gradient(90deg, #eab308 0%, #f97316 100%); color: white; padding: 6px 14px; border-radius: 20px; font-weight: bold; font-size: 0.85rem; margin-top: 10px; text-transform: uppercase; letter-spacing: 0.05em; }}
+        /* BADGES - Círculos em Vermelho */
+        .badge-ideal, .badge-seguro, .badge-facilitado, .badge-multi {{ 
+            background-color: {COR_VERMELHO} !important; 
+            color: white; 
+            padding: 6px 14px; 
+            border-radius: 20px; 
+            font-weight: bold; 
+            font-size: 0.85rem; 
+            margin-top: 10px; 
+            text-transform: uppercase; 
+            letter-spacing: 0.05em; 
+        }}
 
         /* Sidebar Styling */
         [data-testid="stSidebar"] {{ background-color: #fff; border-right: 1px solid {COR_BORDA}; }}
@@ -595,7 +603,9 @@ def gerar_resumo_pdf(d):
         pdf.ln(8)
         adicionar_secao_pdf("ENGENHARIA FINANCEIRA")
         adicionar_linha_detalhe("Financiamento Bancário Estimado", f"R$ {fmt_br(d.get('finan_usado', 0))}")
-        adicionar_linha_detalhe("Sistema de Amortização", f"{d.get('sistema_amortizacao', 'SAC')}")
+        # Added installment info to PDF
+        prazo_val = d.get('prazo_financiamento', 360)
+        adicionar_linha_detalhe("Sistema de Amortização", f"{d.get('sistema_amortizacao', 'SAC')} - {prazo_val}x")
         adicionar_linha_detalhe("Parcela Estimada Financiamento", f"R$ {fmt_br(d.get('parcela_financiamento', 0))}")
         adicionar_linha_detalhe("Subsídio + FGTS Utilizado", f"R$ {fmt_br(d.get('fgts_sub_usado', 0))}")
         adicionar_linha_detalhe("Pro Soluto Direcional", f"R$ {fmt_br(d.get('ps_usado', 0))}")
@@ -1267,10 +1277,6 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
         with fin2: st.markdown(f"""<div class="fin-box" style="border-top: 6px solid {COR_VERMELHO};"><b>MENSALIDADE PS</b><br>R$ {fmt_br(v_parc)} ({parc}x)</div>""", unsafe_allow_html=True)
         
         # Validação visual do saldo
-        # Se gap_final != 0, mantém o alerta vermelho visualmente se for erro, ou AZUL se for apenas info.
-        # O usuário pediu "atualize a cor do destaque... para o azul que está na caixa de valor do imovel".
-        # Vamos manter o box azul (COR_AZUL_ESC), mas o st.error abaixo cuidará do alerta textual.
-        
         cor_saldo = COR_AZUL_ESC 
         
         with fin3: st.markdown(f"""<div class="fin-box" style="border-top: 6px solid {cor_saldo};"><b>SALDO A COBRIR</b><br>R$ {fmt_br(gap_final)}</div>""", unsafe_allow_html=True)
@@ -1319,8 +1325,9 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
         st.markdown(f"""<div class="summary-body"><b>Empreendimento:</b> {d.get('empreendimento_nome')}<br><b>Unidade:</b> {d.get('unidade_id')}<br><b>Valor de Venda:</b> <span style="color: {COR_VERMELHO}; font-weight: 800;">R$ {fmt_br(d.get('imovel_valor', 0))}</span></div>""", unsafe_allow_html=True)
         st.markdown(f'<div class="summary-header">PLANO DE FINANCIAMENTO</div>', unsafe_allow_html=True)
         
-        # Exibe parcelas formatadas
-        parcela_texto = f"Parcela Estimada ({d.get('sistema_amortizacao', 'SAC')}): R$ {fmt_br(d.get('parcela_financiamento', 0))}"
+        # Exibe parcelas formatadas com prazo
+        prazo_txt = d.get('prazo_financiamento', 360)
+        parcela_texto = f"Parcela Estimada ({d.get('sistema_amortizacao', 'SAC')} - {prazo_txt}x): R$ {fmt_br(d.get('parcela_financiamento', 0))}"
         
         st.markdown(f"""<div class="summary-body"><b>Financiamento Bancário:</b> R$ {fmt_br(d.get('finan_usado', 0))}<br><b>{parcela_texto}</b><br><b>FGTS + Subsídio:</b> R$ {fmt_br(d.get('fgts_sub_usado', 0))}<br><b>Pro Soluto Total:</b> R$ {fmt_br(d.get('ps_usado', 0))} ({d.get('ps_parcelas')}x de R$ {fmt_br(d.get('ps_mensal', 0))})</div>""", unsafe_allow_html=True)
         st.markdown(f'<div class="summary-header">FLUXO DE ENTRADA (ATO)</div>', unsafe_allow_html=True)
