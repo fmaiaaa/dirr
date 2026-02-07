@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 =============================================================================
-SISTEMA DE SIMULAÇÃO IMOBILIÁRIA - APEX EDITION 2026
+SISTEMA DE SIMULAÇÃO IMOBILIÁRIA - APEX EDITION 2026 (BUGFIX V17.2)
 =============================================================================
 Architecture: Monolithic Streamlit App (Single File)
 Design System: Enterprise Blue (#002c5d) & Accent Red (#e30613)
@@ -463,7 +463,9 @@ class PDFReport:
             pdf.set_font("Helvetica", 'B' if bold else '', 10)
             pdf.set_text_color(*text)
             pdf.cell(90, 8, label, border='B')
-            pdf.set_text_color(*accent if bold else *text)
+            # Correção do SyntaxError da V17 original:
+            color = accent if bold else text
+            pdf.set_text_color(*color)
             pdf.cell(100, 8, str(value), border='B', align='R', ln=True)
         
         pdf.ln(10)
