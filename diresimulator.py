@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 =============================================================================
-SISTEMA DE SIMULAÇÃO IMOBILIÁRIA - DIRE RIO V21 (HYPER MODERN TECH)
+SISTEMA DE SIMULAÇÃO IMOBILIÁRIA - DIRE RIO V22 (BLUE CHIP TECH)
 =============================================================================
 Instruções para Google Colab:
 1. Crie um arquivo chamado 'app.py' com este conteúdo.
@@ -64,14 +64,14 @@ URL_ESTOQUE = f"https://docs.google.com/spreadsheets/d/{ID_ESTOQUE}/edit#gid=0"
 
 URL_FAVICON_RESERVA = "https://direcional.com.br/wp-content/uploads/2021/04/cropped-favicon-direcional-32x32.png"
 
-# Paleta de Cores - Hyper Modern Tech
-COR_PRIMARY = "#002c5d"     # Brand Navy
-COR_ACCENT = "#e30613"      # Brand Red
-COR_BG = "#FAFAFA"          # Pure Crisp White/Gray
-COR_SURFACE = "#FFFFFF"     # White
-COR_TXT_MAIN = "#171717"    # Neutral 900
-COR_TXT_MUTED = "#737373"   # Neutral 500
-COR_BORDER = "#E5E5E5"      # Neutral 200
+# Paleta de Cores - Blue Chip Tech
+COR_PRIMARY = "#0f172a"     # Navy Blue Profundo
+COR_ACCENT = "#ef4444"      # Tech Red
+COR_BG = "#f8fafc"          # Slate 50
+COR_SURFACE = "#ffffff"     # White
+COR_TXT_MAIN = "#334155"    # Slate 700
+COR_TXT_HEAD = "#1e293b"    # Slate 800
+COR_BORDER = "#e2e8f0"      # Slate 200
 
 def fmt_br(valor):
     try:
@@ -102,10 +102,9 @@ def validar_cpf(cpf):
 
 def calcular_cor_gradiente(valor):
     valor = max(0, min(100, valor))
-    # Gradiente Tech: Red -> Amber -> Emerald
-    if valor < 50: return "#EF4444" # Red
-    if valor < 80: return "#F59E0B" # Amber
-    return "#10B981" # Emerald
+    if valor < 50: return "#ef4444" # Red
+    if valor < 80: return "#f59e0b" # Amber
+    return "#10b981" # Emerald
 
 def calcular_parcela_financiamento(valor_financiado, meses, taxa_anual_pct, sistema):
     """Calcula a primeira parcela (SAC) ou parcela fixa (PRICE)"""
@@ -294,279 +293,288 @@ def configurar_layout():
     
     st.markdown(f"""
         <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700;800&display=swap');
         
-        /* --- CORE VARIABLES --- */
+        /* --- DESIGN SYSTEM TOKENS --- */
         :root {{
-            --primary: {COR_PRIMARY};
-            --accent: {COR_ACCENT};
-            --bg-body: {COR_BG};
-            --card-surface: {COR_SURFACE};
-            --txt-main: {COR_TXT_MAIN};
-            --txt-sec: {COR_TXT_MUTED};
-            --border-light: {COR_BORDER};
-            --font-main: 'Inter', sans-serif;
-            --font-head: 'Space Grotesk', sans-serif;
-            --radius-md: 0.5rem;
+            --color-primary: {COR_PRIMARY};
+            --color-accent: {COR_ACCENT};
+            --color-bg: {COR_BG};
+            --color-surface: {COR_SURFACE};
+            --color-text-main: {COR_TXT_MAIN};
+            --color-text-head: {COR_TXT_HEAD};
+            --color-border: {COR_BORDER};
+            
+            --shadow-subtle: 0 1px 2px 0 rgba(0,0,0,0.05);
+            --shadow-card: 0 4px 6px -1px rgba(0,0,0,0.02), 0 2px 4px -1px rgba(0,0,0,0.02);
+            --shadow-hover: 0 10px 15px -3px rgba(0,0,0,0.05), 0 4px 6px -2px rgba(0,0,0,0.025);
+            --shadow-glow: 0 0 20px rgba(15, 23, 42, 0.05);
+            
+            --font-sans: 'Inter', sans-serif;
+            --font-display: 'Outfit', sans-serif;
+            
+            --radius-md: 0.75rem;
             --radius-lg: 1rem;
-            --radius-xl: 1.5rem;
-            --shadow-soft: 0 4px 6px -1px rgba(0, 0, 0, 0.02), 0 2px 4px -1px rgba(0, 0, 0, 0.02);
-            --shadow-hover: 0 10px 15px -3px rgba(0, 0, 0, 0.05), 0 4px 6px -2px rgba(0, 0, 0, 0.025);
-            --glass: rgba(255, 255, 255, 0.7);
+            --radius-full: 9999px;
         }}
 
-        /* --- GLOBAL ANIMATIONS --- */
-        @keyframes fadeInUp {{
-            from {{ opacity: 0; transform: translateY(10px); }}
-            to {{ opacity: 1; transform: translateY(0); }}
-        }}
-        @keyframes pulse-ring {{
-            0% {{ box-shadow: 0 0 0 0 rgba(0, 44, 93, 0.2); }}
-            70% {{ box-shadow: 0 0 0 10px rgba(0, 44, 93, 0); }}
-            100% {{ box-shadow: 0 0 0 0 rgba(0, 44, 93, 0); }}
-        }}
-
-        /* --- RESET & LAYOUT --- */
+        /* --- GLOBAL RESET & ANIMATIONS --- */
         html, body, [data-testid="stAppViewContainer"] {{
-            font-family: var(--font-main);
-            background-color: var(--bg-body);
-            color: var(--txt-main);
+            font-family: var(--font-sans);
+            background-color: var(--color-bg);
+            color: var(--color-text-main);
             background-image: 
-                radial-gradient(circle at 15% 50%, rgba(227, 6, 19, 0.03), transparent 25%), 
-                radial-gradient(circle at 85% 30%, rgba(0, 44, 93, 0.03), transparent 25%);
+                radial-gradient(at 0% 0%, rgba(15, 23, 42, 0.03) 0px, transparent 50%),
+                radial-gradient(at 100% 100%, rgba(239, 68, 68, 0.03) 0px, transparent 50%);
             background-attachment: fixed;
         }}
 
+        @keyframes fadeInUp {{
+            from {{ opacity: 0; transform: translateY(20px); }}
+            to {{ opacity: 1; transform: translateY(0); }}
+        }}
+        
+        @keyframes pulse-soft {{
+            0%, 100% {{ transform: scale(1); opacity: 1; }}
+            50% {{ transform: scale(1.05); opacity: 0.9; }}
+        }}
+
         .block-container {{
-            max-width: 960px !important;
-            padding-top: 3rem !important;
-            padding-bottom: 8rem !important;
-            animation: fadeInUp 0.6s ease-out;
+            max-width: 1000px !important;
+            padding-top: 2rem !important;
+            padding-bottom: 6rem !important;
+            animation: fadeInUp 0.5s ease-out;
         }}
 
         /* --- TYPOGRAPHY --- */
         h1, h2, h3, h4, h5 {{
-            font-family: var(--font-head) !important;
-            color: var(--primary) !important;
+            font-family: var(--font-display) !important;
+            color: var(--color-text-head) !important;
             font-weight: 700 !important;
-            letter-spacing: -0.03em !important;
+            letter-spacing: -0.025em !important;
         }}
-        p, label, .stMarkdown, .stText {{
-            color: var(--txt-main) !important;
-            letter-spacing: -0.01em;
+        
+        p, label, .stMarkdown {{
+            color: var(--color-text-main) !important;
+            line-height: 1.6 !important;
         }}
 
-        /* --- COMPONENT: TECH CARD --- */
+        /* --- COMPONENTS: CARDS --- */
         div.stMarkdown > div[data-testid="stMarkdownContainer"] > div.form-card,
         div.stMarkdown > div[data-testid="stMarkdownContainer"] > div.card,
         div.stMarkdown > div[data-testid="stMarkdownContainer"] > div.recommendation-card,
         div.stMarkdown > div[data-testid="stMarkdownContainer"] > div.summary-body {{
-            background: var(--card-surface);
-            border: 1px solid var(--border-light);
+            background: rgba(255, 255, 255, 0.8);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.6);
             border-radius: var(--radius-lg);
             padding: 2rem;
-            box-shadow: var(--shadow-soft);
+            box-shadow: var(--shadow-card);
             transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            margin-bottom: 1.5rem;
             position: relative;
             overflow: hidden;
-            margin-bottom: 1.5rem;
         }}
         
-        /* Hover Effect for Interactive Cards */
         div.form-card:hover, div.card:hover, div.recommendation-card:hover {{
-            transform: translateY(-3px);
+            transform: translateY(-4px);
             box-shadow: var(--shadow-hover);
-            border-color: rgba(0, 44, 93, 0.2);
+            border-color: rgba(15, 23, 42, 0.1);
         }}
 
-        /* --- COMPONENT: INPUT FIELDS (Next.js Style) --- */
+        /* --- COMPONENTS: INPUTS --- */
         .stTextInput input, .stNumberInput input, div[data-baseweb="select"] > div, .stDateInput input {{
-            background-color: #FFFFFF !important;
-            border: 1px solid var(--border-light) !important;
+            background-color: white !important;
+            border: 1px solid var(--color-border) !important;
             border-radius: var(--radius-md) !important;
-            height: 48px !important;
-            min-height: 48px !important;
-            color: var(--txt-main) !important;
+            height: 50px !important;
+            min-height: 50px !important;
+            color: var(--color-text-main) !important;
             font-size: 0.95rem !important;
-            padding-left: 1rem !important;
+            padding-left: 1.25rem !important;
+            box-shadow: var(--shadow-subtle);
             transition: all 0.2s ease;
-            box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
         }}
 
         div[data-baseweb="input"]:focus-within, div[data-baseweb="select"]:focus-within > div {{
-            border-color: var(--primary) !important;
-            box-shadow: 0 0 0 4px rgba(0, 44, 93, 0.1) !important;
+            border-color: var(--color-primary) !important;
+            box-shadow: 0 0 0 4px rgba(15, 23, 42, 0.1) !important;
         }}
-
-        /* Fix Date Input */
+        
         div[data-testid="stDateInput"] > div {{ border: none !important; box-shadow: none !important; background: transparent !important; }}
 
-        /* --- COMPONENT: BUTTONS (Frontier) --- */
+        /* --- COMPONENTS: BUTTONS --- */
         .stButton button {{
-            font-family: var(--font-main);
+            font-family: var(--font-display);
             font-weight: 600;
             border-radius: var(--radius-md) !important;
-            height: 48px !important;
+            height: 52px !important;
             transition: all 0.2s ease;
-            text-transform: none !important;
-            letter-spacing: -0.01em;
-            font-size: 0.95rem !important;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            font-size: 0.85rem !important;
         }}
 
-        /* Primary */
+        /* Primary Button */
         .stButton button[kind="primary"] {{
-            background: linear-gradient(180deg, #0f172a 0%, #020617 100%) !important;
-            color: #fff !important;
-            border: 1px solid rgba(255,255,255,0.1) !important;
-            box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05), 0 0 0 1px rgba(0,0,0,0.1);
+            background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%) !important;
+            color: white !important;
+            border: none !important;
+            box-shadow: 0 4px 12px rgba(15, 23, 42, 0.25) !important;
         }}
         .stButton button[kind="primary"]:hover {{
-            background: #1e293b !important;
-            transform: translateY(-1px);
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px rgba(15, 23, 42, 0.35) !important;
+            background: linear-gradient(135deg, #1e293b 0%, #334155 100%) !important;
         }}
 
-        /* Secondary */
+        /* Secondary Button */
         .stButton button:not([kind="primary"]) {{
-            background: #ffffff !important;
-            color: var(--txt-main) !important;
-            border: 1px solid var(--border-light) !important;
+            background: white !important;
+            color: var(--color-text-main) !important;
+            border: 1px solid var(--color-border) !important;
         }}
         .stButton button:not([kind="primary"]):hover {{
-            background: #f8fafc !important;
-            border-color: #cbd5e1 !important;
-            color: var(--primary) !important;
+            border-color: var(--color-primary) !important;
+            color: var(--color-primary) !important;
+            background-color: #f1f5f9 !important;
         }}
 
-        /* --- COMPONENT: STEPPER 3.0 --- */
+        /* --- STEPPER (Fixed & Animated) --- */
         .stepper-container {{
             display: flex;
-            justify-content: center;
+            justify-content: space-between;
             align-items: center;
-            margin-bottom: 3rem;
+            margin-bottom: 3.5rem;
             position: relative;
             padding: 0 1rem;
         }}
-        .stepper-track {{
+        
+        .stepper-line-bg {{
             position: absolute;
-            top: 50%;
-            left: 20%;
-            right: 20%;
-            height: 2px;
-            background: var(--border-light);
+            top: 24px;
+            left: 20px;
+            right: 20px;
+            height: 3px;
+            background-color: #e2e8f0;
             z-index: 0;
-            transform: translateY(-50%);
+            border-radius: 99px;
         }}
-        .stepper-item {{
-            z-index: 1;
-            background: var(--bg-body);
-            padding: 0 1rem;
+        
+        .stepper-step {{
+            position: relative;
+            z-index: 2;
             display: flex;
             flex-direction: column;
             align-items: center;
             cursor: default;
+            flex: 1;
         }}
-        .step-indicator {{
-            width: 36px;
-            height: 36px;
+        
+        .step-bubble {{
+            width: 48px;
+            height: 48px;
             border-radius: 50%;
-            background: white;
-            border: 2px solid var(--border-light);
+            background-color: white;
+            border: 2px solid #e2e8f0;
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 0.85rem;
             font-weight: 700;
-            color: var(--txt-sec);
-            transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-            margin-bottom: 0.5rem;
+            font-size: 1rem;
+            color: #64748b;
+            margin-bottom: 0.75rem;
+            transition: all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+            box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);
         }}
+        
         .step-label {{
             font-size: 0.75rem;
-            font-weight: 600;
-            color: var(--txt-sec);
+            font-weight: 700;
+            color: #94a3b8;
             text-transform: uppercase;
             letter-spacing: 0.05em;
             transition: color 0.3s;
         }}
+        
         /* Active State */
-        .stepper-item.active .step-indicator {{
-            border-color: var(--primary);
-            background: var(--primary);
+        .stepper-step.active .step-bubble {{
+            background: var(--color-primary);
+            border-color: var(--color-primary);
             color: white;
-            transform: scale(1.1);
-            animation: pulse-ring 2s infinite;
+            transform: scale(1.15);
+            box-shadow: 0 0 0 6px rgba(15, 23, 42, 0.15);
         }}
-        .stepper-item.active .step-label {{ color: var(--primary); }}
+        .stepper-step.active .step-label {{
+            color: var(--color-primary);
+        }}
+        
         /* Completed State */
-        .stepper-item.completed .step-indicator {{
-            background: #10b981;
+        .stepper-step.completed .step-bubble {{
+            background: #10b981; /* Emerald 500 */
             border-color: #10b981;
             color: white;
         }}
+        .stepper-step.completed .step-label {{
+            color: #10b981;
+        }}
 
-        /* --- COMPONENT: CUSTOM BADGES --- */
-        .tech-badge {{
-            display: inline-flex;
-            align-items: center;
-            padding: 4px 10px;
-            border-radius: 99px;
-            font-size: 0.7rem;
-            font-weight: 700;
-            text-transform: uppercase;
-            letter-spacing: 0.05em;
-        }}
-        .tb-blue {{ background: #eff6ff; color: #1d4ed8; border: 1px solid #dbeafe; }}
-        .tb-green {{ background: #f0fdf4; color: #15803d; border: 1px solid #dcfce7; }}
-        .tb-red {{ background: #fef2f2; color: #b91c1c; border: 1px solid #fee2e2; }}
-
-        /* --- SIDEBAR REFINEMENT --- */
-        [data-testid="stSidebar"] {{
-            background-color: #ffffff;
-            border-right: 1px solid var(--border-light);
-        }}
-        .sidebar-user {{
-            text-align: center;
-            padding: 2rem 1rem;
-            background: linear-gradient(180deg, #f8fafc 0%, #ffffff 100%);
-            border-bottom: 1px solid var(--border-light);
-            margin-bottom: 2rem;
-        }}
-        
-        /* --- CLEAN HEADER --- */
-        .app-header {{
+        /* --- HEADER --- */
+        .header-modern {{
             display: flex;
             flex-direction: column;
             align-items: center;
             margin-bottom: 3rem;
-            border-bottom: 1px solid var(--border-light);
             padding-bottom: 1.5rem;
+            border-bottom: 1px solid var(--color-border);
         }}
-        .app-logo {{ height: 48px; margin-bottom: 1rem; }}
-        .app-title {{ 
-            font-size: 1.75rem; 
-            font-weight: 800; 
-            color: var(--primary); 
-            letter-spacing: -0.03em;
+        .header-modern img {{
+            height: 56px;
+            margin-bottom: 1rem;
+            filter: drop-shadow(0 4px 6px rgba(0,0,0,0.1));
+        }}
+        .header-title {{
+            font-size: 2rem;
             margin: 0;
+            background: linear-gradient(to right, #0f172a 0%, #334155 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
         }}
-        .app-sub {{ font-size: 0.9rem; color: var(--txt-sec); font-weight: 500; }}
-
-        /* --- FOOTER --- */
-        .tech-footer {{
+        
+        /* --- SIDEBAR --- */
+        [data-testid="stSidebar"] {{
+            background-color: white;
+            border-right: 1px solid var(--color-border);
+        }}
+        .sidebar-profile {{
+            background: linear-gradient(135deg, #f8fafc 0%, #ffffff 100%);
+            border: 1px solid var(--color-border);
+            border-radius: var(--radius-lg);
+            padding: 1.5rem;
             text-align: center;
-            margin-top: 5rem;
-            padding-top: 2rem;
-            border-top: 1px solid var(--border-light);
-            color: var(--txt-sec);
-            font-size: 0.75rem;
-            font-weight: 500;
-            opacity: 0.8;
+            margin-bottom: 2rem;
+            box-shadow: var(--shadow-subtle);
+        }}
+        .profile-avatar {{
+            width: 56px;
+            height: 56px;
+            background: var(--color-primary);
+            color: white;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            font-size: 1.5rem;
+            margin: 0 auto 1rem auto;
+            box-shadow: 0 4px 10px rgba(15, 23, 42, 0.3);
         }}
         </style>
     """, unsafe_allow_html=True)
 
 def render_stepper(current_step_name):
+    # Dicionário de passos
     steps = [
         {"id": "input", "label": "Dados"},
         {"id": "guide", "label": "Análise"},
@@ -575,34 +583,35 @@ def render_stepper(current_step_name):
         {"id": "summary", "label": "Resumo"}
     ]
     
+    # Encontra o índice atual
     current_idx = 0
     for i, s in enumerate(steps):
         if s["id"] == current_step_name:
             current_idx = i
             break
-            
-    html = '<div class="stepper-container"><div class="stepper-track"></div>'
+    
+    # Constrói o HTML do Stepper (sem indentação para evitar bloco de código)
+    html = '<div class="stepper-container"><div class="stepper-line-bg"></div>'
     
     for i, step in enumerate(steps):
-        status = ""
-        icon = str(i + 1)
+        status_class = ""
+        icon_content = str(i + 1)
         
         if i < current_idx:
-            status = "completed"
-            icon = "✓"
+            status_class = "completed"
+            icon_content = "✓"
         elif i == current_idx:
-            status = "active"
-        
-        html += f"""
-        <div class="stepper-item {status}">
-            <div class="step-indicator">{icon}</div>
-            <div class="step-label">{step['label']}</div>
-        </div>
-        """
+            status_class = "active"
+            
+        html += f"""<div class="stepper-step {status_class}">
+    <div class="step-bubble">{icon_content}</div>
+    <div class="step-label">{step['label']}</div>
+</div>"""
+
     html += '</div>'
     st.markdown(html, unsafe_allow_html=True)
 
-# ... (Funções PDF e Email mantidas iguais) ...
+# ... (Funções PDF, Email e Login mantidas iguais para funcionalidade) ...
 def gerar_resumo_pdf(d):
     if not PDF_ENABLED: return None
     try:
@@ -743,7 +752,8 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
         user_name = st.session_state.get('user_name', 'Corretor').upper()
         user_cargo = st.session_state.get('user_cargo', 'Consultor').upper()
         
-        st.markdown('<div class="sidebar-user">', unsafe_allow_html=True)
+        st.markdown('<div class="sidebar-profile">', unsafe_allow_html=True)
+        st.markdown(f'<div class="profile-avatar">{user_name[0] if user_name else "U"}</div>', unsafe_allow_html=True)
         st.markdown(f'<div style="font-weight:700; font-size:1.1rem; color:#0f172a;">{user_name}</div>', unsafe_allow_html=True)
         st.markdown(f'<div style="font-size:0.8rem; color:#64748b;">{user_cargo}</div>', unsafe_allow_html=True)
         st.markdown('</div>', unsafe_allow_html=True)
@@ -798,7 +808,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
                                 st.rerun()
         except: pass
 
-    # RENDER PROGRESS BAR
+    # RENDER PROGRESS BAR (STEPPER)
     render_stepper(passo)
 
     # --- ETAPA 1: INPUT ---
@@ -819,7 +829,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
         with col_p2:
             cpf_val = st.text_input("CPF", value=st.session_state.dados_cliente.get('cpf', ""), placeholder="000.000.000-00", key="in_cpf_v3", max_chars=14)
             if cpf_val and not validar_cpf(cpf_val):
-                st.markdown(f"<small style='color: {COR_VERMELHO};'>CPF inválido</small>", unsafe_allow_html=True)
+                st.markdown(f"<small style='color: {COR_ACCENT};'>CPF inválido</small>", unsafe_allow_html=True)
             genero = st.selectbox("Gênero", ["Masculino", "Feminino", "Outro"], index=0, key="in_genero_v3")
         st.markdown('</div>', unsafe_allow_html=True)
         
@@ -924,7 +934,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
                             st.markdown(f"""
                                 <div class="card" style="text-align: center;">
                                     <h4 style="margin:0; font-size:1rem; color:#0f172a;">{emp}</h4>
-                                    <span class="tech-badge tb-green" style="margin-top:10px;">{qtd} unidades viáveis</span>
+                                    <div style="margin-top:10px; font-weight:700; color:#10b981;">{qtd} unidades viáveis</div>
                                 </div>
                             """, unsafe_allow_html=True)
 
@@ -947,14 +957,14 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
                 elif not df_pool.empty:
                      cand_facil = df_pool.sort_values('Valor de Venda', ascending=True).head(1)
 
-                def extract_info(df_cand, label, css_class):
+                def extract_info(df_cand, label, color_style):
                     if df_cand.empty: return None
                     row = df_cand.iloc[0]
-                    return {'preco': row['Valor de Venda'], 'emp': row['Empreendimento'], 'unidades': row['Identificador'], 'labels': [label], 'css': css_class}
+                    return {'preco': row['Valor de Venda'], 'emp': row['Empreendimento'], 'unidades': row['Identificador'], 'labels': [label], 'color': color_style}
 
-                info_ideal = extract_info(cand_ideal, "MELHOR OPÇÃO", "tb-blue")
-                info_seguro = extract_info(cand_seguro, "MAIOR COBERTURA", "tb-green")
-                info_facil = extract_info(cand_facil, "MENOR PREÇO", "tb-red")
+                info_ideal = extract_info(cand_ideal, "MELHOR OPÇÃO", "#3b82f6")
+                info_seguro = extract_info(cand_seguro, "MAIOR COBERTURA", "#10b981")
+                info_facil = extract_info(cand_facil, "MENOR PREÇO", "#ef4444")
                 
                 cards_finais = []
                 if info_ideal: cards_finais.append(info_ideal)
@@ -966,10 +976,9 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
                     cols = st.columns(len(cards_finais))
                     for idx, card in enumerate(cards_finais):
                         with cols[idx]:
-                            labels_html = "".join([f'<span class="tech-badge {card["css"]}">{l}</span>' for l in card['labels']])
                             st.markdown(f'''
-                            <div class="recommendation-card" style="height: 100%;">
-                                <div style="margin-bottom:12px;">{labels_html}</div>
+                            <div class="recommendation-card" style="height: 100%; border-top: 4px solid {card['color']};">
+                                <div style="margin-bottom:12px; font-weight:700; font-size:0.75rem; color:{card['color']}; letter-spacing:0.05em;">{card['labels'][0]}</div>
                                 <h4 style="color:#0f172a; font-size:1.1rem; margin-bottom:4px;">{card['emp']}</h4>
                                 <div style="font-size:0.875rem; color:#64748b; margin-bottom:16px;">Unidade {card['unidades']}</div>
                                 <div style="font-size:1.5rem; font-weight:800; color:#0f172a;">R$ {fmt_br(card['preco'])}</div>
@@ -1236,9 +1245,9 @@ def main():
     if os.path.exists("favicon.png"):
         st.image("favicon.png", width=50)
     st.markdown(f'''
-    <div class="app-header">
-        <h1 class="app-title">SIMULADOR DIRECIONAL</h1>
-        <div class="app-sub">Inteligência de Vendas</div>
+    <div class="header-modern">
+        <h1 class="header-title">SIMULADOR DIRECIONAL</h1>
+        <div style="font-size: 0.9rem; color: #64748b; font-weight: 500; letter-spacing: 0.05em; text-transform: uppercase;">Inteligência de Vendas</div>
     </div>''', unsafe_allow_html=True)
     
     if 'logged_in' not in st.session_state: st.session_state['logged_in'] = False
@@ -1246,7 +1255,7 @@ def main():
     if not st.session_state['logged_in']: tela_login(df_logins)
     else: aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros)
     
-    st.markdown(f'<div class="tech-footer">Direcional Engenharia • Rio de Janeiro<br>V21 Tech Frontier</div>', unsafe_allow_html=True)
+    st.markdown(f'<div class="tech-footer">Direcional Engenharia • Rio de Janeiro<br>V22 Blue Chip Tech</div>', unsafe_allow_html=True)
 
 if __name__ == "__main__":
     main()
