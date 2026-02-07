@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 =============================================================================
-SISTEMA DE SIMULAÇÃO IMOBILIÁRIA - DIRE RIO V5 (FINAL ADJUSTED UI)
+SISTEMA DE SIMULAÇÃO IMOBILIÁRIA - DIRE RIO V6 (FINAL ADJUSTED COLAB)
 =============================================================================
 Instruções para Google Colab:
 1. Crie um arquivo chamado 'app.py' com este conteúdo.
@@ -70,6 +70,7 @@ COR_VERMELHO = "#e30613"
 COR_FUNDO = "#fcfdfe"
 COR_BORDA = "#eef2f6"
 COR_TEXTO_MUTED = "#64748b"
+COR_INPUT_BG = "#f0f2f6" # Cor solicitada para inputs e botões
 
 def fmt_br(valor):
     try:
@@ -156,9 +157,14 @@ def carregar_dados_sistema():
         except: 
             df_logins = pd.DataFrame(columns=['Email', 'Senha', 'Imobiliaria', 'Cargo', 'Nome'])
 
-        # --- 2. Cadastros ---
+        # --- 2. Cadastros (Agora lendo Simulações se existir, senão Cadastros para histórico) ---
         try:
-            df_cadastros = conn.read(spreadsheet=URL_RANKING, worksheet="Cadastros")
+            # Tenta ler Simulações primeiro para histórico
+            try:
+                df_cadastros = conn.read(spreadsheet=URL_RANKING, worksheet="Simulações")
+            except:
+                df_cadastros = conn.read(spreadsheet=URL_RANKING, worksheet="Cadastros")
+            
             df_cadastros.columns = [str(c).strip() for c in df_cadastros.columns]
         except: 
             df_cadastros = pd.DataFrame()
@@ -237,8 +243,13 @@ class MotorRecomendacao:
 
     def obter_enquadramento(self, renda, social, cotista, valor_avaliacao=250000):
         if self.df_finan.empty: return 0.0, 0.0, "N/A"
-        if valor_avaliacao <= 190000: faixa = "F1"
-        elif valor_avaliacao <= 275000: faixa = "F2"
+        
+        # Definição de Faixa Atualizada
+        # F2: Até 275.000
+        # F3: De 275.001 até 350.000
+        # F4: De 350.001 até 500.000 (ou mais)
+        
+        if valor_avaliacao <= 275000: faixa = "F2"
         elif valor_avaliacao <= 350000: faixa = "F3"
         else: faixa = "F4"
         
@@ -247,12 +258,19 @@ class MotorRecomendacao:
         row = self.df_finan.iloc[idx]
         
         s, c = ('Sim' if social else 'Nao'), ('Sim' if cotista else 'Nao')
-        vf = row.get(f"Finan_Social_{s}_Cotista_{c}_{faixa}", 0.0)
-        vs = row.get(f"Subsidio_Social_{s}_Cotista_{c}_{faixa}", 0.0)
         
-        if vf == 0 and faixa == "F1":
-            vf = row.get(f"Finan_Social_{s}_Cotista_{c}_F2", 0.0)
-            vs = row.get(f"Subsidio_Social_{s}_Cotista_{c}_F2", 0.0)
+        # Monta nome das colunas
+        col_fin = f"Finan_Social_{s}_Cotista_{c}_{faixa}"
+        col_sub = f"Subsidio_Social_{s}_Cotista_{c}_{faixa}"
+        
+        vf = row.get(col_fin, 0.0)
+        vs = row.get(col_sub, 0.0)
+        
+        # Se não encontrar na faixa específica e for F2, tenta fallback (raro com essa lógica nova mas mantido por segurança)
+        if vf == 0 and faixa == "F2" and col_fin not in row:
+             # Tenta F2 padrão se existir alguma variação
+             pass 
+
         return float(vf), float(vs), faixa
 
     def calcular_poder_compra(self, renda, finan, fgts_sub, perc_ps, valor_unidade):
@@ -293,51 +311,52 @@ def configurar_layout():
         div[data-baseweb="input"] {{
             border-radius: 8px !important;
             border: 1px solid #e2e8f0 !important;
-            background-color: #ffffff !important;
+            background-color: {COR_INPUT_BG} !important; /* Fundo cinza claro */
             transition: all 0.2s ease-in-out !important;
         }}
         
         div[data-baseweb="input"]:focus-within {{
             border-color: {COR_VERMELHO} !important;
             box-shadow: 0 0 0 1px {COR_VERMELHO} !important;
+            background-color: #ffffff !important;
         }}
 
         /* AJUSTE DE ALTURA UNIFICADO E CORRIGIDO PARA INPUTS */
         .stTextInput input, .stNumberInput input, .stDateInput input, div[data-baseweb="select"] > div {{
             height: 48px !important;
             min-height: 48px !important;
-            padding: 0 15px !important; /* Ajuste de padding para centralizar sem cortar */
+            padding: 0 15px !important;
             color: {COR_AZUL_ESC} !important;
             font-size: 1rem !important;
-            line-height: 48px !important; /* Força alinhamento vertical */
+            line-height: 48px !important;
         }}
 
-        /* Ajuste específico para o wrapper do DateInput e Selectbox para garantir fundo branco e borda igual */
         div[data-testid="stDateInput"] > div, div[data-baseweb="select"] > div {{
-            background-color: #ffffff !important;
+            background-color: {COR_INPUT_BG} !important;
             border: 1px solid #e2e8f0 !important;
             border-radius: 8px !important;
             display: flex;
             align-items: center;
         }}
         
-        /* Remove borda interna duplicada se houver */
         div[data-testid="stDateInput"] div[data-baseweb="input"] {{
             border: none !important;
+            background-color: transparent !important;
         }}
 
         div[data-testid="stNumberInput"] button {{
              height: 48px !important;
              border-color: #e2e8f0 !important;
+             background-color: transparent !important;
         }}
 
-        /* BOTÕES GERAIS E DE AÇÃO */
+        /* BOTÕES GERAIS */
         .stButton button {{ 
             font-family: 'Inter', sans-serif;
             border-radius: 8px !important; 
             padding: 0 20px !important; 
             width: 100% !important;
-            height: 55px !important; /* Altura padrão para botões de ação */
+            height: 48px !important; /* Altura unificada com Data de Nascimento */
             font-weight: 700 !important; 
             text-transform: uppercase;
             letter-spacing: 0.1em;
@@ -345,14 +364,7 @@ def configurar_layout():
             transition: all 0.2s ease !important;
         }}
         
-        /* BOTÕES DE DISTRIBUIÇÃO (1x, 2x...) - MESMA ALTURA DOS INPUTS */
-        div[data-testid="column"] .stButton button {{
-             min-height: 48px !important;
-             height: 48px !important;
-             padding: 0 !important;
-             line-height: 48px !important;
-        }}
-
+        /* Botões Primários (Vermelhos - Ação Principal) */
         .stButton button[kind="primary"] {{ 
             background: {COR_VERMELHO} !important; 
             color: #ffffff !important; 
@@ -362,14 +374,17 @@ def configurar_layout():
             background: #c40510 !important; 
             box-shadow: 0 8px 20px -5px rgba(227, 6, 19, 0.4) !important; 
         }}
+
+        /* Botões Secundários/Padrão (Cinza Claro - #f0f2f6) */
         .stButton button:not([kind="primary"]) {{ 
-            background: #ffffff !important; 
+            background: {COR_INPUT_BG} !important; 
             color: {COR_AZUL_ESC} !important; 
-            border: 1px solid {COR_AZUL_ESC} !important; 
+            border: 1px solid #e2e8f0 !important; 
         }}
         .stButton button:not([kind="primary"]):hover {{
             border-color: {COR_VERMELHO} !important; 
             color: {COR_VERMELHO} !important; 
+            background: #ffffff !important;
         }}
         
         [data-testid="stSidebar"] .stButton button {{
@@ -601,24 +616,27 @@ def tela_login(df_logins):
 
 @st.dialog("Opções de Exportação")
 def show_export_dialog(d):
-    st.markdown("Escolha como deseja exportar o resumo da simulação.")
+    st.markdown("<div style='text-align:center'>", unsafe_allow_html=True)
+    st.markdown("### Resumo da Simulação")
+    st.markdown("Escolha como deseja exportar o documento.")
     pdf_data = gerar_resumo_pdf(d)
     
     if pdf_data:
-        st.download_button(label="Baixar PDF", data=pdf_data, file_name=f"Resumo_Direcional_{d.get('nome', 'Cliente')}.pdf", mime="application/pdf", use_container_width=True)
+        st.download_button(label="📄 Baixar PDF", data=pdf_data, file_name=f"Resumo_Direcional_{d.get('nome', 'Cliente')}.pdf", mime="application/pdf", use_container_width=True)
     else:
         st.warning("Geração de PDF indisponível.")
     
     st.markdown("---")
     st.markdown("**Enviar por E-mail**")
     email = st.text_input("Endereço de e-mail", placeholder="cliente@exemplo.com")
-    if st.button("Enviar Email", use_container_width=True):
+    if st.button("✉️ Enviar Email", use_container_width=True):
         if email and "@" in email:
             sucesso, msg = enviar_email_smtp(email, d.get('nome', 'Cliente'), pdf_data)
             if sucesso: st.success(msg)
             else: st.error(msg)
         else:
             st.error("E-mail inválido")
+    st.markdown("</div>", unsafe_allow_html=True)
 
 # =============================================================================
 # APLICAÇÃO PRINCIPAL
@@ -908,8 +926,23 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
                 f_cols = st.columns([1.2, 1.5, 1, 1, 1])
                 with f_cols[0]: f_bairro = st.multiselect("Bairro:", options=sorted(df_disp_total['Bairro'].unique()), key="f_bairro_tab_v28")
                 with f_cols[1]: f_emp = st.multiselect("Empreendimento:", options=sorted(df_disp_total['Empreendimento'].unique()), key="f_emp_tab_v28")
-                # Filtro de Cobertura %
-                with f_cols[2]: f_cob_min = st.slider("% Cobertura Mínima:", 0, 100, 0, key="f_cob_min_tab_v28")
+                # Filtro de Cobertura Selectbox
+                with f_cols[2]: 
+                    cob_opts = ["Todas", "Acima de 10%", "Acima de 20%", "Acima de 30%", "Acima de 40%", "Acima de 50%", "Acima de 60%", "Acima de 70%", "Acima de 80%", "Acima de 90%", "100%"]
+                    f_cob_sel = st.selectbox("Cobertura Mínima:", options=cob_opts, key="f_cob_sel_v28")
+                    
+                    cob_min_val = 0
+                    if "10%" in f_cob_sel: cob_min_val = 10
+                    elif "20%" in f_cob_sel: cob_min_val = 20
+                    elif "30%" in f_cob_sel: cob_min_val = 30
+                    elif "40%" in f_cob_sel: cob_min_val = 40
+                    elif "50%" in f_cob_sel: cob_min_val = 50
+                    elif "60%" in f_cob_sel: cob_min_val = 60
+                    elif "70%" in f_cob_sel: cob_min_val = 70
+                    elif "80%" in f_cob_sel: cob_min_val = 80
+                    elif "90%" in f_cob_sel: cob_min_val = 90
+                    elif "100%" in f_cob_sel: cob_min_val = 100
+
                 with f_cols[3]: f_ordem = st.selectbox("Ordem:", ["Menor Preço", "Maior Preço"], key="f_ordem_tab_v28")
                 with f_cols[4]: f_pmax = st.number_input("Preço Máx:", value=float(df_disp_total['Valor de Venda'].max()), key="f_pmax_tab_v28")
                 
@@ -917,7 +950,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
                 if f_bairro: df_tab = df_tab[df_tab['Bairro'].isin(f_bairro)]
                 if f_emp: df_tab = df_tab[df_tab['Empreendimento'].isin(f_emp)]
                 # Filtra pela cobertura minima
-                df_tab = df_tab[df_tab['Cobertura'] >= f_cob_min]
+                df_tab = df_tab[df_tab['Cobertura'] >= cob_min_val]
                 df_tab = df_tab[df_tab['Valor de Venda'] <= f_pmax]
                 
                 if f_ordem == "Menor Preço": 
@@ -1147,13 +1180,14 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
         if st.button("CONCLUIR E SALVAR SIMULAÇÃO", type="primary", use_container_width=True):
             try:
                 conn_save = st.connection("gsheets", type=GSheetsConnection)
-                aba_destino = 'Cadastros'
+                aba_destino = 'Simulações'
                 rendas_ind = d.get('rendas_lista', [])
                 while len(rendas_ind) < 4: rendas_ind.append(0.0)
                 nova_linha = {
                     "Nome": d.get('nome'), "CPF": d.get('cpf'), "Data de Nascimento": str(d.get('data_nascimento')),
-                    "Prazo Financiamento": d.get('prazo_financiamento'), "Renda Part. 1": rendas_ind[0], "Renda Part. 2": rendas_ind[1],
-                    "Renda Part. 3": rendas_ind[2], "Renda Part. 4": rendas_ind[3], "Ranking": d.get('ranking'), "Política de Pro Soluto": d.get('politica'),
+                    "Prazo Financiamento": d.get('prazo_financiamento'), "Renda Part. 1": rendas_ind[0], 
+                    "Renda Part. 4": rendas_ind[3], "Renda Part. 3": rendas_ind[2], "Renda Part. 4.1": 0.0, # Placeholder se não existir
+                    "Ranking": d.get('ranking'), "Política de Pro Soluto": d.get('politica'),
                     "Fator Social": "Sim" if d.get('social') else "Não", "Cotista FGTS": "Sim" if d.get('cotista') else "Não",
                     "Financiamento Aprovado": d.get('finan_f_ref', 0), "Subsídio Máximo": d.get('sub_f_ref', 0), "Pro Soluto Médio": d.get('ps_medio_ref', 0),
                     "Capacidade de Entrada": d.get('cap_entrada_ref', 0), "Poder de Aquisição Médio": d.get('poder_aquisicao_ref', 0),
@@ -1161,6 +1195,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
                     "Financiamento Final": d.get('finan_usado', 0), "FGTS + Subsídio Final": d.get('fgts_sub_usado', 0),
                     "Pro Soluto Final": d.get('ps_usado', 0), "Número de Parcelas do Pro Soluto": d.get('ps_parcelas', 0), "Mensalidade PS": d.get('ps_mensal', 0),
                     "Ato": d.get('ato_final', 0), "Ato 30": d.get('ato_30', 0), "Ato 60": d.get('ato_60', 0), "Ato 90": d.get('ato_90', 0),
+                    "Renda Part. 2": rendas_ind[1],
                     "Nome do Corretor": st.session_state.get('user_name', ''), "Canal/Imobiliária": st.session_state.get('user_imobiliaria', '')
                 }
                 df_novo = pd.DataFrame([nova_linha])
