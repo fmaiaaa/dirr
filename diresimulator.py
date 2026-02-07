@@ -733,7 +733,7 @@ def gerar_resumo_pdf(d):
         pdf.ln(8)
         pdf.set_text_color(*AZUL)
         pdf.set_font("Helvetica", 'B', 20)
-        pdf.cell(0, 10, "RELATORIO DE VIABILIDADE", ln=True, align='C')
+        pdf.cell(0, 10, "RELATÓRIO DE VIABILIDADE", ln=True, align='C')
 
         pdf.set_font("Helvetica", '', 9)
         pdf.cell(0, 5, "SIMULADOR IMOBILIARIO DV - DOCUMENTO EXECUTIVO", ln=True, align='C')
@@ -780,30 +780,30 @@ def gerar_resumo_pdf(d):
         # ===============================
         # CONTEÚDO
         # ===============================
-        secao("DADOS DO IMOVEL")
+        secao("DADOS DO IMÓVEL")
         linha("Empreendimento", str(d.get('empreendimento_nome')))
         linha("Unidade Selecionada", str(d.get('unidade_id')))
-        linha("Valor de Venda do Imovel", f"R$ {fmt_br(d.get('imovel_valor', 0))}", True)
+        linha("Valor de Venda", f"R$ {fmt_br(d.get('imovel_valor', 0))}", True)
 
         pdf.ln(4)
 
         secao("ENGENHARIA FINANCEIRA")
-        linha("Financiamento Bancario Estimado", f"R$ {fmt_br(d.get('finan_usado', 0))}")
+        linha("Financiamento Bancário Estimado", f"R$ {fmt_br(d.get('finan_usado', 0))}")
         prazo = d.get('prazo_financiamento', 360)
-        linha("Sistema de Amortizacao", f"{d.get('sistema_amortizacao', 'SAC')} - {prazo}x")
-        linha("Parcela Estimada Financiamento", f"R$ {fmt_br(d.get('parcela_financiamento', 0))}")
-        linha("Subsidio + FGTS Utilizado", f"R$ {fmt_br(d.get('fgts_sub_usado', 0))}")
+        linha("Sistema de Amortização", f"{d.get('sistema_amortizacao', 'SAC')} - {prazo}x")
+        linha("Parcela Estimada do Financiamento", f"R$ {fmt_br(d.get('parcela_financiamento', 0))}")
+        linha("Subsídio + FGTS Utilizado", f"R$ {fmt_br(d.get('fgts_sub_usado', 0))}")
         linha("Pro Soluto Direcional", f"R$ {fmt_br(d.get('ps_usado', 0))}")
-        linha("Mensalidade Pro Soluto", f"{d.get('ps_parcelas')}x de R$ {fmt_br(d.get('ps_mensal', 0))}")
+        linha("Mensalidade do Pro Soluto", f"{d.get('ps_parcelas')}x de R$ {fmt_br(d.get('ps_mensal', 0))}")
 
         pdf.ln(4)
 
-        secao("PLANO DE ENTRADA (FLUXO DE CAIXA)")
-        linha("VALOR TOTAL DE ENTRADA", f"R$ {fmt_br(d.get('entrada_total', 0))}", True)
-        linha("Parcela de Ato (Imediato)", f"R$ {fmt_br(d.get('ato_final', 0))}")
-        linha("Parcela 30 Dias", f"R$ {fmt_br(d.get('ato_30', 0))}")
-        linha("Parcela 60 Dias", f"R$ {fmt_br(d.get('ato_60', 0))}")
-        linha("Parcela 90 Dias", f"R$ {fmt_br(d.get('ato_90', 0))}")
+        secao("FLUXO DE ENTRADA (ATO)")
+        linha("Valor Total de Entrada", f"R$ {fmt_br(d.get('entrada_total', 0))}", True)
+        linha("Ato (Imediato)", f"R$ {fmt_br(d.get('ato_final', 0))}")
+        linha("Ato 30 Dias", f"R$ {fmt_br(d.get('ato_30', 0))}")
+        linha("Ato 60 Dias", f"R$ {fmt_br(d.get('ato_60', 0))}")
+        linha("Ato 90 Dias", f"R$ {fmt_br(d.get('ato_90', 0))}")
 
         # ===============================
         # SEÇÃO ANOTAÇÕES (preenche espaço)
@@ -841,7 +841,7 @@ def gerar_resumo_pdf(d):
             0,
             4,
             f"Simulacao realizada em {d.get('data_simulacao', date.today().strftime('%d/%m/%Y'))}. "
-            "Sujeito a analise de credito e alteracao de tabela sem aviso previo.",
+            "Sujeito a análise de crédito e alteração de tabela sem aviso prévio.",
             ln=True,
             align='C'
         )
