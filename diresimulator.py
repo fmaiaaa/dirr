@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 =============================================================================
-SISTEMA DE SIMULAÇÃO IMOBILIÁRIA - DIRE RIO V17.1 (BUGFIX - VARIABLE NAME)
+SISTEMA DE SIMULAÇÃO IMOBILIÁRIA - DIRE RIO V18 (ENTERPRISE UI DESIGN)
 =============================================================================
 Instruções para Google Colab:
 1. Crie um arquivo chamado 'app.py' com este conteúdo.
@@ -65,14 +65,14 @@ URL_ESTOQUE = f"https://docs.google.com/spreadsheets/d/{ID_ESTOQUE}/edit#gid=0"
 URL_FAVICON_RESERVA = "https://direcional.com.br/wp-content/uploads/2021/04/cropped-favicon-direcional-32x32.png"
 
 # Paleta de Cores - Enterprise Design System
-COR_AZUL_ESC = "#002c5d"   # Brand Primary
-COR_VERMELHO = "#e30613"   # Brand Accent
-COR_FUNDO_APP = "#F8FAFC"  # Ultra Light Slate Background
-COR_CARD_BG = "#FFFFFF"    # Surface Color
-COR_TEXTO_PRI = "#1E293B"  # Slate 800 (High Contrast)
-COR_TEXTO_SEC = "#64748B"  # Slate 500 (Low Contrast) - Antigo COR_TEXTO_MUTED
-COR_BORDER = "#E2E8F0"     # Slate 200
-COR_INPUT_BG = "#F1F5F9"   # Slate 100 for Inputs
+COR_AZUL_ESC = "#002c5d"    # Brand Primary
+COR_VERMELHO = "#e30613"    # Brand Accent
+COR_FUNDO_APP = "#F8FAFC"   # Ultra Light Slate Background
+COR_CARD_BG = "#FFFFFF"     # Surface Color
+COR_TEXTO_PRI = "#1E293B"   # Slate 800 (High Contrast)
+COR_TEXTO_SEC = "#64748B"   # Slate 500 (Low Contrast) - Antigo COR_TEXTO_MUTED
+COR_BORDER = "#E2E8F0"      # Slate 200
+COR_INPUT_BG = "#F1F5F9"    # Slate 100 for Inputs
 
 def fmt_br(valor):
     try:
