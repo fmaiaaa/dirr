@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 =============================================================================
-SISTEMA DE SIMULAÇÃO IMOBILIÁRIA - DIRE RIO V44 (INTERACTIVE CHARTS)
+SISTEMA DE SIMULAÇÃO IMOBILIÁRIA - DIRE RIO V45 (SIDEBAR STYLE FIX)
 =============================================================================
 Instruções para Google Colab:
 1. Crie um arquivo chamado 'app.py' com este conteúdo.
@@ -936,9 +936,9 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
         st.markdown(f"""
         <div class="sidebar-profile">
             <div class="profile-avatar">{user_name[0] if user_name else 'C'}</div>
-            <div class="profile-name">{user_name}</div>
-            <div class="profile-role">{user_cargo}</div>
-            <div class="profile-sub">{user_imob}</div>
+            <div class="profile-name" style="font-weight: 800; color: {COR_AZUL_ESC}; font-size: 1.1rem; margin-bottom: 5px;">{user_name}</div>
+            <div class="profile-role" style="color: {COR_VERMELHO}; font-weight: 700; font-size: 0.9rem;">{user_cargo}</div>
+            <div class="profile-sub" style="color: {COR_AZUL_ESC}; font-size: 0.85rem;">{user_imob}</div>
         </div>
         """, unsafe_allow_html=True)
 
