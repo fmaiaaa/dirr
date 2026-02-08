@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 =============================================================================
-SISTEMA DE SIMULAÇÃO IMOBILIÁRIA - DIRE RIO V53 (PDF ONE PAGE FIX)
+SISTEMA DE SIMULAÇÃO IMOBILIÁRIA - DIRE RIO V54 (CORREÇÃO PT-BR & RODAPÉ PDF)
 =============================================================================
 Instruções para Google Colab:
 1. Crie um arquivo chamado 'app.py' com este conteúdo.
@@ -786,7 +786,7 @@ def gerar_resumo_pdf(d):
         pdf.cell(0, 10, "RELATÓRIO DE VIABILIDADE", ln=True, align='C')
 
         pdf.set_font("Helvetica", '', 9)
-        pdf.cell(0, 5, "SIMULADOR IMOBILIARIO DV - DOCUMENTO EXECUTIVO", ln=True, align='C')
+        pdf.cell(0, 5, "SIMULADOR IMOBILIÁRIO DV - DOCUMENTO EXECUTIVO", ln=True, align='C')
         pdf.ln(6)
 
         # Bloco cliente
@@ -796,7 +796,7 @@ def gerar_resumo_pdf(d):
 
         pdf.set_xy(pdf.l_margin + 4, y + 4)
         pdf.set_font("Helvetica", 'B', 12)
-        pdf.cell(0, 5, f"CLIENTE: {d.get('nome', 'Nao informado').upper()}", ln=True)
+        pdf.cell(0, 5, f"CLIENTE: {d.get('nome', 'Não informado').upper()}", ln=True)
 
         pdf.set_x(pdf.l_margin + 4)
         pdf.set_font("Helvetica", '', 10)
@@ -883,27 +883,32 @@ def gerar_resumo_pdf(d):
             pdf.set_y(y_inicio + altura_disponivel)
 
         # ===============================
-        # RODAPÉ
+        # RODAPÉ (DADOS CORRETOR)
         # ===============================
-        pdf.set_font("Helvetica", 'I', 7)
+        pdf.ln(4)
+        
+        # Dados do Corretor
+        pdf.set_font("Helvetica", 'B', 9)
         pdf.set_text_color(*AZUL)
+        pdf.cell(0, 5, "CONSULTOR RESPONSÁVEL", ln=True, align='L')
+        pdf.set_font("Helvetica", '', 9)
+        pdf.cell(0, 5, f"{d.get('corretor_nome', 'Não informado').upper()}", ln=True)
+        pdf.cell(0, 5, f"Contato: {d.get('corretor_telefone', '')} | E-mail: {d.get('corretor_email', '')}", ln=True)
+
+        pdf.ln(4)
+
+        # Aviso Legal e Data
+        pdf.set_font("Helvetica", 'I', 7)
+        pdf.set_text_color(100, 100, 100)
         pdf.cell(
             0,
             4,
-            f"Simulacao realizada em {d.get('data_simulacao', date.today().strftime('%d/%m/%Y'))}. "
+            f"Simulação realizada em {d.get('data_simulacao', date.today().strftime('%d/%m/%Y'))}. "
             "Sujeito a análise de crédito e alteração de tabela sem aviso prévio.",
             ln=True,
             align='C'
         )
         pdf.cell(0, 4, "Direcional Engenharia - Rio de Janeiro", ln=True, align='C')
-
-        # CONSULTOR INFO NO PDF
-        pdf.ln(4)
-        pdf.set_font("Helvetica", 'B', 9)
-        pdf.cell(0, 5, "CONSULTOR RESPONSÁVEL", ln=True, align='L')
-        pdf.set_font("Helvetica", '', 9)
-        pdf.cell(0, 5, f"{d.get('corretor_nome', '')}", ln=True)
-        pdf.cell(0, 5, f"Contato: {d.get('corretor_telefone', '')} | Email: {d.get('corretor_email', '')}", ln=True)
 
         return bytes(pdf.output())
 
@@ -920,7 +925,7 @@ def enviar_email_smtp(destinatario, nome_cliente, pdf_bytes):
     except Exception as e: return False, f"Erro config: {e}"
 
     msg = MIMEMultipart()
-    msg['From'] = sender_email; msg['To'] = destinatario; msg['Subject'] = f"Resumo da Simulacao - {nome_cliente}"
+    msg['From'] = sender_email; msg['To'] = destinatario; msg['Subject'] = f"Resumo da Simulação - {nome_cliente}"
     
     # Texto Engajador
     corpo_email = f"""
