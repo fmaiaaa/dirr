@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 =============================================================================
-SISTEMA DE SIMULAÇÃO IMOBILIÁRIA - DIRE RIO V51 (STOCK LOADING & FORMAT FIX)
+SISTEMA DE SIMULAÇÃO IMOBILIÁRIA - DIRE RIO V53 (PDF ONE PAGE FIX)
 =============================================================================
 Instruções para Google Colab:
 1. Crie um arquivo chamado 'app.py' com este conteúdo.
@@ -195,7 +195,7 @@ def carregar_dados_sistema():
                 elif "email" in c_low: mapa[col] = 'Email'
                 elif "nome" in c_low: mapa[col] = 'Nome'
                 elif "cargo" in c_low: mapa[col] = 'Cargo'
-                elif "telefone" in c_low: mapa[col] = 'Telefone' # Mapeamento do Telefone
+                elif "telefone" in c_low: mapa[col] = 'Telefone'
             df_logins = df_logins.rename(columns=mapa)
             df_logins['Email'] = df_logins['Email'].astype(str).str.strip().str.lower()
             df_logins['Senha'] = df_logins['Senha'].astype(str).str.strip()
@@ -227,7 +227,6 @@ def carregar_dados_sistema():
             df_raw = conn.read(spreadsheet=URL_ESTOQUE)
             df_raw.columns = [str(c).strip() for c in df_raw.columns]
             
-            # Mapeamento exato fornecido pelo usuário
             mapa_estoque = {
                 'Nome do Empreendimento': 'Empreendimento',
                 'VALOR DE VENDA': 'Valor de Venda',
@@ -239,24 +238,19 @@ def carregar_dados_sistema():
             
             df_estoque = df_raw.rename(columns=mapa_estoque)
             
-            # Verifica se colunas criticas existem após o rename, se não, cria ou tenta fallback
-            if 'Valor de Venda' not in df_estoque.columns:
-                df_estoque['Valor de Venda'] = 0.0
+            if 'Valor de Venda' not in df_estoque.columns: df_estoque['Valor de Venda'] = 0.0
+            if 'Valor de Avaliação Bancária' not in df_estoque.columns: df_estoque['Valor de Avaliação Bancária'] = df_estoque['Valor de Venda']
+            if 'Status' not in df_estoque.columns: df_estoque['Status'] = 'Disponível'
+            if 'Empreendimento' not in df_estoque.columns: df_estoque['Empreendimento'] = 'N/A'
             
-            if 'Valor de Avaliação Bancária' not in df_estoque.columns:
-                df_estoque['Valor de Avaliação Bancária'] = df_estoque['Valor de Venda']
-            
-            # Limpeza de moeda
             df_estoque['Valor de Venda'] = df_estoque['Valor de Venda'].apply(limpar_moeda)
             df_estoque['Valor de Avaliação Bancária'] = df_estoque['Valor de Avaliação Bancária'].apply(limpar_moeda)
             
-            # Limpeza de Status (Remover espaços extras e normalizar)
-            if 'Status' in df_estoque.columns:
-                 df_estoque['Status'] = df_estoque['Status'].astype(str).str.strip().str.capitalize()
-            
-            df_estoque = df_estoque[(df_estoque['Valor de Venda'] > 0)].copy()
-            if 'Empreendimento' in df_estoque.columns:
-                 df_estoque = df_estoque[df_estoque['Empreendimento'].notnull()]
+            df_estoque['Status'] = df_estoque['Status'].astype(str).str.strip()
+            df_estoque['Status'] = df_estoque['Status'].apply(lambda x: 'Disponível' if 'Dispon' in x or 'dispon' in x else x)
+
+            df_estoque = df_estoque[(df_estoque['Valor de Venda'] > 1000)].copy()
+            df_estoque = df_estoque[df_estoque['Empreendimento'].notnull()]
             
             if 'Identificador' not in df_estoque.columns: 
                 df_estoque['Identificador'] = df_estoque.index.astype(str)
@@ -277,17 +271,10 @@ def carregar_dados_sistema():
             df_estoque['Bloco_Sort'] = df_estoque['Identificador'].apply(lambda x: extrair_dados_unid(x, 'bloco'))
             df_estoque['Apto_Sort'] = df_estoque['Identificador'].apply(lambda x: extrair_dados_unid(x, 'apto'))
             
-            # --- FIX: GARANTIA DE COLUNAS ---
-            cols_criticas = ['Empreendimento', 'Valor de Venda', 'Status', 'Identificador', 'Bairro']
-            for col in cols_criticas:
-                if col not in df_estoque.columns:
-                    if col == 'Valor de Venda':
-                         df_estoque[col] = 0.0
-                    else:
-                         df_estoque[col] = 'N/A'
+            df_estoque['Empreendimento'] = df_estoque['Empreendimento'].astype(str).str.strip()
+            df_estoque['Bairro'] = df_estoque['Bairro'].astype(str).str.strip()
                          
         except: 
-            # FIX KEYERROR: Ensure df_estoque has correct columns even on crash
             df_estoque = pd.DataFrame(columns=['Empreendimento', 'Valor de Venda', 'Status', 'Identificador', 'Bairro', 'Valor de Avaliação Bancária'])
 
         return df_finan, df_estoque, df_politicas, df_logins, df_cadastros
@@ -875,7 +862,7 @@ def gerar_resumo_pdf(d):
         secao("ANOTAÇÕES")
 
         y_inicio = pdf.get_y()
-        altura_rodape = 14
+        altura_rodape = 45 # Aumentado para comportar dados do corretor
         altura_disponivel = pdf.h - pdf.b_margin - y_inicio - altura_rodape
 
         if altura_disponivel > 10:
