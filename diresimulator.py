@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 =============================================================================
-SISTEMA DE SIMULAÇÃO IMOBILIÁRIA - DIRE RIO V50 (COLUMNS MAPPING FIX)
+SISTEMA DE SIMULAÇÃO IMOBILIÁRIA - DIRE RIO V51 (STOCK LOADING & FORMAT FIX)
 =============================================================================
 Instruções para Google Colab:
 1. Crie um arquivo chamado 'app.py' com este conteúdo.
@@ -105,10 +105,20 @@ def safe_float_convert(val):
     if pd.isnull(val) or val == "": return 0.0
     if isinstance(val, (int, float, np.number)): return float(val)
     s = str(val).replace('R$', '').strip()
-    try: return float(s)
+    try:
+        # Tenta converter direto se for um número simples
+        return float(s)
     except:
-        if ',' in s and '.' in s: s = s.replace('.', '').replace(',', '.')
-        elif ',' in s: s = s.replace(',', '.')
+        # Lógica para formato brasileiro (ex: 230.000 ou 230.000,00)
+        # Se tem vírgula, assume que é decimal
+        if ',' in s:
+            s = s.replace('.', '').replace(',', '.')
+        else:
+            # Se só tem ponto, assume que é milhar (cenário comum em exports de sistemas BR)
+            # Ex: 230.000 -> 230000
+            if s.count('.') >= 1:
+                s = s.replace('.', '')
+        
         try: return float(s)
         except: return 0.0
 
@@ -240,10 +250,9 @@ def carregar_dados_sistema():
             df_estoque['Valor de Venda'] = df_estoque['Valor de Venda'].apply(limpar_moeda)
             df_estoque['Valor de Avaliação Bancária'] = df_estoque['Valor de Avaliação Bancária'].apply(limpar_moeda)
             
-            # Filtro básico
+            # Limpeza de Status (Remover espaços extras e normalizar)
             if 'Status' in df_estoque.columns:
-                 # Assume que se a coluna existe, deve filtrar, senão assume disponivel se não tiver status
-                 pass
+                 df_estoque['Status'] = df_estoque['Status'].astype(str).str.strip().str.capitalize()
             
             df_estoque = df_estoque[(df_estoque['Valor de Venda'] > 0)].copy()
             if 'Empreendimento' in df_estoque.columns:
@@ -269,7 +278,6 @@ def carregar_dados_sistema():
             df_estoque['Apto_Sort'] = df_estoque['Identificador'].apply(lambda x: extrair_dados_unid(x, 'apto'))
             
             # --- FIX: GARANTIA DE COLUNAS ---
-            # Garante que as colunas críticas existam mesmo se o rename falhar parcialmente
             cols_criticas = ['Empreendimento', 'Valor de Venda', 'Status', 'Identificador', 'Bairro']
             for col in cols_criticas:
                 if col not in df_estoque.columns:
@@ -1207,7 +1215,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
         
         # Gráfico 1: Composição da Compra
         with g_col1:
-            st.markdown("##### Composição da Compra")
+            st.markdown("##### 🍰 Composição da Compra")
             labels = ['Ato', '30 Dias', '60 Dias', '90 Dias', 'Pro Soluto', 'Financiamento', 'FGTS/Subsídio']
             values = [
                 d.get('ato_final', 0), d.get('ato_30', 0), d.get('ato_60', 0), d.get('ato_90', 0),
@@ -1251,7 +1259,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
 
         # Gráfico 2: Composição de Renda
         with g_col2:
-            st.markdown("##### Composição de Renda")
+            st.markdown("##### 👥 Composição de Renda")
             rendas = d.get('rendas_lista', [])
             pie_renda = [(f"Part. {i+1}", r) for i, r in enumerate(rendas) if r > 0]
             if pie_renda:
@@ -1278,7 +1286,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
 
         # --- SEÇÃO 3: FLUXO DE PAGAMENTO (PRÓXIMOS 90 DIAS) ---
         st.markdown("---")
-        st.markdown("##### Fluxo de Desembolso (Estimado - 1ºs Meses)")
+        st.markdown("##### 📅 Fluxo de Desembolso (Estimado - 1ºs Meses)")
         
         # Cálculo do fluxo
         parc_fin = d.get('parcela_financiamento', 0) 
@@ -1321,7 +1329,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
 
         # --- SEÇÃO 4: OPORTUNIDADES SEMELHANTES ---
         st.markdown("---")
-        st.markdown("##### Oportunidades Semelhantes (Faixa de Preço)")
+        st.markdown("##### 🏘️ Oportunidades Semelhantes (Faixa de Preço)")
         
         target_price = d.get('imovel_valor', 0)
         
