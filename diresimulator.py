@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 =============================================================================
-SISTEMA DE SIMULAÇÃO IMOBILIÁRIA - DIRE RIO V49 (FIX KEYERROR & ROBUST COLS)
+SISTEMA DE SIMULAÇÃO IMOBILIÁRIA - DIRE RIO V50 (COLUMNS MAPPING FIX)
 =============================================================================
 Instruções para Google Colab:
 1. Crie um arquivo chamado 'app.py' com este conteúdo.
@@ -216,15 +216,43 @@ def carregar_dados_sistema():
         try:
             df_raw = conn.read(spreadsheet=URL_ESTOQUE)
             df_raw.columns = [str(c).strip() for c in df_raw.columns]
-            mapa_estoque = {'Nome do Empreendimento': 'Empreendimento', 'VALOR DE VENDA': 'Valor de Venda', 'Status da unidade': 'Status', 'Identificador': 'Identificador', 'Bairro': 'Bairro'}
-            col_aval = 'VALOR DE AVALIACAO BANCARIA' if 'VALOR DE AVALIACAO BANCARIA' in df_raw.columns else 'Valor de Avaliação Bancária'
-            if col_aval in df_raw.columns: mapa_estoque[col_aval] = 'Valor de Avaliação Bancária'
+            
+            # Mapeamento exato fornecido pelo usuário
+            mapa_estoque = {
+                'Nome do Empreendimento': 'Empreendimento',
+                'VALOR DE VENDA': 'Valor de Venda',
+                'Status da unidade': 'Status',
+                'Identificador': 'Identificador',
+                'Bairro': 'Bairro',
+                'Valor de Avaliação Bancária': 'Valor de Avaliação Bancária'
+            }
+            
             df_estoque = df_raw.rename(columns=mapa_estoque)
-            df_estoque['Valor de Venda'] = df_estoque['Valor de Venda'].apply(limpar_moeda) if 'Valor de Venda' in df_estoque.columns else 0.0
-            df_estoque['Valor de Avaliação Bancária'] = df_estoque['Valor de Avaliação Bancária'].apply(limpar_moeda) if 'Valor de Avaliação Bancária' in df_estoque.columns else df_estoque['Valor de Venda']
-            df_estoque = df_estoque[(df_estoque['Valor de Venda'] > 0) & (df_estoque['Empreendimento'].notnull())].copy()
-            if 'Identificador' not in df_estoque.columns: df_estoque['Identificador'] = df_estoque.index.astype(str)
-            if 'Bairro' not in df_estoque.columns: df_estoque['Bairro'] = 'Rio de Janeiro'
+            
+            # Verifica se colunas criticas existem após o rename, se não, cria ou tenta fallback
+            if 'Valor de Venda' not in df_estoque.columns:
+                df_estoque['Valor de Venda'] = 0.0
+            
+            if 'Valor de Avaliação Bancária' not in df_estoque.columns:
+                df_estoque['Valor de Avaliação Bancária'] = df_estoque['Valor de Venda']
+            
+            # Limpeza de moeda
+            df_estoque['Valor de Venda'] = df_estoque['Valor de Venda'].apply(limpar_moeda)
+            df_estoque['Valor de Avaliação Bancária'] = df_estoque['Valor de Avaliação Bancária'].apply(limpar_moeda)
+            
+            # Filtro básico
+            if 'Status' in df_estoque.columns:
+                 # Assume que se a coluna existe, deve filtrar, senão assume disponivel se não tiver status
+                 pass
+            
+            df_estoque = df_estoque[(df_estoque['Valor de Venda'] > 0)].copy()
+            if 'Empreendimento' in df_estoque.columns:
+                 df_estoque = df_estoque[df_estoque['Empreendimento'].notnull()]
+            
+            if 'Identificador' not in df_estoque.columns: 
+                df_estoque['Identificador'] = df_estoque.index.astype(str)
+            if 'Bairro' not in df_estoque.columns: 
+                df_estoque['Bairro'] = 'Rio de Janeiro'
 
             def extrair_dados_unid(id_unid, tipo):
                 try:
@@ -1130,7 +1158,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
     if passo == 'client_analytics':
         d = st.session_state.dados_cliente
         
-        st.markdown(f"### Painel do Cliente: {d.get('nome', 'Não Informado')}")
+        st.markdown(f"### 📊 Painel do Cliente: {d.get('nome', 'Não Informado')}")
 
         # --- SEÇÃO 1: FICHA DO CLIENTE ---
         with st.container():
