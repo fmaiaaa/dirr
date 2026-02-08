@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 =============================================================================
-SISTEMA DE SIMULAÇÃO IMOBILIÁRIA - DIRE RIO V47 (BROKER INFO & ENGAGING EMAIL)
+SISTEMA DE SIMULAÇÃO IMOBILIÁRIA - DIRE RIO V46 (PRO ANALYTICS & UI FX)
 =============================================================================
 Instruções para Google Colab:
 1. Crie um arquivo chamado 'app.py' com este conteúdo.
@@ -157,35 +157,6 @@ def calcular_parcela_financiamento(valor_financiado, meses, taxa_anual_pct, sist
         juros = valor_financiado * i_mensal
         return amortizacao + juros
 
-def aplicar_tema_personalizado(fonte="sans-serif"):
-    """
-    Aplica um tema global personalizado para todos os gráficos do Matplotlib.
-    """
-    plt.style.use('seaborn-v0_8-whitegrid')
-    plt.rcParams.update({
-        'font.family': fonte,
-        'axes.titlesize': 14,
-        'axes.titleweight': 'bold',
-        'axes.titlelocation': 'left',
-        'axes.labelsize': 11,
-        'axes.labelweight': 'bold',
-        'axes.spines.top': False,
-        'axes.spines.right': False,
-        'axes.spines.left': False,
-        'axes.spines.bottom': True,
-        'xtick.color': '#333333',
-        'ytick.color': '#333333',
-        'text.color': '#333333',
-        'figure.facecolor': 'white',
-        'axes.facecolor': 'white',
-        'axes.grid': True,
-        'grid.color': '#F0F0F0',
-        'grid.linestyle': '--',
-        'legend.loc': 'best',
-        'legend.frameon': False,
-        'figure.constrained_layout.use': True
-    })
-
 def scroll_to_top():
     js = """<script>var body = window.parent.document.querySelector(".main"); if (body) { body.scrollTop = 0; } window.scrollTo(0, 0);</script>"""
     st.components.v1.html(js, height=0)
@@ -214,7 +185,6 @@ def carregar_dados_sistema():
                 elif "email" in c_low: mapa[col] = 'Email'
                 elif "nome" in c_low: mapa[col] = 'Nome'
                 elif "cargo" in c_low: mapa[col] = 'Cargo'
-                elif "telefone" in c_low: mapa[col] = 'Telefone' # Mapeamento do Telefone
             df_logins = df_logins.rename(columns=mapa)
             df_logins['Email'] = df_logins['Email'].astype(str).str.strip().str.lower()
             df_logins['Senha'] = df_logins['Senha'].astype(str).str.strip()
@@ -890,14 +860,6 @@ def gerar_resumo_pdf(d):
         )
         pdf.cell(0, 4, "Direcional Engenharia - Rio de Janeiro", ln=True, align='C')
 
-        # CONSULTOR INFO NO PDF
-        pdf.ln(4)
-        pdf.set_font("Helvetica", 'B', 9)
-        pdf.cell(0, 5, "CONSULTOR RESPONSÁVEL", ln=True, align='L')
-        pdf.set_font("Helvetica", '', 9)
-        pdf.cell(0, 5, f"{d.get('corretor_nome', '')}", ln=True)
-        pdf.cell(0, 5, f"Contato: {d.get('corretor_telefone', '')} | Email: {d.get('corretor_email', '')}", ln=True)
-
         return bytes(pdf.output())
 
     except:
@@ -914,24 +876,7 @@ def enviar_email_smtp(destinatario, nome_cliente, pdf_bytes):
 
     msg = MIMEMultipart()
     msg['From'] = sender_email; msg['To'] = destinatario; msg['Subject'] = f"Resumo da Simulacao - {nome_cliente}"
-    
-    # Texto Engajador
-    corpo_email = f"""
-    Olá, {nome_cliente}!
-
-    Foi um prazer simular o sonho da sua casa própria com você!
-
-    Anexei a este e-mail o resumo detalhado da simulação que realizamos para o seu futuro imóvel.
-    Analise com carinho e conte comigo para tirar qualquer dúvida.
-
-    Estou à disposição para darmos o próximo passo.
-
-    Atenciosamente,
-
-    Direcional Engenharia
-    """
-    
-    msg.attach(MIMEText(corpo_email, 'plain'))
+    msg.attach(MIMEText(f"Ola,\n\nSegue em anexo o resumo da simulacao imobiliaria para {nome_cliente}.\n\nAtenciosamente,\nDirecional Engenharia", 'plain'))
     if pdf_bytes:
         part = MIMEApplication(pdf_bytes, Name=f"Resumo_{nome_cliente}.pdf")
         part['Content-Disposition'] = f'attachment; filename="Resumo_{nome_cliente}.pdf"'
@@ -961,8 +906,7 @@ def tela_login(df_logins):
                         'logged_in': True, 'user_email': email,
                         'user_name': str(data.get('Nome', '')).strip(),
                         'user_imobiliaria': str(data.get('Imobiliaria', 'Geral')).strip(),
-                        'user_cargo': str(data.get('Cargo', '')).strip(),
-                        'user_phone': str(data.get('Telefone', '')).strip() # Salva telefone
+                        'user_cargo': str(data.get('Cargo', '')).strip()
                     })
                     st.success("Login realizado!"); st.rerun()
                 else: st.error("Credenciais inválidas.")
@@ -972,12 +916,6 @@ def show_export_dialog(d):
     # Alterado para text-align: center para alinhar com o tema
     st.markdown(f"<h3 style='text-align: center; color: {COR_AZUL_ESC}; margin: 0;'>Resumo da Simulação</h3>", unsafe_allow_html=True)
     st.markdown("Escolha como deseja exportar o documento.")
-    
-    # Injetar dados do corretor no dicionário para o PDF
-    d['corretor_nome'] = st.session_state.get('user_name', '')
-    d['corretor_email'] = st.session_state.get('user_email', '')
-    d['corretor_telefone'] = st.session_state.get('user_phone', '')
-    
     pdf_data = gerar_resumo_pdf(d)
 
     if pdf_data:
@@ -990,9 +928,6 @@ def show_export_dialog(d):
     email = st.text_input("Endereço de e-mail", placeholder="cliente@exemplo.com")
     if st.button("Enviar Email", use_container_width=True):
         if email and "@" in email:
-            # Passar dados corretos para função de email
-            # A função de email agora usa um texto fixo engajador, mas poderíamos passar os dados do corretor se quiséssemos personalizar a assinatura lá também.
-            # Por enquanto, o texto está hardcoded na função, mas vou passar o PDF gerado com os dados.
             sucesso, msg = enviar_email_smtp(email, d.get('nome', 'Cliente'), pdf_data)
             if sucesso: st.success(msg)
             else: st.error(msg)
