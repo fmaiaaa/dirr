@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 =============================================================================
-SISTEMA DE SIMULAÇÃO IMOBILIÁRIA - DIRE RIO V45 (SIDEBAR STYLE FIX)
+SISTEMA DE SIMULAÇÃO IMOBILIÁRIA - DIRE RIO V49 (FIX KEYERROR & ROBUST COLS)
 =============================================================================
 Instruções para Google Colab:
 1. Crie um arquivo chamado 'app.py' com este conteúdo.
@@ -185,6 +185,7 @@ def carregar_dados_sistema():
                 elif "email" in c_low: mapa[col] = 'Email'
                 elif "nome" in c_low: mapa[col] = 'Nome'
                 elif "cargo" in c_low: mapa[col] = 'Cargo'
+                elif "telefone" in c_low: mapa[col] = 'Telefone' # Mapeamento do Telefone
             df_logins = df_logins.rename(columns=mapa)
             df_logins['Email'] = df_logins['Email'].astype(str).str.strip().str.lower()
             df_logins['Senha'] = df_logins['Senha'].astype(str).str.strip()
@@ -238,7 +239,20 @@ def carregar_dados_sistema():
             df_estoque['Andar'] = df_estoque['Identificador'].apply(lambda x: extrair_dados_unid(x, 'andar'))
             df_estoque['Bloco_Sort'] = df_estoque['Identificador'].apply(lambda x: extrair_dados_unid(x, 'bloco'))
             df_estoque['Apto_Sort'] = df_estoque['Identificador'].apply(lambda x: extrair_dados_unid(x, 'apto'))
-        except: df_estoque = pd.DataFrame()
+            
+            # --- FIX: GARANTIA DE COLUNAS ---
+            # Garante que as colunas críticas existam mesmo se o rename falhar parcialmente
+            cols_criticas = ['Empreendimento', 'Valor de Venda', 'Status', 'Identificador', 'Bairro']
+            for col in cols_criticas:
+                if col not in df_estoque.columns:
+                    if col == 'Valor de Venda':
+                         df_estoque[col] = 0.0
+                    else:
+                         df_estoque[col] = 'N/A'
+                         
+        except: 
+            # FIX KEYERROR: Ensure df_estoque has correct columns even on crash
+            df_estoque = pd.DataFrame(columns=['Empreendimento', 'Valor de Venda', 'Status', 'Identificador', 'Bairro', 'Valor de Avaliação Bancária'])
 
         return df_finan, df_estoque, df_politicas, df_logins, df_cadastros
     except Exception as e:
@@ -548,6 +562,22 @@ def configurar_layout():
             text-transform: uppercase;
             letter-spacing: 0.05em;
         }}
+        
+        /* HOVER CARD EFFECT FOR ANALYTICS */
+        .hover-card {{
+            background-color: #ffffff;
+            border-radius: 12px;
+            padding: 20px;
+            border: 1px solid #eef2f6;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+            height: 100%;
+        }}
+        .hover-card:hover {{
+            transform: translateY(-5px);
+            box-shadow: 0 12px 24px rgba(0, 44, 93, 0.15);
+            border-color: {COR_AZUL_ESC};
+        }}
 
         [data-testid="stSidebar"] {{ background-color: #fff; border-right: 1px solid {COR_BORDA}; }}
         
@@ -844,6 +874,14 @@ def gerar_resumo_pdf(d):
         )
         pdf.cell(0, 4, "Direcional Engenharia - Rio de Janeiro", ln=True, align='C')
 
+        # CONSULTOR INFO NO PDF
+        pdf.ln(4)
+        pdf.set_font("Helvetica", 'B', 9)
+        pdf.cell(0, 5, "CONSULTOR RESPONSÁVEL", ln=True, align='L')
+        pdf.set_font("Helvetica", '', 9)
+        pdf.cell(0, 5, f"{d.get('corretor_nome', '')}", ln=True)
+        pdf.cell(0, 5, f"Contato: {d.get('corretor_telefone', '')} | Email: {d.get('corretor_email', '')}", ln=True)
+
         return bytes(pdf.output())
 
     except:
@@ -860,7 +898,24 @@ def enviar_email_smtp(destinatario, nome_cliente, pdf_bytes):
 
     msg = MIMEMultipart()
     msg['From'] = sender_email; msg['To'] = destinatario; msg['Subject'] = f"Resumo da Simulacao - {nome_cliente}"
-    msg.attach(MIMEText(f"Ola,\n\nSegue em anexo o resumo da simulacao imobiliaria para {nome_cliente}.\n\nAtenciosamente,\nDirecional Engenharia", 'plain'))
+    
+    # Texto Engajador
+    corpo_email = f"""
+    Olá, {nome_cliente}!
+
+    Foi um prazer simular o sonho da sua casa própria com você!
+
+    Anexei a este e-mail o resumo detalhado da simulação que realizamos para o seu futuro imóvel.
+    Analise com carinho e conte comigo para tirar qualquer dúvida.
+
+    Estou à disposição para darmos o próximo passo.
+
+    Atenciosamente,
+
+    Direcional Engenharia
+    """
+    
+    msg.attach(MIMEText(corpo_email, 'plain'))
     if pdf_bytes:
         part = MIMEApplication(pdf_bytes, Name=f"Resumo_{nome_cliente}.pdf")
         part['Content-Disposition'] = f'attachment; filename="Resumo_{nome_cliente}.pdf"'
@@ -890,7 +945,8 @@ def tela_login(df_logins):
                         'logged_in': True, 'user_email': email,
                         'user_name': str(data.get('Nome', '')).strip(),
                         'user_imobiliaria': str(data.get('Imobiliaria', 'Geral')).strip(),
-                        'user_cargo': str(data.get('Cargo', '')).strip()
+                        'user_cargo': str(data.get('Cargo', '')).strip(),
+                        'user_phone': str(data.get('Telefone', '')).strip() # Salva telefone
                     })
                     st.success("Login realizado!"); st.rerun()
                 else: st.error("Credenciais inválidas.")
@@ -900,6 +956,12 @@ def show_export_dialog(d):
     # Alterado para text-align: center para alinhar com o tema
     st.markdown(f"<h3 style='text-align: center; color: {COR_AZUL_ESC}; margin: 0;'>Resumo da Simulação</h3>", unsafe_allow_html=True)
     st.markdown("Escolha como deseja exportar o documento.")
+    
+    # Injetar dados do corretor no dicionário para o PDF
+    d['corretor_nome'] = st.session_state.get('user_name', '')
+    d['corretor_email'] = st.session_state.get('user_email', '')
+    d['corretor_telefone'] = st.session_state.get('user_phone', '')
+    
     pdf_data = gerar_resumo_pdf(d)
 
     if pdf_data:
@@ -912,6 +974,9 @@ def show_export_dialog(d):
     email = st.text_input("Endereço de e-mail", placeholder="cliente@exemplo.com")
     if st.button("Enviar Email", use_container_width=True):
         if email and "@" in email:
+            # Passar dados corretos para função de email
+            # A função de email agora usa um texto fixo engajador, mas poderíamos passar os dados do corretor se quiséssemos personalizar a assinatura lá também.
+            # Por enquanto, o texto está hardcoded na função, mas vou passar o PDF gerado com os dados.
             sucesso, msg = enviar_email_smtp(email, d.get('nome', 'Cliente'), pdf_data)
             if sucesso: st.success(msg)
             else: st.error(msg)
@@ -1084,7 +1149,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
 
             with col1:
                 st.markdown(f"""
-                <div class="summary-body" style="padding: 20px; border-left: 5px solid {COR_AZUL_ESC};">
+                <div class="hover-card" style="border-left: 5px solid {COR_AZUL_ESC};">
                     <p style="font-weight: bold; margin-bottom: 10px; color: {COR_AZUL_ESC};">Dados Pessoais</p>
                     <p style="font-size: 0.9rem; margin: 0;">CPF: {cpf_show}</p>
                     <p style="font-size: 0.9rem; margin: 0;">Nascimento: {dn}</p>
@@ -1092,7 +1157,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
                 </div>""", unsafe_allow_html=True)
             with col2:
                 st.markdown(f"""
-                <div class="summary-body" style="padding: 20px; border-left: 5px solid {COR_AZUL_ESC};">
+                <div class="hover-card" style="border-left: 5px solid {COR_AZUL_ESC};">
                     <p style="font-weight: bold; margin-bottom: 10px; color: {COR_AZUL_ESC};">Renda & Perfil</p>
                     <p style="font-size: 0.9rem; margin: 0;">Renda Familiar: R$ {fmt_br(d.get('renda', 0))}</p>
                     <p style="font-size: 0.9rem; margin: 0;">Participantes: {d.get('qtd_participantes')}</p>
@@ -1100,7 +1165,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
                 </div>""", unsafe_allow_html=True)
             with col3:
                 st.markdown(f"""
-                <div class="summary-body" style="padding: 20px; border-left: 5px solid {COR_AZUL_ESC};">
+                <div class="hover-card" style="border-left: 5px solid {COR_AZUL_ESC};">
                     <p style="font-weight: bold; margin-bottom: 10px; color: {COR_AZUL_ESC};">Imóvel Salvo</p>
                     <p style="font-size: 0.9rem; margin: 0;">{d.get('empreendimento_nome')}</p>
                     <p style="font-size: 0.9rem; margin: 0;">Unidade: {d.get('unidade_id')}</p>
@@ -1151,7 +1216,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
                 
                 # Combined chart with legends hidden to be cleaner, adding labels directly might be better but lets keep it simple first
                 # Actually lets add a legend to the side
-                final_pie = pie.encode(color=alt.Color("Tipo", scale=color_scale, legend=alt.Legend(orient="bottom", columns=2, title=None)))
+                final_pie = pie.encode(color=alt.Color("Tipo", scale=color_scale, legend=alt.Legend(orient="bottom", columns=2, title=None))).configure_view(strokeWidth=0).configure_axis(grid=False, domain=False)
                 st.altair_chart(final_pie, use_container_width=True)
             else:
                 st.info("Sem dados financeiros suficientes.")
@@ -1179,7 +1244,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
                     strokeWidth=alt.condition(hover_renda, alt.value(2), alt.value(0))
                 ).add_params(hover_renda)
 
-                st.altair_chart(pie, use_container_width=True)
+                st.altair_chart(pie.configure_view(strokeWidth=0), use_container_width=True)
             else:
                 st.caption("Renda única ou não informada.")
 
@@ -1231,26 +1296,33 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
         st.markdown("##### Oportunidades Semelhantes (Faixa de Preço)")
         
         target_price = d.get('imovel_valor', 0)
-        if target_price > 0:
-            min_p = target_price - 2500
-            max_p = target_price + 2500
-            
-            similares = df_estoque[
-                (df_estoque['Valor de Venda'] >= min_p) & 
-                (df_estoque['Valor de Venda'] <= max_p) &
-                (df_estoque['Empreendimento'] != d.get('empreendimento_nome')) &
-                (df_estoque['Status'] == 'Disponível')
-            ].sort_values('Valor de Venda').head(10)
-            
-            if not similares.empty:
-                # Custom HTML Table without leading indentation to prevent markdown code blocks
-                table_html = f"""<table style="width:100%; border-collapse: collapse; font-family: 'Inter', sans-serif; font-size: 0.9rem;"><thead><tr style="background-color: {COR_AZUL_ESC}; color: white; text-align: left;"><th style="padding: 10px; border-radius: 8px 0 0 0;">Empreendimento</th><th style="padding: 10px;">Bairro</th><th style="padding: 10px;">Unidade</th><th style="padding: 10px; border-radius: 0 8px 0 0; text-align: right;">Valor</th></tr></thead><tbody>"""
-                for _, row in similares.iterrows():
-                    table_html += f"""<tr style="border-bottom: 1px solid #eee; color: {COR_AZUL_ESC};"><td style="padding: 10px;">{row['Empreendimento']}</td><td style="padding: 10px;">{row['Bairro']}</td><td style="padding: 10px;">{row['Identificador']}</td><td style="padding: 10px; text-align: right; font-weight: bold;">R$ {fmt_br(row['Valor de Venda'])}</td></tr>"""
-                table_html += "</tbody></table>"
-                st.markdown(table_html, unsafe_allow_html=True)
+        
+        # FIX: Check if column exists, safely with try-except for the whole block
+        try:
+            if 'Valor de Venda' in df_estoque.columns and target_price > 0:
+                min_p = target_price - 2500
+                max_p = target_price + 2500
+                
+                similares = df_estoque[
+                    (df_estoque['Valor de Venda'] >= min_p) & 
+                    (df_estoque['Valor de Venda'] <= max_p) &
+                    (df_estoque['Empreendimento'] != d.get('empreendimento_nome')) &
+                    (df_estoque['Status'] == 'Disponível')
+                ].sort_values('Valor de Venda').head(10)
+                
+                if not similares.empty:
+                    # Custom HTML Table without leading indentation
+                    table_html = f"""<table style="width:100%; border-collapse: collapse; font-family: 'Inter', sans-serif; font-size: 0.9rem;"><thead><tr style="background-color: {COR_AZUL_ESC}; color: white; text-align: left;"><th style="padding: 10px; border-radius: 8px 0 0 0;">Empreendimento</th><th style="padding: 10px;">Bairro</th><th style="padding: 10px;">Unidade</th><th style="padding: 10px; border-radius: 0 8px 0 0; text-align: right;">Valor</th></tr></thead><tbody>"""
+                    for _, row in similares.iterrows():
+                        table_html += f"""<tr style="border-bottom: 1px solid #eee; color: {COR_AZUL_ESC};"><td style="padding: 10px;">{row['Empreendimento']}</td><td style="padding: 10px;">{row['Bairro']}</td><td style="padding: 10px;">{row['Identificador']}</td><td style="padding: 10px; text-align: right; font-weight: bold;">R$ {fmt_br(row['Valor de Venda'])}</td></tr>"""
+                    table_html += "</tbody></table>"
+                    st.markdown(table_html, unsafe_allow_html=True)
+                else:
+                    st.info("Nenhuma outra unidade encontrada nessa faixa de preço (+/- 10%).")
             else:
-                st.info("Nenhuma outra unidade encontrada nessa faixa de preço (+/- 10%).")
+                st.info("Dados de estoque indisponíveis para comparação.")
+        except Exception:
+             st.info("Não foi possível carregar oportunidades semelhantes.")
         
         st.markdown("<br><br>", unsafe_allow_html=True)
         
