@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 =============================================================================
-SISTEMA DE SIMULAÇÃO IMOBILIÁRIA - DIRE RIO V54 (CORREÇÃO PT-BR & RODAPÉ PDF)
+SISTEMA DE SIMULAÇÃO IMOBILIÁRIA - DIRE RIO V55 (ANALYTICS EVOLUTION & DB)
 =============================================================================
 Instruções para Google Colab:
 1. Crie um arquivo chamado 'app.py' com este conteúdo.
@@ -166,6 +166,42 @@ def calcular_parcela_financiamento(valor_financiado, meses, taxa_anual_pct, sist
         amortizacao = valor_financiado / meses
         juros = valor_financiado * i_mensal
         return amortizacao + juros
+
+# Função Auxiliar para Projeção de Fluxo
+def calcular_fluxo_pagamento_detalhado(valor_fin, meses_fin, taxa_anual, sistema, ps_mensal, meses_ps):
+    i_mensal = (1 + taxa_anual/100)**(1/12) - 1
+    fluxo = []
+    saldo_devedor = valor_fin
+    amortizacao_sac = valor_fin / meses_fin if meses_fin > 0 else 0
+    
+    pmt_price = 0
+    if sistema == 'PRICE' and meses_fin > 0:
+        pmt_price = valor_fin * (i_mensal * (1 + i_mensal)**meses_fin) / ((1 + i_mensal)**meses_fin - 1)
+
+    # Gera fluxo até o final do financiamento
+    for m in range(1, meses_fin + 1):
+        if sistema == 'SAC':
+            juros = saldo_devedor * i_mensal
+            parc_fin = amortizacao_sac + juros
+            saldo_devedor -= amortizacao_sac
+        else: # PRICE
+            parc_fin = pmt_price
+            juros = saldo_devedor * i_mensal
+            amort = pmt_price - juros
+            saldo_devedor -= amort
+        
+        parc_ps = ps_mensal if m <= meses_ps else 0
+        total = parc_fin + parc_ps
+        
+        fluxo.append({
+            'Mês': m, 
+            'Parcela Financiamento': parc_fin, 
+            'Parcela Pro Soluto': parc_ps, 
+            'Total a Pagar': total,
+            'Tipo': 'Com Pro Soluto' if parc_ps > 0 else 'Somente Financiamento'
+        })
+    
+    return pd.DataFrame(fluxo)
 
 def scroll_to_top():
     js = """<script>var body = window.parent.document.querySelector(".main"); if (body) { body.scrollTop = 0; } window.scrollTo(0, 0);</script>"""
@@ -786,7 +822,7 @@ def gerar_resumo_pdf(d):
         pdf.cell(0, 10, "RELATÓRIO DE VIABILIDADE", ln=True, align='C')
 
         pdf.set_font("Helvetica", '', 9)
-        pdf.cell(0, 5, "SIMULADOR IMOBILIÁRIO DV - DOCUMENTO EXECUTIVO", ln=True, align='C')
+        pdf.cell(0, 5, "SIMULADOR IMOBILIARIO DV - DOCUMENTO EXECUTIVO", ln=True, align='C')
         pdf.ln(6)
 
         # Bloco cliente
@@ -925,7 +961,7 @@ def enviar_email_smtp(destinatario, nome_cliente, pdf_bytes):
     except Exception as e: return False, f"Erro config: {e}"
 
     msg = MIMEMultipart()
-    msg['From'] = sender_email; msg['To'] = destinatario; msg['Subject'] = f"Resumo da Simulação - {nome_cliente}"
+    msg['From'] = sender_email; msg['To'] = destinatario; msg['Subject'] = f"Resumo da Simulacao - {nome_cliente}"
     
     # Texto Engajador
     corpo_email = f"""
@@ -1093,6 +1129,11 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
 
                                 soc = str(row.get('Fator Social', '')).strip().lower() in ['sim', 's', 'true']
                                 cot = str(row.get('Cotista FGTS', '')).strip().lower() in ['sim', 's', 'true']
+                                
+                                # Recupera Sistema de Amortização com fallback
+                                sist_amort = row.get('Sistema de Amortização', 'SAC')
+                                if pd.isnull(sist_amort) or str(sist_amort).strip() == '':
+                                     sist_amort = 'SAC'
 
                                 st.session_state.dados_cliente = {
                                     'nome': row.get('Nome'), 
@@ -1122,7 +1163,8 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
                                     'ato_30': safe_get_float(row, 'Ato 30'),
                                     'ato_60': safe_get_float(row, 'Ato 60'),
                                     'ato_90': safe_get_float(row, 'Ato 90'),
-                                    'prazo_financiamento': int(float(str(row.get('Prazo Financiamento', 360)).replace(',','.'))) if row.get('Prazo Financiamento') else 360
+                                    'prazo_financiamento': int(float(str(row.get('Prazo Financiamento', 360)).replace(',','.'))) if row.get('Prazo Financiamento') else 360,
+                                    'sistema_amortizacao': sist_amort # Recupera sistema
                                 }
                                 
                                 st.session_state.dados_cliente['entrada_total'] = sum([
@@ -1276,48 +1318,50 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
             else:
                 st.caption("Renda única ou não informada.")
 
-        # --- SEÇÃO 3: FLUXO DE PAGAMENTO (PRÓXIMOS 90 DIAS) ---
+        # --- SEÇÃO 3: PROJEÇÃO DE FLUXO DE PAGAMENTOS (LINE CHART) ---
         st.markdown("---")
-        st.markdown("##### 📅 Fluxo de Desembolso (Estimado - 1ºs Meses)")
+        st.markdown("##### 📈 Projeção da Parcela Mensal (Financiamento + Pro Soluto)")
         
-        # Cálculo do fluxo
-        parc_fin = d.get('parcela_financiamento', 0) 
-        if parc_fin == 0: # Fallback simples
-             parc_fin = calcular_parcela_financiamento(d.get('finan_usado', 0), d.get('prazo_financiamento', 360), 8.16, "SAC")
+        # Recuperar dados para projeção
+        v_fin = d.get('finan_usado', 0)
+        p_fin = d.get('prazo_financiamento', 360)
+        p_ps = d.get('ps_parcelas', 0)
+        v_ps_mensal = d.get('ps_mensal', 0)
+        sist = d.get('sistema_amortizacao', 'SAC')
         
-        ps_mensal = d.get('ps_mensal', 0)
-        
-        flow_data = pd.DataFrame({
-            "Mês": ["Mês 0 (Ato)", "Mês 1 (30d)", "Mês 2 (60d)", "Mês 3 (90d)"],
-            "Total a Pagar": [
-                d.get('ato_final', 0),
-                d.get('ato_30', 0) + ps_mensal + parc_fin,
-                d.get('ato_60', 0) + ps_mensal + parc_fin,
-                d.get('ato_90', 0) + ps_mensal + parc_fin
-            ]
-        })
-        
-        hover_bar = alt.selection_point(on='mouseover', empty=False)
+        if v_fin > 0 and p_fin > 0:
+            df_fluxo = calcular_fluxo_pagamento_detalhado(v_fin, p_fin, 8.16, sist, v_ps_mensal, p_ps)
+            
+            # Limitar visualização para focar na transição (ex: até 12 meses após fim do PS ou max 60 meses)
+            limit_mes = min(p_fin, max(60, p_ps + 12))
+            df_view = df_fluxo[df_fluxo['Mês'] <= limit_mes].copy()
+            
+            # Gráfico de Linha Altair
+            line = alt.Chart(df_view).mark_line(color=COR_AZUL_ESC, size=3).encode(
+                x=alt.X('Mês', title='Mês do Financiamento'),
+                y=alt.Y('Total a Pagar', title='Valor da Parcela (R$)'),
+                tooltip=['Mês', alt.Tooltip('Total a Pagar', format=",.2f"), 'Tipo']
+            )
+            
+            # Linha vertical indicando fim do PS
+            rule = alt.Chart(pd.DataFrame({'x': [p_ps]})).mark_rule(color=COR_VERMELHO, strokeDash=[5,5]).encode(x='x')
+            
+            # Anotações de texto (Antes e Depois)
+            # Pega valor do mês 1 (com PS) e mês p_ps + 1 (sem PS)
+            val_com_ps = df_fluxo.iloc[0]['Total a Pagar'] if not df_fluxo.empty else 0
+            val_sem_ps = df_fluxo.iloc[p_ps]['Total a Pagar'] if len(df_fluxo) > p_ps else 0
+            
+            text_data = pd.DataFrame([
+                {'x': 1, 'y': val_com_ps, 'label': f'Com PS: R$ {fmt_br(val_com_ps)}'},
+                {'x': min(limit_mes, p_ps + 5), 'y': val_sem_ps, 'label': f'Sem PS: R$ {fmt_br(val_sem_ps)}'}
+            ])
+            
+            text_labels = alt.Chart(text_data).mark_text(align='left', dy=-10, color=COR_VERMELHO, fontWeight='bold').encode(
+                x='x', y='y', text='label'
+            )
 
-        c = alt.Chart(flow_data).mark_bar().encode(
-            x=alt.X('Mês', sort=None, axis=alt.Axis(labelAngle=0, title=None, grid=False)),
-            y=alt.Y('Total a Pagar', axis=alt.Axis(title=None, grid=False, labels=False)), # Clean Y axis
-            color=alt.condition(hover_bar, alt.value(COR_AZUL_ESC), alt.value("#a0c4ff")),
-            tooltip=[alt.Tooltip('Mês'), alt.Tooltip('Total a Pagar', format=",.2f")]
-        ).add_params(hover_bar).properties(height=250)
-        
-        # Add text labels on bars
-        text = c.mark_text(
-            align='center',
-            baseline='bottom',
-            dy=-5,
-            color='black'
-        ).encode(
-            text=alt.Text('Total a Pagar', format=",.0f")
-        )
-
-        st.altair_chart((c + text).configure_view(strokeWidth=0), use_container_width=True)
-        st.caption("*Considera Parcela do Financiamento + Mensalidade do Pro Soluto + Ato do mês.")
+            st.altair_chart((line + rule + text_labels).interactive(), use_container_width=True)
+            st.caption(f"A linha vertical indica o fim do Pro Soluto no mês {p_ps}.")
 
         # --- SEÇÃO 4: OPORTUNIDADES SEMELHANTES ---
         st.markdown("---")
@@ -1682,78 +1726,6 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
         if st.button("Avançar para Escolha de Unidade", type="primary", use_container_width=True, key="btn_goto_selection"): st.session_state.passo_simulacao = 'selection'; scroll_to_top(); st.rerun()
         st.write("");
         if st.button("Voltar para Dados do Cliente", use_container_width=True, key="btn_pot_v28"): st.session_state.passo_simulacao = 'input'; scroll_to_top(); st.rerun()
-
-    # --- ETAPA 3: SELEÇÃO + TERMOMETRO ---
-    elif passo == 'selection':
-        d = st.session_state.dados_cliente
-        st.markdown(f"### Escolha de Unidade")
-
-        df_disponiveis = df_estoque[df_estoque['Status'] == 'Disponível'].copy()
-
-        if df_disponiveis.empty: st.warning("Sem estoque disponível.")
-        else:
-            emp_names = sorted(df_disponiveis['Empreendimento'].unique())
-            idx_emp = 0
-            if 'empreendimento_nome' in st.session_state.dados_cliente:
-                try: idx_emp = emp_names.index(st.session_state.dados_cliente['empreendimento_nome'])
-                except: idx_emp = 0
-            emp_escolhido = st.selectbox("Escolha o Empreendimento:", options=emp_names, index=idx_emp, key="sel_emp_new_v3")
-            
-            # Persistir seleção
-            st.session_state.dados_cliente['empreendimento_nome'] = emp_escolhido
-
-            unidades_disp = df_disponiveis[(df_disponiveis['Empreendimento'] == emp_escolhido)].copy()
-            unidades_disp = unidades_disp.sort_values(['Bloco_Sort', 'Andar', 'Apto_Sort'])
-
-            if unidades_disp.empty: st.warning("Sem unidades disponíveis.")
-            else:
-                current_uni_ids = unidades_disp['Identificador'].unique(); idx_uni = 0
-                if 'unidade_id' in st.session_state.dados_cliente:
-                    try:
-                        idx_list = list(current_uni_ids)
-                        if st.session_state.dados_cliente['unidade_id'] in idx_list: idx_uni = idx_list.index(st.session_state.dados_cliente['unidade_id'])
-                    except: pass
-
-                def label_uni(uid):
-                    u = unidades_disp[unidades_disp['Identificador'] == uid].iloc[0]
-                    return f"{uid} - R$ {fmt_br(u['Valor de Venda'])}"
-
-                uni_escolhida_id = st.selectbox("Escolha a Unidade:", options=current_uni_ids, index=idx_uni, format_func=label_uni, key="sel_uni_new_v3")
-                
-                # Persistir seleção
-                st.session_state.dados_cliente['unidade_id'] = uni_escolhida_id
-
-                if uni_escolhida_id:
-                    u_row = unidades_disp[unidades_disp['Identificador'] == uni_escolhida_id].iloc[0]
-                    v_aval = u_row['Valor de Avaliação Bancária']
-                    v_venda = u_row['Valor de Venda']
-                    fin_t, sub_t, _ = motor.obter_enquadramento(d.get('renda', 0), d.get('social', False), d.get('cotista', True), v_aval)
-                    poder_t, _ = motor.calcular_poder_compra(d.get('renda', 0), fin_t, sub_t, d.get('perc_ps', 0), v_venda)
-
-                    percentual_cobertura = min(100, max(0, (poder_t / v_venda) * 100))
-                    cor_term = calcular_cor_gradiente(percentual_cobertura)
-
-                    st.markdown(f"""
-                    <div style="margin-top: 20px; padding: 15px; border: 1px solid #e2e8f0; border-radius: 10px; background-color: #f8fafc; text-align: center;">
-                        <p style="margin: 0; font-weight: 700; font-size: 0.9rem; color: #002c5d;">TERMÔMETRO DE VIABILIDADE</p>
-                        <div style="width: 100%; background-color: #e2e8f0; border-radius: 5px; height: 10px; margin: 10px 0;">
-                            <div style="width: {percentual_cobertura}%; background: linear-gradient(90deg, #e30613 0%, #002c5d 100%); height: 100%; border-radius: 5px; transition: width 0.5s;"></div>
-                        </div>
-                        <small>{percentual_cobertura:.1f}% Coberto</small>
-                    </div>""", unsafe_allow_html=True)
-
-            st.markdown("<br>", unsafe_allow_html=True)
-            if st.button("Avançar para Fechamento Financeiro", type="primary", use_container_width=True):
-                if uni_escolhida_id:
-                    u_row = unidades_disp[unidades_disp['Identificador'] == uni_escolhida_id].iloc[0]
-                    fin, sub, _ = motor.obter_enquadramento(d.get('renda', 0), d.get('social', False), d.get('cotista', True), u_row['Valor de Avaliação Bancária'])
-                    st.session_state.dados_cliente.update({
-                        'unidade_id': uni_escolhida_id, 'empreendimento_nome': emp_escolhido,
-                        'imovel_valor': u_row['Valor de Venda'], 'imovel_avaliacao': u_row['Valor de Avaliação Bancária'],
-                        'finan_estimado': fin, 'fgts_sub': sub
-                    })
-                    st.session_state.passo_simulacao = 'payment_flow'; scroll_to_top(); st.rerun()
-            if st.button("Voltar para Recomendação de Imóveis", use_container_width=True): st.session_state.passo_simulacao = 'guide'; scroll_to_top(); st.rerun()
 
     # --- ETAPA 4: FECHAMENTO FINANCEIRO ---
     elif passo == 'payment_flow':
