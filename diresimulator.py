@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 =============================================================================
-SISTEMA DE SIMULAÇÃO IMOBILIÁRIA - DIRE RIO V46 (PRO ANALYTICS & UI FX)
+SISTEMA DE SIMULAÇÃO IMOBILIÁRIA - DIRE RIO V45 (SIDEBAR STYLE FIX)
 =============================================================================
 Instruções para Google Colab:
 1. Crie um arquivo chamado 'app.py' com este conteúdo.
@@ -548,22 +548,6 @@ def configurar_layout():
             text-transform: uppercase;
             letter-spacing: 0.05em;
         }}
-        
-        /* HOVER CARD EFFECT FOR ANALYTICS */
-        .hover-card {{
-            background-color: #ffffff;
-            border-radius: 12px;
-            padding: 20px;
-            border: 1px solid #eef2f6;
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
-            transition: transform 0.3s ease, box-shadow 0.3s ease;
-            height: 100%;
-        }}
-        .hover-card:hover {{
-            transform: translateY(-5px);
-            box-shadow: 0 12px 24px rgba(0, 44, 93, 0.15);
-            border-color: {COR_AZUL_ESC};
-        }}
 
         [data-testid="stSidebar"] {{ background-color: #fff; border-right: 1px solid {COR_BORDA}; }}
         
@@ -1100,7 +1084,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
 
             with col1:
                 st.markdown(f"""
-                <div class="hover-card" style="border-left: 5px solid {COR_AZUL_ESC};">
+                <div class="summary-body" style="padding: 20px; border-left: 5px solid {COR_AZUL_ESC};">
                     <p style="font-weight: bold; margin-bottom: 10px; color: {COR_AZUL_ESC};">Dados Pessoais</p>
                     <p style="font-size: 0.9rem; margin: 0;">CPF: {cpf_show}</p>
                     <p style="font-size: 0.9rem; margin: 0;">Nascimento: {dn}</p>
@@ -1108,7 +1092,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
                 </div>""", unsafe_allow_html=True)
             with col2:
                 st.markdown(f"""
-                <div class="hover-card" style="border-left: 5px solid {COR_AZUL_ESC};">
+                <div class="summary-body" style="padding: 20px; border-left: 5px solid {COR_AZUL_ESC};">
                     <p style="font-weight: bold; margin-bottom: 10px; color: {COR_AZUL_ESC};">Renda & Perfil</p>
                     <p style="font-size: 0.9rem; margin: 0;">Renda Familiar: R$ {fmt_br(d.get('renda', 0))}</p>
                     <p style="font-size: 0.9rem; margin: 0;">Participantes: {d.get('qtd_participantes')}</p>
@@ -1116,7 +1100,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
                 </div>""", unsafe_allow_html=True)
             with col3:
                 st.markdown(f"""
-                <div class="hover-card" style="border-left: 5px solid {COR_AZUL_ESC};">
+                <div class="summary-body" style="padding: 20px; border-left: 5px solid {COR_AZUL_ESC};">
                     <p style="font-weight: bold; margin-bottom: 10px; color: {COR_AZUL_ESC};">Imóvel Salvo</p>
                     <p style="font-size: 0.9rem; margin: 0;">{d.get('empreendimento_nome')}</p>
                     <p style="font-size: 0.9rem; margin: 0;">Unidade: {d.get('unidade_id')}</p>
@@ -1167,7 +1151,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
                 
                 # Combined chart with legends hidden to be cleaner, adding labels directly might be better but lets keep it simple first
                 # Actually lets add a legend to the side
-                final_pie = pie.encode(color=alt.Color("Tipo", scale=color_scale, legend=alt.Legend(orient="bottom", columns=2, title=None))).configure_view(strokeWidth=0).configure_axis(grid=False, domain=False)
+                final_pie = pie.encode(color=alt.Color("Tipo", scale=color_scale, legend=alt.Legend(orient="bottom", columns=2, title=None)))
                 st.altair_chart(final_pie, use_container_width=True)
             else:
                 st.info("Sem dados financeiros suficientes.")
@@ -1195,7 +1179,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
                     strokeWidth=alt.condition(hover_renda, alt.value(2), alt.value(0))
                 ).add_params(hover_renda)
 
-                st.altair_chart(pie.configure_view(strokeWidth=0), use_container_width=True)
+                st.altair_chart(pie, use_container_width=True)
             else:
                 st.caption("Renda única ou não informada.")
 
