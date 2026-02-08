@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 =============================================================================
-SISTEMA DE SIMULAÇÃO IMOBILIÁRIA - DIRE RIO V49 (FIX KEYERROR & ROBUST COLS)
+SISTEMA DE SIMULAÇÃO IMOBILIÁRIA - DIRE RIO V47 (BROKER INFO & ENGAGING EMAIL)
 =============================================================================
 Instruções para Google Colab:
 1. Crie um arquivo chamado 'app.py' com este conteúdo.
@@ -157,6 +157,35 @@ def calcular_parcela_financiamento(valor_financiado, meses, taxa_anual_pct, sist
         juros = valor_financiado * i_mensal
         return amortizacao + juros
 
+def aplicar_tema_personalizado(fonte="sans-serif"):
+    """
+    Aplica um tema global personalizado para todos os gráficos do Matplotlib.
+    """
+    plt.style.use('seaborn-v0_8-whitegrid')
+    plt.rcParams.update({
+        'font.family': fonte,
+        'axes.titlesize': 14,
+        'axes.titleweight': 'bold',
+        'axes.titlelocation': 'left',
+        'axes.labelsize': 11,
+        'axes.labelweight': 'bold',
+        'axes.spines.top': False,
+        'axes.spines.right': False,
+        'axes.spines.left': False,
+        'axes.spines.bottom': True,
+        'xtick.color': '#333333',
+        'ytick.color': '#333333',
+        'text.color': '#333333',
+        'figure.facecolor': 'white',
+        'axes.facecolor': 'white',
+        'axes.grid': True,
+        'grid.color': '#F0F0F0',
+        'grid.linestyle': '--',
+        'legend.loc': 'best',
+        'legend.frameon': False,
+        'figure.constrained_layout.use': True
+    })
+
 def scroll_to_top():
     js = """<script>var body = window.parent.document.querySelector(".main"); if (body) { body.scrollTop = 0; } window.scrollTo(0, 0);</script>"""
     st.components.v1.html(js, height=0)
@@ -239,20 +268,7 @@ def carregar_dados_sistema():
             df_estoque['Andar'] = df_estoque['Identificador'].apply(lambda x: extrair_dados_unid(x, 'andar'))
             df_estoque['Bloco_Sort'] = df_estoque['Identificador'].apply(lambda x: extrair_dados_unid(x, 'bloco'))
             df_estoque['Apto_Sort'] = df_estoque['Identificador'].apply(lambda x: extrair_dados_unid(x, 'apto'))
-            
-            # --- FIX: GARANTIA DE COLUNAS ---
-            # Garante que as colunas críticas existam mesmo se o rename falhar parcialmente
-            cols_criticas = ['Empreendimento', 'Valor de Venda', 'Status', 'Identificador', 'Bairro']
-            for col in cols_criticas:
-                if col not in df_estoque.columns:
-                    if col == 'Valor de Venda':
-                         df_estoque[col] = 0.0
-                    else:
-                         df_estoque[col] = 'N/A'
-                         
-        except: 
-            # FIX KEYERROR: Ensure df_estoque has correct columns even on crash
-            df_estoque = pd.DataFrame(columns=['Empreendimento', 'Valor de Venda', 'Status', 'Identificador', 'Bairro', 'Valor de Avaliação Bancária'])
+        except: df_estoque = pd.DataFrame()
 
         return df_finan, df_estoque, df_politicas, df_logins, df_cadastros
     except Exception as e:
@@ -1296,33 +1312,26 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
         st.markdown("##### Oportunidades Semelhantes (Faixa de Preço)")
         
         target_price = d.get('imovel_valor', 0)
-        
-        # FIX: Check if column exists, safely with try-except for the whole block
-        try:
-            if 'Valor de Venda' in df_estoque.columns and target_price > 0:
-                min_p = target_price - 2500
-                max_p = target_price + 2500
-                
-                similares = df_estoque[
-                    (df_estoque['Valor de Venda'] >= min_p) & 
-                    (df_estoque['Valor de Venda'] <= max_p) &
-                    (df_estoque['Empreendimento'] != d.get('empreendimento_nome')) &
-                    (df_estoque['Status'] == 'Disponível')
-                ].sort_values('Valor de Venda').head(10)
-                
-                if not similares.empty:
-                    # Custom HTML Table without leading indentation
-                    table_html = f"""<table style="width:100%; border-collapse: collapse; font-family: 'Inter', sans-serif; font-size: 0.9rem;"><thead><tr style="background-color: {COR_AZUL_ESC}; color: white; text-align: left;"><th style="padding: 10px; border-radius: 8px 0 0 0;">Empreendimento</th><th style="padding: 10px;">Bairro</th><th style="padding: 10px;">Unidade</th><th style="padding: 10px; border-radius: 0 8px 0 0; text-align: right;">Valor</th></tr></thead><tbody>"""
-                    for _, row in similares.iterrows():
-                        table_html += f"""<tr style="border-bottom: 1px solid #eee; color: {COR_AZUL_ESC};"><td style="padding: 10px;">{row['Empreendimento']}</td><td style="padding: 10px;">{row['Bairro']}</td><td style="padding: 10px;">{row['Identificador']}</td><td style="padding: 10px; text-align: right; font-weight: bold;">R$ {fmt_br(row['Valor de Venda'])}</td></tr>"""
-                    table_html += "</tbody></table>"
-                    st.markdown(table_html, unsafe_allow_html=True)
-                else:
-                    st.info("Nenhuma outra unidade encontrada nessa faixa de preço (+/- 10%).")
+        if target_price > 0:
+            min_p = target_price - 2500
+            max_p = target_price + 2500
+            
+            similares = df_estoque[
+                (df_estoque['Valor de Venda'] >= min_p) & 
+                (df_estoque['Valor de Venda'] <= max_p) &
+                (df_estoque['Empreendimento'] != d.get('empreendimento_nome')) &
+                (df_estoque['Status'] == 'Disponível')
+            ].sort_values('Valor de Venda').head(10)
+            
+            if not similares.empty:
+                # Custom HTML Table without leading indentation to prevent markdown code blocks
+                table_html = f"""<table style="width:100%; border-collapse: collapse; font-family: 'Inter', sans-serif; font-size: 0.9rem;"><thead><tr style="background-color: {COR_AZUL_ESC}; color: white; text-align: left;"><th style="padding: 10px; border-radius: 8px 0 0 0;">Empreendimento</th><th style="padding: 10px;">Bairro</th><th style="padding: 10px;">Unidade</th><th style="padding: 10px; border-radius: 0 8px 0 0; text-align: right;">Valor</th></tr></thead><tbody>"""
+                for _, row in similares.iterrows():
+                    table_html += f"""<tr style="border-bottom: 1px solid #eee; color: {COR_AZUL_ESC};"><td style="padding: 10px;">{row['Empreendimento']}</td><td style="padding: 10px;">{row['Bairro']}</td><td style="padding: 10px;">{row['Identificador']}</td><td style="padding: 10px; text-align: right; font-weight: bold;">R$ {fmt_br(row['Valor de Venda'])}</td></tr>"""
+                table_html += "</tbody></table>"
+                st.markdown(table_html, unsafe_allow_html=True)
             else:
-                st.info("Dados de estoque indisponíveis para comparação.")
-        except Exception:
-             st.info("Não foi possível carregar oportunidades semelhantes.")
+                st.info("Nenhuma outra unidade encontrada nessa faixa de preço (+/- 10%).")
         
         st.markdown("<br><br>", unsafe_allow_html=True)
         
