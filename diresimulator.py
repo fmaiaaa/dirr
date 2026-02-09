@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 =============================================================================
-SISTEMA DE SIMULAÇÃO IMOBILIÁRIA - DIRE RIO V56 (PRODUCT GALLERY FIXED)
+SISTEMA DE SIMULAÇÃO IMOBILIÁRIA - DIRE RIO V57 (GALLERY TABS & STYLE)
 =============================================================================
 Instruções para Google Colab:
 1. Crie um arquivo chamado 'app.py' com este conteúdo.
@@ -263,6 +263,7 @@ def carregar_dados_sistema():
             df_raw = conn.read(spreadsheet=URL_ESTOQUE)
             df_raw.columns = [str(c).strip() for c in df_raw.columns]
             
+            # Mapeamento exato fornecido pelo usuário
             mapa_estoque = {
                 'Nome do Empreendimento': 'Empreendimento',
                 'VALOR DE VENDA': 'Valor de Venda',
@@ -274,19 +275,26 @@ def carregar_dados_sistema():
             
             df_estoque = df_raw.rename(columns=mapa_estoque)
             
-            if 'Valor de Venda' not in df_estoque.columns: df_estoque['Valor de Venda'] = 0.0
-            if 'Valor de Avaliação Bancária' not in df_estoque.columns: df_estoque['Valor de Avaliação Bancária'] = df_estoque['Valor de Venda']
-            if 'Status' not in df_estoque.columns: df_estoque['Status'] = 'Disponível'
-            if 'Empreendimento' not in df_estoque.columns: df_estoque['Empreendimento'] = 'N/A'
+            # Verifica se colunas criticas existem após o rename, se não, cria ou tenta fallback
+            if 'Valor de Venda' not in df_estoque.columns:
+                df_estoque['Valor de Venda'] = 0.0
             
+            if 'Valor de Avaliação Bancária' not in df_estoque.columns:
+                df_estoque['Valor de Avaliação Bancária'] = df_estoque['Valor de Venda']
+            
+            # Limpeza de moeda
             df_estoque['Valor de Venda'] = df_estoque['Valor de Venda'].apply(limpar_moeda)
             df_estoque['Valor de Avaliação Bancária'] = df_estoque['Valor de Avaliação Bancária'].apply(limpar_moeda)
             
-            df_estoque['Status'] = df_estoque['Status'].astype(str).str.strip()
-            df_estoque['Status'] = df_estoque['Status'].apply(lambda x: 'Disponível' if 'Dispon' in x or 'dispon' in x else x)
+            # Limpeza de Status (Remover espaços extras e normalizar unicode)
+            if 'Status' in df_estoque.columns:
+                 df_estoque['Status'] = df_estoque['Status'].astype(str).str.strip()
+                 df_estoque['Status'] = df_estoque['Status'].apply(lambda x: 'Disponível' if 'Dispon' in x or 'dispon' in x else x)
 
-            df_estoque = df_estoque[(df_estoque['Valor de Venda'] > 1000)].copy()
-            df_estoque = df_estoque[df_estoque['Empreendimento'].notnull()]
+            # Filtros de consistência
+            df_estoque = df_estoque[(df_estoque['Valor de Venda'] > 1000)].copy() # Valor > 1000 para evitar erros
+            if 'Empreendimento' in df_estoque.columns:
+                 df_estoque = df_estoque[df_estoque['Empreendimento'].notnull()]
             
             if 'Identificador' not in df_estoque.columns: 
                 df_estoque['Identificador'] = df_estoque.index.astype(str)
@@ -307,10 +315,14 @@ def carregar_dados_sistema():
             df_estoque['Bloco_Sort'] = df_estoque['Identificador'].apply(lambda x: extrair_dados_unid(x, 'bloco'))
             df_estoque['Apto_Sort'] = df_estoque['Identificador'].apply(lambda x: extrair_dados_unid(x, 'apto'))
             
-            df_estoque['Empreendimento'] = df_estoque['Empreendimento'].astype(str).str.strip()
-            df_estoque['Bairro'] = df_estoque['Bairro'].astype(str).str.strip()
+            # Garante colunas de string
+            if 'Empreendimento' in df_estoque.columns:
+                df_estoque['Empreendimento'] = df_estoque['Empreendimento'].astype(str).str.strip()
+            if 'Bairro' in df_estoque.columns:
+                df_estoque['Bairro'] = df_estoque['Bairro'].astype(str).str.strip()
                          
         except: 
+            # FIX KEYERROR: Ensure df_estoque has correct columns even on crash
             df_estoque = pd.DataFrame(columns=['Empreendimento', 'Valor de Venda', 'Status', 'Identificador', 'Bairro', 'Valor de Avaliação Bancária'])
 
         return df_finan, df_estoque, df_politicas, df_logins, df_cadastros
@@ -832,7 +844,7 @@ def gerar_resumo_pdf(d):
 
         pdf.set_xy(pdf.l_margin + 4, y + 4)
         pdf.set_font("Helvetica", 'B', 12)
-        pdf.cell(0, 5, f"CLIENTE: {d.get('nome', 'Nao informado').upper()}", ln=True)
+        pdf.cell(0, 5, f"CLIENTE: {d.get('nome', 'Não informado').upper()}", ln=True)
 
         pdf.set_x(pdf.l_margin + 4)
         pdf.set_font("Helvetica", '', 10)
@@ -1207,31 +1219,40 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
         
     # --- GALERIA DE PRODUTOS ---
     if passo == 'gallery':
-        st.markdown("### 🖼️ Galeria de Produtos")
-        st.markdown("---")
+        st.markdown("### Galeria de Produtos")
         
-        # Conquista Florianópolis (Destaque)
-        st.markdown("#### 🏖️ Conquista Florianópolis")
-        col_vid, col_desc = st.columns([2, 1])
-        with col_vid:
-            st.video("https://www.youtube.com/watch?v=oU5SeVbmCsk")
-        with col_desc:
-            st.info("""
-            **Destaques do Empreendimento:**
-            - Localização privilegiada
-            - Lazer completo
-            - Condições especiais de lançamento
-            """)
-            
-        st.markdown("---")
-        st.caption("Mais produtos serão adicionados em breve.")
-        
-        # Botão Voltar (Full Width)
-        st.markdown("""<style>div.stButton > button {width: 100%; border-radius: 0px; height: 60px; font-size: 16px; font-weight: bold; text-transform: uppercase;}</style>""", unsafe_allow_html=True)
-        if st.button("VOLTAR AO SIMULADOR", type="primary", use_container_width=True):
-             st.session_state.passo_simulacao = 'input'
-             scroll_to_top()
-             st.rerun()
+        # Dados dos produtos
+        produtos = [
+            {"nome": "Itanhangá Green", "url": "https://www.youtube.com/watch?v=Lt74juwBMXM"},
+            {"nome": "Norte Clube", "url": "https://www.youtube.com/watch?v=ElO6Q95Hsak"},
+            {"nome": "Conquista Oceânica", "url": "https://www.youtube.com/watch?v=4g5oy3SCh-A"},
+            {"nome": "Parque Iguaçu", "url": "https://www.youtube.com/watch?v=PQOA5AS0Sdo"},
+            {"nome": "Max Norte", "url": "https://www.youtube.com/watch?v=cnzn1cpJ4tA"},
+            {"nome": "Vert Alcântara", "url": "https://www.youtube.com/watch?v=Lag2kS7wFnU"},
+            {"nome": "Nova Caxias Up", "url": "https://www.youtube.com/watch?v=EbEcZvIdTvY"},
+            {"nome": "Nova Caxias Fun", "url": "https://www.youtube.com/watch?v=3P_o4jVWsOI"},
+            {"nome": "Reserva do Sol", "url": "https://www.youtube.com/watch?v=Wij9XjG4slM"},
+            {"nome": "Residencial Laranjeiras", "url": "https://www.youtube.com/watch?v=jmV1RHkRlZ4"},
+            {"nome": "Soul Samba", "url": "https://www.youtube.com/watch?v=qTPaarVhHgs"},
+            {"nome": "Viva Vida Realengo", "url": "https://www.youtube.com/watch?v=cfRvstasGaw"},
+            {"nome": "Recanto Clube", "url": "https://www.youtube.com/watch?v=7K3UUEIOT-8"},
+            {"nome": "Inn Barra Olímpica", "url": "https://www.youtube.com/watch?v=SGEJFc3jh5A"},
+        ]
+
+        # Criar abas
+        abas = st.tabs([p["nome"] for p in produtos])
+
+        for i, aba in enumerate(abas):
+            with aba:
+                st.markdown(f"#### {produtos[i]['nome']}")
+                st.video(produtos[i]["url"])
+                st.markdown(f"""
+                <div class="summary-body" style="padding: 20px; margin-top: 20px; border-left: 5px solid {COR_AZUL_ESC};">
+                    <h5 style="margin: 0 0 10px 0; color: {COR_AZUL_ESC};">Sobre o Empreendimento</h5>
+                    <p style="font-size: 0.9rem; margin: 0;">Confira o vídeo acima para conhecer todos os detalhes do <b>{produtos[i]['nome']}</b>. 
+                    Excelente oportunidade com condições facilitadas.</p>
+                </div>
+                """, unsafe_allow_html=True)
 
     # --- ABA ANALYTICS (SECURE TAB - ALTAIR) ---
     elif passo == 'client_analytics':
