@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 =============================================================================
-SISTEMA DE SIMULAÇÃO IMOBILIÁRIA - DIRE RIO V60 (GALLERY UPDATE & SCROLL FIX)
+SISTEMA DE SIMULAÇÃO IMOBILIÁRIA - DIRE RIO V61 (MAP FULLSCREEN & CLEAN UI)
 =============================================================================
 Instruções para Google Colab:
 1. Crie um arquivo chamado 'app.py' com este conteúdo.
@@ -33,6 +33,7 @@ import pytz
 import altair as alt
 import folium
 from streamlit_folium import st_folium
+from folium.plugins import Fullscreen
 
 # Tenta importar fpdf e PIL
 try:
@@ -688,7 +689,17 @@ def configurar_layout():
         .hist-item {{ display: block; width: 100%; text-align: left; padding: 8px; margin-bottom: 4px; border-radius: 8px; background: #fff; border: 1px solid {COR_BORDA}; color: {COR_AZUL_ESC}; font-size: 0.75rem; transition: all 0.2s; }}
         .hist-item:hover {{ border-color: {COR_VERMELHO}; background: #fff5f5; }}
 
-        div[data-baseweb="tab-list"] {{ justify-content: center !important; gap: 40px; margin-bottom: 40px; }}
+        /* --- TABS SCROLLABLE HORIZONTALLY --- */
+        div[data-baseweb="tab-list"] {{
+            justify-content: flex-start !important;
+            gap: 20px !important;
+            margin-bottom: 40px;
+            flex-wrap: nowrap !important;
+            overflow-x: auto !important;
+            white-space: nowrap !important;
+            padding-bottom: 5px; /* space for scrollbar */
+        }}
+        
         button[data-baseweb="tab"] p {{ color: {COR_AZUL_ESC} !important; opacity: 0.6; font-weight: 700 !important; font-family: 'Montserrat', sans-serif !important; font-size: 0.9rem !important; text-transform: uppercase; letter-spacing: 0.1em; }}
         button[data-baseweb="tab"][aria-selected="true"] p {{ color: {COR_AZUL_ESC} !important; opacity: 1; }}
         div[data-baseweb="tab-highlight"] {{ background-color: {COR_VERMELHO} !important; height: 3px !important; }}
@@ -1262,7 +1273,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
         
     # --- GALERIA DE PRODUTOS ---
     if passo == 'gallery':
-        st.markdown("### 🖼️ Galeria de Produtos")
+        st.markdown("### Galeria de Produtos")
         st.markdown("---")
         
         # Dados dos produtos (com mapas)
@@ -1330,11 +1341,11 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
                 if prod["nome"] == "Conquista Florianópolis":
                     col_vid, col_info = st.columns([1.2, 1])
                     with col_vid:
-                        st.markdown(f"#### 🎥 Tour Virtual")
+                        st.markdown(f"#### Tour Virtual")
                         st.video(prod["url"])
                     
                     with col_info:
-                        st.markdown(f"#### 📍 Localização")
+                        st.markdown(f"#### Localização")
                         st.markdown(f"""
                         <div class="summary-body" style="padding: 20px; border-left: 5px solid {COR_AZUL_ESC};">
                             <p style="font-size: 0.9rem; margin: 0;">{prod['endereco']}</p>
@@ -1342,11 +1353,12 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
                         """, unsafe_allow_html=True)
                         if 'lat' in prod and 'lon' in prod:
                              m = folium.Map(location=[prod['lat'], prod['lon']], zoom_start=15)
-                             folium.Marker([prod['lat'], prod['lon']], popup=prod['nome']).add_to(m)
+                             Fullscreen().add_to(m)
+                             folium.Marker([prod['lat'], prod['lon']], popup=prod['nome'], icon=folium.Icon(color='red')).add_to(m)
                              st_folium(m, height=200, width=None, key=f"map_folium_{i}")
                     
                     st.markdown("---")
-                    st.markdown("#### 🖼️ Galeria & Plantas")
+                    st.markdown("#### Galeria & Plantas")
                     
                     # Renderização com Scroll Horizontal por Categoria
                     for categoria, items in assets_conquista.items():
@@ -1355,12 +1367,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
                         # Montagem do HTML para o Scroll Horizontal
                         html_scroll = '<div class="gallery-scroll-container">'
                         for item in items:
-                            html_scroll += f"""
-                            <div class="gallery-item">
-                                <img src="{item['url']}" alt="{item['nome']}">
-                                <div class="gallery-item-title">{item['nome']}</div>
-                            </div>
-                            """
+                            html_scroll += f"""<div class="gallery-item"><img src="{item['url']}" alt="{item['nome']}"><div class="gallery-item-title">{item['nome']}</div></div>"""
                         html_scroll += '</div>'
                         st.markdown(html_scroll, unsafe_allow_html=True)
                         
@@ -1378,10 +1385,12 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
                     
                     if 'lat' in prod and 'lon' in prod:
                          m = folium.Map(location=[prod['lat'], prod['lon']], zoom_start=15)
+                         Fullscreen().add_to(m)
                          folium.Marker(
                             [prod['lat'], prod['lon']], 
                             popup=prod['nome'], 
-                            tooltip=prod['nome']
+                            tooltip=prod['nome'],
+                            icon=folium.Icon(color='red')
                          ).add_to(m)
                          st_folium(m, height=300, width=None, key=f"map_std_{i}")
         
@@ -1391,7 +1400,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
     elif passo == 'client_analytics':
         d = st.session_state.dados_cliente
         
-        st.markdown(f"### 📊 Painel do Cliente: {d.get('nome', 'Não Informado')}")
+        st.markdown(f"### Painel do Cliente: {d.get('nome', 'Não Informado')}")
 
         # --- SEÇÃO 1: FICHA DO CLIENTE ---
         with st.container():
@@ -1440,7 +1449,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
         
         # Gráfico 1: Composição da Compra
         with g_col1:
-            st.markdown("##### 🍰 Composição da Compra")
+            st.markdown("##### Composição da Compra")
             labels = ['Ato', '30 Dias', '60 Dias', '90 Dias', 'Pro Soluto', 'Financiamento', 'FGTS/Subsídio']
             values = [
                 d.get('ato_final', 0), d.get('ato_30', 0), d.get('ato_60', 0), d.get('ato_90', 0),
@@ -1484,7 +1493,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
 
         # Gráfico 2: Composição de Renda
         with g_col2:
-            st.markdown("##### 👥 Composição de Renda")
+            st.markdown("##### Composição de Renda")
             rendas = d.get('rendas_lista', [])
             pie_renda = [(f"Part. {i+1}", r) for i, r in enumerate(rendas) if r > 0]
             if pie_renda:
@@ -1511,7 +1520,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
 
         # --- SEÇÃO 3: PROJEÇÃO DE FLUXO DE PAGAMENTOS (LINE CHART) ---
         st.markdown("---")
-        st.markdown("##### 📈 Projeção da Parcela Mensal (Financiamento + Pro Soluto)")
+        st.markdown("##### Projeção da Parcela Mensal (Financiamento + Pro Soluto)")
         
         # Recuperar dados para projeção
         v_fin = d.get('finan_usado', 0)
@@ -1556,7 +1565,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
 
         # --- SEÇÃO 4: OPORTUNIDADES SEMELHANTES ---
         st.markdown("---")
-        st.markdown("##### 🏘️ Oportunidades Semelhantes (Faixa de Preço)")
+        st.markdown("##### Oportunidades Semelhantes (Faixa de Preço)")
         
         target_price = d.get('imovel_valor', 0)
         
