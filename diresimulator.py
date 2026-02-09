@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 =============================================================================
-SISTEMA DE SIMULAÇÃO IMOBILIÁRIA - DIRE RIO V55 (ANALYTICS EVOLUTION & DB)
+SISTEMA DE SIMULAÇÃO IMOBILIÁRIA - DIRE RIO V56 (PRODUCT GALLERY)
 =============================================================================
 Instruções para Google Colab:
 1. Crie um arquivo chamado 'app.py' com este conteúdo.
@@ -1072,6 +1072,15 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
         """, unsafe_allow_html=True)
 
         st.markdown("---")
+        st.markdown("#### Navegação")
+        if st.button("Simulador", use_container_width=True):
+            st.session_state.passo_simulacao = 'input'
+            st.rerun()
+        if st.button("Galeria de Produtos", use_container_width=True):
+            st.session_state.passo_simulacao = 'gallery'
+            st.rerun()
+
+        st.markdown("---")
         st.markdown("#### Histórico de Simulações")
 
         search_term = st.text_input("Buscar cliente...", placeholder="Digite o nome", label_visibility="collapsed")
@@ -1193,11 +1202,39 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
         except Exception as e: st.caption(f"Erro histórico: {str(e)}")
 
     # RENDER PROGRESS BAR
-    if passo != 'client_analytics':
+    if passo != 'client_analytics' and passo != 'gallery':
         render_stepper(passo)
+        
+    # --- GALERIA DE PRODUTOS ---
+    if passo == 'gallery':
+        st.markdown("### 🖼️ Galeria de Produtos")
+        st.markdown("---")
+        
+        # Conquista Florianópolis (Destaque)
+        st.markdown("#### 🏖️ Conquista Florianópolis")
+        col_vid, col_desc = st.columns([2, 1])
+        with col_vid:
+            st.video("https://www.youtube.com/watch?v=oU5SeVbmCsk")
+        with col_desc:
+            st.info("""
+            **Destaques do Empreendimento:**
+            - Localização privilegiada
+            - Lazer completo
+            - Condições especiais de lançamento
+            """)
+            
+        st.markdown("---")
+        st.caption("Mais produtos serão adicionados em breve.")
+        
+        # Botão Voltar (Full Width)
+        st.markdown("""<style>div.stButton > button {width: 100%; border-radius: 0px; height: 60px; font-size: 16px; font-weight: bold; text-transform: uppercase;}</style>""", unsafe_allow_html=True)
+        if st.button("VOLTAR AO SIMULADOR", type="primary", use_container_width=True):
+             st.session_state.passo_simulacao = 'input'
+             scroll_to_top()
+             st.rerun()
 
     # --- ABA ANALYTICS (SECURE TAB - ALTAIR) ---
-    if passo == 'client_analytics':
+    elif passo == 'client_analytics':
         d = st.session_state.dados_cliente
         
         st.markdown(f"### 📊 Painel do Cliente: {d.get('nome', 'Não Informado')}")
@@ -1727,6 +1764,78 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
         st.write("");
         if st.button("Voltar para Dados do Cliente", use_container_width=True, key="btn_pot_v28"): st.session_state.passo_simulacao = 'input'; scroll_to_top(); st.rerun()
 
+    # --- ETAPA 3: SELEÇÃO + TERMOMETRO ---
+    elif passo == 'selection':
+        d = st.session_state.dados_cliente
+        st.markdown(f"### Escolha de Unidade")
+
+        df_disponiveis = df_estoque[df_estoque['Status'] == 'Disponível'].copy()
+
+        if df_disponiveis.empty: st.warning("Sem estoque disponível.")
+        else:
+            emp_names = sorted(df_disponiveis['Empreendimento'].unique())
+            idx_emp = 0
+            if 'empreendimento_nome' in st.session_state.dados_cliente:
+                try: idx_emp = emp_names.index(st.session_state.dados_cliente['empreendimento_nome'])
+                except: idx_emp = 0
+            emp_escolhido = st.selectbox("Escolha o Empreendimento:", options=emp_names, index=idx_emp, key="sel_emp_new_v3")
+            
+            # Persistir seleção
+            st.session_state.dados_cliente['empreendimento_nome'] = emp_escolhido
+
+            unidades_disp = df_disponiveis[(df_disponiveis['Empreendimento'] == emp_escolhido)].copy()
+            unidades_disp = unidades_disp.sort_values(['Bloco_Sort', 'Andar', 'Apto_Sort'])
+
+            if unidades_disp.empty: st.warning("Sem unidades disponíveis.")
+            else:
+                current_uni_ids = unidades_disp['Identificador'].unique(); idx_uni = 0
+                if 'unidade_id' in st.session_state.dados_cliente:
+                    try:
+                        idx_list = list(current_uni_ids)
+                        if st.session_state.dados_cliente['unidade_id'] in idx_list: idx_uni = idx_list.index(st.session_state.dados_cliente['unidade_id'])
+                    except: pass
+
+                def label_uni(uid):
+                    u = unidades_disp[unidades_disp['Identificador'] == uid].iloc[0]
+                    return f"{uid} - R$ {fmt_br(u['Valor de Venda'])}"
+
+                uni_escolhida_id = st.selectbox("Escolha a Unidade:", options=current_uni_ids, index=idx_uni, format_func=label_uni, key="sel_uni_new_v3")
+                
+                # Persistir seleção
+                st.session_state.dados_cliente['unidade_id'] = uni_escolhida_id
+
+                if uni_escolhida_id:
+                    u_row = unidades_disp[unidades_disp['Identificador'] == uni_escolhida_id].iloc[0]
+                    v_aval = u_row['Valor de Avaliação Bancária']
+                    v_venda = u_row['Valor de Venda']
+                    fin_t, sub_t, _ = motor.obter_enquadramento(d.get('renda', 0), d.get('social', False), d.get('cotista', True), v_aval)
+                    poder_t, _ = motor.calcular_poder_compra(d.get('renda', 0), fin_t, sub_t, d.get('perc_ps', 0), v_venda)
+
+                    percentual_cobertura = min(100, max(0, (poder_t / v_venda) * 100))
+                    cor_term = calcular_cor_gradiente(percentual_cobertura)
+
+                    st.markdown(f"""
+                    <div style="margin-top: 20px; padding: 15px; border: 1px solid #e2e8f0; border-radius: 10px; background-color: #f8fafc; text-align: center;">
+                        <p style="margin: 0; font-weight: 700; font-size: 0.9rem; color: #002c5d;">TERMÔMETRO DE VIABILIDADE</p>
+                        <div style="width: 100%; background-color: #e2e8f0; border-radius: 5px; height: 10px; margin: 10px 0;">
+                            <div style="width: {percentual_cobertura}%; background: linear-gradient(90deg, #e30613 0%, #002c5d 100%); height: 100%; border-radius: 5px; transition: width 0.5s;"></div>
+                        </div>
+                        <small>{percentual_cobertura:.1f}% Coberto</small>
+                    </div>""", unsafe_allow_html=True)
+
+            st.markdown("<br>", unsafe_allow_html=True)
+            if st.button("Avançar para Fechamento Financeiro", type="primary", use_container_width=True):
+                if uni_escolhida_id:
+                    u_row = unidades_disp[unidades_disp['Identificador'] == uni_escolhida_id].iloc[0]
+                    fin, sub, _ = motor.obter_enquadramento(d.get('renda', 0), d.get('social', False), d.get('cotista', True), u_row['Valor de Avaliação Bancária'])
+                    st.session_state.dados_cliente.update({
+                        'unidade_id': uni_escolhida_id, 'empreendimento_nome': emp_escolhido,
+                        'imovel_valor': u_row['Valor de Venda'], 'imovel_avaliacao': u_row['Valor de Avaliação Bancária'],
+                        'finan_estimado': fin, 'fgts_sub': sub
+                    })
+                    st.session_state.passo_simulacao = 'payment_flow'; scroll_to_top(); st.rerun()
+            if st.button("Voltar para Recomendação de Imóveis", use_container_width=True): st.session_state.passo_simulacao = 'guide'; scroll_to_top(); st.rerun()
+
     # --- ETAPA 4: FECHAMENTO FINANCEIRO ---
     elif passo == 'payment_flow':
         d = st.session_state.dados_cliente
@@ -2000,7 +2109,10 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
                     "Renda Part. 2": rendas_ind[1],
                     "Nome do Corretor": st.session_state.get('user_name', ''),
                     "Canal/Imobiliária": st.session_state.get('user_imobiliaria', ''),
-                    "Data/Horário": datetime.now(pytz.timezone('America/Sao_Paulo')).strftime("%d/%m/%Y %H:%M:%S")
+                    "Data/Horário": datetime.now(pytz.timezone('America/Sao_Paulo')).strftime("%d/%m/%Y %H:%M:%S"),
+                    "Sistema de Amortização": d.get('sistema_amortizacao', 'SAC'),
+                    "Quantidade Parcelas Financiamento": d.get('prazo_financiamento', 360),
+                    "Quantidade Parcelas Pro Soluto": d.get('ps_parcelas', 0)
                 }
                 df_novo = pd.DataFrame([nova_linha])
                 try:
