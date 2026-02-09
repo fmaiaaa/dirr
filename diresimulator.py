@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 =============================================================================
-SISTEMA DE SIMULAÇÃO IMOBILIÁRIA - DIRE RIO V61 (MAP FULLSCREEN & CLEAN UI)
+SISTEMA DE SIMULAÇÃO IMOBILIÁRIA - DIRE RIO V62 (FULLSCREEN GALLERY & TAB SCROLL)
 =============================================================================
 Instruções para Google Colab:
 1. Crie um arquivo chamado 'app.py' com este conteúdo.
@@ -691,13 +691,17 @@ def configurar_layout():
 
         /* --- TABS SCROLLABLE HORIZONTALLY --- */
         div[data-baseweb="tab-list"] {{
-            justify-content: flex-start !important;
-            gap: 20px !important;
-            margin-bottom: 40px;
+            display: flex !important;
             flex-wrap: nowrap !important;
             overflow-x: auto !important;
             white-space: nowrap !important;
-            padding-bottom: 5px; /* space for scrollbar */
+            padding: 10px 5px !important;
+            gap: 15px !important;
+            scrollbar-width: thin;
+            -webkit-overflow-scrolling: touch;
+            border-bottom: 1px solid #eef2f6; /* Match gallery style */
+            justify-content: flex-start !important;
+            margin-bottom: 40px;
         }}
         
         button[data-baseweb="tab"] p {{ color: {COR_AZUL_ESC} !important; opacity: 0.6; font-weight: 700 !important; font-family: 'Montserrat', sans-serif !important; font-size: 0.9rem !important; text-transform: uppercase; letter-spacing: 0.1em; }}
@@ -810,6 +814,7 @@ def configurar_layout():
             object-fit: cover;
             border-radius: 8px;
             margin-bottom: 8px;
+            cursor: zoom-in; /* Indicate zoom availability */
         }}
         .gallery-item-title {{
             font-weight: 700;
@@ -818,7 +823,45 @@ def configurar_layout():
             margin-bottom: 4px;
         }}
         
+        /* FULLSCREEN OVERLAY STYLES */
+        .fullscreen-overlay {{
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.9);
+            z-index: 99999;
+            justify-content: center;
+            align-items: center;
+            cursor: zoom-out;
+        }}
+        .fullscreen-overlay img {{
+            max-width: 95%;
+            max-height: 95%;
+            border-radius: 4px;
+            box-shadow: 0 0 20px rgba(0,0,0,0.5);
+        }}
+        .fullscreen-overlay.active {{
+            display: flex;
+        }}
+        
         </style>
+        
+        <script>
+        document.addEventListener('click', function(e) {{
+            if (e.target.tagName === 'IMG' && e.target.closest('.gallery-item')) {{
+                var overlay = document.createElement('div');
+                overlay.className = 'fullscreen-overlay active';
+                var img = document.createElement('img');
+                img.src = e.target.src;
+                overlay.appendChild(img);
+                overlay.onclick = function() {{ document.body.removeChild(overlay); }};
+                document.body.appendChild(overlay);
+            }}
+        }});
+        </script>
     """, unsafe_allow_html=True)
 
 def render_stepper(current_step_name):
