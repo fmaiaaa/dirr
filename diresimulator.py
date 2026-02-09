@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 =============================================================================
-SISTEMA DE SIMULAÇÃO IMOBILIÁRIA - DIRE RIO V56 (PRODUCT GALLERY)
+SISTEMA DE SIMULAÇÃO IMOBILIÁRIA - DIRE RIO V56 (PRODUCT GALLERY FIXED)
 =============================================================================
 Instruções para Google Colab:
 1. Crie um arquivo chamado 'app.py' com este conteúdo.
@@ -832,7 +832,7 @@ def gerar_resumo_pdf(d):
 
         pdf.set_xy(pdf.l_margin + 4, y + 4)
         pdf.set_font("Helvetica", 'B', 12)
-        pdf.cell(0, 5, f"CLIENTE: {d.get('nome', 'Não informado').upper()}", ln=True)
+        pdf.cell(0, 5, f"CLIENTE: {d.get('nome', 'Nao informado').upper()}", ln=True)
 
         pdf.set_x(pdf.l_margin + 4)
         pdf.set_font("Helvetica", '', 10)
@@ -2154,3 +2154,6 @@ def main():
 
 if __name__ == "__main__":
     main()
+```
+
+a seção da galeria esta com erro de identação e nao esta abrindo os produtos
