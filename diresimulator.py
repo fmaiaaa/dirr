@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 =============================================================================
-SISTEMA DE SIMULAÇÃO IMOBILIÁRIA - DIRE RIO V59 (FOLIUM MAPS & TABLE FIX)
+SISTEMA DE SIMULAÇÃO IMOBILIÁRIA - DIRE RIO V60 (GALLERY UPDATE & SCROLL FIX)
 =============================================================================
 Instruções para Google Colab:
 1. Crie um arquivo chamado 'app.py' com este conteúdo.
@@ -209,6 +209,28 @@ def scroll_to_top():
     js = """<script>var body = window.parent.document.querySelector(".main"); if (body) { body.scrollTop = 0; } window.scrollTo(0, 0);</script>"""
     st.components.v1.html(js, height=0)
 
+def convert_google_drive_link(url):
+    """
+    Converte link de visualização do drive para link direto de imagem.
+    Extrai o ID e usa lh3.googleusercontent.com
+    """
+    if not url: return ""
+    try:
+        # Regex para extrair ID (comum em /file/d/ID/view ou ?id=ID)
+        patterns = [r'/d/([a-zA-Z0-9_-]+)', r'id=([a-zA-Z0-9_-]+)']
+        file_id = None
+        for p in patterns:
+            match = re.search(p, url)
+            if match:
+                file_id = match.group(1)
+                break
+        
+        if file_id:
+            return f"https://lh3.googleusercontent.com/d/{file_id}"
+        return url
+    except:
+        return url
+
 # =============================================================================
 # 1. CARREGAMENTO DE DADOS
 # =============================================================================
@@ -311,7 +333,7 @@ def carregar_dados_sistema():
             
             df_estoque['Empreendimento'] = df_estoque['Empreendimento'].astype(str).str.strip()
             df_estoque['Bairro'] = df_estoque['Bairro'].astype(str).str.strip()
-                         
+                          
         except: 
             df_estoque = pd.DataFrame(columns=['Empreendimento', 'Valor de Venda', 'Status', 'Identificador', 'Bairro', 'Valor de Avaliação Bancária'])
 
@@ -406,7 +428,6 @@ def configurar_layout():
             align-items: center !important;
         }}
         
-        /* REFORÇO NO CSS PARA O NUMBER INPUT DO ESTOQUE GERAL */
         div[data-testid="stNumberInput"] div[data-baseweb="input"] {{
             height: 48px !important;
             min-height: 48px !important;
@@ -456,7 +477,6 @@ def configurar_layout():
             transition: all 0.2s ease !important;
         }}
         
-        /* Efeito de clique e hover para interatividade */
         .stButton button:active {{
             transform: scale(0.98);
         }}
@@ -624,7 +644,6 @@ def configurar_layout():
             letter-spacing: 0.05em;
         }}
         
-        /* HOVER CARD EFFECT FOR ANALYTICS */
         .hover-card {{
             background-color: #ffffff;
             border-radius: 12px;
@@ -674,7 +693,6 @@ def configurar_layout():
         button[data-baseweb="tab"][aria-selected="true"] p {{ color: {COR_AZUL_ESC} !important; opacity: 1; }}
         div[data-baseweb="tab-highlight"] {{ background-color: {COR_VERMELHO} !important; height: 3px !important; }}
 
-        /* --- STEPPER (Visual CSS - Non-interactive) --- */
         .stepper-container {{
             display: flex;
             justify-content: space-between;
@@ -731,7 +749,6 @@ def configurar_layout():
             transition: color 0.3s;
         }}
         
-        /* Active State */
         .stepper-step.active .step-bubble {{
             background: {COR_AZUL_ESC};
             border-color: {COR_AZUL_ESC};
@@ -743,7 +760,6 @@ def configurar_layout():
             color: {COR_AZUL_ESC};
         }}
         
-        /* Completed State */
         .stepper-step.completed .step-bubble {{
             background: #10b981; /* Emerald 500 */
             border-color: #10b981;
@@ -754,6 +770,43 @@ def configurar_layout():
         }}
 
         .footer {{ text-align: center; padding: 80px 0; color: {COR_AZUL_ESC} !important; font-size: 0.8rem; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; opacity: 0.6; }}
+        
+        /* NOVO CSS PARA SCROLL HORIZONTAL NA GALERIA DE PRODUTOS */
+        .gallery-scroll-container {{
+            overflow-x: auto;
+            white-space: nowrap;
+            padding: 15px 5px;
+            -webkit-overflow-scrolling: touch;
+            margin-bottom: 20px;
+            border-bottom: 1px solid #eef2f6;
+            scrollbar-width: thin;
+        }}
+        .gallery-item {{
+            display: inline-block;
+            width: 280px;
+            margin-right: 15px;
+            vertical-align: top;
+            background: #fff;
+            border: 1px solid #eef2f6;
+            border-radius: 12px;
+            padding: 10px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+            white-space: normal;
+        }}
+        .gallery-item img {{
+            width: 100%;
+            height: 180px;
+            object-fit: cover;
+            border-radius: 8px;
+            margin-bottom: 8px;
+        }}
+        .gallery-item-title {{
+            font-weight: 700;
+            font-size: 0.9rem;
+            color: {COR_AZUL_ESC};
+            margin-bottom: 4px;
+        }}
+        
         </style>
     """, unsafe_allow_html=True)
 
@@ -1230,31 +1283,107 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
             {"nome": "Recanto Clube", "url": "https://www.youtube.com/watch?v=7K3UUEIOT-8", "endereco": "Rua Aloés, 300 - Guaratiba, Rio de Janeiro - RJ", "lat": -22.9694, "lon": -43.5936},
             {"nome": "Inn Barra Olímpica", "url": "https://www.youtube.com/watch?v=SGEJFc3jh5A", "endereco": "Estr. dos Bandeirantes, 2856 - Jacarepaguá, Rio de Janeiro - RJ, 22775-110", "lat": -22.9567, "lon": -43.3761},
         ]
+        
+        # --- ASSETS CONQUISTA FLORIANÓPOLIS ---
+        # Links convertidos para visualização direta
+        assets_conquista = {
+            "Identidade e Fachada": [
+                {"nome": "Logo", "url": "https://lh3.googleusercontent.com/d/10SnxAKf66taxwC9upxQXR_dd4OGUP9_l"},
+                {"nome": "Fachada", "url": "https://lh3.googleusercontent.com/d/1FtNq9m06iZ3ZAce1Eu8GXYeaUDhBSiV8"},
+                {"nome": "Mapa", "url": "https://lh3.googleusercontent.com/d/1QzBH8YOd2Ui8WD2Xxh3vBbhd7-x5uFwk"},
+            ],
+            "Plantas e Implantação": [
+                {"nome": "Masterplan", "url": "https://lh3.googleusercontent.com/d/1fR7GFbh9a-J3o3hv21bBbxudiW5-I6pe"},
+                {"nome": "Apto Tipo Meio 01", "url": "https://lh3.googleusercontent.com/d/1b4QxziB56rrcxMpgVMMNHN0XnPoKelFP"},
+                {"nome": "Apto Tipo Meio 02", "url": "https://lh3.googleusercontent.com/d/1qhA_80UUuNovK3tYntxG5OOKL_SMFzAH"},
+                {"nome": "Planta Tipo Ponta", "url": "https://lh3.googleusercontent.com/d/17KZgUixZhc5KQigtRQ_XYDMltIlAO4qO"},
+                {"nome": "Planta Studios", "url": "https://lh3.googleusercontent.com/d/1M7dmZ1iN7-VI2tP9E0OoStWVOMnglSpx"},
+                {"nome": "Planta Garden Meio", "url": "https://lh3.googleusercontent.com/d/13fzvOhPY8uVlBhmbhCQrAnEbse4wv7MY"},
+                {"nome": "Planta Garden Ponta", "url": "https://lh3.googleusercontent.com/d/1Dt6UH9_6yLMRE1toa_kWXvs710dWH65B"},
+                {"nome": "Planta Garden PCD", "url": "https://lh3.googleusercontent.com/d/1GaaTfbEDfJsqDpixUoKo_KG75MXofKV3"},
+                {"nome": "Perspectiva Garden", "url": "https://lh3.googleusercontent.com/d/1u2pc7a6P4DOPYp69RN0icmOZoTFriuKt"},
+            ],
+            "Áreas Comuns e Lazer": [
+                {"nome": "Piscina Adulto", "url": "https://lh3.googleusercontent.com/d/1ud4Vk3oD2Gmcc9eOEMW-rn-2mIr1zGON"},
+                {"nome": "Piscina Infantil", "url": "https://lh3.googleusercontent.com/d/18AymHsaQsCwG4_oIN4CO04_ibINqxv1K"},
+                {"nome": "Salão de Festas", "url": "https://lh3.googleusercontent.com/d/1dTFFbyexiIJCk1k4-catyJ_dynvPj7Vj"},
+                {"nome": "Varanda Salão", "url": "https://lh3.googleusercontent.com/d/1OVLyioawd2ZOEqs1-LXjZVzxtWsgfz0p"},
+                {"nome": "Playground", "url": "https://lh3.googleusercontent.com/d/187TeBEzv2qbJQfbU8m30g7BDbs5kPYx8"},
+                {"nome": "Praça de Jogos", "url": "https://lh3.googleusercontent.com/d/1mcn6Iin1wJLjrq2ar45rfGE-PrnLJv99"},
+                {"nome": "Miniquadra", "url": "https://lh3.googleusercontent.com/d/1azu-bh1Ew2dUL1OJe5iHEva7ZxO120GJ"},
+                {"nome": "Fitness Externo", "url": "https://lh3.googleusercontent.com/d/1pY9CikHmAqYwxBYj5ohLmqNC0S_fzXKu"},
+                {"nome": "Espaço Fresh", "url": "https://lh3.googleusercontent.com/d/1JC1rRduoVxz9MqFNaGOCcdBMjDXz-wHr"},
+                {"nome": "Food Truck", "url": "https://lh3.googleusercontent.com/d/1eF0FuAzzFOd9jvkKq-twI3Y1cfpkk2Xy"},
+                {"nome": "Estação Bike", "url": "https://lh3.googleusercontent.com/d/16AmatvtTrgOqJxmsmU-LuhzaSV9dLWIl"},
+                {"nome": "Guarita", "url": "https://lh3.googleusercontent.com/d/1lMWl5-1OpjYKDLmX38Du9OQeYmUT-CwC"},
+                {"nome": "Ecoponto", "url": "https://lh3.googleusercontent.com/d/1EAW5m9BZaf4U_yjJ9wHn-TDViiwB4XS3"},
+            ]
+        }
 
         abas = st.tabs([p["nome"] for p in produtos])
 
         for i, aba in enumerate(abas):
             with aba:
-                st.markdown(f"#### {produtos[i]['nome']}")
-                st.video(produtos[i]["url"])
+                prod = produtos[i]
                 
-                # Mapa e Endereço
-                st.markdown(f"""
-                <div class="summary-body" style="padding: 20px; margin-top: 20px; border-left: 5px solid {COR_AZUL_ESC};">
-                    <h5 style="margin: 0 0 10px 0; color: {COR_AZUL_ESC};">Localização</h5>
-                    <p style="font-size: 0.9rem; margin: 0;">{produtos[i]['endereco']}</p>
-                </div>
-                """, unsafe_allow_html=True)
-                
-                if 'lat' in produtos[i] and 'lon' in produtos[i]:
-                     # Folium map
-                     m = folium.Map(location=[produtos[i]['lat'], produtos[i]['lon']], zoom_start=15)
-                     folium.Marker(
-                        [produtos[i]['lat'], produtos[i]['lon']], 
-                        popup=produtos[i]['nome'], 
-                        tooltip=produtos[i]['nome']
-                     ).add_to(m)
-                     st_folium(m, height=300, width=None)
+                # --- LAYOUT ESPECÍFICO PARA CONQUISTA FLORIANÓPOLIS ---
+                if prod["nome"] == "Conquista Florianópolis":
+                    col_vid, col_info = st.columns([1.2, 1])
+                    with col_vid:
+                        st.markdown(f"#### 🎥 Tour Virtual")
+                        st.video(prod["url"])
+                    
+                    with col_info:
+                        st.markdown(f"#### 📍 Localização")
+                        st.markdown(f"""
+                        <div class="summary-body" style="padding: 20px; border-left: 5px solid {COR_AZUL_ESC};">
+                            <p style="font-size: 0.9rem; margin: 0;">{prod['endereco']}</p>
+                        </div>
+                        """, unsafe_allow_html=True)
+                        if 'lat' in prod and 'lon' in prod:
+                             m = folium.Map(location=[prod['lat'], prod['lon']], zoom_start=15)
+                             folium.Marker([prod['lat'], prod['lon']], popup=prod['nome']).add_to(m)
+                             st_folium(m, height=200, width=None, key=f"map_folium_{i}")
+                    
+                    st.markdown("---")
+                    st.markdown("#### 🖼️ Galeria & Plantas")
+                    
+                    # Renderização com Scroll Horizontal por Categoria
+                    for categoria, items in assets_conquista.items():
+                        st.markdown(f"##### {categoria}")
+                        
+                        # Montagem do HTML para o Scroll Horizontal
+                        html_scroll = '<div class="gallery-scroll-container">'
+                        for item in items:
+                            html_scroll += f"""
+                            <div class="gallery-item">
+                                <img src="{item['url']}" alt="{item['nome']}">
+                                <div class="gallery-item-title">{item['nome']}</div>
+                            </div>
+                            """
+                        html_scroll += '</div>'
+                        st.markdown(html_scroll, unsafe_allow_html=True)
+                        
+                else:
+                    # --- LAYOUT PADRÃO PARA OUTROS EMPREENDIMENTOS ---
+                    st.markdown(f"#### {prod['nome']}")
+                    st.video(prod["url"])
+                    
+                    st.markdown(f"""
+                    <div class="summary-body" style="padding: 20px; margin-top: 20px; border-left: 5px solid {COR_AZUL_ESC};">
+                        <h5 style="margin: 0 0 10px 0; color: {COR_AZUL_ESC};">Localização</h5>
+                        <p style="font-size: 0.9rem; margin: 0;">{prod['endereco']}</p>
+                    </div>
+                    """, unsafe_allow_html=True)
+                    
+                    if 'lat' in prod and 'lon' in prod:
+                         m = folium.Map(location=[prod['lat'], prod['lon']], zoom_start=15)
+                         folium.Marker(
+                            [prod['lat'], prod['lon']], 
+                            popup=prod['nome'], 
+                            tooltip=prod['nome']
+                         ).add_to(m)
+                         st_folium(m, height=300, width=None, key=f"map_std_{i}")
         
         st.markdown("<br><br>", unsafe_allow_html=True)
 
@@ -1683,16 +1812,16 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
                         cand_ideal = pool_viavel[pool_viavel['Valor de Venda'] == max_price_ideal]
                 
                 else:
-                     # Fallback geral (se nada for viável, mostrar sugestões baseadas no estoque total)
-                     fallback_pool = df_pool.sort_values('Valor de Venda', ascending=True)
-                     if not fallback_pool.empty:
-                         min_p = fallback_pool['Valor de Venda'].min()
-                         cand_facil = fallback_pool[fallback_pool['Valor de Venda'] == min_p].head(5) # Limit to avoid huge lists if all match
-                         
-                         max_p = fallback_pool['Valor de Venda'].max()
-                         cand_ideal = fallback_pool[fallback_pool['Valor de Venda'] == max_p].head(5)
-                         
-                         cand_seguro = fallback_pool.iloc[[len(fallback_pool)//2]] # Middle price
+                      # Fallback geral (se nada for viável, mostrar sugestões baseadas no estoque total)
+                      fallback_pool = df_pool.sort_values('Valor de Venda', ascending=True)
+                      if not fallback_pool.empty:
+                          min_p = fallback_pool['Valor de Venda'].min()
+                          cand_facil = fallback_pool[fallback_pool['Valor de Venda'] == min_p].head(5) # Limit to avoid huge lists if all match
+                          
+                          max_p = fallback_pool['Valor de Venda'].max()
+                          cand_ideal = fallback_pool[fallback_pool['Valor de Venda'] == max_p].head(5)
+                          
+                          cand_seguro = fallback_pool.iloc[[len(fallback_pool)//2]] # Middle price
 
                 # Helper to add cards for all matching rows
                 def add_cards_group(label, df_group, css_class):
@@ -1878,11 +2007,11 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
         # INICIALIZAÇÃO SEGURA DE VARIÁVEIS DE SESSÃO
         # Garante que as chaves usadas pelos inputs existam antes de serem lidas
         # ---------------------------------------------------------------------
-        if 'finan_usado' not in st.session_state.dados_cliente:
+        if 'finan_usado' not in st.session_state.dados_cliente: 
              st.session_state.dados_cliente['finan_usado'] = d.get('finan_estimado', 0.0)
-        if 'fgts_sub_usado' not in st.session_state.dados_cliente:
+        if 'fgts_sub_usado' not in st.session_state.dados_cliente: 
              st.session_state.dados_cliente['fgts_sub_usado'] = d.get('fgts_sub', 0.0)
-        if 'ps_usado' not in st.session_state.dados_cliente:
+        if 'ps_usado' not in st.session_state.dados_cliente: 
              st.session_state.dados_cliente['ps_usado'] = 0.0
         if 'ato_final' not in st.session_state.dados_cliente: st.session_state.dados_cliente['ato_final'] = 0.0
         if 'ato_30' not in st.session_state.dados_cliente: st.session_state.dados_cliente['ato_30'] = 0.0
