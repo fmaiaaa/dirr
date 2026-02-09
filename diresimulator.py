@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 =============================================================================
-SISTEMA DE SIMULAÇÃO IMOBILIÁRIA - DIRE RIO V57 (GALLERY TABS & STYLE)
+SISTEMA DE SIMULAÇÃO IMOBILIÁRIA - DIRE RIO V58 (GALLERY MAPS & LOCATIONS)
 =============================================================================
 Instruções para Google Colab:
 1. Crie um arquivo chamado 'app.py' com este conteúdo.
@@ -1219,40 +1219,47 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
         
     # --- GALERIA DE PRODUTOS ---
     if passo == 'gallery':
-        st.markdown("### Galeria de Produtos")
+        st.markdown("### 🖼️ Galeria de Produtos")
+        st.markdown("---")
         
-        # Dados dos produtos
+        # Dados dos produtos (com mapas)
         produtos = [
-            {"nome": "Itanhangá Green", "url": "https://www.youtube.com/watch?v=Lt74juwBMXM"},
-            {"nome": "Norte Clube", "url": "https://www.youtube.com/watch?v=ElO6Q95Hsak"},
-            {"nome": "Conquista Oceânica", "url": "https://www.youtube.com/watch?v=4g5oy3SCh-A"},
-            {"nome": "Parque Iguaçu", "url": "https://www.youtube.com/watch?v=PQOA5AS0Sdo"},
-            {"nome": "Max Norte", "url": "https://www.youtube.com/watch?v=cnzn1cpJ4tA"},
-            {"nome": "Vert Alcântara", "url": "https://www.youtube.com/watch?v=Lag2kS7wFnU"},
-            {"nome": "Nova Caxias Up", "url": "https://www.youtube.com/watch?v=EbEcZvIdTvY"},
-            {"nome": "Nova Caxias Fun", "url": "https://www.youtube.com/watch?v=3P_o4jVWsOI"},
-            {"nome": "Reserva do Sol", "url": "https://www.youtube.com/watch?v=Wij9XjG4slM"},
-            {"nome": "Residencial Laranjeiras", "url": "https://www.youtube.com/watch?v=jmV1RHkRlZ4"},
-            {"nome": "Soul Samba", "url": "https://www.youtube.com/watch?v=qTPaarVhHgs"},
-            {"nome": "Viva Vida Realengo", "url": "https://www.youtube.com/watch?v=cfRvstasGaw"},
-            {"nome": "Recanto Clube", "url": "https://www.youtube.com/watch?v=7K3UUEIOT-8"},
-            {"nome": "Inn Barra Olímpica", "url": "https://www.youtube.com/watch?v=SGEJFc3jh5A"},
+            {"nome": "Conquista Florianópolis", "url": "https://www.youtube.com/watch?v=oU5SeVbmCsk", "endereco": "R. Florianópolis, 920 - Praça Seca, Rio de Janeiro - RJ, 21321-050", "lat": -22.8878, "lon": -43.3567},
+            {"nome": "Itanhangá Green", "url": "https://www.youtube.com/watch?v=Lt74juwBMXM", "endereco": "Estr. de Jacarepaguá, 2757 - Itanhangá, Rio de Janeiro - RJ, 22755-158", "lat": -22.9733, "lon": -43.3364},
+            {"nome": "Norte Clube", "url": "https://www.youtube.com/watch?v=ElO6Q95Hsak", "endereco": "Estrada Adhemar Bebiano, 3715 - Engenho da Rainha, Rio de Janeiro - RJ, 20766-450", "lat": -22.8752, "lon": -43.2905},
+            {"nome": "Conquista Oceânica", "url": "https://www.youtube.com/watch?v=4g5oy3SCh-A", "endereco": "Rod. Amaral Peixoto, 0 - Várzea das Mocas, São Gonçalo - RJ, 24753-559", "lat": -22.8711, "lon": -43.0133},
+            {"nome": "Parque Iguaçu", "url": "https://www.youtube.com/watch?v=PQOA5AS0Sdo", "endereco": "Av. Abílio Augusto Távora, 3505 - Palhada, Nova Iguaçu - RJ, 26275-580", "lat": -22.7758, "lon": -43.4861},
+            {"nome": "Max Norte", "url": "https://www.youtube.com/watch?v=cnzn1cpJ4tA", "endereco": "Rua Edgar Loureiro Valdetaro, 162 - Pavuna, Rio de Janeiro - RJ, 21520-760", "lat": -22.8086, "lon": -43.3633},
+            {"nome": "Vert Alcântara", "url": "https://www.youtube.com/watch?v=Lag2kS7wFnU", "endereco": "Estr. dos Menezes - Alcantara, São Gonçalo - RJ, 24451-230", "lat": -22.8222, "lon": -43.0031},
+            {"nome": "Nova Caxias Up", "url": "https://www.youtube.com/watch?v=EbEcZvIdTvY", "endereco": "R. Salutaris, 54 - Vila Ouro Preto, Duque de Caxias - RJ, 25065-007", "lat": -22.7303, "lon": -43.3075},
+            {"nome": "Nova Caxias Fun", "url": "https://www.youtube.com/watch?v=3P_o4jVWsOI", "endereco": "R. Salutaris, 54 - Vila Ouro Preto, Duque de Caxias - RJ, 25065-007", "lat": -22.7303, "lon": -43.3075},
+            {"nome": "Reserva do Sol", "url": "https://www.youtube.com/watch?v=Wij9XjG4slM", "endereco": "R. Goianinha, 280 - Curicica, Rio de Janeiro - RJ, 22780-760", "lat": -22.9536, "lon": -43.3858},
+            {"nome": "Residencial Laranjeiras", "url": "https://www.youtube.com/watch?v=jmV1RHkRlZ4", "endereco": "R. Projetada A, 270 - Campo Grande, Rio de Janeiro - RJ, 23040-652", "lat": -22.8944, "lon": -43.5575},
+            {"nome": "Soul Samba", "url": "https://www.youtube.com/watch?v=qTPaarVhHgs", "endereco": "Estrada Adhemar Bebiano, 2576 - Inhaúma, Rio de Janeiro - RJ, 20766-720", "lat": -22.8778, "lon": -43.2778},
+            {"nome": "Viva Vida Realengo", "url": "https://www.youtube.com/watch?v=cfRvstasGaw", "endereco": "R. Itajaí, n° 15 - Realengo, Rio de Janeiro - RJ, 21730-200", "lat": -22.8797, "lon": -43.4286},
+            {"nome": "Recanto Clube", "url": "https://www.youtube.com/watch?v=7K3UUEIOT-8", "endereco": "Rua Aloés, 300 - Guaratiba, Rio de Janeiro - RJ", "lat": -22.9694, "lon": -43.5936},
+            {"nome": "Inn Barra Olímpica", "url": "https://www.youtube.com/watch?v=SGEJFc3jh5A", "endereco": "Estr. dos Bandeirantes, 2856 - Jacarepaguá, Rio de Janeiro - RJ, 22775-110", "lat": -22.9567, "lon": -43.3761},
         ]
 
-        # Criar abas
         abas = st.tabs([p["nome"] for p in produtos])
 
         for i, aba in enumerate(abas):
             with aba:
                 st.markdown(f"#### {produtos[i]['nome']}")
                 st.video(produtos[i]["url"])
+                
+                # Mapa e Endereço
                 st.markdown(f"""
                 <div class="summary-body" style="padding: 20px; margin-top: 20px; border-left: 5px solid {COR_AZUL_ESC};">
-                    <h5 style="margin: 0 0 10px 0; color: {COR_AZUL_ESC};">Sobre o Empreendimento</h5>
-                    <p style="font-size: 0.9rem; margin: 0;">Confira o vídeo acima para conhecer todos os detalhes do <b>{produtos[i]['nome']}</b>. 
-                    Excelente oportunidade com condições facilitadas.</p>
+                    <h5 style="margin: 0 0 10px 0; color: {COR_AZUL_ESC};">Localização</h5>
+                    <p style="font-size: 0.9rem; margin: 0;">{produtos[i]['endereco']}</p>
                 </div>
                 """, unsafe_allow_html=True)
+                
+                if 'lat' in produtos[i] and 'lon' in produtos[i]:
+                    st.map(pd.DataFrame({'lat': [produtos[i]['lat']], 'lon': [produtos[i]['lon']]}))
+        
+        st.markdown("<br><br>", unsafe_allow_html=True)
 
     # --- ABA ANALYTICS (SECURE TAB - ALTAIR) ---
     elif passo == 'client_analytics':
