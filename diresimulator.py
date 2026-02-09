@@ -1,12 +1,12 @@
 # -*- coding: utf-8 -*-
 """
 =============================================================================
-SISTEMA DE SIMULAÇÃO IMOBILIÁRIA - DIRE RIO V60 (NATIVE MAPS & GALLERY FIX)
+SISTEMA DE SIMULAÇÃO IMOBILIÁRIA - DIRE RIO V59 (FOLIUM MAPS & TABLE FIX)
 =============================================================================
 Instruções para Google Colab:
 1. Crie um arquivo chamado 'app.py' com este conteúdo.
 2. Instale as dependências:
-   !pip install streamlit pandas numpy fpdf streamlit-gsheets pytz altair
+   !pip install streamlit pandas numpy fpdf streamlit-gsheets pytz altair folium streamlit-folium
 3. Configure os segredos (.streamlit/secrets.toml) para o envio de email.
 4. Rode o app:
    !streamlit run app.py & npx localtunnel --port 8501
@@ -31,6 +31,8 @@ from email.mime.application import MIMEApplication
 import os
 import pytz
 import altair as alt
+import folium
+from streamlit_folium import st_folium
 
 # Tenta importar fpdf e PIL
 try:
@@ -263,7 +265,6 @@ def carregar_dados_sistema():
             df_raw = conn.read(spreadsheet=URL_ESTOQUE)
             df_raw.columns = [str(c).strip() for c in df_raw.columns]
             
-            # Mapeamento exato fornecido pelo usuário
             mapa_estoque = {
                 'Nome do Empreendimento': 'Empreendimento',
                 'VALOR DE VENDA': 'Valor de Venda',
@@ -275,23 +276,18 @@ def carregar_dados_sistema():
             
             df_estoque = df_raw.rename(columns=mapa_estoque)
             
-            # Garantir colunas
             if 'Valor de Venda' not in df_estoque.columns: df_estoque['Valor de Venda'] = 0.0
             if 'Valor de Avaliação Bancária' not in df_estoque.columns: df_estoque['Valor de Avaliação Bancária'] = df_estoque['Valor de Venda']
             if 'Status' not in df_estoque.columns: df_estoque['Status'] = 'Disponível'
             if 'Empreendimento' not in df_estoque.columns: df_estoque['Empreendimento'] = 'N/A'
             
-            # Limpeza de moeda
             df_estoque['Valor de Venda'] = df_estoque['Valor de Venda'].apply(limpar_moeda)
             df_estoque['Valor de Avaliação Bancária'] = df_estoque['Valor de Avaliação Bancária'].apply(limpar_moeda)
             
-            # Limpeza CRÍTICA de Status (Remover espaços extras e normalizar unicode)
             df_estoque['Status'] = df_estoque['Status'].astype(str).str.strip()
-            # Mapear status similares
             df_estoque['Status'] = df_estoque['Status'].apply(lambda x: 'Disponível' if 'Dispon' in x or 'dispon' in x else x)
 
-            # Filtros de consistência
-            df_estoque = df_estoque[(df_estoque['Valor de Venda'] > 1000)].copy() # Valor > 1000 para evitar erros
+            df_estoque = df_estoque[(df_estoque['Valor de Venda'] > 1000)].copy()
             df_estoque = df_estoque[df_estoque['Empreendimento'].notnull()]
             
             if 'Identificador' not in df_estoque.columns: 
@@ -313,12 +309,10 @@ def carregar_dados_sistema():
             df_estoque['Bloco_Sort'] = df_estoque['Identificador'].apply(lambda x: extrair_dados_unid(x, 'bloco'))
             df_estoque['Apto_Sort'] = df_estoque['Identificador'].apply(lambda x: extrair_dados_unid(x, 'apto'))
             
-            # Garante colunas de string
             df_estoque['Empreendimento'] = df_estoque['Empreendimento'].astype(str).str.strip()
             df_estoque['Bairro'] = df_estoque['Bairro'].astype(str).str.strip()
                          
         except: 
-            # FIX KEYERROR: Ensure df_estoque has correct columns even on crash
             df_estoque = pd.DataFrame(columns=['Empreendimento', 'Valor de Venda', 'Status', 'Identificador', 'Bairro', 'Valor de Avaliação Bancária'])
 
         return df_finan, df_estoque, df_politicas, df_logins, df_cadastros
@@ -1215,7 +1209,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
         
     # --- GALERIA DE PRODUTOS ---
     if passo == 'gallery':
-        st.markdown("### Galeria de Produtos")
+        st.markdown("### 🖼️ Galeria de Produtos")
         st.markdown("---")
         
         # Dados dos produtos (com mapas)
@@ -1253,7 +1247,14 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
                 """, unsafe_allow_html=True)
                 
                 if 'lat' in produtos[i] and 'lon' in produtos[i]:
-                    st.map(pd.DataFrame({'lat': [produtos[i]['lat']], 'lon': [produtos[i]['lon']]}))
+                     # Folium map
+                     m = folium.Map(location=[produtos[i]['lat'], produtos[i]['lon']], zoom_start=15)
+                     folium.Marker(
+                        [produtos[i]['lat'], produtos[i]['lon']], 
+                        popup=produtos[i]['nome'], 
+                        tooltip=produtos[i]['nome']
+                     ).add_to(m)
+                     st_folium(m, height=300, width=None)
         
         st.markdown("<br><br>", unsafe_allow_html=True)
 
@@ -2108,4 +2109,73 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
                     "Renda Part. 1": rendas_ind[0],
                     "Renda Part. 4": rendas_ind[3],
                     "Renda Part. 3": rendas_ind[2],
-                    "Renda Part. 4.1
+                    "Renda Part. 4.1": 0.0,
+                    "Ranking": d.get('ranking'),
+                    "Política de Pro Soluto": d.get('politica'),
+                    "Fator Social": "Sim" if d.get('social') else "Não",
+                    "Cotista FGTS": "Sim" if d.get('cotista') else "Não",
+                    "Financiamento Aprovado": d.get('finan_f_ref', 0),
+                    "Subsídio Máximo": d.get('sub_f_ref', 0),
+                    "Pro Soluto Médio": d.get('ps_usado', 0), # Usando o valor efetivo como referência
+                    "Capacidade de Entrada": capacidade_entrada,
+                    "Poder de Aquisição Médio": (2 * d.get('renda', 0)) + d.get('finan_f_ref', 0) + d.get('sub_f_ref', 0) + (d.get('imovel_valor', 0) * 0.10), # Estimativa
+                    "Empreendimento Final": d.get('empreendimento_nome'),
+                    "Unidade Final": d.get('unidade_id'),
+                    "Preço Unidade Final": d.get('imovel_valor', 0),
+                    "Financiamento Final": d.get('finan_usado', 0),
+                    "FGTS + Subsídio Final": d.get('fgts_sub_usado', 0),
+                    "Pro Soluto Final": d.get('ps_usado', 0),
+                    "Número de Parcelas do Pro Soluto": d.get('ps_parcelas', 0),
+                    "Mensalidade PS": d.get('ps_mensal', 0),
+                    "Ato": d.get('ato_final', 0),
+                    "Ato 30": d.get('ato_30', 0),
+                    "Ato 60": d.get('ato_60', 0),
+                    "Ato 90": d.get('ato_90', 0),
+                    "Renda Part. 2": rendas_ind[1],
+                    "Nome do Corretor": st.session_state.get('user_name', ''),
+                    "Canal/Imobiliária": st.session_state.get('user_imobiliaria', ''),
+                    "Data/Horário": datetime.now(pytz.timezone('America/Sao_Paulo')).strftime("%d/%m/%Y %H:%M:%S"),
+                    "Sistema de Amortização": d.get('sistema_amortizacao', 'SAC'),
+                    "Quantidade Parcelas Financiamento": d.get('prazo_financiamento', 360),
+                    "Quantidade Parcelas Pro Soluto": d.get('ps_parcelas', 0)
+                }
+                df_novo = pd.DataFrame([nova_linha])
+                try:
+                    df_existente = conn_save.read(spreadsheet=URL_RANKING, worksheet=aba_destino)
+                    df_final_save = pd.concat([df_existente, df_novo], ignore_index=True)
+                except: df_final_save = df_novo
+                conn_save.update(spreadsheet=URL_RANKING, worksheet=aba_destino, data=df_final_save)
+                st.cache_data.clear()
+                st.markdown(f'<div class="custom-alert">Salvo em \'{aba_destino}\'!</div>', unsafe_allow_html=True); time.sleep(2); st.session_state.dados_cliente = {}; st.session_state.passo_simulacao = 'input'; scroll_to_top(); st.rerun()
+            except Exception as e: st.error(f"Erro ao salvar: {e}")
+
+        if st.button("Voltar para Fechamento Financeiro", use_container_width=True): st.session_state.passo_simulacao = 'payment_flow'; scroll_to_top(); st.rerun()
+
+    st.markdown("<br><br>", unsafe_allow_html=True)
+
+    # Botão Sair fora da coluna para herdar estilo grande
+    if st.button("Sair do Sistema", key="btn_logout_bottom", use_container_width=True):
+        st.session_state['logged_in'] = False
+        st.rerun()
+
+def main():
+    configurar_layout()
+    df_finan, df_estoque, df_politicas, df_logins, df_cadastros = carregar_dados_sistema()
+    logo_src = URL_FAVICON_RESERVA
+    if os.path.exists("favicon.png"):
+        try:
+            with open("favicon.png", "rb") as f:
+                encoded = base64.b64encode(f.read()).decode()
+                logo_src = f"data:image/png;base64,{encoded}"
+        except: pass
+    st.markdown(f'''<div class="header-container"><img src="{logo_src}" style="position: absolute; top: 30px; left: 40px; height: 50px;"><div class="header-title">SIMULADOR IMOBILIÁRIO DV</div><div class="header-subtitle">Sistema de Gestão de Vendas e Viabilidade Imobiliária</div></div>''', unsafe_allow_html=True)
+
+    if 'logged_in' not in st.session_state: st.session_state['logged_in'] = False
+
+    if not st.session_state['logged_in']: tela_login(df_logins)
+    else: aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros)
+
+    st.markdown(f'<div class="footer">Direcional Engenharia - Rio de Janeiro | Developed by Lucas Maia</div>', unsafe_allow_html=True)
+
+if __name__ == "__main__":
+    main()
