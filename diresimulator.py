@@ -2154,6 +2154,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-```
-
-a seção da galeria esta com erro de identação e nao esta abrindo os produtos
