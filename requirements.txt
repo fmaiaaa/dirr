@@ -4,3 +4,4 @@ numpy
 st-gsheets-connection
 fpdf2
 folium
+streamlit_folium
