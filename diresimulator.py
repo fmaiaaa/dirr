@@ -1,12 +1,12 @@
 # -*- coding: utf-8 -*-
 """
 =============================================================================
-SISTEMA DE SIMULAÇÃO IMOBILIÁRIA - DIRE RIO V58 (GALLERY MAPS & LOCATIONS)
+SISTEMA DE SIMULAÇÃO IMOBILIÁRIA - DIRE RIO V59 (FOLIUM MAPS & TABLE FIX)
 =============================================================================
 Instruções para Google Colab:
 1. Crie um arquivo chamado 'app.py' com este conteúdo.
 2. Instale as dependências:
-   !pip install streamlit pandas numpy fpdf streamlit-gsheets pytz altair
+   !pip install streamlit pandas numpy fpdf streamlit-gsheets pytz altair folium streamlit-folium
 3. Configure os segredos (.streamlit/secrets.toml) para o envio de email.
 4. Rode o app:
    !streamlit run app.py & npx localtunnel --port 8501
@@ -31,6 +31,8 @@ from email.mime.application import MIMEApplication
 import os
 import pytz
 import altair as alt
+import folium
+from streamlit_folium import st_folium
 
 # Tenta importar fpdf e PIL
 try:
@@ -263,7 +265,6 @@ def carregar_dados_sistema():
             df_raw = conn.read(spreadsheet=URL_ESTOQUE)
             df_raw.columns = [str(c).strip() for c in df_raw.columns]
             
-            # Mapeamento exato fornecido pelo usuário
             mapa_estoque = {
                 'Nome do Empreendimento': 'Empreendimento',
                 'VALOR DE VENDA': 'Valor de Venda',
@@ -275,26 +276,19 @@ def carregar_dados_sistema():
             
             df_estoque = df_raw.rename(columns=mapa_estoque)
             
-            # Verifica se colunas criticas existem após o rename, se não, cria ou tenta fallback
-            if 'Valor de Venda' not in df_estoque.columns:
-                df_estoque['Valor de Venda'] = 0.0
+            if 'Valor de Venda' not in df_estoque.columns: df_estoque['Valor de Venda'] = 0.0
+            if 'Valor de Avaliação Bancária' not in df_estoque.columns: df_estoque['Valor de Avaliação Bancária'] = df_estoque['Valor de Venda']
+            if 'Status' not in df_estoque.columns: df_estoque['Status'] = 'Disponível'
+            if 'Empreendimento' not in df_estoque.columns: df_estoque['Empreendimento'] = 'N/A'
             
-            if 'Valor de Avaliação Bancária' not in df_estoque.columns:
-                df_estoque['Valor de Avaliação Bancária'] = df_estoque['Valor de Venda']
-            
-            # Limpeza de moeda
             df_estoque['Valor de Venda'] = df_estoque['Valor de Venda'].apply(limpar_moeda)
             df_estoque['Valor de Avaliação Bancária'] = df_estoque['Valor de Avaliação Bancária'].apply(limpar_moeda)
             
-            # Limpeza de Status (Remover espaços extras e normalizar unicode)
-            if 'Status' in df_estoque.columns:
-                 df_estoque['Status'] = df_estoque['Status'].astype(str).str.strip()
-                 df_estoque['Status'] = df_estoque['Status'].apply(lambda x: 'Disponível' if 'Dispon' in x or 'dispon' in x else x)
+            df_estoque['Status'] = df_estoque['Status'].astype(str).str.strip()
+            df_estoque['Status'] = df_estoque['Status'].apply(lambda x: 'Disponível' if 'Dispon' in x or 'dispon' in x else x)
 
-            # Filtros de consistência
-            df_estoque = df_estoque[(df_estoque['Valor de Venda'] > 1000)].copy() # Valor > 1000 para evitar erros
-            if 'Empreendimento' in df_estoque.columns:
-                 df_estoque = df_estoque[df_estoque['Empreendimento'].notnull()]
+            df_estoque = df_estoque[(df_estoque['Valor de Venda'] > 1000)].copy()
+            df_estoque = df_estoque[df_estoque['Empreendimento'].notnull()]
             
             if 'Identificador' not in df_estoque.columns: 
                 df_estoque['Identificador'] = df_estoque.index.astype(str)
@@ -315,14 +309,10 @@ def carregar_dados_sistema():
             df_estoque['Bloco_Sort'] = df_estoque['Identificador'].apply(lambda x: extrair_dados_unid(x, 'bloco'))
             df_estoque['Apto_Sort'] = df_estoque['Identificador'].apply(lambda x: extrair_dados_unid(x, 'apto'))
             
-            # Garante colunas de string
-            if 'Empreendimento' in df_estoque.columns:
-                df_estoque['Empreendimento'] = df_estoque['Empreendimento'].astype(str).str.strip()
-            if 'Bairro' in df_estoque.columns:
-                df_estoque['Bairro'] = df_estoque['Bairro'].astype(str).str.strip()
+            df_estoque['Empreendimento'] = df_estoque['Empreendimento'].astype(str).str.strip()
+            df_estoque['Bairro'] = df_estoque['Bairro'].astype(str).str.strip()
                          
         except: 
-            # FIX KEYERROR: Ensure df_estoque has correct columns even on crash
             df_estoque = pd.DataFrame(columns=['Empreendimento', 'Valor de Venda', 'Status', 'Identificador', 'Bairro', 'Valor de Avaliação Bancária'])
 
         return df_finan, df_estoque, df_politicas, df_logins, df_cadastros
@@ -1257,7 +1247,14 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
                 """, unsafe_allow_html=True)
                 
                 if 'lat' in produtos[i] and 'lon' in produtos[i]:
-                    st.map(pd.DataFrame({'lat': [produtos[i]['lat']], 'lon': [produtos[i]['lon']]}))
+                     # Folium map
+                     m = folium.Map(location=[produtos[i]['lat'], produtos[i]['lon']], zoom_start=15)
+                     folium.Marker(
+                        [produtos[i]['lat'], produtos[i]['lon']], 
+                        popup=produtos[i]['nome'], 
+                        tooltip=produtos[i]['nome']
+                     ).add_to(m)
+                     st_folium(m, height=300, width=None)
         
         st.markdown("<br><br>", unsafe_allow_html=True)
 
