@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 =============================================================================
-SISTEMA DE SIMULAÇÃO IMOBILIÁRIA - DIRE RIO V67 (FINAL - SEM EMOJIS - GALERIA PRO)
+SISTEMA DE SIMULAÇÃO IMOBILIÁRIA - DIRE RIO V68 (FIX HTML - MAPA FOLIUM - JERIVA VIDEO)
 =============================================================================
 """
 
@@ -22,6 +22,8 @@ from email.mime.application import MIMEApplication
 import os
 import pytz
 import altair as alt
+import folium
+from streamlit_folium import st_folium
 
 # Tenta importar fpdf e PIL
 try:
@@ -229,7 +231,8 @@ CATALOGO_PRODUTOS = {
         ]
     },
     "RESIDENCIAL JERIVÁ": {
-        "video": None, "lat": -22.8944, "lon": -43.5575,
+        "video": "https://www.youtube.com/watch?v=GdEvqLVXeFw",
+        "lat": -22.8944, "lon": -43.5575,
         "imagens": [
             {"nome": "Fachada", "link": "https://drive.google.com/file/d/1nzOHc7-n7gZDAFSbdNwDXgnQAJNouRPU/view?usp=drivesdk"},
             {"nome": "Piscina", "link": "https://drive.google.com/file/d/1R-TYH7oauG_qSFGTZbFzHjSaPkRcCEHC/view?usp=drivesdk"},
@@ -1584,9 +1587,17 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
                             
                     with col_map:
                         if meta.get("lat") and meta.get("lon"):
-                            # Mapa simples usando st.map (requer lat/lon)
-                            df_map = pd.DataFrame({'lat': [meta['lat']], 'lon': [meta['lon']]})
-                            st.map(df_map, zoom=14)
+                            # Mapa Folium com OpenStreetMap (Mostra ruas e referências)
+                            m = folium.Map(location=[meta['lat'], meta['lon']], zoom_start=15, tiles="OpenStreetMap")
+                            folium.Marker(
+                                [meta['lat'], meta['lon']], 
+                                popup=prod_key, 
+                                tooltip=prod_key,
+                                icon=folium.Icon(color="red", icon="home")
+                            ).add_to(m)
+                            
+                            # Renderiza o mapa com altura fixa para alinhar com o vídeo
+                            st_folium(m, height=360, use_container_width=True)
                         else:
                             st.info("Mapa indisponível.")
                     
@@ -1618,11 +1629,8 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
                         slider_html = '<div class="scrolling-images">'
                         for img in categorias["IMAGENS ILUSTRATIVAS"]:
                             link_thumb = formatar_link_drive(img['link'])
-                            slider_html += f'''
-                            <a href="{img['link']}" target="_blank">
-                                <img src="{link_thumb}" alt="{img['nome']}" title="{img['nome']}">
-                            </a>
-                            '''
+                            # HTML plano para evitar problemas de indentação do Python
+                            slider_html += f'<a href="{img["link"]}" target="_blank"><img src="{link_thumb}" alt="{img["nome"]}" title="{img["nome"]}"></a>'
                         slider_html += '</div>'
                         st.markdown(slider_html, unsafe_allow_html=True)
                         st.markdown("<br>", unsafe_allow_html=True)
@@ -1633,11 +1641,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
                         slider_html = '<div class="scrolling-images">'
                         for img in categorias["PLANTAS"]:
                             link_thumb = formatar_link_drive(img['link'])
-                            slider_html += f'''
-                            <a href="{img['link']}" target="_blank">
-                                <img src="{link_thumb}" alt="{img['nome']}" title="{img['nome']}">
-                            </a>
-                            '''
+                            slider_html += f'<a href="{img["link"]}" target="_blank"><img src="{link_thumb}" alt="{img["nome"]}" title="{img["nome"]}"></a>'
                         slider_html += '</div>'
                         st.markdown(slider_html, unsafe_allow_html=True)
                         st.markdown("<br>", unsafe_allow_html=True)
@@ -1648,7 +1652,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
                     if link_ficha:
                         c1, c2, c3 = st.columns([1, 2, 1])
                         with c2:
-                            st.link_button("📄 BAIXAR FICHA TÉCNICA", link_ficha, use_container_width=True)
+                            st.link_button("BAIXAR FICHA TÉCNICA", link_ficha, use_container_width=True)
 
     # --- ABA ANALYTICS (SECURE TAB - ALTAIR) ---
     elif passo == 'client_analytics':
@@ -1850,19 +1854,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
                          label = card['label']
                          css_badge = card['css']
                          
-                         cards_html += f"""
-                         <div class="card-item">
-                            <div class="recommendation-card" style="border-top: 4px solid {COR_AZUL_ESC}; height: 100%; justify-content: flex-start;">
-                                <span style="font-size:0.65rem; color:{COR_AZUL_ESC}; opacity:0.8;">PERFIL</span><br>
-                                <div style="margin-top:5px; margin-bottom:15px;"><span class="{css_badge}">{label}</span></div>
-                                <b style="color:{COR_AZUL_ESC}; font-size:1.1rem;">{emp_name}</b><br>
-                                <div style="font-size:0.85rem; color:{COR_TEXTO_MUTED}; text-align:center; border-top:1px solid #eee; padding-top:10px; width:100%;">
-                                    <b>Unidade: {unid_name}</b>
-                                </div>
-                                <div class="price-tag" style="font-size:1.4rem; margin:10px 0;">R$ {val_fmt}</div>
-                            </div>
-                         </div>
-                         """
+                         cards_html += f"""<div class="card-item"><div class="recommendation-card" style="border-top: 4px solid {COR_AZUL_ESC}; height: 100%; justify-content: flex-start;"><span style="font-size:0.65rem; color:{COR_AZUL_ESC}; opacity:0.8;">PERFIL</span><br><div style="margin-top:5px; margin-bottom:15px;"><span class="{css_badge}">{label}</span></div><b style="color:{COR_AZUL_ESC}; font-size:1.1rem;">{emp_name}</b><br><div style="font-size:0.85rem; color:{COR_TEXTO_MUTED}; text-align:center; border-top:1px solid #eee; padding-top:10px; width:100%;"><b>Unidade: {unid_name}</b></div><div class="price-tag" style="font-size:1.4rem; margin:10px 0;">R$ {val_fmt}</div></div></div>"""
                     cards_html += "</div>"
                     
                     # Renderiza o HTML corrigido
@@ -2125,19 +2117,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
                          label = card['label']
                          css_badge = card['css']
                          
-                         cards_html += f"""
-                         <div class="card-item">
-                            <div class="recommendation-card" style="border-top: 4px solid {COR_AZUL_ESC}; height: 100%; justify-content: flex-start;">
-                                <span style="font-size:0.65rem; color:{COR_AZUL_ESC}; opacity:0.8;">PERFIL</span><br>
-                                <div style="margin-top:5px; margin-bottom:15px;"><span class="{css_badge}">{label}</span></div>
-                                <b style="color:{COR_AZUL_ESC}; font-size:1.1rem;">{emp_name}</b><br>
-                                <div style="font-size:0.85rem; color:{COR_TEXTO_MUTED}; text-align:center; border-top:1px solid #eee; padding-top:10px; width:100%;">
-                                    <b>Unidade: {unid_name}</b>
-                                </div>
-                                <div class="price-tag" style="font-size:1.4rem; margin:10px 0;">R$ {val_fmt}</div>
-                            </div>
-                         </div>
-                         """
+                         cards_html += f"""<div class="card-item"><div class="recommendation-card" style="border-top: 4px solid {COR_AZUL_ESC}; height: 100%; justify-content: flex-start;"><span style="font-size:0.65rem; color:{COR_AZUL_ESC}; opacity:0.8;">PERFIL</span><br><div style="margin-top:5px; margin-bottom:15px;"><span class="{css_badge}">{label}</span></div><b style="color:{COR_AZUL_ESC}; font-size:1.1rem;">{emp_name}</b><br><div style="font-size:0.85rem; color:{COR_TEXTO_MUTED}; text-align:center; border-top:1px solid #eee; padding-top:10px; width:100%;"><b>Unidade: {unid_name}</b></div><div class="price-tag" style="font-size:1.4rem; margin:10px 0;">R$ {val_fmt}</div></div></div>"""
                     cards_html += "</div>"
                     
                     # Renderiza o HTML corrigido
