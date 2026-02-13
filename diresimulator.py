@@ -1,15 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 =============================================================================
-SISTEMA DE SIMULAÇÃO IMOBILIÁRIA - DIRE RIO V63 (HTML EMAIL & FULL PROJECTION)
-=============================================================================
-Instruções para Google Colab:
-1. Crie um arquivo chamado 'app.py' com este conteúdo.
-2. Instale as dependências:
-   !pip install streamlit pandas numpy fpdf streamlit-gsheets pytz altair folium streamlit-folium
-3. Configure os segredos (.streamlit/secrets.toml) para o envio de email.
-4. Rode o app:
-   !streamlit run app.py & npx localtunnel --port 8501
+SISTEMA DE SIMULAÇÃO IMOBILIÁRIA - DIRE RIO V64 (GALERIA FULL & PROJEÇÃO CORRIGIDA)
 =============================================================================
 """
 
@@ -18,7 +10,6 @@ import pandas as pd
 import numpy as np
 import re
 from streamlit_gsheets import GSheetsConnection
-import io
 import streamlit.components.v1 as components
 import base64
 from datetime import datetime, date
@@ -31,8 +22,6 @@ from email.mime.application import MIMEApplication
 import os
 import pytz
 import altair as alt
-import folium
-from streamlit_folium import st_folium
 
 # Tenta importar fpdf e PIL
 try:
@@ -75,6 +64,217 @@ COR_FUNDO = "#fcfdfe"
 COR_BORDA = "#eef2f6"
 COR_TEXTO_MUTED = "#64748b"
 COR_INPUT_BG = "#f0f2f6"
+
+# --- BANCO DE DADOS DE IMAGENS (CARREGADO DA LISTA FORNECIDA) ---
+# Organizado por 'Chave Normalizada' -> Lista de dicts
+DB_IMAGENS = {
+    "CONQUISTA FLORIANÓPOLIS": [
+        {"nome": "APARTAMENTO GARDEN", "link": "https://drive.google.com/file/d/1u2pc7a6P4DOPYp69RN0icmOZoTFriuKt/view?usp=drivesdk"},
+        {"nome": "ECOPONTO", "link": "https://drive.google.com/file/d/1EAW5m9BZaf4U_yjJ9wHn-TDViiwB4XS3/view?usp=drivesdk"},
+        {"nome": "ESPAÇO FOOD TRUCK", "link": "https://drive.google.com/file/d/1eF0FuAzzFOd9jvkKq-twI3Y1cfpkk2Xy/view?usp=drivesdk"},
+        {"nome": "ESPAÇO FRESH", "link": "https://drive.google.com/file/d/1JC1rRduoVxz9MqFNaGOCcdBMjDXz-wHr/view?usp=drivesdk"},
+        {"nome": "ESTAÇÃO DE BIKE", "link": "https://drive.google.com/file/d/16AmatvtTrgOqJxmsmU-LuhzaSV9dLWIl/view?usp=drivesdk"},
+        {"nome": "FACHADA", "link": "https://drive.google.com/file/d/1FtNq9m06iZ3ZAce1Eu8GXYeaUDhBSiV8/view?usp=drivesdk"},
+        {"nome": "FITNESS EXTERNO", "link": "https://drive.google.com/file/d/1pY9CikHmAqYwxBYj5ohLmqNC0S_fzXKu/view?usp=drivesdk"},
+        {"nome": "GUARITA", "link": "https://drive.google.com/file/d/1lMWl5-1OpjYKDLmX38Du9OQeYmUT-CwC/view?usp=drivesdk"},
+        {"nome": "MINIQUADRA", "link": "https://drive.google.com/file/d/1azu-bh1Ew2dUL1OJe5iHEva7ZxO120GJ/view?usp=drivesdk"},
+        {"nome": "PISCINA ADULTO", "link": "https://drive.google.com/file/d/1ud4Vk3oD2Gmcc9eOEMW-rn-2mIr1zGON/view?usp=drivesdk"},
+        {"nome": "PISCINA INFANTIL", "link": "https://drive.google.com/file/d/18AymHsaQsCwG4_oIN4CO04_ibINqxv1K/view?usp=drivesdk"},
+        {"nome": "PLAYGROUND", "link": "https://drive.google.com/file/d/187TeBEzv2qbJQfbU8m30g7BDbs5kPYx8/view?usp=drivesdk"},
+        {"nome": "PRAÇA DE JOGOS", "link": "https://drive.google.com/file/d/1mcn6Iin1wJLjrq2ar45rfGE-PrnLJv99/view?usp=drivesdk"},
+        {"nome": "SALÃO DE FESTAS", "link": "https://drive.google.com/file/d/1dTFFbyexiIJCk1k4-catyJ_dynvPj7Vj/view?usp=drivesdk"},
+        {"nome": "VARANDA SALÃO FESTAS", "link": "https://drive.google.com/file/d/1OVLyioawd2ZOEqs1-LXjZVzxtWsgfz0p/view?usp=drivesdk"},
+        {"nome": "LOGO", "link": "https://drive.google.com/file/d/10SnxAKf66taxwC9upxQXR_dd4OGUP9_l/view?usp=drivesdk"},
+        {"nome": "MAPA", "link": "https://drive.google.com/file/d/1QzBH8YOd2Ui8WD2Xxh3vBbhd7-x5uFwk/view?usp=drivesdk"},
+        {"nome": "PLANTA GARDEN MEIO 02", "link": "https://drive.google.com/file/d/13fzvOhPY8uVlBhmbhCQrAnEbse4wv7MY/view?usp=drivesdk"},
+        {"nome": "PLANTA GARDEN PCD", "link": "https://drive.google.com/file/d/1GaaTfbEDfJsqDpixUoKo_KG75MXofKV3/view?usp=drivesdk"},
+        {"nome": "PLANTA GARDEN PONTA 03", "link": "https://drive.google.com/file/d/1Dt6UH9_6yLMRE1toa_kWXvs710dWH65B/view?usp=drivesdk"},
+        {"nome": "PLANTA STUDIO", "link": "https://drive.google.com/file/d/1M7dmZ1iN7-VI2tP9E0OoStWVOMnglSpx/view?usp=drivesdk"},
+        {"nome": "PLANTA TIPO MEIO 01", "link": "https://drive.google.com/file/d/1b4QxziB56rrcxMpgVMMNHN0XnPoKelFP/view?usp=drivesdk"},
+        {"nome": "PLANTA TIPO MEIO 02", "link": "https://drive.google.com/file/d/1qhA_80UUuNovK3tYntxG5OOKL_SMFzAH/view?usp=drivesdk"},
+        {"nome": "PLANTA TIPO PONTA 03", "link": "https://drive.google.com/file/d/17KZgUixZhc5KQigtRQ_XYDMltIlAO4qO/view?usp=drivesdk"},
+        {"nome": "MASTERPLAN BOLOTARIO", "link": "https://drive.google.com/file/d/1PwFNrbQ2mNhREJj7LKkdFkXLP235M8ac/view?usp=drivesdk"},
+        {"nome": "MASTERPLAN", "link": "https://drive.google.com/file/d/1fR7GFbh9a-J3o3hv21bBbxudiW5-I6pe/view?usp=drivesdk"},
+        {"nome": "FICHA TÉCNICA A4", "link": "https://drive.google.com/file/d/1u5KoeItcTYVgAfkk5UjqrI83lSjt0i2u/view?usp=drivesdk"},
+    ],
+    "ITANHANGÁ GREEN": [
+        {"nome": "FOTOMONTAGEM", "link": "https://drive.google.com/file/d/1gKtVpTTClevFIzJfGOePUz-Z87e8cBAL/view?usp=drivesdk"},
+        {"nome": "LOGO", "link": "https://drive.google.com/file/d/1AmJAz-JI1Wux-hOLQw68czhrZoo3ps8A/view?usp=drivesdk"},
+        {"nome": "MASTERPLAN", "link": "https://drive.google.com/file/d/1NXXcLhPiiZiquei9QH8_QM1M19tpXVp8/view?usp=drivesdk"},
+        {"nome": "PLANTA GARDEN MEIO", "link": "https://drive.google.com/file/d/1etHATpKkP0ctj7H3uhFXHrAfB7xqpai3/view?usp=drivesdk"},
+        {"nome": "PLANTA GARDEN PONTA", "link": "https://drive.google.com/file/d/1nmogEVQHYPJC1sHp9wquxc81hNJfu0Zi/view?usp=drivesdk"},
+        {"nome": "PLANTA MEIO", "link": "https://drive.google.com/file/d/1_v9Vy03-j5U9lppXubsWtAib4DEAiUCz/view?usp=drivesdk"},
+        {"nome": "PLANTA PCD", "link": "https://drive.google.com/file/d/1V-feFn6dWKivJ7WvMNxSPLbCo3HdXTaL/view?usp=drivesdk"},
+        {"nome": "PLANTA PONTA", "link": "https://drive.google.com/file/d/1rnfT0MNAKTCHX2rkpniGll9-G_489OVi/view?usp=drivesdk"},
+        {"nome": "PLANTA STUDIO", "link": "https://drive.google.com/file/d/1vZc-dW13lckQ-b-TsT1VLmhe4t1O_EWX/view?usp=drivesdk"},
+        {"nome": "MAPA", "link": "https://drive.google.com/file/d/1vn8fV_pDy-kGxZpuc_MkjSTCNhl3NNPF/view?usp=drivesdk"},
+        {"nome": "BICICLETARIO", "link": "https://drive.google.com/file/d/1QYxfWwlis4Omcky5TB1j2oSvjD5elpYg/view?usp=drivesdk"},
+        {"nome": "CAR WASH", "link": "https://drive.google.com/file/d/1pmz5PJoXoU3A0EFZF1xRIkB1U9odOoe0/view?usp=drivesdk"},
+        {"nome": "CHURRASQUEIRA", "link": "https://drive.google.com/file/d/1I6VD-zP_joJ6Bri8qSnPDbUyRMjIICeV/view?usp=drivesdk"},
+        {"nome": "ESPAÇO PET", "link": "https://drive.google.com/file/d/1suhAdw_X9yM1CYhe2vtC3WVQIaOXHjf9/view?usp=drivesdk"},
+        {"nome": "FACHADA", "link": "https://drive.google.com/file/d/1PvfgCc1O6NfPsNpGxjzChduroYoCQGsF/view?usp=drivesdk"},
+        {"nome": "FITNESS EXTERNO", "link": "https://drive.google.com/file/d/19v8SgZLjTCPqTxiX6F6no7j_tySaQT-6/view?usp=drivesdk"},
+        {"nome": "GUARITA", "link": "https://drive.google.com/file/d/1C6mF2DS_X1QCYkhfYzCSmd0Ror_S4m3x/view?usp=drivesdk"},
+        {"nome": "PISCINA ADULTO", "link": "https://drive.google.com/file/d/1tB0lFoYSDuL8pVj8_eArd8edYJ7a-Zd-/view?usp=drivesdk"},
+        {"nome": "PISCINA INFANTIL", "link": "https://drive.google.com/file/d/1Sjl1e9eDDfw6dhpxnRQafMmLfRZTsJri/view?usp=drivesdk"},
+        {"nome": "PLAYGROUND", "link": "https://drive.google.com/file/d/1_WWAQE_286TpbaNizsQVwCjMamahuOft/view?usp=drivesdk"},
+        {"nome": "PRAÇA DO ENCONTRO", "link": "https://drive.google.com/file/d/1bYOSQwpGeCf7zhNdJcewrgdYXiCBUT5J/view?usp=drivesdk"},
+        {"nome": "SALÃO DE FESTAS", "link": "https://drive.google.com/file/d/124HX2LthZRYI_FeMvZ9T-6WBVK-M94TT/view?usp=drivesdk"},
+        {"nome": "FICHA TÉCNICA", "link": "https://drive.google.com/file/d/18OdrnhrmHmvv2mu_MskLflGCMBgJQC2r/view?usp=drivesdk"},
+    ],
+    "MAX NORTE": [
+        {"nome": "APARTAMENTO TIPO", "link": "https://drive.google.com/file/d/1BQXjmuE_EU1WtPpoqhRsQzrHdBKkuY9a/view?usp=drivesdk"},
+        {"nome": "BICICLETÁRIO", "link": "https://drive.google.com/file/d/1-AhNGztSx8_bLmQBp1T8LqvM6_BE3IP8/view?usp=drivesdk"},
+        {"nome": "BRINQUEDOTECA", "link": "https://drive.google.com/file/d/163IZnUwo0k0DGx3JtApOp4Au-xg5Mvgr/view?usp=drivesdk"},
+        {"nome": "CHURRASQUEIRA", "link": "https://drive.google.com/file/d/1NBZQzXswKflf5hit8zlAcJ66U3wShMz8/view?usp=drivesdk"},
+        {"nome": "ESPAÇO GAME", "link": "https://drive.google.com/file/d/1qssadgFRCieKz7RRmFR6oJTW3KGukhFS/view?usp=drivesdk"},
+        {"nome": "FACHADA", "link": "https://drive.google.com/file/d/1AVdsT4MXMcH81K_EFUS2kgSU9luS6oCg/view?usp=drivesdk"},
+        {"nome": "FITNESS EXTERNO", "link": "https://drive.google.com/file/d/1iomISQsSdzWzQvgvji0k-snKYLQhOKlu/view?usp=drivesdk"},
+        {"nome": "GUARITA", "link": "https://drive.google.com/file/d/1KFpxyD0eTgXAJ_Te6b0Jl41s8d0S0Dmk/view?usp=drivesdk"},
+        {"nome": "PISCINA", "link": "https://drive.google.com/file/d/1SECUIdrQC62v1Q4J7Rgwlh257PGcfyIB/view?usp=drivesdk"},
+        {"nome": "PLAYGROUND", "link": "https://drive.google.com/file/d/1d_33bONdid1qZgwTMieCUQsQ_QX0e5H6/view?usp=drivesdk"},
+        {"nome": "SALÃO GOURMET", "link": "https://drive.google.com/file/d/1U_J6KqdChx3dTFwdPSm-EQHyrKUk4nbe/view?usp=drivesdk"},
+        {"nome": "LOGO", "link": "https://drive.google.com/file/d/169fdWpenaMlKkOC-tKIx9ixMfJi45MP_/view?usp=drivesdk"},
+        {"nome": "MAPA", "link": "https://drive.google.com/file/d/1UCgXw040G2-n-CvsaP7wlaqoYubtjETL/view?usp=drivesdk"},
+        {"nome": "PLANTA TIPO MEIO", "link": "https://drive.google.com/file/d/1a9f7v6YFbpOhczb7nG_JeGtcgsXi0Fv7/view?usp=drivesdk"},
+        {"nome": "PLANTA TIPO PONTA", "link": "https://drive.google.com/file/d/11fP8L0Rvcb4yZaflySTXsz707aKjnh19/view?usp=drivesdk"},
+        {"nome": "MASTERPLAN", "link": "https://drive.google.com/file/d/1s4WwrmqiPxBTq3McM6dae4mauGw3PpI5/view?usp=drivesdk"},
+    ],
+    "NORTE CLUBE": [
+        {"nome": "LOGO", "link": "https://drive.google.com/file/d/1GTusa0YgpPJEQNR07bbFqKNniH702IX4/view?usp=drivesdk"},
+        {"nome": "MAPA", "link": "https://drive.google.com/file/d/1-CpzYMVBibHDrkZel8Q5A3SyS1ODdaDp/view?usp=drivesdk"},
+        {"nome": "BICICLETÁRIO", "link": "https://drive.google.com/file/d/1tJ-VO3htAiDNdRBw7Qv_dFShiI7zQ4Cp/view?usp=drivesdk"},
+        {"nome": "CHURRASQUEIRA", "link": "https://drive.google.com/file/d/1HzPkgQPNjM1Ii8_nDu58DsZuJ2qMcYt-/view?usp=drivesdk"},
+        {"nome": "ESPAÇO FRESH", "link": "https://drive.google.com/file/d/1c6OoFOqZZ5OcbbOJ4R3hnD0nbcYrEYc9/view?usp=drivesdk"},
+        {"nome": "ESPAÇO PET", "link": "https://drive.google.com/file/d/1MCAQWCEZ6-KUECf3wWBwnLEJfd6C9Swc/view?usp=drivesdk"},
+        {"nome": "FACHADA", "link": "https://drive.google.com/file/d/1CdMMB44Em88E4dmaNyq-YJe4eEX53NEE/view?usp=drivesdk"},
+        {"nome": "PISCINA", "link": "https://drive.google.com/file/d/1khrmZKSMV5uhh68tvdE10iM28yxvGBMK/view?usp=drivesdk"},
+        {"nome": "PLAYGROUND", "link": "https://drive.google.com/file/d/1EKaLDk6GTJcIbY7VNVXnnurGqxTmhdxi/view?usp=drivesdk"},
+        {"nome": "QUADRA", "link": "https://drive.google.com/file/d/1j-n1kjGXcOzc2cUDl8yYA7drkXNZBrZK/view?usp=drivesdk"},
+        {"nome": "SALÃO DE FESTAS", "link": "https://drive.google.com/file/d/1IpwQYtIKde8EoOoDPGVGwoRmQ73b0ht8/view?usp=drivesdk"},
+        {"nome": "PLANTA GARDEN", "link": "https://drive.google.com/file/d/1ZL0l-x6ZnLLTFx_DZw7IIi3YeLkumlw3/view?usp=drivesdk"},
+        {"nome": "PLANTA TIPO", "link": "https://drive.google.com/file/d/1AQc25GcW2-YCBNUIlcRMBVnjFAL1oSuQ/view?usp=drivesdk"},
+        {"nome": "FICHA TÉCNICA", "link": "https://drive.google.com/file/d/1DMmjq6Mu785xMfuUq0DFcAnLV1LpnW4Z/view?usp=drivesdk"},
+    ],
+    "CONQUISTA OCEÂNICA": [
+        {"nome": "FACHADA", "link": "https://drive.google.com/file/d/1hIsxtMe-5NyiIIy7nXxFNcndCamuX1pu/view?usp=drivesdk"},
+        {"nome": "PISCINA", "link": "https://drive.google.com/file/d/1Q488b06oCll4iwU5l_BgVJEEn4uVneho/view?usp=drivesdk"},
+        {"nome": "PLAYGROUND", "link": "https://drive.google.com/file/d/1zQyrd4ZYb45bw76z7cajjZkiHjJnubbY/view?usp=drivesdk"},
+        {"nome": "CHURRASQUEIRA", "link": "https://drive.google.com/file/d/1bul3SWnG3JmfEKaru8ZPrXI5BgV2M04H/view?usp=drivesdk"},
+        {"nome": "SALÃO DE FESTAS", "link": "https://drive.google.com/file/d/147z9BlYfjqEMc1yvHuosVHLEKATBSvjd/view?usp=drivesdk"},
+        {"nome": "QUADRA", "link": "https://drive.google.com/file/d/1XgLY747ha7z8WlHexhnvANnScYlF4ZMc/view?usp=drivesdk"},
+        {"nome": "MAPA", "link": "https://drive.google.com/file/d/1lSgBbuBzyntIYk4xNHm4sbAsARl_SQur/view?usp=drivesdk"},
+        {"nome": "PLANTA TIPO", "link": "https://drive.google.com/file/d/14RsOJBM6jYDF4KumRCz1sCzj3Aix-UjT/view?usp=drivesdk"},
+        {"nome": "PLANTA GARDEN", "link": "https://drive.google.com/file/d/1BdldmlPt_97aAfcl_7YMp5uy7WJgs10U/view?usp=drivesdk"},
+        {"nome": "FICHA TÉCNICA", "link": "https://drive.google.com/file/d/1vD4q4gkD31Nm4qL4pHs3zLytUq3MFfii/view?usp=drivesdk"},
+    ],
+    "PARQUE IGUAÇU": [
+        {"nome": "FACHADA", "link": "https://drive.google.com/file/d/1mdp1DBxGd7WpG-1BB67BDLHlJ_EAtj0V/view?usp=drivesdk"},
+        {"nome": "PISCINA", "link": "https://drive.google.com/file/d/1TTTiFl605kS0LiztlzXfvn1hRj_X4_Fc/view?usp=drivesdk"},
+        {"nome": "PLAYGROUND", "link": "https://drive.google.com/file/d/1jqjS025JccXTkMOP2QXBKAAc-4vKF5SN/view?usp=drivesdk"},
+        {"nome": "QUADRA", "link": "https://drive.google.com/file/d/1IeJj0P9ouqnE_l-rDnQ9FlvVH0ltyWO9/view?usp=drivesdk"},
+        {"nome": "CHURRASQUEIRA", "link": "https://drive.google.com/file/d/1d1vxr_-Nb5A7iyLc_Mn7FqCwBUxwO3oZ/view?usp=drivesdk"},
+        {"nome": "SALÃO DE FESTAS", "link": "https://drive.google.com/file/d/1UJlpQm5rJqaZrF5DGgTmW8ygNLWpsp2y/view?usp=drivesdk"},
+        {"nome": "MAPA", "link": "https://drive.google.com/file/d/1jZFq0A6TE3kPtgqUQlRhE7je6diEnMHK/view?usp=drivesdk"},
+        {"nome": "PLANTA TIPO", "link": "https://drive.google.com/file/d/1FiSP0QP2EBRRWlYGsgd4ZkyLiqEWn5CG/view?usp=drivesdk"},
+        {"nome": "PLANTA GARDEN", "link": "https://drive.google.com/file/d/1uVoJkhPvylOMFRcJlR1bsfvBUAVwVVlv/view?usp=drivesdk"},
+        {"nome": "FICHA TÉCNICA", "link": "https://drive.google.com/file/d/1m529O3c6pEz3sD3-Vba1BAUJKzj9XOxg/view?usp=drivesdk"},
+    ],
+    "SOUL SAMBA": [
+        {"nome": "FACHADA", "link": "https://drive.google.com/file/d/1Iv-887JKrY-h6wSktD_SXjeLZM28n4-Y/view?usp=drivesdk"},
+        {"nome": "PISCINA", "link": "https://drive.google.com/file/d/14JNb9eQJLCbBkaIEExDmf9dH6yP3vKKA/view?usp=drivesdk"},
+        {"nome": "PLAYGROUND", "link": "https://drive.google.com/file/d/16FjIZzAVVXouhm8eEwjDbArC8XsX2552/view?usp=drivesdk"},
+        {"nome": "SALÃO DE FESTAS", "link": "https://drive.google.com/file/d/1wJszyTa-w1N6pczz2UJx6xi5zlDMhSeU/view?usp=drivesdk"},
+        {"nome": "CHURRASQUEIRA", "link": "https://drive.google.com/file/d/1VTsMsdId6uA-ib7rv8AT73GfvhO4gY2d/view?usp=drivesdk"},
+        {"nome": "LOGO", "link": "https://drive.google.com/file/d/1QplgUDRBIxCriBG8YV5anE5zfM7Mv6XL/view?usp=drivesdk"},
+        {"nome": "MAPA", "link": "https://drive.google.com/file/d/1jtWMARPk_E-yK5Xc0_PCFgGM-PLz3BVG/view?usp=drivesdk"},
+        {"nome": "PLANTA TIPO PONTA", "link": "https://drive.google.com/file/d/1KrhKXiA8DYDENH-Q7Kq4nQbyJkDd1eq2/view?usp=drivesdk"},
+        {"nome": "PLANTA TIPO MEIO", "link": "https://drive.google.com/file/d/14RtGmEXYyFNkI33WMRD_NFD2M3OdOwj7/view?usp=drivesdk"},
+        {"nome": "FICHA TÉCNICA", "link": "https://drive.google.com/file/d/1-hI2guSTSTHiynWe3QpC-CcXeuf2IhTs/view?usp=drivesdk"},
+    ],
+    "VERT ALCÂNTARA": [
+        {"nome": "FACHADA", "link": "https://drive.google.com/file/d/1Hk_xywnFmA68J0lcuM6h9qK3GKgFT7Yt/view?usp=drivesdk"},
+        {"nome": "PISCINA", "link": "https://drive.google.com/file/d/1pDm2u3z3pKqqqzMkYb93LIceScYzDFs_/view?usp=drivesdk"},
+        {"nome": "COWORKING", "link": "https://drive.google.com/file/d/1XiffjmMTws-9ciqEhh6FiRI3MYSSROnh/view?usp=drivesdk"},
+        {"nome": "SALA DE JOGOS", "link": "https://drive.google.com/file/d/1hdENx08aVZBQP-df_l2fZOQ4FQF984DL/view?usp=drivesdk"},
+        {"nome": "PLANTA TIPO MEIO", "link": "https://drive.google.com/file/d/1D_zDCDaQVvK4DBc9UtURZSptGKZsvgb8/view?usp=drivesdk"},
+        {"nome": "PLANTA GARDEN", "link": "https://drive.google.com/file/d/1C2x7nZoKAJ7DNqsqxIai4wFOW032sTqi/view?usp=drivesdk"},
+        {"nome": "LOGO", "link": "https://drive.google.com/file/d/1xUfi2tZyUdNcr3mbhjcy5wvmfYk9585v/view?usp=drivesdk"},
+    ],
+    "INN BARRA OLÍMPICA": [
+        {"nome": "FACHADA", "link": "https://drive.google.com/file/d/1ScG09d2xcPblZKQJYlssw-AMSOLmx6qO/view?usp=drivesdk"},
+        {"nome": "PISCINA", "link": "https://drive.google.com/file/d/1cYMq0jujtHC_DPUXrNpRf4jYN_83ntiK/view?usp=drivesdk"},
+        {"nome": "PLAYGROUND", "link": "https://drive.google.com/file/d/1gaORQ2t3vur097TWHrGL_fF3oqSt6REu/view?usp=drivesdk"},
+        {"nome": "SALÃO DE FESTAS", "link": "https://drive.google.com/file/d/1jYIt95E4_k0HhCpTCn7lBEM91G_VJLTF/view?usp=drivesdk"},
+        {"nome": "MAPA", "link": "https://drive.google.com/file/d/1ZVYavF8RzwA2GzUFTYiJPOoJApfd3_zP/view?usp=drivesdk"},
+        {"nome": "PLANTA TIPO", "link": "https://drive.google.com/file/d/1t-ZAfSHeyYWUgJx-2q00LpU15QSjSinh/view?usp=drivesdk"},
+        {"nome": "FICHA TÉCNICA", "link": "https://drive.google.com/file/d/1CEykILUVyBfz0o73QFdjyIbvpof5P28w/view?usp=drivesdk"},
+    ],
+    "NOVA CAXIAS FUN": [
+        {"nome": "FACHADA", "link": "https://drive.google.com/file/d/17YwXWQPvTXWX0bx0sNq9lX8ZN6r3Q7_F/view?usp=drivesdk"},
+        {"nome": "PISCINA", "link": "https://drive.google.com/file/d/1jB16KnKTOdxFpj68OqOnnzlPl1ev1gyW/view?usp=drivesdk"},
+        {"nome": "PLAYGROUND", "link": "https://drive.google.com/file/d/1-OM3XVNlYgfo2az26feqDfoYCjUxn7-d/view?usp=drivesdk"},
+        {"nome": "SALÃO DE FESTAS", "link": "https://drive.google.com/file/d/1DBoZI2zVeycc3KnmKAhwFIK1GkMefb_X/view?usp=drivesdk"},
+        {"nome": "LOGO", "link": "https://drive.google.com/file/d/1KIhg-XBVDazHOXpgqdlemRn7Gx9-o3SI/view?usp=drivesdk"},
+        {"nome": "MAPA", "link": "https://drive.google.com/file/d/1GSv84vSq8beAnFp5JEk_4gF_bKU16ztV/view?usp=drivesdk"},
+        {"nome": "PLANTA TIPO", "link": "https://drive.google.com/file/d/1Te0683dB6MeOr_5JbXpEkhkb-Qcu_iBJ/view?usp=drivesdk"},
+        {"nome": "FICHA TÉCNICA", "link": "https://drive.google.com/file/d/14l-h7mPypMoAFq7inaT-azt1CaP_evqF/view?usp=drivesdk"},
+    ],
+    "NOVA CAXIAS UP": [
+        {"nome": "FACHADA", "link": "https://drive.google.com/file/d/12I_GnSQVtCp-rdnUu3mUh43fc4qG54Ke/view?usp=drivesdk"},
+        {"nome": "PISCINA", "link": "https://drive.google.com/file/d/1cGDJJN79thO85xEyz74TvqIh6h4vsuCl/view?usp=drivesdk"},
+        {"nome": "PLAYGROUND", "link": "https://drive.google.com/file/d/13qIgtrn55FD46nNMOYrr04r9JRvbTpZ0/view?usp=drivesdk"},
+        {"nome": "SALÃO DE FESTAS", "link": "https://drive.google.com/file/d/1_lJXmBx02NVA9pjWkR9DGDM6JQbQOkU8/view?usp=drivesdk"},
+        {"nome": "MAPA", "link": "https://drive.google.com/file/d/1aRuDs5cMImkObTs-8Zwpr6m4W0QewO6a/view?usp=drivesdk"},
+        {"nome": "PLANTA TIPO", "link": "https://drive.google.com/file/d/1FimZCNjC9Jy4ByW5n2-FOukEqoFGER87/view?usp=drivesdk"},
+        {"nome": "FICHA TÉCNICA", "link": "https://drive.google.com/file/d/1gvehESpzNk4rqhA-bUOW_9YOT8XpEsi1/view?usp=drivesdk"},
+    ],
+    "RESERVA DO SOL": [
+        {"nome": "FACHADA", "link": "https://drive.google.com/file/d/1-RFBc4sQ7Tbo6qwhP3GXZQy3m7_DtFcB/view?usp=drivesdk"},
+        {"nome": "PISCINA", "link": "https://drive.google.com/file/d/1HUqoUz1--CdmuZYd0DIvPhlyk9MnDt_O/view?usp=drivesdk"},
+        {"nome": "PLAYGROUND", "link": "https://drive.google.com/file/d/1BnEkT8v6OCRdhx624sJRMPfcMjJsU2Tb/view?usp=drivesdk"},
+        {"nome": "SALÃO DE FESTAS", "link": "https://drive.google.com/file/d/13xuG8_MJF_yM0Mt9Nnzft10mdGE4KbFn/view?usp=drivesdk"},
+        {"nome": "PLANTA MEIO", "link": "https://drive.google.com/file/d/11wX-XPBMHOAqpKZUuwwJpJ_GcsiRxU1c/view?usp=drivesdk"},
+        {"nome": "FICHA TÉCNICA", "link": "https://drive.google.com/file/d/1Cj-EuPHMF86pe7s0nw6XML2esCTd4Nqn/view?usp=drivesdk"},
+        {"nome": "LOGO", "link": "https://drive.google.com/file/d/16366IGl9iVJx5Y4PwHg8ZSjsa6aiGrvV/view?usp=drivesdk"},
+    ],
+    "RESIDENCIAL JERIVÁ": [
+        {"nome": "FACHADA", "link": "https://drive.google.com/file/d/1nzOHc7-n7gZDAFSbdNwDXgnQAJNouRPU/view?usp=drivesdk"},
+        {"nome": "PISCINA", "link": "https://drive.google.com/file/d/1R-TYH7oauG_qSFGTZbFzHjSaPkRcCEHC/view?usp=drivesdk"},
+        {"nome": "PLAYGROUND", "link": "https://drive.google.com/file/d/1m4AHz4E5id5O5r5bI1-5zckXK5pPZ43s/view?usp=drivesdk"},
+        {"nome": "SALÃO DE FESTAS", "link": "https://drive.google.com/file/d/12HxPpDvQeYhamousSPF976-7hb2WDbFc/view?usp=drivesdk"},
+        {"nome": "PLANTA TIPO", "link": "https://drive.google.com/file/d/1RnmcwKnMxy7jL5AbPUPFJToWV_O1PJV-/view?usp=drivesdk"},
+        {"nome": "FICHA TÉCNICA", "link": "https://drive.google.com/file/d/1i8X-05E1NWAOxAgSQ6K1aX70NDXUlIUN/view?usp=drivesdk"},
+        {"nome": "LOGO", "link": "https://drive.google.com/file/d/1TYDOHOrNzMEmIWkTy5j8Y2F6dCVBtCh7/view?usp=drivesdk"},
+    ],
+    "RESIDENCIAL LARANJEIRAS": [
+        {"nome": "FACHADA", "link": "https://drive.google.com/file/d/19Eq2qFk5fx8AnG-ooWq6SsGGmQKsIvvb/view?usp=drivesdk"},
+        {"nome": "PISCINA", "link": "https://drive.google.com/file/d/1v9zn2HdtjNWBKlrxAKFljUkCD7SHSupB/view?usp=drivesdk"},
+        {"nome": "PLAYGROUND", "link": "https://drive.google.com/file/d/1xVLehaJSdy1xvz6eELz3I8VtSPoQ8C-c/view?usp=drivesdk"},
+        {"nome": "SALÃO DE FESTAS", "link": "https://drive.google.com/file/d/1WItdv2DY59gu-yzW1RXPykdCU5i2mdb2/view?usp=drivesdk"},
+        {"nome": "PLANTA TIPO", "link": "https://drive.google.com/file/d/1noEQfz_FQ7w3s7oopg8FQwhvfUfccjuT/view?usp=drivesdk"},
+        {"nome": "LOGO", "link": "https://drive.google.com/file/d/13ccQtp8jExC9XsZafDFZfKDkCLkiK10B/view?usp=drivesdk"},
+    ],
+    "VIVA VIDA REALENGO": [
+        {"nome": "FACHADA", "link": "https://drive.google.com/file/d/1plxTT4MmRUP4xUl_300Rz7eFSH36uLFw/view?usp=drivesdk"},
+        {"nome": "PISCINA", "link": "https://drive.google.com/file/d/1PT-z4PFD_VUTtxrPKoXJJ-lOL9ud17FQ/view?usp=drivesdk"},
+        {"nome": "PLAYGROUND", "link": "https://drive.google.com/file/d/1j51NJUlnu7M4T1Bwax7UfmorEhv5dYu4/view?usp=drivesdk"},
+        {"nome": "MAPA", "link": "https://drive.google.com/file/d/11NdxfBdfZ63Srmg46nKVvsxFhMxY9-ee/view?usp=drivesdk"},
+        {"nome": "PLANTA TIPO", "link": "https://drive.google.com/file/d/17xl-SYLLtpyIxb82qkQAKHX1c4peLLcq/view?usp=drivesdk"},
+        {"nome": "FICHA TÉCNICA", "link": "https://drive.google.com/file/d/1-UfmBvETRRuvuq5R6rKA3Y_9s4xBzTc6/view?usp=drivesdk"},
+        {"nome": "LOGO", "link": "https://drive.google.com/file/d/1U3snwlV6X-lOJgazPNVvLwyW6u3vO_LM/view?usp=drivesdk"},
+    ],
+    "RECANTO CLUBE": [
+        {"nome": "FACHADA", "link": "https://drive.google.com/file/d/1pfvsC4S15n4HbtWeNp2crJcs0PcH5MRV/view?usp=drivesdk"},
+        {"nome": "PISCINA", "link": "https://drive.google.com/file/d/19SDMm-pzyxBfK_jTK4Z5gp2-aLlW_Lxj/view?usp=drivesdk"},
+        {"nome": "PLAYGROUND", "link": "https://drive.google.com/file/d/1aOW9ErNYvbdmVPeyCKYdWH1Z32joTliw/view?usp=drivesdk"},
+        {"nome": "SALÃO DE FESTAS", "link": "https://drive.google.com/file/d/1bI4pk6j63uWBMmQnz07cDTNrB3YFCrpS/view?usp=drivesdk"},
+        {"nome": "MAPA", "link": "https://drive.google.com/file/d/1CuxWqvyOFHzKKjThrQe9i4O6NGEF-xrH/view?usp=drivesdk"},
+        {"nome": "PLANTA TIPO", "link": "https://drive.google.com/file/d/1fOM-Ul_JZwjELDMkmwkHE_JN669V9-ob/view?usp=drivesdk"},
+        {"nome": "FICHA TÉCNICA", "link": "https://drive.google.com/file/d/1FT0IYF1VBWUX2iSxGqK7VuK-Z7sszSUK/view?usp=drivesdk"},
+        {"nome": "LOGO", "link": "https://drive.google.com/file/d/1QZVYf7L_69CX3VnC931frcQnJ8PIJEp8/view?usp=drivesdk"},
+    ]
+}
 
 def fmt_br(valor):
     try:
@@ -163,7 +363,7 @@ def calcular_parcela_financiamento(valor_financiado, meses, taxa_anual_pct, sist
         juros = valor_financiado * i_mensal
         return amortizacao + juros
 
-# Função Auxiliar para Projeção de Fluxo COMPLETA
+# Função Auxiliar para Projeção de Fluxo COMPLETA e CORRIGIDA
 def calcular_fluxo_pagamento_detalhado(valor_fin, meses_fin, taxa_anual, sistema, ps_mensal, meses_ps, atos_dict):
     i_mensal = (1 + taxa_anual/100)**(1/12) - 1
     fluxo = []
@@ -175,7 +375,15 @@ def calcular_fluxo_pagamento_detalhado(valor_fin, meses_fin, taxa_anual, sistema
         pmt_price = valor_fin * (i_mensal * (1 + i_mensal)**meses_fin) / ((1 + i_mensal)**meses_fin - 1)
 
     # Gera fluxo até o final do financiamento
-    # Assume Mês 1 como o primeiro mês de pagamento efetivo das parcelas mensais
+    # Assume Mês 1 como o primeiro mês de pagamento efetivo
+    # LÓGICA SOLICITADA:
+    # Mês 1: Parcela Fin + Parcela PS + Ato 0 (Imediato)
+    # Mês 2: Parcela Fin + Parcela PS + Ato 30
+    # Mês 3: Parcela Fin + Parcela PS + Ato 60
+    # Mês 4: Parcela Fin + Parcela PS + Ato 90
+    # Mês 5+: Parcela Fin + Parcela PS (até fim do PS)
+    # Pós PS: Apenas Parcela Fin
+
     for m in range(1, meses_fin + 1):
         if sistema == 'SAC':
             juros = saldo_devedor * i_mensal
@@ -190,28 +398,27 @@ def calcular_fluxo_pagamento_detalhado(valor_fin, meses_fin, taxa_anual, sistema
         # Parcela Pro Soluto
         parc_ps = ps_mensal if m <= meses_ps else 0
         
-        # Atos (Mês 1 = Ato/Entrada imediata já paga ou a pagar, Mês 2 = 30 dias, etc)
-        # Ajuste de lógica: 
-        # Mês 1 no gráfico -> Soma Ato (Imeadiato) se considerar fluxo de caixa do Mês 1? 
-        # Normalmente Ato é Mês 0. Mas para simplificar a visualização "Mensal":
-        # Mês 1: Parcela Finan + Parcela PS + Ato (Entrada)
-        # Mês 2: Parcela Finan + Parcela PS + Ato 30
-        # Mês 3: Parcela Finan + Parcela PS + Ato 60
-        # Mês 4: Parcela Finan + Parcela PS + Ato 90
-        
+        # Atos - Mapeamento direto por mês
         val_ato = 0.0
-        if m == 1: val_ato = atos_dict.get('ato_final', 0.0) # Ato Imediato
-        elif m == 2: val_ato = atos_dict.get('ato_30', 0.0)
-        elif m == 3: val_ato = atos_dict.get('ato_60', 0.0)
-        elif m == 4: val_ato = atos_dict.get('ato_90', 0.0)
+        tipo = 'Financiamento'
 
+        if m == 1:
+            val_ato = atos_dict.get('ato_final', 0.0) # Ato Imediato (Ato 0)
+            tipo = 'Finan + PS + Ato 0'
+        elif m == 2:
+            val_ato = atos_dict.get('ato_30', 0.0)
+            tipo = 'Finan + PS + Ato 30'
+        elif m == 3:
+            val_ato = atos_dict.get('ato_60', 0.0)
+            tipo = 'Finan + PS + Ato 60'
+        elif m == 4:
+            val_ato = atos_dict.get('ato_90', 0.0)
+            tipo = 'Finan + PS + Ato 90'
+        elif m <= meses_ps:
+            tipo = 'Finan + PS'
+        
         total = parc_fin + parc_ps + val_ato
         
-        # Determina o rótulo do tipo de pagamento para o gráfico
-        tipo = 'Financiamento'
-        if val_ato > 0: tipo = 'Finan + PS + Ato'
-        elif parc_ps > 0: tipo = 'Finan + PS'
-
         fluxo.append({
             'Mês': m, 
             'Parcela Financiamento': parc_fin, 
@@ -328,7 +535,7 @@ def carregar_dados_sistema():
                 df_estoque['Empreendimento'] = df_estoque['Empreendimento'].astype(str).str.strip()
             if 'Bairro' in df_estoque.columns:
                 df_estoque['Bairro'] = df_estoque['Bairro'].astype(str).str.strip()
-                         
+                          
         except: 
             df_estoque = pd.DataFrame(columns=['Empreendimento', 'Valor de Venda', 'Status', 'Identificador', 'Bairro', 'Valor de Avaliação Bancária'])
 
@@ -440,7 +647,6 @@ def configurar_layout():
             align-items: center !important;
         }}
         
-        /* REFORÇO NO CSS PARA O NUMBER INPUT DO ESTOQUE GERAL */
         div[data-testid="stNumberInput"] div[data-baseweb="input"] {{
             height: 48px !important;
             min-height: 48px !important;
@@ -490,7 +696,6 @@ def configurar_layout():
             transition: all 0.2s ease !important;
         }}
         
-        /* Efeito de clique e hover para interatividade */
         .stButton button:active {{
             transform: scale(0.98);
         }}
@@ -1009,45 +1214,65 @@ def enviar_email_smtp(destinatario, nome_cliente, pdf_bytes, dados_cliente):
     
     corretor_nome = dados_cliente.get('corretor_nome', 'Direcional')
     corretor_tel = dados_cliente.get('corretor_telefone', '')
+    corretor_email = dados_cliente.get('corretor_email', '')
     
-    # HTML Content
+    # HTML Content - ESTILIZADO E DETALHADO
     html_content = f"""
     <html>
-    <body style="font-family: Arial, sans-serif; color: #333;">
-        <div style="max-width: 600px; margin: auto; padding: 20px; border: 1px solid #eee; border-radius: 10px;">
-            <h2 style="color: #002c5d;">Olá, {nome_cliente}!</h2>
-            <p>Foi um prazer simular o sonho da sua casa própria com você!</p>
-            <p>Abaixo, um resumo rápido da oportunidade que desenhamos para o <strong>{emp} - Unidade {unid}</strong>:</p>
+    <body style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; color: #002c5d; background-color: #f4f6f8; margin: 0; padding: 20px;">
+        <div style="max-width: 650px; margin: auto; background-color: #ffffff; padding: 40px; border-radius: 12px; box-shadow: 0 10px 25px rgba(0,0,0,0.05); border-top: 6px solid #e30613;">
+            <div style="text-align: center; margin-bottom: 30px;">
+                <h2 style="color: #002c5d; margin: 0; text-transform: uppercase; letter-spacing: 2px;">Resumo de Simulação</h2>
+                <p style="color: #64748b; font-size: 0.9em; margin-top: 5px;">O sonho da sua casa própria está mais perto!</p>
+            </div>
+
+            <p>Olá, <strong>{nome_cliente}</strong>!</p>
+            <p>Foi um prazer apresentar as oportunidades da Direcional. Veja abaixo um resumo exclusivo da proposta que desenhamos para você:</p>
             
-            <table style="width: 100%; border-collapse: collapse; margin: 20px 0;">
-                <tr style="background-color: #f8fafc;">
-                    <td style="padding: 10px; border-bottom: 1px solid #eee;">Valor do Imóvel</td>
-                    <td style="padding: 10px; border-bottom: 1px solid #eee; font-weight: bold; color: #e30613;">R$ {val_venda}</td>
+            <div style="background-color: #f8fafc; border-radius: 8px; padding: 20px; margin: 25px 0; border: 1px solid #e2e8f0;">
+                <h3 style="color: #002c5d; margin-top: 0; border-bottom: 2px solid #e30613; padding-bottom: 10px; display: inline-block;">{emp}</h3>
+                <p style="margin: 5px 0 0 0; color: #64748b; font-weight: bold;">Unidade: {unid}</p>
+            </div>
+
+            <table style="width: 100%; border-collapse: separate; border-spacing: 0; margin-bottom: 30px;">
+                <tr>
+                    <td style="padding: 15px; border-bottom: 1px solid #e2e8f0; color: #64748b;">Valor do Imóvel</td>
+                    <td style="padding: 15px; border-bottom: 1px solid #e2e8f0; font-weight: bold; font-size: 1.2em; color: #e30613; text-align: right;">R$ {val_venda}</td>
                 </tr>
                 <tr>
-                    <td style="padding: 10px; border-bottom: 1px solid #eee;">Entrada Total</td>
-                    <td style="padding: 10px; border-bottom: 1px solid #eee;">R$ {entrada}</td>
-                </tr>
-                <tr style="background-color: #f8fafc;">
-                    <td style="padding: 10px; border-bottom: 1px solid #eee;">Financiamento</td>
-                    <td style="padding: 10px; border-bottom: 1px solid #eee;">R$ {finan}</td>
+                    <td style="padding: 15px; border-bottom: 1px solid #e2e8f0; color: #64748b;">Entrada Total</td>
+                    <td style="padding: 15px; border-bottom: 1px solid #e2e8f0; font-weight: bold; color: #002c5d; text-align: right;">R$ {entrada}</td>
                 </tr>
                 <tr>
-                    <td style="padding: 10px; border-bottom: 1px solid #eee;">Mensalidade Pro Soluto</td>
-                    <td style="padding: 10px; border-bottom: 1px solid #eee;">R$ {ps}</td>
+                    <td style="padding: 15px; border-bottom: 1px solid #e2e8f0; color: #64748b;">Financiamento Bancário</td>
+                    <td style="padding: 15px; border-bottom: 1px solid #e2e8f0; font-weight: bold; color: #002c5d; text-align: right;">R$ {finan}</td>
+                </tr>
+                <tr>
+                    <td style="padding: 15px; border-bottom: 1px solid #e2e8f0; color: #64748b;">Mensalidade Pro Soluto</td>
+                    <td style="padding: 15px; border-bottom: 1px solid #e2e8f0; font-weight: bold; color: #002c5d; text-align: right;">R$ {ps}</td>
                 </tr>
             </table>
             
-            <p>O <strong>PDF detalhado</strong> com todas as condições e o fluxo de pagamento está em anexo.</p>
-            <p>Analise com carinho e conte comigo para tirar qualquer dúvida.</p>
-            <br>
-            <p>Estou à disposição para darmos o próximo passo!</p>
-            <p style="margin-top: 30px; font-size: 0.9em; color: #666;">
-                Atenciosamente,<br>
-                <strong>{corretor_nome}</strong><br>
-                {corretor_tel}<br>
-                Direcional Engenharia
-            </p>
+            <div style="text-align: center; margin: 30px 0;">
+                <p style="background-color: #e30613; color: white; display: inline-block; padding: 10px 20px; border-radius: 50px; font-weight: bold; font-size: 0.9em;">ANEXO: PDF DETALHADO DA SIMULAÇÃO</p>
+            </div>
+
+            <p style="font-size: 0.9em; color: #64748b; line-height: 1.6;">Este documento é uma simulação preliminar sujeita a análise de crédito e disponibilidade da unidade. Analise com carinho e conte comigo para tirar qualquer dúvida.</p>
+            
+            <div style="margin-top: 40px; padding-top: 20px; border-top: 1px solid #e2e8f0; display: flex; align-items: center;">
+                <div style="flex-grow: 1;">
+                    <p style="margin: 0; font-weight: bold; color: #002c5d; font-size: 1.1em;">{corretor_nome}</p>
+                    <p style="margin: 2px 0; font-size: 0.9em; color: #e30613;">Consultor(a) Direcional</p>
+                    <p style="margin: 5px 0 0 0; font-size: 0.9em; color: #64748b;">{corretor_tel}</p>
+                    <p style="margin: 2px 0; font-size: 0.9em; color: #64748b;">{corretor_email}</p>
+                </div>
+                <div style="text-align: right;">
+                    <img src="https://direcional.com.br/wp-content/uploads/2021/04/cropped-favicon-direcional-32x32.png" width="40" alt="Direcional">
+                </div>
+            </div>
+        </div>
+        <div style="text-align: center; margin-top: 20px; font-size: 0.8em; color: #94a3b8;">
+            &copy; {datetime.now().year} Direcional Engenharia. Todos os direitos reservados.
         </div>
     </body>
     </html>
@@ -1283,88 +1508,71 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
         st.markdown("### 🖼️ Galeria de Produtos")
         st.markdown("---")
         
-        # Dados dos produtos (com mapas)
-        produtos = [
-            {"nome": "Conquista Florianópolis", "url": "https://www.youtube.com/watch?v=oU5SeVbmCsk", "endereco": "R. Florianópolis, 920 - Praça Seca, Rio de Janeiro - RJ, 21321-050", "lat": -22.8878, "lon": -43.3567, 
-             "imagens": {
-                 "Plantas": [
-                    {"titulo": "Apto Tipo Meio 01", "link": "https://drive.google.com/thumbnail?id=1b4QxziB56rrcxMpgVMMNHN0XnPoKelFP&sz=w800"},
-                    {"titulo": "Apto Tipo Meio 02", "link": "https://drive.google.com/thumbnail?id=1qhA_80UUuNovK3tYntxG5OOKL_SMFzAH&sz=w800"},
-                    {"titulo": "Studio", "link": "https://drive.google.com/thumbnail?id=1M7dmZ1iN7-VI2tP9E0OoStWVOMnglSpx&sz=w800"},
-                    {"titulo": "Garden PCD", "link": "https://drive.google.com/thumbnail?id=1GaaTfbEDfJsqDpixUoKo_KG75MXofKV3&sz=w800"},
-                    {"titulo": "Garden Ponta", "link": "https://drive.google.com/thumbnail?id=1Dt6UH9_6yLMRE1toa_kWXvs710dWH65B&sz=w800"},
-                    {"titulo": "Garden Meio", "link": "https://drive.google.com/thumbnail?id=13fzvOhPY8uVlBhmbhCQrAnEbse4wv7MY&sz=w800"},
-                    {"titulo": "Tipo Ponta", "link": "https://drive.google.com/thumbnail?id=17KZgUixZhc5KQigtRQ_XYDMltIlAO4qO&sz=w800"},
-                 ],
-                 "Lazer e Comum": [
-                    {"titulo": "Masterplan", "link": "https://drive.google.com/thumbnail?id=1fR7GFbh9a-J3o3hv21bBbxudiW5-I6pe&sz=w800"},
-                    {"titulo": "Fachada", "link": "https://drive.google.com/thumbnail?id=1FtNq9m06iZ3ZAce1Eu8GXYeaUDhBSiV8&sz=w800"},
-                    {"titulo": "Piscina Adulto", "link": "https://drive.google.com/thumbnail?id=1ud4Vk3oD2Gmcc9eOEMW-rn-2mIr1zGON&sz=w800"},
-                    {"titulo": "Piscina Infantil", "link": "https://drive.google.com/thumbnail?id=18AymHsaQsCwG4_oIN4CO04_ibINqxv1K&sz=w800"},
-                    {"titulo": "Playground", "link": "https://drive.google.com/thumbnail?id=187TeBEzv2qbJQfbU8m30g7BDbs5kPYx8&sz=w800"},
-                    {"titulo": "Praça de Jogos", "link": "https://drive.google.com/thumbnail?id=1mcn6Iin1wJLjrq2ar45rfGE-PrnLJv99&sz=w800"},
-                    {"titulo": "Miniquadra", "link": "https://drive.google.com/thumbnail?id=1azu-bh1Ew2dUL1OJe5iHEva7ZxO120GJ&sz=w800"},
-                    {"titulo": "Salão de Festas", "link": "https://drive.google.com/thumbnail?id=1dTFFbyexiIJCk1k4-catyJ_dynvPj7Vj&sz=w800"},
-                    {"titulo": "Fitness Externo", "link": "https://drive.google.com/thumbnail?id=1pY9CikHmAqYwxBYj5ohLmqNC0S_fzXKu&sz=w800"},
-                    {"titulo": "Espaço Fresh", "link": "https://drive.google.com/thumbnail?id=1JC1rRduoVxz9MqFNaGOCcdBMjDXz-wHr&sz=w800"},
-                    {"titulo": "Espaço Food Truck", "link": "https://drive.google.com/thumbnail?id=1eF0FuAzzFOd9jvkKq-twI3Y1cfpkk2Xy&sz=w800"},
-                    {"titulo": "Guarita", "link": "https://drive.google.com/thumbnail?id=1lMWl5-1OpjYKDLmX38Du9OQeYmUT-CwC&sz=w800"},
-                    {"titulo": "Ecoponto", "link": "https://drive.google.com/thumbnail?id=1EAW5m9BZaf4U_yjJ9wHn-TDViiwB4XS3&sz=w800"},
-                    {"titulo": "Bicicletário", "link": "https://drive.google.com/thumbnail?id=16AmatvtTrgOqJxmsmU-LuhzaSV9dLWIl&sz=w800"},
-                 ]
-             }},
-            {"nome": "Itanhangá Green", "url": "https://www.youtube.com/watch?v=Lt74juwBMXM", "endereco": "Estr. de Jacarepaguá, 2757 - Itanhangá, Rio de Janeiro - RJ, 22755-158", "lat": -22.9733, "lon": -43.3364},
-            {"nome": "Norte Clube", "url": "https://www.youtube.com/watch?v=ElO6Q95Hsak", "endereco": "Estrada Adhemar Bebiano, 3715 - Engenho da Rainha, Rio de Janeiro - RJ, 20766-450", "lat": -22.8752, "lon": -43.2905},
-            {"nome": "Conquista Oceânica", "url": "https://www.youtube.com/watch?v=4g5oy3SCh-A", "endereco": "Rod. Amaral Peixoto, 0 - Várzea das Mocas, São Gonçalo - RJ, 24753-559", "lat": -22.8711, "lon": -43.0133},
-            {"nome": "Parque Iguaçu", "url": "https://www.youtube.com/watch?v=PQOA5AS0Sdo", "endereco": "Av. Abílio Augusto Távora, 3505 - Palhada, Nova Iguaçu - RJ, 26275-580", "lat": -22.7758, "lon": -43.4861},
-            {"nome": "Max Norte", "url": "https://www.youtube.com/watch?v=cnzn1cpJ4tA", "endereco": "Rua Edgar Loureiro Valdetaro, 162 - Pavuna, Rio de Janeiro - RJ, 21520-760", "lat": -22.8086, "lon": -43.3633},
-            {"nome": "Vert Alcântara", "url": "https://www.youtube.com/watch?v=Lag2kS7wFnU", "endereco": "Estr. dos Menezes - Alcantara, São Gonçalo - RJ, 24451-230", "lat": -22.8222, "lon": -43.0031},
-            {"nome": "Nova Caxias Up", "url": "https://www.youtube.com/watch?v=EbEcZvIdTvY", "endereco": "R. Salutaris, 54 - Vila Ouro Preto, Duque de Caxias - RJ, 25065-007", "lat": -22.7303, "lon": -43.3075},
-            {"nome": "Nova Caxias Fun", "url": "https://www.youtube.com/watch?v=3P_o4jVWsOI", "endereco": "R. Salutaris, 54 - Vila Ouro Preto, Duque de Caxias - RJ, 25065-007", "lat": -22.7303, "lon": -43.3075},
-            {"nome": "Reserva do Sol", "url": "https://www.youtube.com/watch?v=Wij9XjG4slM", "endereco": "R. Goianinha, 280 - Curicica, Rio de Janeiro - RJ, 22780-760", "lat": -22.9536, "lon": -43.3858},
-            {"nome": "Residencial Laranjeiras", "url": "https://www.youtube.com/watch?v=jmV1RHkRlZ4", "endereco": "R. Projetada A, 270 - Campo Grande, Rio de Janeiro - RJ, 23040-652", "lat": -22.8944, "lon": -43.5575},
-            {"nome": "Soul Samba", "url": "https://www.youtube.com/watch?v=qTPaarVhHgs", "endereco": "Estrada Adhemar Bebiano, 2576 - Inhaúma, Rio de Janeiro - RJ, 20766-720", "lat": -22.8778, "lon": -43.2778},
-            {"nome": "Viva Vida Realengo", "url": "https://www.youtube.com/watch?v=cfRvstasGaw", "endereco": "R. Itajaí, n° 15 - Realengo, Rio de Janeiro - RJ, 21730-200", "lat": -22.8797, "lon": -43.4286},
-            {"nome": "Recanto Clube", "url": "https://www.youtube.com/watch?v=7K3UUEIOT-8", "endereco": "Rua Aloés, 300 - Guaratiba, Rio de Janeiro - RJ", "lat": -22.9694, "lon": -43.5936},
-            {"nome": "Inn Barra Olímpica", "url": "https://www.youtube.com/watch?v=SGEJFc3jh5A", "endereco": "Estr. dos Bandeirantes, 2856 - Jacarepaguá, Rio de Janeiro - RJ, 22775-110", "lat": -22.9567, "lon": -43.3761},
-        ]
+        # Obter lista de produtos do dicionário de imagens
+        lista_produtos = sorted(list(DB_IMAGENS.keys()))
+        
+        prod_sel = st.selectbox("Selecione o Empreendimento", lista_produtos, key="sel_galeria")
+        
+        if prod_sel:
+            st.markdown(f"#### {prod_sel}")
+            assets = DB_IMAGENS[prod_sel]
+            
+            # Organizar abas
+            g_tabs = st.tabs(["IMAGENS", "PLANTAS", "MAPA", "FICHA TÉCNICA", "OUTROS"])
+            
+            # Separar assets por categoria (baseado no nome do arquivo ou pasta lógica se houvesse, aqui faremos filtro por string no nome)
+            
+            with g_tabs[0]: # IMAGENS (Perspectivas, Fachada, Lazer)
+                cols = st.columns(3)
+                idx_c = 0
+                for item in assets:
+                    n = item['nome'].upper()
+                    # Filtra o que não é planta, mapa ou ficha
+                    if "PLANTA" not in n and "MAPA" not in n and "FICHA" not in n and "LOGO" not in n:
+                        with cols[idx_c % 3]:
+                            st.image(item['link'], caption=item['nome'], use_container_width=True)
+                            st.caption("Clique na imagem para ampliar 🔍")
+                        idx_c += 1
+            
+            with g_tabs[1]: # PLANTAS
+                cols = st.columns(3)
+                idx_c = 0
+                found = False
+                for item in assets:
+                    if "PLANTA" in item['nome'].upper() or "MASTERPLAN" in item['nome'].upper() or "IMPLANTA" in item['nome'].upper():
+                        with cols[idx_c % 3]:
+                            st.image(item['link'], caption=item['nome'], use_container_width=True)
+                            st.caption("Clique na imagem para ampliar 🔍")
+                        idx_c += 1
+                        found = True
+                if not found: st.info("Nenhuma planta encontrada.")
 
-        abas = st.tabs([p["nome"] for p in produtos])
+            with g_tabs[2]: # MAPA
+                cols = st.columns(1)
+                found = False
+                for item in assets:
+                    if "MAPA" in item['nome'].upper():
+                        st.image(item['link'], caption=item['nome'], use_container_width=True)
+                        st.caption("Clique na imagem para ampliar 🔍")
+                        found = True
+                if not found: st.info("Mapa não disponível.")
 
-        for i, aba in enumerate(abas):
-            with aba:
-                st.markdown(f"#### {produtos[i]['nome']}")
-                st.video(produtos[i]["url"])
-                
-                # Mapa e Endereço
-                st.markdown(f"""
-                <div class="summary-body" style="padding: 20px; margin-top: 20px; border-left: 5px solid {COR_AZUL_ESC};">
-                    <h5 style="margin: 0 0 10px 0; color: {COR_AZUL_ESC};">Localização</h5>
-                    <p style="font-size: 0.9rem; margin: 0;">{produtos[i]['endereco']}</p>
-                </div>
-                """, unsafe_allow_html=True)
-                
-                if 'lat' in produtos[i] and 'lon' in produtos[i]:
-                     # Standard Streamlit Map (Replacing Folium)
-                     st.map(pd.DataFrame({'lat': [produtos[i]['lat']], 'lon': [produtos[i]['lon']]}))
+            with g_tabs[3]: # FICHA TÉCNICA
+                found = False
+                for item in assets:
+                    if "FICHA" in item['nome'].upper() or "PDF" in item['nome'].upper():
+                        st.link_button(f"📄 Abrir {item['nome']}", item['link'])
+                        found = True
+                if not found: st.info("Ficha técnica não disponível.")
 
-                # Seção de Imagens (Se houver)
-                if "imagens" in produtos[i]:
-                    img_data = produtos[i]["imagens"]
-                    
-                    st.markdown("##### Plantas")
-                    cols_plantas = st.columns(3)
-                    for idx, img in enumerate(img_data.get("Plantas", [])):
-                        with cols_plantas[idx % 3]:
-                            st.image(img["link"], caption=img["titulo"], use_container_width=True)
-                            st.caption("Clique na imagem para ampliar")
-                    
-                    st.markdown("##### Lazer e Áreas Comuns")
-                    cols_lazer = st.columns(3)
-                    for idx, img in enumerate(img_data.get("Lazer e Comum", [])):
-                        with cols_lazer[idx % 3]:
-                             st.image(img["link"], caption=img["titulo"], use_container_width=True)
-                             st.caption("Clique na imagem para ampliar")
+            with g_tabs[4]: # OUTROS (Logos, Vídeos se tiver)
+                cols = st.columns(4)
+                idx_c = 0
+                for item in assets:
+                    if "LOGO" in item['nome'].upper():
+                        with cols[idx_c % 4]:
+                            st.image(item['link'], caption=item['nome'], width=150)
+                        idx_c += 1
 
     # --- ABA ANALYTICS (SECURE TAB - ALTAIR) ---
     elif passo == 'client_analytics':
@@ -1454,8 +1662,6 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
                     color=alt.value(COR_AZUL_ESC)  
                 )
                 
-                # Combined chart with legends hidden to be cleaner, adding labels directly might be better but lets keep it simple first
-                # Actually lets add a legend to the side
                 final_pie = pie.encode(color=alt.Color("Tipo", scale=color_scale, legend=alt.Legend(orient="bottom", columns=2, title=None))).configure_view(strokeWidth=0).configure_axis(grid=False, domain=False)
                 st.altair_chart(final_pie, use_container_width=True)
             else:
@@ -1490,7 +1696,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
 
         # --- SEÇÃO 3: PROJEÇÃO DE FLUXO DE PAGAMENTOS (LINE CHART) ---
         st.markdown("---")
-        st.markdown("##### 📈 Projeção da Parcela Mensal (Financiamento + Pro Soluto)")
+        st.markdown("##### 📈 Projeção da Parcela Mensal (Financiamento + Pro Soluto + Atos)")
         
         # Recuperar dados para projeção
         v_fin = d.get('finan_usado', 0)
@@ -1511,7 +1717,6 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
             df_fluxo = calcular_fluxo_pagamento_detalhado(v_fin, p_fin, 8.16, sist, v_ps_mensal, p_ps, atos_dict_calc)
             
             # Projeção completa solicitada
-            # Removemos o limite de meses para mostrar tudo ou pelo menos um período longo
             df_view = df_fluxo.copy() 
             
             # Gráfico de Linha Altair
@@ -1546,7 +1751,6 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
         
         target_price = d.get('imovel_valor', 0)
         
-        # FIX: Check if column exists, safely with try-except for the whole block
         try:
             if 'Valor de Venda' in df_estoque.columns and target_price > 0:
                 min_p = target_price - 2500
@@ -1884,14 +2088,9 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
         st.write("");
         if st.button("Voltar para Dados do Cliente", use_container_width=True, key="btn_pot_v28"): st.session_state.passo_simulacao = 'input'; scroll_to_top(); st.rerun()
 
-    # --- ETAPA 1, 3, 4, 5 e Analytics mantidos abaixo (abreviados aqui para caber, mas devem estar no arquivo final) ---
     elif passo == 'selection':
-         # (Mesmo código da etapa 3 anterior)
          d = st.session_state.dados_cliente
          st.markdown(f"### Escolha de Unidade")
-         # ... [Código de Seleção]
-         # (Devido ao limite de tamanho da resposta, assuma que o código das etapas Input, Selection, Payment e Summary é o mesmo da V60, apenas com a aba Guide alterada acima.
-         # Vou incluir o resto do código essencial para garantir que funcione).
          
          df_disponiveis = df_estoque[df_estoque['Status'] == 'Disponível'].copy()
          if df_disponiveis.empty: st.warning("Sem estoque disponível.")
@@ -1936,7 +2135,6 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
             if st.button("Voltar para Recomendação de Imóveis", use_container_width=True): st.session_state.passo_simulacao = 'guide'; scroll_to_top(); st.rerun()
 
     elif passo == 'payment_flow':
-        # (Mesmo código da etapa 4)
         d = st.session_state.dados_cliente
         st.markdown(f"### Fechamento Financeiro")
         u_valor = d.get('imovel_valor', 0); u_nome = d.get('empreendimento_nome', 'N/A'); u_unid = d.get('unidade_id', 'N/A')
@@ -2021,7 +2219,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
         cor_saldo = COR_AZUL_ESC if abs(gap_final) <= 1.0 else COR_VERMELHO
         with fin3: st.markdown(f"""<div class="fin-box" style="border-top: 6px solid {cor_saldo};"><b>SALDO A COBRIR</b><br>R$ {fmt_br(gap_final)}</div>""", unsafe_allow_html=True)
         if abs(gap_final) > 1.0: st.error(f"Atenção: {'Falta cobrir' if gap_final > 0 else 'Valor excedente de'} R$ {fmt_br(abs(gap_final))}.")
-        parcela_fin = calcular_parcela_financiamento(f_u_input, prazo_finan, taxa_juros_padrao, tab_fin)
+        parcela_fin = calcular_parcela_financiamento(f_u_input, prazo_finan, 8.16, tab_fin)
         st.session_state.dados_cliente['parcela_financiamento'] = parcela_fin
         st.markdown("---")
         if st.button("Avançar para Resumo da Simulação", type="primary", use_container_width=True):
@@ -2030,7 +2228,6 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
         if st.button("Voltar para Escolha de Unidade", use_container_width=True): st.session_state.passo_simulacao = 'selection'; scroll_to_top(); st.rerun()
 
     elif passo == 'summary':
-        # (Mesmo código da etapa 5)
         d = st.session_state.dados_cliente
         st.markdown(f"### Resumo da Simulação - {d.get('nome', 'Cliente')}")
         st.markdown(f'<div class="summary-header">DADOS DO IMÓVEL</div>', unsafe_allow_html=True)
@@ -2089,63 +2286,6 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
                 st.markdown(f'<div class="custom-alert">Salvo em \'{aba_destino}\'!</div>', unsafe_allow_html=True); time.sleep(2); st.session_state.dados_cliente = {}; st.session_state.passo_simulacao = 'input'; scroll_to_top(); st.rerun()
             except Exception as e: st.error(f"Erro ao salvar: {e}")
         if st.button("Voltar para Fechamento Financeiro", use_container_width=True): st.session_state.passo_simulacao = 'payment_flow'; scroll_to_top(); st.rerun()
-
-    # --- ETAPA 1: INPUT ---
-    elif passo == 'input':
-        # (Mesmo código da etapa 1)
-        st.markdown("### Dados do Cliente")
-        curr_nome = st.session_state.dados_cliente.get('nome', ""); curr_cpf = st.session_state.dados_cliente.get('cpf', "")
-        nome = st.text_input("Nome Completo", value=curr_nome, placeholder="Nome Completo", key="in_nome_v28")
-        cpf_val = st.text_input("CPF", value=curr_cpf, placeholder="000.000.000-00", key="in_cpf_v3", max_chars=14)
-        if nome != curr_nome: st.session_state.dados_cliente['nome'] = nome
-        if cpf_val != curr_cpf: st.session_state.dados_cliente['cpf'] = cpf_val
-        if cpf_val and not validar_cpf(cpf_val): st.markdown(f"<small style='color: {COR_VERMELHO};'>CPF inválido</small>", unsafe_allow_html=True)
-        d_nasc_default = st.session_state.dados_cliente.get('data_nascimento', date(1990, 1, 1))
-        if isinstance(d_nasc_default, str):
-            try: d_nasc_default = datetime.strptime(d_nasc_default, '%Y-%m-%d').date()
-            except: 
-                try: d_nasc_default = datetime.strptime(d_nasc_default, '%d/%m/%Y').date()
-                except: d_nasc_default = date(1990, 1, 1)
-        data_nasc = st.date_input("Data de Nascimento", value=d_nasc_default, min_value=date(1900, 1, 1), max_value=datetime.now().date(), format="DD/MM/YYYY", key="in_dt_nasc_v3")
-        genero = st.selectbox("Gênero", ["Masculino", "Feminino", "Outro"], index=0, key="in_genero_v3")
-        st.markdown("---")
-        qtd_part = st.number_input("Participantes na Renda", min_value=1, max_value=4, value=st.session_state.dados_cliente.get('qtd_participantes', 1), step=1, key="qtd_part_v3")
-        cols_renda = st.columns(qtd_part); renda_total_calc = 0.0; lista_rendas_input = []; rendas_anteriores = st.session_state.dados_cliente.get('rendas_lista', [])
-        def get_val(idx, default):
-            v = float(rendas_anteriores[idx]) if idx < len(rendas_anteriores) else default
-            return None if v == 0.0 else v
-        for i in range(qtd_part):
-            with cols_renda[i]:
-                def_val = 3500.0 if i == 0 and not rendas_anteriores else 0.0
-                current_val = get_val(i, def_val)
-                val_r = st.number_input(f"Renda Part. {i+1}", min_value=0.0, value=current_val, step=100.0, key=f"renda_part_{i}_v3", placeholder="0,00")
-                if val_r is None: val_r = 0.0
-                renda_total_calc += val_r; lista_rendas_input.append(val_r)
-        rank_opts = ["DIAMANTE", "OURO", "PRATA", "BRONZE", "AÇO"]
-        curr_ranking = st.session_state.dados_cliente.get('ranking', "DIAMANTE")
-        idx_ranking = rank_opts.index(curr_ranking) if curr_ranking in rank_opts else 0
-        ranking = st.selectbox("Ranking do Cliente", options=rank_opts, index=idx_ranking, key="in_rank_v28")
-        politica_ps = st.selectbox("Política de Pro Soluto", ["Direcional", "Emcash"], index=0 if st.session_state.dados_cliente.get('politica') != "Emcash" else 1, key="in_pol_v28")
-        social = st.toggle("Fator Social", value=st.session_state.dados_cliente.get('social', False), key="in_soc_v28")
-        cotista = st.toggle("Cotista FGTS", value=st.session_state.dados_cliente.get('cotista', True), key="in_cot_v28")
-        st.markdown("<br>", unsafe_allow_html=True)
-        def processar_avanco(destino):
-            st.session_state.dados_cliente.update({'nome': nome, 'cpf': limpar_cpf_visual(cpf_val), 'data_nascimento': data_nasc, 'genero': genero, 'renda': renda_total_calc, 'rendas_lista': lista_rendas_input, 'social': social, 'cotista': cotista, 'ranking': ranking, 'politica': politica_ps, 'qtd_participantes': qtd_part})
-            if not nome.strip(): st.markdown(f'<div class="custom-alert">Por favor, informe o Nome do Cliente para continuar.</div>', unsafe_allow_html=True); return
-            if not cpf_val.strip(): st.markdown(f'<div class="custom-alert">Por favor, informe o CPF do Cliente.</div>', unsafe_allow_html=True); return
-            if not validar_cpf(cpf_val): st.markdown(f'<div class="custom-alert">CPF Inválido. Corrija para continuar.</div>', unsafe_allow_html=True); return
-            if renda_total_calc <= 0: st.markdown(f'<div class="custom-alert">A renda total deve ser maior que zero.</div>', unsafe_allow_html=True); return
-            class_b = 'EMCASH' if politica_ps == "Emcash" else ranking
-            map_ps_percent = {'EMCASH': 0.25, 'DIAMANTE': 0.25, 'OURO': 0.20, 'PRATA': 0.18, 'BRONZE': 0.15, 'AÇO': 0.12}
-            perc_ps_max = map_ps_percent.get(class_b, 0.12)
-            prazo_ps_max = 66 if politica_ps == "Emcash" else 84
-            limit_ps_r = 0.30
-            f_faixa_ref, s_faixa_ref, fx_nome_ref = motor.obter_enquadramento(renda_total_calc, social, cotista, valor_avaliacao=240000)
-            st.session_state.dados_cliente.update({'perc_ps': perc_ps_max, 'prazo_ps_max': prazo_ps_max, 'limit_ps_renda': limit_ps_r, 'finan_f_ref': f_faixa_ref, 'sub_f_ref': s_faixa_ref})
-            st.session_state.passo_simulacao = destino; scroll_to_top(); st.rerun()
-        if st.button("Obter recomendações", type="primary", use_container_width=True, key="btn_avancar_guide"): processar_avanco('guide')
-        st.write("") 
-        if st.button("Ir direto para escolha de unidades", use_container_width=True, key="btn_avancar_direto"): processar_avanco('selection')
 
     st.markdown("<br><br>", unsafe_allow_html=True)
 
