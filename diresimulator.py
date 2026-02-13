@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 =============================================================================
-SISTEMA DE SIMULAÇÃO IMOBILIÁRIA - DIRE RIO V66 (GALERIA PRO + BARRAS + NO EMOJI)
+SISTEMA DE SIMULAÇÃO IMOBILIÁRIA - DIRE RIO V67 (FINAL - SEM EMOJIS - GALERIA PRO)
 =============================================================================
 """
 
@@ -65,151 +65,212 @@ COR_BORDA = "#eef2f6"
 COR_TEXTO_MUTED = "#64748b"
 COR_INPUT_BG = "#f0f2f6"
 
-# --- CATALOGO DE PRODUTOS (METADADOS + IMAGENS) ---
+# --- CATALOGO DE PRODUTOS COMPLETO ---
 CATALOGO_PRODUTOS = {
     "CONQUISTA FLORIANÓPOLIS": {
         "video": "https://www.youtube.com/watch?v=oU5SeVbmCsk",
         "lat": -22.8878, "lon": -43.3567,
         "imagens": [
-            {"nome": "FACHADA", "link": "https://drive.google.com/file/d/1FtNq9m06iZ3ZAce1Eu8GXYeaUDhBSiV8/view?usp=drivesdk"},
-            {"nome": "PISCINA ADULTO", "link": "https://drive.google.com/file/d/1ud4Vk3oD2Gmcc9eOEMW-rn-2mIr1zGON/view?usp=drivesdk"},
-            {"nome": "PLAYGROUND", "link": "https://drive.google.com/file/d/187TeBEzv2qbJQfbU8m30g7BDbs5kPYx8/view?usp=drivesdk"},
-            {"nome": "SALÃO DE FESTAS", "link": "https://drive.google.com/file/d/1dTFFbyexiIJCk1k4-catyJ_dynvPj7Vj/view?usp=drivesdk"},
-            {"nome": "PLANTA TIPO", "link": "https://drive.google.com/file/d/1b4QxziB56rrcxMpgVMMNHN0XnPoKelFP/view?usp=drivesdk"},
-            {"nome": "FICHA TÉCNICA", "link": "https://drive.google.com/file/d/1u5KoeItcTYVgAfkk5UjqrI83lSjt0i2u/view?usp=drivesdk"},
+            {"nome": "Fachada", "link": "https://drive.google.com/file/d/1FtNq9m06iZ3ZAce1Eu8GXYeaUDhBSiV8/view?usp=drivesdk"},
+            {"nome": "Piscina Adulto", "link": "https://drive.google.com/file/d/1ud4Vk3oD2Gmcc9eOEMW-rn-2mIr1zGON/view?usp=drivesdk"},
+            {"nome": "Playground", "link": "https://drive.google.com/file/d/187TeBEzv2qbJQfbU8m30g7BDbs5kPYx8/view?usp=drivesdk"},
+            {"nome": "Salão de Festas", "link": "https://drive.google.com/file/d/1dTFFbyexiIJCk1k4-catyJ_dynvPj7Vj/view?usp=drivesdk"},
+            {"nome": "Fitness Externo", "link": "https://drive.google.com/file/d/1pY9CikHmAqYwxBYj5ohLmqNC0S_fzXKu/view?usp=drivesdk"},
+            {"nome": "Guarita", "link": "https://drive.google.com/file/d/1lMWl5-1OpjYKDLmX38Du9OQeYmUT-CwC/view?usp=drivesdk"},
+            {"nome": "Apartamento Garden", "link": "https://drive.google.com/file/d/1u2pc7a6P4DOPYp69RN0icmOZoTFriuKt/view?usp=drivesdk"},
+            {"nome": "Planta Tipo Meio", "link": "https://drive.google.com/file/d/1b4QxziB56rrcxMpgVMMNHN0XnPoKelFP/view?usp=drivesdk"},
+            {"nome": "Planta Garden", "link": "https://drive.google.com/file/d/13fzvOhPY8uVlBhmbhCQrAnEbse4wv7MY/view?usp=drivesdk"},
+            {"nome": "Masterplan", "link": "https://drive.google.com/file/d/1fR7GFbh9a-J3o3hv21bBbxudiW5-I6pe/view?usp=drivesdk"},
+            {"nome": "Ficha Técnica", "link": "https://drive.google.com/file/d/1u5KoeItcTYVgAfkk5UjqrI83lSjt0i2u/view?usp=drivesdk"}
         ]
     },
     "ITANHANGÁ GREEN": {
         "video": "https://www.youtube.com/watch?v=Lt74juwBMXM",
         "lat": -22.9733, "lon": -43.3364,
         "imagens": [
-            {"nome": "FACHADA", "link": "https://drive.google.com/file/d/1PvfgCc1O6NfPsNpGxjzChduroYoCQGsF/view?usp=drivesdk"},
-            {"nome": "PISCINA", "link": "https://drive.google.com/file/d/1tB0lFoYSDuL8pVj8_eArd8edYJ7a-Zd-/view?usp=drivesdk"},
-            {"nome": "PLAYGROUND", "link": "https://drive.google.com/file/d/1_WWAQE_286TpbaNizsQVwCjMamahuOft/view?usp=drivesdk"},
-            {"nome": "FICHA TÉCNICA", "link": "https://drive.google.com/file/d/18OdrnhrmHmvv2mu_MskLflGCMBgJQC2r/view?usp=drivesdk"},
+            {"nome": "Fachada", "link": "https://drive.google.com/file/d/1PvfgCc1O6NfPsNpGxjzChduroYoCQGsF/view?usp=drivesdk"},
+            {"nome": "Piscina", "link": "https://drive.google.com/file/d/1tB0lFoYSDuL8pVj8_eArd8edYJ7a-Zd-/view?usp=drivesdk"},
+            {"nome": "Playground", "link": "https://drive.google.com/file/d/1_WWAQE_286TpbaNizsQVwCjMamahuOft/view?usp=drivesdk"},
+            {"nome": "Salão de Festas", "link": "https://drive.google.com/file/d/124HX2LthZRYI_FeMvZ9T-6WBVK-M94TT/view?usp=drivesdk"},
+            {"nome": "Guarita", "link": "https://drive.google.com/file/d/1C6mF2DS_X1QCYkhfYzCSmd0Ror_S4m3x/view?usp=drivesdk"},
+            {"nome": "Planta Tipo", "link": "https://drive.google.com/file/d/1_v9Vy03-j5U9lppXubsWtAib4DEAiUCz/view?usp=drivesdk"},
+            {"nome": "Planta Garden", "link": "https://drive.google.com/file/d/1etHATpKkP0ctj7H3uhFXHrAfB7xqpai3/view?usp=drivesdk"},
+            {"nome": "Masterplan", "link": "https://drive.google.com/file/d/1NXXcLhPiiZiquei9QH8_QM1M19tpXVp8/view?usp=drivesdk"},
+            {"nome": "Ficha Técnica", "link": "https://drive.google.com/file/d/18OdrnhrmHmvv2mu_MskLflGCMBgJQC2r/view?usp=drivesdk"}
         ]
     },
     "MAX NORTE": {
         "video": "https://www.youtube.com/watch?v=cnzn1cpJ4tA",
         "lat": -22.8086, "lon": -43.3633,
         "imagens": [
-            {"nome": "FACHADA", "link": "https://drive.google.com/file/d/1AVdsT4MXMcH81K_EFUS2kgSU9luS6oCg/view?usp=drivesdk"},
-            {"nome": "PISCINA", "link": "https://drive.google.com/file/d/1SECUIdrQC62v1Q4J7Rgwlh257PGcfyIB/view?usp=drivesdk"},
-            {"nome": "PLANTA", "link": "https://drive.google.com/file/d/1a9f7v6YFbpOhczb7nG_JeGtcgsXi0Fv7/view?usp=drivesdk"},
+            {"nome": "Fachada", "link": "https://drive.google.com/file/d/1AVdsT4MXMcH81K_EFUS2kgSU9luS6oCg/view?usp=drivesdk"},
+            {"nome": "Piscina", "link": "https://drive.google.com/file/d/1SECUIdrQC62v1Q4J7Rgwlh257PGcfyIB/view?usp=drivesdk"},
+            {"nome": "Playground", "link": "https://drive.google.com/file/d/1d_33bONdid1qZgwTMieCUQsQ_QX0e5H6/view?usp=drivesdk"},
+            {"nome": "Salão Gourmet", "link": "https://drive.google.com/file/d/1U_J6KqdChx3dTFwdPSm-EQHyrKUk4nbe/view?usp=drivesdk"},
+            {"nome": "Guarita", "link": "https://drive.google.com/file/d/1KFpxyD0eTgXAJ_Te6b0Jl41s8d0S0Dmk/view?usp=drivesdk"},
+            {"nome": "Apartamento", "link": "https://drive.google.com/file/d/1BQXjmuE_EU1WtPpoqhRsQzrHdBKkuY9a/view?usp=drivesdk"},
+            {"nome": "Planta Tipo", "link": "https://drive.google.com/file/d/1a9f7v6YFbpOhczb7nG_JeGtcgsXi0Fv7/view?usp=drivesdk"},
+            {"nome": "Masterplan", "link": "https://drive.google.com/file/d/1s4WwrmqiPxBTq3McM6dae4mauGw3PpI5/view?usp=drivesdk"}
         ]
     },
     "NORTE CLUBE": {
         "video": "https://www.youtube.com/watch?v=ElO6Q95Hsak",
         "lat": -22.8752, "lon": -43.2905,
         "imagens": [
-            {"nome": "FACHADA", "link": "https://drive.google.com/file/d/1CdMMB44Em88E4dmaNyq-YJe4eEX53NEE/view?usp=drivesdk"},
-            {"nome": "PISCINA", "link": "https://drive.google.com/file/d/1khrmZKSMV5uhh68tvdE10iM28yxvGBMK/view?usp=drivesdk"},
-            {"nome": "FICHA TÉCNICA", "link": "https://drive.google.com/file/d/1DMmjq6Mu785xMfuUq0DFcAnLV1LpnW4Z/view?usp=drivesdk"},
+            {"nome": "Fachada", "link": "https://drive.google.com/file/d/1CdMMB44Em88E4dmaNyq-YJe4eEX53NEE/view?usp=drivesdk"},
+            {"nome": "Piscina", "link": "https://drive.google.com/file/d/1khrmZKSMV5uhh68tvdE10iM28yxvGBMK/view?usp=drivesdk"},
+            {"nome": "Playground", "link": "https://drive.google.com/file/d/1EKaLDk6GTJcIbY7VNVXnnurGqxTmhdxi/view?usp=drivesdk"},
+            {"nome": "Salão de Festas", "link": "https://drive.google.com/file/d/1IpwQYtIKde8EoOoDPGVGwoRmQ73b0ht8/view?usp=drivesdk"},
+            {"nome": "Quadra", "link": "https://drive.google.com/file/d/1j-n1kjGXcOzc2cUDl8yYA7drkXNZBrZK/view?usp=drivesdk"},
+            {"nome": "Planta Tipo", "link": "https://drive.google.com/file/d/1AQc25GcW2-YCBNUIlcRMBVnjFAL1oSuQ/view?usp=drivesdk"},
+            {"nome": "Planta Garden", "link": "https://drive.google.com/file/d/1ZL0l-x6ZnLLTFx_DZw7IIi3YeLkumlw3/view?usp=drivesdk"},
+            {"nome": "Ficha Técnica", "link": "https://drive.google.com/file/d/1DMmjq6Mu785xMfuUq0DFcAnLV1LpnW4Z/view?usp=drivesdk"}
         ]
     },
     "CONQUISTA OCEÂNICA": {
         "video": "https://www.youtube.com/watch?v=4g5oy3SCh-A",
         "lat": -22.8711, "lon": -43.0133,
         "imagens": [
-            {"nome": "FACHADA", "link": "https://drive.google.com/file/d/1hIsxtMe-5NyiIIy7nXxFNcndCamuX1pu/view?usp=drivesdk"},
-            {"nome": "PISCINA", "link": "https://drive.google.com/file/d/1Q488b06oCll4iwU5l_BgVJEEn4uVneho/view?usp=drivesdk"},
-            {"nome": "FICHA TÉCNICA", "link": "https://drive.google.com/file/d/1vD4q4gkD31Nm4qL4pHs3zLytUq3MFfii/view?usp=drivesdk"},
+            {"nome": "Fachada", "link": "https://drive.google.com/file/d/1hIsxtMe-5NyiIIy7nXxFNcndCamuX1pu/view?usp=drivesdk"},
+            {"nome": "Piscina", "link": "https://drive.google.com/file/d/1Q488b06oCll4iwU5l_BgVJEEn4uVneho/view?usp=drivesdk"},
+            {"nome": "Playground", "link": "https://drive.google.com/file/d/1zQyrd4ZYb45bw76z7cajjZkiHjJnubbY/view?usp=drivesdk"},
+            {"nome": "Salão de Festas", "link": "https://drive.google.com/file/d/147z9BlYfjqEMc1yvHuosVHLEKATBSvjd/view?usp=drivesdk"},
+            {"nome": "Guarita", "link": "https://drive.google.com/file/d/1O6COShsXlNGtzeewOBRnUE45NVNIiOoh/view?usp=drivesdk"},
+            {"nome": "Planta Tipo", "link": "https://drive.google.com/file/d/14RsOJBM6jYDF4KumRCz1sCzj3Aix-UjT/view?usp=drivesdk"},
+            {"nome": "Planta Garden", "link": "https://drive.google.com/file/d/1BdldmlPt_97aAfcl_7YMp5uy7WJgs10U/view?usp=drivesdk"},
+            {"nome": "Ficha Técnica", "link": "https://drive.google.com/file/d/1vD4q4gkD31Nm4qL4pHs3zLytUq3MFfii/view?usp=drivesdk"}
         ]
     },
     "PARQUE IGUAÇU": {
         "video": "https://www.youtube.com/watch?v=PQOA5AS0Sdo",
         "lat": -22.7758, "lon": -43.4861,
         "imagens": [
-            {"nome": "FACHADA", "link": "https://drive.google.com/file/d/1mdp1DBxGd7WpG-1BB67BDLHlJ_EAtj0V/view?usp=drivesdk"},
-            {"nome": "PISCINA", "link": "https://drive.google.com/file/d/1TTTiFl605kS0LiztlzXfvn1hRj_X4_Fc/view?usp=drivesdk"},
-            {"nome": "FICHA TÉCNICA", "link": "https://drive.google.com/file/d/1m529O3c6pEz3sD3-Vba1BAUJKzj9XOxg/view?usp=drivesdk"},
+            {"nome": "Fachada", "link": "https://drive.google.com/file/d/1mdp1DBxGd7WpG-1BB67BDLHlJ_EAtj0V/view?usp=drivesdk"},
+            {"nome": "Piscina", "link": "https://drive.google.com/file/d/1TTTiFl605kS0LiztlzXfvn1hRj_X4_Fc/view?usp=drivesdk"},
+            {"nome": "Playground", "link": "https://drive.google.com/file/d/1jqjS025JccXTkMOP2QXBKAAc-4vKF5SN/view?usp=drivesdk"},
+            {"nome": "Salão de Festas", "link": "https://drive.google.com/file/d/1UJlpQm5rJqaZrF5DGgTmW8ygNLWpsp2y/view?usp=drivesdk"},
+            {"nome": "Churrasqueira", "link": "https://drive.google.com/file/d/1d1vxr_-Nb5A7iyLc_Mn7FqCwBUxwO3oZ/view?usp=drivesdk"},
+            {"nome": "Planta Tipo", "link": "https://drive.google.com/file/d/1FiSP0QP2EBRRWlYGsgd4ZkyLiqEWn5CG/view?usp=drivesdk"},
+            {"nome": "Planta Garden", "link": "https://drive.google.com/file/d/1uVoJkhPvylOMFRcJlR1bsfvBUAVwVVlv/view?usp=drivesdk"},
+            {"nome": "Ficha Técnica", "link": "https://drive.google.com/file/d/1m529O3c6pEz3sD3-Vba1BAUJKzj9XOxg/view?usp=drivesdk"}
         ]
     },
     "SOUL SAMBA": {
         "video": "https://www.youtube.com/watch?v=qTPaarVhHgs",
         "lat": -22.8778, "lon": -43.2778,
         "imagens": [
-            {"nome": "FACHADA", "link": "https://drive.google.com/file/d/1Iv-887JKrY-h6wSktD_SXjeLZM28n4-Y/view?usp=drivesdk"},
-            {"nome": "PISCINA", "link": "https://drive.google.com/file/d/14JNb9eQJLCbBkaIEExDmf9dH6yP3vKKA/view?usp=drivesdk"},
-            {"nome": "FICHA TÉCNICA", "link": "https://drive.google.com/file/d/1-hI2guSTSTHiynWe3QpC-CcXeuf2IhTs/view?usp=drivesdk"},
+            {"nome": "Fachada", "link": "https://drive.google.com/file/d/1Iv-887JKrY-h6wSktD_SXjeLZM28n4-Y/view?usp=drivesdk"},
+            {"nome": "Piscina", "link": "https://drive.google.com/file/d/14JNb9eQJLCbBkaIEExDmf9dH6yP3vKKA/view?usp=drivesdk"},
+            {"nome": "Playground", "link": "https://drive.google.com/file/d/16FjIZzAVVXouhm8eEwjDbArC8XsX2552/view?usp=drivesdk"},
+            {"nome": "Salão de Festas", "link": "https://drive.google.com/file/d/1wJszyTa-w1N6pczz2UJx6xi5zlDMhSeU/view?usp=drivesdk"},
+            {"nome": "Guarita", "link": "https://drive.google.com/file/d/1MqZBsikoiaDY-TD2Wm759WJV8Ozy-Li7/view?usp=drivesdk"},
+            {"nome": "Planta Tipo", "link": "https://drive.google.com/file/d/14RtGmEXYyFNkI33WMRD_NFD2M3OdOwj7/view?usp=drivesdk"},
+            {"nome": "Ficha Técnica", "link": "https://drive.google.com/file/d/1-hI2guSTSTHiynWe3QpC-CcXeuf2IhTs/view?usp=drivesdk"}
         ]
     },
     "VERT ALCÂNTARA": {
         "video": "https://www.youtube.com/watch?v=Lag2kS7wFnU",
         "lat": -22.8222, "lon": -43.0031,
         "imagens": [
-            {"nome": "FACHADA", "link": "https://drive.google.com/file/d/1Hk_xywnFmA68J0lcuM6h9qK3GKgFT7Yt/view?usp=drivesdk"},
-            {"nome": "PISCINA", "link": "https://drive.google.com/file/d/1pDm2u3z3pKqqqzMkYb93LIceScYzDFs_/view?usp=drivesdk"},
+            {"nome": "Fachada", "link": "https://drive.google.com/file/d/1Hk_xywnFmA68J0lcuM6h9qK3GKgFT7Yt/view?usp=drivesdk"},
+            {"nome": "Piscina", "link": "https://drive.google.com/file/d/1pDm2u3z3pKqqqzMkYb93LIceScYzDFs_/view?usp=drivesdk"},
+            {"nome": "Coworking", "link": "https://drive.google.com/file/d/1XiffjmMTws-9ciqEhh6FiRI3MYSSROnh/view?usp=drivesdk"},
+            {"nome": "Sala de Jogos", "link": "https://drive.google.com/file/d/1hdENx08aVZBQP-df_l2fZOQ4FQF984DL/view?usp=drivesdk"},
+            {"nome": "Planta Tipo", "link": "https://drive.google.com/file/d/1D_zDCDaQVvK4DBc9UtURZSptGKZsvgb8/view?usp=drivesdk"},
+            {"nome": "Planta Garden", "link": "https://drive.google.com/file/d/1C2x7nZoKAJ7DNqsqxIai4wFOW032sTqi/view?usp=drivesdk"}
         ]
     },
     "INN BARRA OLÍMPICA": {
         "video": "https://www.youtube.com/watch?v=SGEJFc3jh5A",
         "lat": -22.9567, "lon": -43.3761,
         "imagens": [
-            {"nome": "FACHADA", "link": "https://drive.google.com/file/d/1ScG09d2xcPblZKQJYlssw-AMSOLmx6qO/view?usp=drivesdk"},
-            {"nome": "PISCINA", "link": "https://drive.google.com/file/d/1cYMq0jujtHC_DPUXrNpRf4jYN_83ntiK/view?usp=drivesdk"},
-            {"nome": "FICHA TÉCNICA", "link": "https://drive.google.com/file/d/1CEykILUVyBfz0o73QFdjyIbvpof5P28w/view?usp=drivesdk"},
+            {"nome": "Fachada", "link": "https://drive.google.com/file/d/1ScG09d2xcPblZKQJYlssw-AMSOLmx6qO/view?usp=drivesdk"},
+            {"nome": "Piscina", "link": "https://drive.google.com/file/d/1cYMq0jujtHC_DPUXrNpRf4jYN_83ntiK/view?usp=drivesdk"},
+            {"nome": "Playground", "link": "https://drive.google.com/file/d/1gaORQ2t3vur097TWHrGL_fF3oqSt6REu/view?usp=drivesdk"},
+            {"nome": "Salão de Festas", "link": "https://drive.google.com/file/d/1jYIt95E4_k0HhCpTCn7lBEM91G_VJLTF/view?usp=drivesdk"},
+            {"nome": "Planta Tipo", "link": "https://drive.google.com/file/d/1t-ZAfSHeyYWUgJx-2q00LpU15QSjSinh/view?usp=drivesdk"},
+            {"nome": "Ficha Técnica", "link": "https://drive.google.com/file/d/1CEykILUVyBfz0o73QFdjyIbvpof5P28w/view?usp=drivesdk"}
         ]
     },
     "NOVA CAXIAS FUN": {
         "video": "https://www.youtube.com/watch?v=3P_o4jVWsOI",
         "lat": -22.7303, "lon": -43.3075,
         "imagens": [
-            {"nome": "FACHADA", "link": "https://drive.google.com/file/d/17YwXWQPvTXWX0bx0sNq9lX8ZN6r3Q7_F/view?usp=drivesdk"},
-            {"nome": "PISCINA", "link": "https://drive.google.com/file/d/1jB16KnKTOdxFpj68OqOnnzlPl1ev1gyW/view?usp=drivesdk"},
-            {"nome": "FICHA TÉCNICA", "link": "https://drive.google.com/file/d/14l-h7mPypMoAFq7inaT-azt1CaP_evqF/view?usp=drivesdk"},
+            {"nome": "Fachada", "link": "https://drive.google.com/file/d/17YwXWQPvTXWX0bx0sNq9lX8ZN6r3Q7_F/view?usp=drivesdk"},
+            {"nome": "Piscina", "link": "https://drive.google.com/file/d/1jB16KnKTOdxFpj68OqOnnzlPl1ev1gyW/view?usp=drivesdk"},
+            {"nome": "Playground", "link": "https://drive.google.com/file/d/1-OM3XVNlYgfo2az26feqDfoYCjUxn7-d/view?usp=drivesdk"},
+            {"nome": "Salão de Festas", "link": "https://drive.google.com/file/d/1DBoZI2zVeycc3KnmKAhwFIK1GkMefb_X/view?usp=drivesdk"},
+            {"nome": "Planta Tipo", "link": "https://drive.google.com/file/d/1Te0683dB6MeOr_5JbXpEkhkb-Qcu_iBJ/view?usp=drivesdk"},
+            {"nome": "Ficha Técnica", "link": "https://drive.google.com/file/d/14l-h7mPypMoAFq7inaT-azt1CaP_evqF/view?usp=drivesdk"}
         ]
     },
     "NOVA CAXIAS UP": {
         "video": "https://www.youtube.com/watch?v=EbEcZvIdTvY",
         "lat": -22.7303, "lon": -43.3075,
         "imagens": [
-            {"nome": "FACHADA", "link": "https://drive.google.com/file/d/12I_GnSQVtCp-rdnUu3mUh43fc4qG54Ke/view?usp=drivesdk"},
-            {"nome": "PISCINA", "link": "https://drive.google.com/file/d/1cGDJJN79thO85xEyz74TvqIh6h4vsuCl/view?usp=drivesdk"},
-            {"nome": "FICHA TÉCNICA", "link": "https://drive.google.com/file/d/1gvehESpzNk4rqhA-bUOW_9YOT8XpEsi1/view?usp=drivesdk"},
+            {"nome": "Fachada", "link": "https://drive.google.com/file/d/12I_GnSQVtCp-rdnUu3mUh43fc4qG54Ke/view?usp=drivesdk"},
+            {"nome": "Piscina", "link": "https://drive.google.com/file/d/1cGDJJN79thO85xEyz74TvqIh6h4vsuCl/view?usp=drivesdk"},
+            {"nome": "Playground", "link": "https://drive.google.com/file/d/13qIgtrn55FD46nNMOYrr04r9JRvbTpZ0/view?usp=drivesdk"},
+            {"nome": "Salão de Festas", "link": "https://drive.google.com/file/d/1_lJXmBx02NVA9pjWkR9DGDM6JQbQOkU8/view?usp=drivesdk"},
+            {"nome": "Planta Tipo", "link": "https://drive.google.com/file/d/1FimZCNjC9Jy4ByW5n2-FOukEqoFGER87/view?usp=drivesdk"},
+            {"nome": "Ficha Técnica", "link": "https://drive.google.com/file/d/1gvehESpzNk4rqhA-bUOW_9YOT8XpEsi1/view?usp=drivesdk"}
         ]
     },
     "RESERVA DO SOL": {
         "video": "https://www.youtube.com/watch?v=Wij9XjG4slM",
         "lat": -22.9536, "lon": -43.3858,
         "imagens": [
-            {"nome": "FACHADA", "link": "https://drive.google.com/file/d/1-RFBc4sQ7Tbo6qwhP3GXZQy3m7_DtFcB/view?usp=drivesdk"},
-            {"nome": "PISCINA", "link": "https://drive.google.com/file/d/1HUqoUz1--CdmuZYd0DIvPhlyk9MnDt_O/view?usp=drivesdk"},
-            {"nome": "FICHA TÉCNICA", "link": "https://drive.google.com/file/d/1Cj-EuPHMF86pe7s0nw6XML2esCTd4Nqn/view?usp=drivesdk"},
+            {"nome": "Fachada", "link": "https://drive.google.com/file/d/1-RFBc4sQ7Tbo6qwhP3GXZQy3m7_DtFcB/view?usp=drivesdk"},
+            {"nome": "Piscina", "link": "https://drive.google.com/file/d/1HUqoUz1--CdmuZYd0DIvPhlyk9MnDt_O/view?usp=drivesdk"},
+            {"nome": "Playground", "link": "https://drive.google.com/file/d/1BnEkT8v6OCRdhx624sJRMPfcMjJsU2Tb/view?usp=drivesdk"},
+            {"nome": "Salão de Festas", "link": "https://drive.google.com/file/d/13xuG8_MJF_yM0Mt9Nnzft10mdGE4KbFn/view?usp=drivesdk"},
+            {"nome": "Planta Meio", "link": "https://drive.google.com/file/d/11wX-XPBMHOAqpKZUuwwJpJ_GcsiRxU1c/view?usp=drivesdk"},
+            {"nome": "Ficha Técnica", "link": "https://drive.google.com/file/d/1Cj-EuPHMF86pe7s0nw6XML2esCTd4Nqn/view?usp=drivesdk"}
         ]
     },
     "RESIDENCIAL JERIVÁ": {
         "video": None, "lat": -22.8944, "lon": -43.5575,
         "imagens": [
-            {"nome": "FACHADA", "link": "https://drive.google.com/file/d/1nzOHc7-n7gZDAFSbdNwDXgnQAJNouRPU/view?usp=drivesdk"},
-            {"nome": "PISCINA", "link": "https://drive.google.com/file/d/1R-TYH7oauG_qSFGTZbFzHjSaPkRcCEHC/view?usp=drivesdk"},
-            {"nome": "FICHA TÉCNICA", "link": "https://drive.google.com/file/d/1i8X-05E1NWAOxAgSQ6K1aX70NDXUlIUN/view?usp=drivesdk"},
+            {"nome": "Fachada", "link": "https://drive.google.com/file/d/1nzOHc7-n7gZDAFSbdNwDXgnQAJNouRPU/view?usp=drivesdk"},
+            {"nome": "Piscina", "link": "https://drive.google.com/file/d/1R-TYH7oauG_qSFGTZbFzHjSaPkRcCEHC/view?usp=drivesdk"},
+            {"nome": "Playground", "link": "https://drive.google.com/file/d/1m4AHz4E5id5O5r5bI1-5zckXK5pPZ43s/view?usp=drivesdk"},
+            {"nome": "Salão de Festas", "link": "https://drive.google.com/file/d/12HxPpDvQeYhamousSPF976-7hb2WDbFc/view?usp=drivesdk"},
+            {"nome": "Planta Tipo", "link": "https://drive.google.com/file/d/1RnmcwKnMxy7jL5AbPUPFJToWV_O1PJV-/view?usp=drivesdk"},
+            {"nome": "Ficha Técnica", "link": "https://drive.google.com/file/d/1i8X-05E1NWAOxAgSQ6K1aX70NDXUlIUN/view?usp=drivesdk"}
         ]
     },
     "RESIDENCIAL LARANJEIRAS": {
         "video": "https://www.youtube.com/watch?v=jmV1RHkRlZ4",
         "lat": -22.8944, "lon": -43.5575,
         "imagens": [
-            {"nome": "FACHADA", "link": "https://drive.google.com/file/d/19Eq2qFk5fx8AnG-ooWq6SsGGmQKsIvvb/view?usp=drivesdk"},
-            {"nome": "PISCINA", "link": "https://drive.google.com/file/d/1v9zn2HdtjNWBKlrxAKFljUkCD7SHSupB/view?usp=drivesdk"},
+            {"nome": "Fachada", "link": "https://drive.google.com/file/d/19Eq2qFk5fx8AnG-ooWq6SsGGmQKsIvvb/view?usp=drivesdk"},
+            {"nome": "Piscina", "link": "https://drive.google.com/file/d/1v9zn2HdtjNWBKlrxAKFljUkCD7SHSupB/view?usp=drivesdk"},
+            {"nome": "Playground", "link": "https://drive.google.com/file/d/1xVLehaJSdy1xvz6eELz3I8VtSPoQ8C-c/view?usp=drivesdk"},
+            {"nome": "Salão de Festas", "link": "https://drive.google.com/file/d/1WItdv2DY59gu-yzW1RXPykdCU5i2mdb2/view?usp=drivesdk"},
+            {"nome": "Planta Tipo", "link": "https://drive.google.com/file/d/1noEQfz_FQ7w3s7oopg8FQwhvfUfccjuT/view?usp=drivesdk"}
         ]
     },
     "VIVA VIDA REALENGO": {
         "video": "https://www.youtube.com/watch?v=cfRvstasGaw",
         "lat": -22.8797, "lon": -43.4286,
         "imagens": [
-            {"nome": "FACHADA", "link": "https://drive.google.com/file/d/1plxTT4MmRUP4xUl_300Rz7eFSH36uLFw/view?usp=drivesdk"},
-            {"nome": "PISCINA", "link": "https://drive.google.com/file/d/1PT-z4PFD_VUTtxrPKoXJJ-lOL9ud17FQ/view?usp=drivesdk"},
-            {"nome": "FICHA TÉCNICA", "link": "https://drive.google.com/file/d/1-UfmBvETRRuvuq5R6rKA3Y_9s4xBzTc6/view?usp=drivesdk"},
+            {"nome": "Fachada", "link": "https://drive.google.com/file/d/1plxTT4MmRUP4xUl_300Rz7eFSH36uLFw/view?usp=drivesdk"},
+            {"nome": "Piscina", "link": "https://drive.google.com/file/d/1PT-z4PFD_VUTtxrPKoXJJ-lOL9ud17FQ/view?usp=drivesdk"},
+            {"nome": "Playground", "link": "https://drive.google.com/file/d/1j51NJUlnu7M4T1Bwax7UfmorEhv5dYu4/view?usp=drivesdk"},
+            {"nome": "Planta Tipo", "link": "https://drive.google.com/file/d/17xl-SYLLtpyIxb82qkQAKHX1c4peLLcq/view?usp=drivesdk"},
+            {"nome": "Ficha Técnica", "link": "https://drive.google.com/file/d/1-UfmBvETRRuvuq5R6rKA3Y_9s4xBzTc6/view?usp=drivesdk"}
         ]
     },
     "RECANTO CLUBE": {
         "video": "https://www.youtube.com/watch?v=7K3UUEIOT-8",
         "lat": -22.9694, "lon": -43.5936,
         "imagens": [
-            {"nome": "FACHADA", "link": "https://drive.google.com/file/d/1pfvsC4S15n4HbtWeNp2crJcs0PcH5MRV/view?usp=drivesdk"},
-            {"nome": "PISCINA", "link": "https://drive.google.com/file/d/19SDMm-pzyxBfK_jTK4Z5gp2-aLlW_Lxj/view?usp=drivesdk"},
-            {"nome": "FICHA TÉCNICA", "link": "https://drive.google.com/file/d/1FT0IYF1VBWUX2iSxGqK7VuK-Z7sszSUK/view?usp=drivesdk"},
+            {"nome": "Fachada", "link": "https://drive.google.com/file/d/1pfvsC4S15n4HbtWeNp2crJcs0PcH5MRV/view?usp=drivesdk"},
+            {"nome": "Piscina", "link": "https://drive.google.com/file/d/19SDMm-pzyxBfK_jTK4Z5gp2-aLlW_Lxj/view?usp=drivesdk"},
+            {"nome": "Playground", "link": "https://drive.google.com/file/d/1aOW9ErNYvbdmVPeyCKYdWH1Z32joTliw/view?usp=drivesdk"},
+            {"nome": "Salão de Festas", "link": "https://drive.google.com/file/d/1bI4pk6j63uWBMmQnz07cDTNrB3YFCrpS/view?usp=drivesdk"},
+            {"nome": "Planta Tipo", "link": "https://drive.google.com/file/d/1fOM-Ul_JZwjELDMkmwkHE_JN669V9-ob/view?usp=drivesdk"},
+            {"nome": "Ficha Técnica", "link": "https://drive.google.com/file/d/1FT0IYF1VBWUX2iSxGqK7VuK-Z7sszSUK/view?usp=drivesdk"}
         ]
     }
 }
@@ -1531,17 +1592,32 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
                     
                     st.markdown("---")
                     
+                    # Organizar imagens por categoria (Seções Verticais)
+                    imagens_raw = meta.get("imagens", [])
+                    categorias = {"IMAGENS ILUSTRATIVAS": [], "PLANTAS": [], "OUTROS": []}
+                    link_ficha = None
+
+                    for item in imagens_raw:
+                        nome_up = item['nome'].upper()
+                        # Identificar Ficha Técnica para o botão
+                        if "FICHA" in nome_up or "PDF" in nome_up:
+                            link_ficha = item['link']
+                            continue
+                        
+                        # Categorizar
+                        if "PLANTA" in nome_up or "MASTERPLAN" in nome_up:
+                            categorias["PLANTAS"].append(item)
+                        elif "LOGO" in nome_up or "MAPA" in nome_up:
+                            categorias["OUTROS"].append(item)
+                        else:
+                            categorias["IMAGENS ILUSTRATIVAS"].append(item)
+
                     # SEÇÃO 2: IMAGENS (SLIDER HORIZONTAL COM MINIATURAS)
-                    st.markdown("##### Imagens do Empreendimento")
-                    st.markdown("Clique na imagem para ampliar em nova aba.")
-                    
-                    imagens = meta.get("imagens", [])
-                    if imagens:
-                        # Montar HTML do Slider horizontal
+                    if categorias["IMAGENS ILUSTRATIVAS"]:
+                        st.markdown("##### Imagens Ilustrativas")
                         slider_html = '<div class="scrolling-images">'
-                        for img in imagens:
+                        for img in categorias["IMAGENS ILUSTRATIVAS"]:
                             link_thumb = formatar_link_drive(img['link'])
-                            # Ao clicar, abre o link original (full size) em nova aba
                             slider_html += f'''
                             <a href="{img['link']}" target="_blank">
                                 <img src="{link_thumb}" alt="{img['nome']}" title="{img['nome']}">
@@ -1549,19 +1625,26 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
                             '''
                         slider_html += '</div>'
                         st.markdown(slider_html, unsafe_allow_html=True)
-                    else:
-                        st.info("Galeria de imagens indisponível.")
+                        st.markdown("<br>", unsafe_allow_html=True)
+
+                    # SEÇÃO 3: PLANTAS
+                    if categorias["PLANTAS"]:
+                        st.markdown("##### Plantas e Implantação")
+                        slider_html = '<div class="scrolling-images">'
+                        for img in categorias["PLANTAS"]:
+                            link_thumb = formatar_link_drive(img['link'])
+                            slider_html += f'''
+                            <a href="{img['link']}" target="_blank">
+                                <img src="{link_thumb}" alt="{img['nome']}" title="{img['nome']}">
+                            </a>
+                            '''
+                        slider_html += '</div>'
+                        st.markdown(slider_html, unsafe_allow_html=True)
+                        st.markdown("<br>", unsafe_allow_html=True)
 
                     st.markdown("---")
                     
-                    # SEÇÃO 3: FICHA TÉCNICA (BOTÃO CENTRALIZADO)
-                    # Procura link de ficha técnica na lista de imagens/links
-                    link_ficha = None
-                    for item in imagens:
-                        if "FICHA" in item['nome'].upper() or "PDF" in item['nome'].upper():
-                            link_ficha = item['link']
-                            break
-                    
+                    # SEÇÃO 4: FICHA TÉCNICA (BOTÃO CENTRALIZADO)
                     if link_ficha:
                         c1, c2, c3 = st.columns([1, 2, 1])
                         with c2:
@@ -1752,12 +1835,38 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
                 ].sort_values('Valor de Venda').head(10)
                 
                 if not similares.empty:
-                    # Custom HTML Table without leading indentation
-                    table_html = f"""<table style="width:100%; border-collapse: collapse; font-family: 'Inter', sans-serif; font-size: 0.9rem;"><thead><tr style="background-color: {COR_AZUL_ESC}; color: white; text-align: left;"><th style="padding: 10px; border-radius: 8px 0 0 0;">Empreendimento</th><th style="padding: 10px;">Bairro</th><th style="padding: 10px;">Unidade</th><th style="padding: 10px; border-radius: 0 8px 0 0; text-align: right;">Valor</th></tr></thead><tbody>"""
-                    for _, row in similares.iterrows():
-                        table_html += f"""<tr style="border-bottom: 1px solid #eee; color: {COR_AZUL_ESC};"><td style="padding: 10px;">{row['Empreendimento']}</td><td style="padding: 10px;">{row['Bairro']}</td><td style="padding: 10px;">{row['Identificador']}</td><td style="padding: 10px; text-align: right; font-weight: bold;">R$ {fmt_br(row['Valor de Venda'])}</td></tr>"""
-                    table_html += "</tbody></table>"
-                    st.markdown(table_html, unsafe_allow_html=True)
+                    # Custom HTML Table without leading indentation - FIX HTML RENDERING
+                    # O Streamlit renderiza strings markdown. Se for HTML puro, precisa ser wrapped e unsafe_allow_html=True
+                    
+                    # Vamos montar o HTML completo de uma só vez para garantir a estrutura
+                    cards_html = f"""<div class="scrolling-wrapper">"""
+                    
+                    for card in final_cards:
+                         row = card['row']
+                         # Escaping de aspas simples para evitar conflito na f-string
+                         emp_name = row['Empreendimento']
+                         unid_name = row['Identificador']
+                         val_fmt = fmt_br(row['Valor de Venda'])
+                         label = card['label']
+                         css_badge = card['css']
+                         
+                         cards_html += f"""
+                         <div class="card-item">
+                            <div class="recommendation-card" style="border-top: 4px solid {COR_AZUL_ESC}; height: 100%; justify-content: flex-start;">
+                                <span style="font-size:0.65rem; color:{COR_AZUL_ESC}; opacity:0.8;">PERFIL</span><br>
+                                <div style="margin-top:5px; margin-bottom:15px;"><span class="{css_badge}">{label}</span></div>
+                                <b style="color:{COR_AZUL_ESC}; font-size:1.1rem;">{emp_name}</b><br>
+                                <div style="font-size:0.85rem; color:{COR_TEXTO_MUTED}; text-align:center; border-top:1px solid #eee; padding-top:10px; width:100%;">
+                                    <b>Unidade: {unid_name}</b>
+                                </div>
+                                <div class="price-tag" style="font-size:1.4rem; margin:10px 0;">R$ {val_fmt}</div>
+                            </div>
+                         </div>
+                         """
+                    cards_html += "</div>"
+                    
+                    # Renderiza o HTML corrigido
+                    st.markdown(cards_html, unsafe_allow_html=True)
                 else:
                     st.info("Nenhuma outra unidade encontrada nessa faixa de preço (+/- 10%).")
             else:
