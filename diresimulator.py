@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 =============================================================================
-SISTEMA DE SIMULAÇÃO IMOBILIÁRIA - DIRE RIO V64 (GALERIA FULL & PROJEÇÃO CORRIGIDA)
+SISTEMA DE SIMULAÇÃO IMOBILIÁRIA - DIRE RIO V65 (GALERIA CORRIGIDA & TABS)
 =============================================================================
 """
 
@@ -65,8 +65,7 @@ COR_BORDA = "#eef2f6"
 COR_TEXTO_MUTED = "#64748b"
 COR_INPUT_BG = "#f0f2f6"
 
-# --- BANCO DE DADOS DE IMAGENS (CARREGADO DA LISTA FORNECIDA) ---
-# Organizado por 'Chave Normalizada' -> Lista de dicts
+# --- BANCO DE DADOS DE IMAGENS ---
 DB_IMAGENS = {
     "CONQUISTA FLORIANÓPOLIS": [
         {"nome": "APARTAMENTO GARDEN", "link": "https://drive.google.com/file/d/1u2pc7a6P4DOPYp69RN0icmOZoTFriuKt/view?usp=drivesdk"},
@@ -429,6 +428,20 @@ def calcular_fluxo_pagamento_detalhado(valor_fin, meses_fin, taxa_anual, sistema
         })
     
     return pd.DataFrame(fluxo)
+
+def formatar_link_drive(url):
+    """
+    Converte links de visualização do Google Drive em links diretos de thumbnail 
+    para garantir que o st.image consiga renderizar.
+    """
+    if "drive.google.com" in url and "/d/" in url:
+        try:
+            file_id = url.split("/d/")[1].split("/")[0]
+            # Usar thumbnail para carregar mais rápido e garantir visualização
+            return f"https://drive.google.com/thumbnail?id={file_id}&sz=w1000"
+        except:
+            return url
+    return url
 
 def scroll_to_top():
     js = """<script>var body = window.parent.document.querySelector(".main"); if (body) { body.scrollTop = 0; } window.scrollTo(0, 0);</script>"""
@@ -1511,68 +1524,76 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
         # Obter lista de produtos do dicionário de imagens
         lista_produtos = sorted(list(DB_IMAGENS.keys()))
         
-        prod_sel = st.selectbox("Selecione o Empreendimento", lista_produtos, key="sel_galeria")
-        
-        if prod_sel:
-            st.markdown(f"#### {prod_sel}")
-            assets = DB_IMAGENS[prod_sel]
+        # SUBSTITUI SELECTBOX POR TABS PARA SELEÇÃO HORIZONTAL
+        if not lista_produtos:
+            st.warning("Nenhum produto cadastrado na galeria.")
+        else:
+            tabs_produtos = st.tabs(lista_produtos)
             
-            # Organizar abas
-            g_tabs = st.tabs(["IMAGENS", "PLANTAS", "MAPA", "FICHA TÉCNICA", "OUTROS"])
-            
-            # Separar assets por categoria (baseado no nome do arquivo ou pasta lógica se houvesse, aqui faremos filtro por string no nome)
-            
-            with g_tabs[0]: # IMAGENS (Perspectivas, Fachada, Lazer)
-                cols = st.columns(3)
-                idx_c = 0
-                for item in assets:
-                    n = item['nome'].upper()
-                    # Filtra o que não é planta, mapa ou ficha
-                    if "PLANTA" not in n and "MAPA" not in n and "FICHA" not in n and "LOGO" not in n:
-                        with cols[idx_c % 3]:
-                            st.image(item['link'], caption=item['nome'], use_container_width=True)
-                            st.caption("Clique na imagem para ampliar 🔍")
-                        idx_c += 1
-            
-            with g_tabs[1]: # PLANTAS
-                cols = st.columns(3)
-                idx_c = 0
-                found = False
-                for item in assets:
-                    if "PLANTA" in item['nome'].upper() or "MASTERPLAN" in item['nome'].upper() or "IMPLANTA" in item['nome'].upper():
-                        with cols[idx_c % 3]:
-                            st.image(item['link'], caption=item['nome'], use_container_width=True)
-                            st.caption("Clique na imagem para ampliar 🔍")
-                        idx_c += 1
-                        found = True
-                if not found: st.info("Nenhuma planta encontrada.")
+            for aba, prod_key in zip(tabs_produtos, lista_produtos):
+                with aba:
+                    st.markdown(f"#### {prod_key}")
+                    assets = DB_IMAGENS[prod_key]
+                    
+                    # Organizar abas internas de categorias
+                    g_tabs = st.tabs(["IMAGENS", "PLANTAS", "MAPA", "FICHA TÉCNICA", "OUTROS"])
+                    
+                    with g_tabs[0]: # IMAGENS (Perspectivas, Fachada, Lazer)
+                        cols = st.columns(3)
+                        idx_c = 0
+                        for item in assets:
+                            n = item['nome'].upper()
+                            if "PLANTA" not in n and "MAPA" not in n and "FICHA" not in n and "LOGO" not in n:
+                                with cols[idx_c % 3]:
+                                    # Formata link para thumbnail garantida
+                                    img_url = formatar_link_drive(item['link'])
+                                    st.image(img_url, caption=item['nome'], use_container_width=True)
+                                    st.caption("Clique na imagem para ampliar 🔍")
+                                idx_c += 1
+                    
+                    with g_tabs[1]: # PLANTAS
+                        cols = st.columns(3)
+                        idx_c = 0
+                        found = False
+                        for item in assets:
+                            if "PLANTA" in item['nome'].upper() or "MASTERPLAN" in item['nome'].upper() or "IMPLANTA" in item['nome'].upper():
+                                with cols[idx_c % 3]:
+                                    img_url = formatar_link_drive(item['link'])
+                                    st.image(img_url, caption=item['nome'], use_container_width=True)
+                                    st.caption("Clique na imagem para ampliar 🔍")
+                                idx_c += 1
+                                found = True
+                        if not found: st.info("Nenhuma planta encontrada.")
 
-            with g_tabs[2]: # MAPA
-                cols = st.columns(1)
-                found = False
-                for item in assets:
-                    if "MAPA" in item['nome'].upper():
-                        st.image(item['link'], caption=item['nome'], use_container_width=True)
-                        st.caption("Clique na imagem para ampliar 🔍")
-                        found = True
-                if not found: st.info("Mapa não disponível.")
+                    with g_tabs[2]: # MAPA
+                        cols = st.columns(1)
+                        found = False
+                        for item in assets:
+                            if "MAPA" in item['nome'].upper():
+                                img_url = formatar_link_drive(item['link'])
+                                st.image(img_url, caption=item['nome'], use_container_width=True)
+                                st.caption("Clique na imagem para ampliar 🔍")
+                                found = True
+                        if not found: st.info("Mapa não disponível.")
 
-            with g_tabs[3]: # FICHA TÉCNICA
-                found = False
-                for item in assets:
-                    if "FICHA" in item['nome'].upper() or "PDF" in item['nome'].upper():
-                        st.link_button(f"📄 Abrir {item['nome']}", item['link'])
-                        found = True
-                if not found: st.info("Ficha técnica não disponível.")
+                    with g_tabs[3]: # FICHA TÉCNICA
+                        found = False
+                        for item in assets:
+                            if "FICHA" in item['nome'].upper() or "PDF" in item['nome'].upper():
+                                # Link original para abrir PDF
+                                st.link_button(f"📄 Abrir {item['nome']}", item['link'])
+                                found = True
+                        if not found: st.info("Ficha técnica não disponível.")
 
-            with g_tabs[4]: # OUTROS (Logos, Vídeos se tiver)
-                cols = st.columns(4)
-                idx_c = 0
-                for item in assets:
-                    if "LOGO" in item['nome'].upper():
-                        with cols[idx_c % 4]:
-                            st.image(item['link'], caption=item['nome'], width=150)
-                        idx_c += 1
+                    with g_tabs[4]: # OUTROS (Logos, Vídeos se tiver)
+                        cols = st.columns(4)
+                        idx_c = 0
+                        for item in assets:
+                            if "LOGO" in item['nome'].upper():
+                                with cols[idx_c % 4]:
+                                    img_url = formatar_link_drive(item['link'])
+                                    st.image(img_url, caption=item['nome'], width=150)
+                                idx_c += 1
 
     # --- ABA ANALYTICS (SECURE TAB - ALTAIR) ---
     elif passo == 'client_analytics':
