@@ -2131,7 +2131,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
                 except: v_aval = v_venda
 
                 fin, sub, fx_n = motor.obter_enquadramento(d.get('renda', 0), d.get('social', False), d.get('cotista', True), v_aval)
-                ps_max_val = v_venda * d.get('perc_ps', 0.10)
+                ps_max_val = v_aval * d.get('perc_ps', 0.10)
                 capacity = ps_max_val + fin + sub + (2 * d.get('renda', 0))
                 cobertura = (capacity / v_venda) * 100 if v_venda > 0 else 0
                 is_viavel = capacity >= v_venda
@@ -2328,7 +2328,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
                     u_row = unidades_disp[unidades_disp['Identificador'] == uni_escolhida_id].iloc[0]
                     v_aval = u_row['Valor de Avaliação Bancária']; v_venda = u_row['Valor de Venda']
                     fin_t, sub_t, _ = motor.obter_enquadramento(d.get('renda', 0), d.get('social', False), d.get('cotista', True), v_aval)
-                    poder_t, _ = motor.calcular_poder_compra(d.get('renda', 0), fin_t, sub_t, d.get('perc_ps', 0), v_venda)
+                    poder_t, _ = motor.calcular_poder_compra(d.get('renda', 0), fin_t, sub_t, d.get('perc_ps', 0), v_aval)
                     percentual_cobertura = min(100, max(0, (poder_t / v_venda) * 100))
                     cor_term = calcular_cor_gradiente(percentual_cobertura)
                     st.markdown(f"""<div style="margin-top: 20px; padding: 15px; border: 1px solid #e2e8f0; border-radius: 10px; background-color: #f8fafc; text-align: center;"><p style="margin: 0; font-weight: 700; font-size: 0.9rem; color: #002c5d;">TERMÔMETRO DE VIABILIDADE</p><div style="width: 100%; background-color: #e2e8f0; border-radius: 5px; height: 10px; margin: 10px 0;"><div style="width: {percentual_cobertura}%; background: linear-gradient(90deg, #e30613 0%, #002c5d 100%); height: 100%; border-radius: 5px; transition: width 0.5s;"></div></div><small>{percentual_cobertura:.1f}% Coberto</small></div>""", unsafe_allow_html=True)
@@ -2509,7 +2509,10 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
             
         st.markdown("<hr style='margin: 10px 0;'>", unsafe_allow_html=True)
         col_ps_val, col_ps_parc = st.columns(2)
-        ps_max_real = u_valor * d.get('perc_ps', 0)
+        
+        u_aval = d.get('imovel_avaliacao', u_valor)
+        ps_max_real = u_aval * d.get('perc_ps', 0)
+        
         with col_ps_val:
             v_ps_disp = val_input('ps_u_key')
             ps_input_val = st.number_input("Pro Soluto Direcional", value=v_ps_disp, key="ps_u_key", step=1000.0, placeholder="0,00")
@@ -2543,3 +2546,90 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
         if st.button("Voltar para Escolha de Unidade", use_container_width=True): st.session_state.passo_simulacao = 'selection'; scroll_to_top(); st.rerun()
 
     elif passo == 'summary':
+        d = st.session_state.dados_cliente
+        st.markdown(f"### Resumo da Simulação - {d.get('nome', 'Cliente')}")
+        st.markdown(f'<div class="summary-header">DADOS DO IMÓVEL</div>', unsafe_allow_html=True)
+        st.markdown(f"""<div class="summary-body"><b>Empreendimento:</b> {d.get('empreendimento_nome')}<br><b>Unidade:</b> {d.get('unidade_id')}<br><b>Valor de Venda:</b> <span style="color: {COR_VERMELHO}; font-weight: 800;">R$ {fmt_br(d.get('imovel_valor', 0))}</span></div>""", unsafe_allow_html=True)
+        st.markdown(f'<div class="summary-header">PLANO DE FINANCIAMENTO</div>', unsafe_allow_html=True)
+        prazo_txt = d.get('prazo_financiamento', 360)
+        parcela_texto = f"Parcela Estimada ({d.get('sistema_amortizacao', 'SAC')} - {prazo_txt}x): R$ {fmt_br(d.get('parcela_financiamento', 0))}"
+        st.markdown(f"""<div class="summary-body"><b>Financiamento Bancário:</b> R$ {fmt_br(d.get('finan_usado', 0))}<br><b>{parcela_texto}</b><br><b>FGTS + Subsídio:</b> R$ {fmt_br(d.get('fgts_sub_usado', 0))}<br><b>Pro Soluto Total:</b> R$ {fmt_br(d.get('ps_usado', 0))} ({d.get('ps_parcelas')}x de R$ {fmt_br(d.get('ps_mensal', 0))})</div>""", unsafe_allow_html=True)
+        st.markdown(f'<div class="summary-header">FLUXO DE ENTRADA (ATO)</div>', unsafe_allow_html=True)
+        st.markdown(f"""<div class="summary-body"><b>Total de Entrada:</b> R$ {fmt_br(d.get('entrada_total', 0))}<br><hr style="border: 0; border-top: 1px solid #e2e8f0; margin: 10px 0;"><b>Ato:</b> R$ {fmt_br(d.get('ato_final', 0))}<br><b>Ato 30 Dias:</b> R$ {fmt_br(d.get('ato_30', 0))}<br><b>Ato 60 Dias:</b> R$ {fmt_br(d.get('ato_60', 0))}<br><b>Ato 90 Dias:</b> R$ {fmt_br(d.get('ato_90', 0))}</div>""", unsafe_allow_html=True)
+        st.markdown("---")
+        if st.button("Opções de Resumo (PDF / E-mail)", use_container_width=True): show_export_dialog(d)
+        st.markdown("---")
+        if st.button("CONCLUIR E SALVAR SIMULAÇÃO", type="primary", use_container_width=True):
+            broker_email = st.session_state.get('user_email')
+            if broker_email:
+                with st.spinner("Gerando PDF e enviando para seu e-mail..."):
+                    pdf_bytes_auto = gerar_resumo_pdf(d)
+                    if pdf_bytes_auto:
+                        sucesso_email, msg_email = enviar_email_smtp(broker_email, d.get('nome', 'Cliente'), pdf_bytes_auto, d)
+                        if sucesso_email: st.toast("PDF enviado para seu e-mail com sucesso!", icon="📧")
+                        else: st.toast(f"Falha no envio automático: {msg_email}", icon="⚠️")
+            try:
+                conn_save = st.connection("gsheets", type=GSheetsConnection)
+                aba_destino = 'Simulações'
+                rendas_ind = d.get('rendas_lista', [])
+                while len(rendas_ind) < 4: rendas_ind.append(0.0)
+                capacidade_entrada = d.get('entrada_total', 0) + d.get('ps_usado', 0)
+                nova_linha = {
+                    "Nome": d.get('nome'), "CPF": d.get('cpf'), "Data de Nascimento": str(d.get('data_nascimento')),
+                    "Prazo Financiamento": d.get('prazo_financiamento'), "Renda Part. 1": rendas_ind[0], "Renda Part. 4": rendas_ind[3],
+                    "Renda Part. 3": rendas_ind[2], "Renda Part. 4.1": 0.0, "Ranking": d.get('ranking'),
+                    "Política de Pro Soluto": d.get('politica'), "Fator Social": "Sim" if d.get('social') else "Não",
+                    "Cotista FGTS": "Sim" if d.get('cotista') else "Não", "Financiamento Aprovado": d.get('finan_f_ref', 0),
+                    "Subsídio Máximo": d.get('sub_f_ref', 0), "Pro Soluto Médio": d.get('ps_usado', 0), "Capacidade de Entrada": capacidade_entrada,
+                    "Poder de Aquisição Médio": (2 * d.get('renda', 0)) + d.get('finan_f_ref', 0) + d.get('sub_f_ref', 0) + (d.get('imovel_valor', 0) * 0.10),
+                    "Empreendimento Final": d.get('empreendimento_nome'), "Unidade Final": d.get('unidade_id'),
+                    "Preço Unidade Final": d.get('imovel_valor', 0), "Financiamento Final": d.get('finan_usado', 0),
+                    "FGTS + Subsídio Final": d.get('fgts_sub_usado', 0), "Pro Soluto Final": d.get('ps_usado', 0),
+                    "Número de Parcelas do Pro Soluto": d.get('ps_parcelas', 0), "Mensalidade PS": d.get('ps_mensal', 0),
+                    "Ato": d.get('ato_final', 0), "Ato 30": d.get('ato_30', 0), "Ato 60": d.get('ato_60', 0), "Ato 90": d.get('ato_90', 0),
+                    "Renda Part. 2": rendas_ind[1], "Nome do Corretor": st.session_state.get('user_name', ''),
+                    "Canal/Imobiliária": st.session_state.get('user_imobiliaria', ''),
+                    "Data/Horário": datetime.now(pytz.timezone('America/Sao_Paulo')).strftime("%d/%m/%Y %H:%M:%S"),
+                    "Sistema de Amortização": d.get('sistema_amortizacao', 'SAC'),
+                    "Quantidade Parcelas Financiamento": d.get('prazo_financiamento', 360),
+                    "Quantidade Parcelas Pro Soluto": d.get('ps_parcelas', 0)
+                }
+                df_novo = pd.DataFrame([nova_linha])
+                try:
+                    df_existente = conn_save.read(spreadsheet=URL_RANKING, worksheet=aba_destino)
+                    df_final_save = pd.concat([df_existente, df_novo], ignore_index=True)
+                except: df_final_save = df_novo
+                conn_save.update(spreadsheet=URL_RANKING, worksheet=aba_destino, data=df_final_save)
+                st.cache_data.clear()
+                st.markdown(f'<div class="custom-alert">Salvo em \'{aba_destino}\'!</div>', unsafe_allow_html=True); time.sleep(2); st.session_state.dados_cliente = {}; st.session_state.passo_simulacao = 'input'; scroll_to_top(); st.rerun()
+            except Exception as e: st.error(f"Erro ao salvar: {e}")
+        if st.button("Voltar para Fechamento Financeiro", use_container_width=True): st.session_state.passo_simulacao = 'payment_flow'; scroll_to_top(); st.rerun()
+
+    st.markdown("<br><br>", unsafe_allow_html=True)
+
+    # Botão Sair fora da coluna para herdar estilo grande
+    if st.button("Sair do Sistema", key="btn_logout_bottom", use_container_width=True):
+        st.session_state['logged_in'] = False
+        st.rerun()
+
+def main():
+    configurar_layout()
+    df_finan, df_estoque, df_politicas, df_logins, df_cadastros = carregar_dados_sistema()
+    logo_src = URL_FAVICON_RESERVA
+    if os.path.exists("favicon.png"):
+        try:
+            with open("favicon.png", "rb") as f:
+                encoded = base64.b64encode(f.read()).decode()
+                logo_src = f"data:image/png;base64,{encoded}"
+        except: pass
+    st.markdown(f'''<div class="header-container"><img src="{logo_src}" style="position: absolute; top: 30px; left: 40px; height: 50px;"><div class="header-title">SIMULADOR IMOBILIÁRIO DV</div><div class="header-subtitle">Sistema de Gestão de Vendas e Viabilidade Imobiliária</div></div>''', unsafe_allow_html=True)
+
+    if 'logged_in' not in st.session_state: st.session_state['logged_in'] = False
+
+    if not st.session_state['logged_in']: tela_login(df_logins)
+    else: aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros)
+
+    st.markdown(f'<div class="footer">Direcional Engenharia - Rio de Janeiro | Developed by Lucas Maia</div>', unsafe_allow_html=True)
+
+if __name__ == "__main__":
+    main()
