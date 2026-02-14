@@ -522,7 +522,13 @@ def carregar_dados_sistema():
                 'Status da unidade': 'Status',
                 'Identificador': 'Identificador',
                 'Bairro': 'Bairro',
-                'Valor de Avaliação Bancária': 'Valor de Avaliação Bancária'
+                'Valor de Avaliação Bancária': 'Valor de Avaliação Bancária',
+                'PS EmCash': 'PS_EmCash',
+                'PS Diamante': 'PS_Diamante',
+                'PS Ouro': 'PS_Ouro',
+                'PS Prata': 'PS_Prata',
+                'PS Bronze': 'PS_Bronze',
+                'PS Aço': 'PS_Aco'
             }
             
             df_estoque = df_raw.rename(columns=mapa_estoque)
@@ -535,10 +541,19 @@ def carregar_dados_sistema():
             df_estoque['Valor de Venda'] = df_estoque['Valor de Venda'].apply(limpar_moeda)
             df_estoque['Valor de Avaliação Bancária'] = df_estoque['Valor de Avaliação Bancária'].apply(limpar_moeda)
             
+            # Limpar colunas de PS
+            cols_ps = ['PS_EmCash', 'PS_Diamante', 'PS_Ouro', 'PS_Prata', 'PS_Bronze', 'PS_Aco']
+            for c in cols_ps:
+                if c in df_estoque.columns:
+                    df_estoque[c] = df_estoque[c].apply(limpar_moeda)
+                else:
+                    df_estoque[c] = 0.0
+            
             if 'Status' in df_estoque.columns:
                  df_estoque['Status'] = df_estoque['Status'].astype(str).str.strip()
                  df_estoque['Status'] = df_estoque['Status'].apply(lambda x: 'Disponível' if 'Dispon' in x or 'dispon' in x else x)
 
+            # Removed Status == Disponivel filter as requested
             df_estoque = df_estoque[(df_estoque['Valor de Venda'] > 1000)].copy()
             if 'Empreendimento' in df_estoque.columns:
                  df_estoque = df_estoque[df_estoque['Empreendimento'].notnull()]
@@ -600,9 +615,8 @@ class MotorRecomendacao:
         vs = row.get(col_sub, 0.0)
         return float(vf), float(vs), faixa
 
-    def calcular_poder_compra(self, renda, finan, fgts_sub, perc_ps, valor_unidade):
-        ps = valor_unidade * perc_ps
-        return (2 * renda) + finan + fgts_sub + ps, ps
+    def calcular_poder_compra(self, renda, finan, fgts_sub, val_ps_limite):
+        return (2 * renda) + finan + fgts_sub + val_ps_limite, val_ps_limite
 
 def configurar_layout():
     favicon = URL_FAVICON_RESERVA
@@ -1521,15 +1535,11 @@ def dialog_novo_cliente(motor):
         })
 
         # Processar lógica de negócio (enquadramento inicial)
-        class_b = 'EMCASH' if politica_ps == "Emcash" else ranking
-        map_ps_percent = {'EMCASH': 0.25, 'DIAMANTE': 0.25, 'OURO': 0.20, 'PRATA': 0.18, 'BRONZE': 0.15, 'AÇO': 0.12}
-        perc_ps_max = map_ps_percent.get(class_b, 0.12)
         prazo_ps_max = 66 if politica_ps == "Emcash" else 84
         limit_ps_r = 0.30
         f_faixa_ref, s_faixa_ref, fx_nome_ref = motor.obter_enquadramento(renda_total_calc, social, cotista, valor_avaliacao=240000)
 
         st.session_state.dados_cliente.update({
-            'perc_ps': perc_ps_max, 
             'prazo_ps_max': prazo_ps_max,
             'limit_ps_renda': limit_ps_r, 
             'finan_f_ref': f_faixa_ref, 
@@ -1595,15 +1605,11 @@ def dialog_buscar_cliente(df_cadastros, motor):
         })
 
         # Processar lógica de negócio (enquadramento inicial)
-        class_b = 'EMCASH' if politica_ps == "Emcash" else ranking
-        map_ps_percent = {'EMCASH': 0.25, 'DIAMANTE': 0.25, 'OURO': 0.20, 'PRATA': 0.18, 'BRONZE': 0.15, 'AÇO': 0.12}
-        perc_ps_max = map_ps_percent.get(class_b, 0.12)
         prazo_ps_max = 66 if politica_ps == "Emcash" else 84
         limit_ps_r = 0.30
         f_faixa_ref, s_faixa_ref, fx_nome_ref = motor.obter_enquadramento(renda_total_calc, social, cotista, valor_avaliacao=240000)
 
         st.session_state.dados_cliente.update({
-            'perc_ps': perc_ps_max, 
             'prazo_ps_max': prazo_ps_max,
             'limit_ps_renda': limit_ps_r, 
             'finan_f_ref': f_faixa_ref, 
@@ -2076,8 +2082,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
                 similares = df_estoque[
                     (df_estoque['Valor de Venda'] >= min_p) & 
                     (df_estoque['Valor de Venda'] <= max_p) &
-                    (df_estoque['Empreendimento'] != d.get('empreendimento_nome')) &
-                    (df_estoque['Status'] == 'Disponível')
+                    (df_estoque['Empreendimento'] != d.get('empreendimento_nome')) 
                 ].sort_values('Valor de Venda').head(10)
                 
                 if not similares.empty:
@@ -2208,7 +2213,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
         d = st.session_state.dados_cliente
         st.markdown(f"### Recomendação de Imóveis")
 
-        df_disp_total = df_estoque[df_estoque['Status'] == 'Disponível'].copy()
+        df_disp_total = df_estoque.copy()
 
         if df_disp_total.empty: st.markdown('<div class="custom-alert">Sem produtos viaveis no perfil selecionado.</div>', unsafe_allow_html=True); df_viaveis = pd.DataFrame()
         else:
@@ -2221,7 +2226,23 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
                 except: v_aval = v_venda
 
                 fin, sub, fx_n = motor.obter_enquadramento(d.get('renda', 0), d.get('social', False), d.get('cotista', True), v_aval)
-                ps_max_val = v_aval * d.get('perc_ps', 0.10)
+                
+                # SELEÇÃO DO PRO SOLUTO POR COLUNA
+                pol = d.get('politica', 'Direcional')
+                rank = d.get('ranking', 'DIAMANTE')
+                
+                ps_max_val = 0.0
+                if pol == 'Emcash':
+                    ps_max_val = row.get('PS_EmCash', 0.0)
+                else:
+                    # Tenta pegar coluna pelo ranking
+                    # Assumindo nomes de coluna 'PS Diamante' -> 'PS_Diamante'
+                    col_rank = f"PS_{rank.title()}" if rank else 'PS_Diamante'
+                    # Ajuste para caso Aço (sem cedilha) se necessário, mas mapeamento deve resolver
+                    if rank == 'AÇO': col_rank = 'PS_Aco'
+                    
+                    ps_max_val = row.get(col_rank, 0.0)
+
                 capacity = ps_max_val + fin + sub + (2 * d.get('renda', 0))
                 cobertura = (capacity / v_venda) * 100 if v_venda > 0 else 0
                 is_viavel = capacity >= v_venda
@@ -2389,7 +2410,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
          d = st.session_state.dados_cliente
          st.markdown(f"### Escolha de Unidade")
          
-         df_disponiveis = df_estoque[df_estoque['Status'] == 'Disponível'].copy()
+         df_disponiveis = df_estoque.copy()
          if df_disponiveis.empty: st.warning("Sem estoque disponível.")
          else:
             emp_names = sorted(df_disponiveis['Empreendimento'].unique())
@@ -2418,7 +2439,20 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
                     u_row = unidades_disp[unidades_disp['Identificador'] == uni_escolhida_id].iloc[0]
                     v_aval = u_row['Valor de Avaliação Bancária']; v_venda = u_row['Valor de Venda']
                     fin_t, sub_t, _ = motor.obter_enquadramento(d.get('renda', 0), d.get('social', False), d.get('cotista', True), v_aval)
-                    poder_t, _ = motor.calcular_poder_compra(d.get('renda', 0), fin_t, sub_t, d.get('perc_ps', 0), v_aval)
+                    
+                    # SELEÇÃO DO PRO SOLUTO POR COLUNA
+                    pol = d.get('politica', 'Direcional')
+                    rank = d.get('ranking', 'DIAMANTE')
+                    
+                    ps_max_val = 0.0
+                    if pol == 'Emcash':
+                        ps_max_val = u_row.get('PS_EmCash', 0.0)
+                    else:
+                        col_rank = f"PS_{rank.title()}" if rank else 'PS_Diamante'
+                        if rank == 'AÇO': col_rank = 'PS_Aco'
+                        ps_max_val = u_row.get(col_rank, 0.0)
+
+                    poder_t, _ = motor.calcular_poder_compra(d.get('renda', 0), fin_t, sub_t, ps_max_val)
                     percentual_cobertura = min(100, max(0, (poder_t / v_venda) * 100))
                     cor_term = calcular_cor_gradiente(percentual_cobertura)
                     st.markdown(f"""<div style="margin-top: 20px; padding: 15px; border: 1px solid #e2e8f0; border-radius: 10px; background-color: #f8fafc; text-align: center;"><p style="margin: 0; font-weight: 700; font-size: 0.9rem; color: #002c5d;">TERMÔMETRO DE VIABILIDADE</p><div style="width: 100%; background-color: #e2e8f0; border-radius: 5px; height: 10px; margin: 10px 0;"><div style="width: {percentual_cobertura}%; background: linear-gradient(90deg, #e30613 0%, #002c5d 100%); height: 100%; border-radius: 5px; transition: width 0.5s;"></div></div><small>{percentual_cobertura:.1f}% Coberto</small></div>""", unsafe_allow_html=True)
@@ -2435,7 +2469,16 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
         d = st.session_state.dados_cliente
         st.markdown(f"### Fechamento Financeiro")
         u_valor = d.get('imovel_valor', 0); u_nome = d.get('empreendimento_nome', 'N/A'); u_unid = d.get('unidade_id', 'N/A')
-        st.markdown(f'<div class="custom-alert">{u_nome} - {u_unid} (R$ {fmt_br(u_valor)})</div>', unsafe_allow_html=True)
+        u_aval = d.get('imovel_avaliacao', u_valor)
+        
+        st.markdown(f"""
+        <div class="custom-alert" style="flex-direction: column; align-items: flex-start; padding: 20px;">
+            <div style="font-size: 1.1rem; margin-bottom: 5px;">{u_nome} - {u_unid}</div>
+            <div style="font-size: 0.9rem; opacity: 0.9;">Valor de Venda: <b>R$ {fmt_br(u_valor)}</b></div>
+            <div style="font-size: 0.9rem; opacity: 0.9;">Avaliação Bancária: <b>R$ {fmt_br(u_aval)}</b></div>
+        </div>
+        """, unsafe_allow_html=True)
+        
         def get_float_or_none(val): return None if val == 0.0 else val
         if 'finan_usado' not in st.session_state.dados_cliente: st.session_state.dados_cliente['finan_usado'] = d.get('finan_estimado', 0.0)
         if 'fgts_sub_usado' not in st.session_state.dados_cliente: st.session_state.dados_cliente['fgts_sub_usado'] = d.get('fgts_sub', 0.0)
@@ -2444,12 +2487,6 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
         if 'ato_30' not in st.session_state.dados_cliente: st.session_state.dados_cliente['ato_30'] = 0.0
         if 'ato_60' not in st.session_state.dados_cliente: st.session_state.dados_cliente['ato_60'] = 0.0
         if 'ato_90' not in st.session_state.dados_cliente: st.session_state.dados_cliente['ato_90'] = 0.0
-        
-        # Ajuste para campos vazios iniciarem limpos (value=None) se a session não estiver setada
-        # Mas queremos persistir os dados se já foram digitados.
-        # Estratégia: Se na sessão for 0.0 e o usuário não interagiu, value=None.
-        # Porém, para manter a consistência com "voltar", vamos apenas usar value=None se for 0.0 E for a primeira vez.
-        # Simplificação solicitada: "não precise apagar os 0,00". Basta iniciar com None se for 0.
         
         def val_input(k):
             v = st.session_state.get(k, 0.0)
@@ -2486,8 +2523,6 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
         if 'ps_u_key' not in st.session_state: st.session_state['ps_u_key'] = st.session_state.dados_cliente['ps_usado']
         ps_atual = st.session_state.get('ps_u_key', 0.0)
         
-        # Calcular saldo considerando o PS atual também como parte da equação se não for atualizado aqui, 
-        # mas aqui calculamos o saldo para ATOS.
         # Saldo para atos = Valor - Finan - FGTS - PS
         saldo_para_atos = max(0.0, u_valor - f_u_input - fgts_u_input - ps_atual)
         
@@ -2504,12 +2539,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
             a3 = st.session_state.get('ato_3_key', 0.0) or 0.0
             a4 = st.session_state.get('ato_4_key', 0.0) or 0.0
             
-            # Verificar se há algum valor preenchido
             total_preenchido = a1 + a2 + a3 + a4
-            
-            # Mapear quais campos são elegíveis para receber valor (dentro do N solicitado)
-            # e quais estão vazios (zerados)
-            # A lógica solicitada: "Se todos forem zero, redistribua para todos e se tiver algum diferente de zero, redistribua para o restante."
             
             targets = [] # Lista de keys para distribuir
             current_sum = 0.0
@@ -2529,27 +2559,13 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
                     targets.append(k)
             
             if len(targets) == 0 and total_preenchido > 0:
-                # Todos os slots do N selecionado estão cheios. 
-                # Opção: Redistribuir tudo igualmente (reset) ou avisar?
-                # Pelo prompt "Se todos forem zero... se tiver algum diferente... redistribua para o restante".
-                # Se não tem restante (todos cheios), vamos assumir redistribuição total (comportamento padrão de reset).
                 targets = keys_available
                 current_sum = 0.0
             
             if total_preenchido == 0:
-                # Caso base: tudo zero, distribui igual
                 targets = keys_available
                 current_sum = 0.0
 
-            # Saldo a distribuir = Saldo Total Necessário - Já preenchido nos fixos
-            # O "Saldo Total Necessário" é o gap original antes de qualquer ato.
-            # Gap Original = u_valor - f_u_input - fgts_u_input - ps_atual
-            # Mas cuidado: ps_atual vem do input. Se ps mudar, gap muda.
-            # O `saldo_para_atos` calculado fora já é (Total - Fin - FGTS - PS).
-            # Então o valor total alvo para atos é `saldo_para_atos` (assumindo que o que está digitado no PS é o que fica).
-            # Mas se eu já preenchi 1000 num ato, o `saldo_para_atos` visualizado ali no código anterior 
-            # é apenas uma var auxiliar. O objetivo é que Soma(Atos) == Gap.
-            
             gap_total_atos = max(0.0, u_valor - f_u_input - fgts_u_input - ps_atual)
             remainder = max(0.0, gap_total_atos - current_sum)
             
@@ -2600,15 +2616,29 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
         st.markdown("<hr style='margin: 10px 0;'>", unsafe_allow_html=True)
         col_ps_val, col_ps_parc = st.columns(2)
         
-        u_aval = d.get('imovel_avaliacao', u_valor)
-        ps_max_real = u_aval * d.get('perc_ps', 0)
-        
+        # Recuperação do limite de Pro Soluto via coluna da tabela estoque
+        ps_max_real = 0.0
+        if 'unidade_id' in d and 'empreendimento_nome' in d:
+             # Filtra na tabela estoque
+             # Note: df_estoque está disponível no escopo de aba_simulador_automacao
+             row_u = df_estoque[(df_estoque['Identificador'] == d['unidade_id']) & (df_estoque['Empreendimento'] == d['empreendimento_nome'])]
+             if not row_u.empty:
+                 row_u = row_u.iloc[0]
+                 pol = d.get('politica', 'Direcional')
+                 rank = d.get('ranking', 'DIAMANTE')
+                 if pol == 'Emcash':
+                     ps_max_real = row_u.get('PS_EmCash', 0.0)
+                 else:
+                     col_rank = f"PS_{rank.title()}" if rank else 'PS_Diamante'
+                     if rank == 'AÇO': col_rank = 'PS_Aco'
+                     ps_max_real = row_u.get(col_rank, 0.0)
+
         with col_ps_val:
             v_ps_disp = val_input('ps_u_key')
             ps_input_val = st.number_input("Pro Soluto Direcional", value=v_ps_disp, key="ps_u_key", step=1000.0, placeholder="0,00")
             if ps_input_val is None: ps_input_val = 0.0
             st.session_state.dados_cliente['ps_usado'] = ps_input_val
-            st.markdown(f'<span class="inline-ref">Limite Permitido ({d.get("perc_ps", 0)*100:.0f}%): R$ {fmt_br(ps_max_real)}</span>', unsafe_allow_html=True)
+            st.markdown(f'<span class="inline-ref">Limite Permitido: R$ {fmt_br(ps_max_real)}</span>', unsafe_allow_html=True)
         with col_ps_parc:
             if 'parc_ps_key' not in st.session_state: st.session_state['parc_ps_key'] = d.get('ps_parcelas', min(60, d.get("prazo_ps_max", 60)))
             parc = st.number_input("Parcelas Pro Soluto", min_value=1, max_value=d.get("prazo_ps_max", 60), key="parc_ps_key"); st.session_state.dados_cliente['ps_parcelas'] = parc
