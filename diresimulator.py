@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 =============================================================================
-SISTEMA DE SIMULAÇÃO IMOBILIÁRIA - DIRE RIO V68 (SINGLE SOURCE - UPDATE)
+SISTEMA DE SIMULAÇÃO IMOBILIÁRIA - DIRE RIO V68 (DEBUG FIX)
 =============================================================================
 """
 
@@ -474,15 +474,25 @@ def scroll_to_top():
 
 @st.cache_data(ttl=300)
 def carregar_dados_sistema():
+    # Inicializa variáveis vazias para evitar erros de retorno se tudo falhar
+    df_finan = pd.DataFrame()
+    df_estoque = pd.DataFrame()
+    df_politicas = pd.DataFrame()
+    df_logins = pd.DataFrame()
+    df_cadastros = pd.DataFrame()
+
     try:
-        if "connections" not in st.secrets:
-            return pd.DataFrame(), pd.DataFrame(), pd.DataFrame(), pd.DataFrame(), pd.DataFrame()
+        # A verificação manual de secrets foi removida para evitar falsos negativos
+        # O st.connection gerencia a autenticação internamente
         conn = st.connection("gsheets", type=GSheetsConnection)
+        
         def limpar_moeda(val): return safe_float_convert(val)
 
         # 1. LOGINS
         try:
             df_logins = conn.read(spreadsheet=ID_GERAL, worksheet="BD Logins")
+            # Remove linhas que estejam totalmente vazias para evitar problemas de "empty"
+            df_logins = df_logins.dropna(how='all') 
             df_logins.columns = [str(c).strip() for c in df_logins.columns]
             
             # Mapeamento específico conforme solicitado
@@ -502,13 +512,16 @@ def carregar_dados_sistema():
             if 'Senha' in df_logins.columns:
                 df_logins['Senha'] = df_logins['Senha'].astype(str).str.strip()
                 
-        except: 
+        except Exception as e:
+            st.error(f"Erro ao ler aba 'BD Logins': {e}")
             df_logins = pd.DataFrame(columns=['Email', 'Senha', 'Nome', 'Cargo', 'Imobiliaria', 'Telefone'])
 
         # 2. SIMULAÇÕES (CADASTROS)
         try: 
             df_cadastros = conn.read(spreadsheet=ID_GERAL, worksheet="BD Simulações")
-        except: 
+        except Exception as e:
+            # Erros aqui são toleráveis, mas bom saber
+            print(f"Erro BD Simulações: {e}") 
             df_cadastros = pd.DataFrame()
         
         # 3. RANKING (REMOVIDO - Retorna vazio conforme solicitado)
@@ -519,7 +532,8 @@ def carregar_dados_sistema():
             df_finan = conn.read(spreadsheet=ID_GERAL, worksheet="BD Financiamentos")
             df_finan.columns = [str(c).strip() for c in df_finan.columns]
             for col in df_finan.columns: df_finan[col] = df_finan[col].apply(limpar_moeda)
-        except: 
+        except Exception as e:
+            st.error(f"Erro ao ler aba 'BD Financiamentos': {e}")
             df_finan = pd.DataFrame()
 
         # 5. ESTOQUE
@@ -598,12 +612,14 @@ def carregar_dados_sistema():
             if 'Bairro' in df_estoque.columns:
                 df_estoque['Bairro'] = df_estoque['Bairro'].astype(str).str.strip()
                                              
-        except: 
+        except Exception as e:
+            st.error(f"Erro ao ler aba 'BD Estoque Filtrada': {e}")
             df_estoque = pd.DataFrame(columns=['Empreendimento', 'Valor de Venda', 'Status', 'Identificador', 'Bairro', 'Valor de Avaliação Bancária'])
 
         return df_finan, df_estoque, df_politicas, df_logins, df_cadastros
+    
     except Exception as e:
-        st.error(f"Erro dados: {e}")
+        st.error(f"Erro Geral no Carregamento de Dados: {e}")
         return pd.DataFrame(), pd.DataFrame(), pd.DataFrame(), pd.DataFrame(), pd.DataFrame()
 
 # =============================================================================
