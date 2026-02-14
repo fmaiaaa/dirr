@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 =============================================================================
-SISTEMA DE SIMULAÇÃO IMOBILIÁRIA - DIRE RIO V68 (FIX HTML - MAPA FOLIUM - JERIVA VIDEO)
+SISTEMA DE SIMULAÇÃO IMOBILIÁRIA - DIRE RIO V68 (SINGLE SOURCE - UPDATE)
 =============================================================================
 """
 
@@ -50,6 +50,7 @@ except:
 # 0. CONSTANTES E UTILITÁRIOS
 # =============================================================================
 # ID ÚNICO DA PLANILHA "BD Streamlit"
+# Extraído de: https://docs.google.com/spreadsheets/d/1N00McOjO1O_MuKyQhp-CVhpAet_9Lfq-VqVm1FmPV00/edit?gid=1793187812#gid=1793187812
 ID_GERAL = "1N00McOjO1O_MuKyQhp-CVhpAet_9Lfq-VqVm1FmPV00"
 
 URL_FINAN = f"https://docs.google.com/spreadsheets/d/{ID_GERAL}/edit#gid=0"
@@ -479,39 +480,49 @@ def carregar_dados_sistema():
         conn = st.connection("gsheets", type=GSheetsConnection)
         def limpar_moeda(val): return safe_float_convert(val)
 
+        # 1. LOGINS
         try:
             df_logins = conn.read(spreadsheet=ID_GERAL, worksheet="BD Logins")
             df_logins.columns = [str(c).strip() for c in df_logins.columns]
-            mapa = {}
-            for col in df_logins.columns:
-                c_low = col.lower()
-                if "senha" in c_low: mapa[col] = 'Senha'
-                elif "imob" in c_low or "canal" in c_low: mapa[col] = 'Imobiliaria'
-                elif "email" in c_low: mapa[col] = 'Email'
-                elif "nome" in c_low: mapa[col] = 'Nome'
-                elif "cargo" in c_low: mapa[col] = 'Cargo'
-                elif "telefone" in c_low: mapa[col] = 'Telefone'
-            df_logins = df_logins.rename(columns=mapa)
-            df_logins['Email'] = df_logins['Email'].astype(str).str.strip().str.lower()
-            df_logins['Senha'] = df_logins['Senha'].astype(str).str.strip()
-        except: df_logins = pd.DataFrame(columns=['Email', 'Senha'])
+            
+            # Mapeamento específico conforme solicitado
+            mapa_logins = {
+                'Imobiliária/Canal IMOB': 'Imobiliaria',
+                'Cargo': 'Cargo',
+                'Nome': 'Nome',
+                'Email': 'Email',
+                'Escolha uma senha para o simulador': 'Senha',
+                'Número de telefone': 'Telefone'
+            }
+            df_logins = df_logins.rename(columns=mapa_logins)
+            
+            # Tratamento básico
+            if 'Email' in df_logins.columns:
+                df_logins['Email'] = df_logins['Email'].astype(str).str.strip().str.lower()
+            if 'Senha' in df_logins.columns:
+                df_logins['Senha'] = df_logins['Senha'].astype(str).str.strip()
+                
+        except: 
+            df_logins = pd.DataFrame(columns=['Email', 'Senha', 'Nome', 'Cargo', 'Imobiliaria', 'Telefone'])
 
-        try: df_cadastros = conn.read(spreadsheet=ID_GERAL, worksheet="BD Simulações")
-        except: df_cadastros = pd.DataFrame()
+        # 2. SIMULAÇÕES (CADASTROS)
+        try: 
+            df_cadastros = conn.read(spreadsheet=ID_GERAL, worksheet="BD Simulações")
+        except: 
+            df_cadastros = pd.DataFrame()
         
-        try:
-            df_politicas = conn.read(spreadsheet=ID_GERAL, worksheet="BD Ranking")
-            df_politicas.columns = [str(c).strip() for c in df_politicas.columns]
-            col_class = next((c for c in df_politicas.columns if 'CLASSIFICA' in c.upper() or 'RANKING' in c.upper()), 'CLASSIFICAÇÃO')
-            df_politicas = df_politicas.rename(columns={col_class: 'CLASSIFICAÇÃO', 'FAIXA RENDA': 'FAIXA_RENDA', 'FX RENDA 1': 'FX_RENDA_1', 'FX RENDA 2': 'FX_RENDA_2'})
-        except: df_politicas = pd.DataFrame()
+        # 3. RANKING (REMOVIDO - Retorna vazio conforme solicitado)
+        df_politicas = pd.DataFrame() 
 
+        # 4. FINANCIAMENTOS
         try:
             df_finan = conn.read(spreadsheet=ID_GERAL, worksheet="BD Financiamentos")
             df_finan.columns = [str(c).strip() for c in df_finan.columns]
             for col in df_finan.columns: df_finan[col] = df_finan[col].apply(limpar_moeda)
-        except: df_finan = pd.DataFrame()
+        except: 
+            df_finan = pd.DataFrame()
 
+        # 5. ESTOQUE
         try:
             df_raw = conn.read(spreadsheet=ID_GERAL, worksheet="BD Estoque Filtrada")
             df_raw.columns = [str(c).strip() for c in df_raw.columns]
@@ -533,11 +544,13 @@ def carregar_dados_sistema():
             
             df_estoque = df_raw.rename(columns=mapa_estoque)
             
+            # Garantir colunas essenciais
             if 'Valor de Venda' not in df_estoque.columns: df_estoque['Valor de Venda'] = 0.0
             if 'Valor de Avaliação Bancária' not in df_estoque.columns: df_estoque['Valor de Avaliação Bancária'] = df_estoque['Valor de Venda']
             if 'Status' not in df_estoque.columns: df_estoque['Status'] = 'Disponível'
             if 'Empreendimento' not in df_estoque.columns: df_estoque['Empreendimento'] = 'N/A'
             
+            # Conversões numéricas
             df_estoque['Valor de Venda'] = df_estoque['Valor de Venda'].apply(limpar_moeda)
             df_estoque['Valor de Avaliação Bancária'] = df_estoque['Valor de Avaliação Bancária'].apply(limpar_moeda)
             
@@ -549,11 +562,13 @@ def carregar_dados_sistema():
                 else:
                     df_estoque[c] = 0.0
             
+            # Tratamento de Status
             if 'Status' in df_estoque.columns:
                  df_estoque['Status'] = df_estoque['Status'].astype(str).str.strip()
+                 # Normalização opcional
                  df_estoque['Status'] = df_estoque['Status'].apply(lambda x: 'Disponível' if 'Dispon' in x or 'dispon' in x else x)
 
-            # Removed Status == Disponivel filter as requested
+            # Filtros básicos
             df_estoque = df_estoque[(df_estoque['Valor de Venda'] > 1000)].copy()
             if 'Empreendimento' in df_estoque.columns:
                  df_estoque = df_estoque[df_estoque['Empreendimento'].notnull()]
@@ -563,6 +578,7 @@ def carregar_dados_sistema():
             if 'Bairro' not in df_estoque.columns: 
                 df_estoque['Bairro'] = 'Rio de Janeiro'
 
+            # Extração de Bloco/Andar/Apto para ordenação
             def extrair_dados_unid(id_unid, tipo):
                 try:
                     s = str(id_unid)
@@ -581,7 +597,7 @@ def carregar_dados_sistema():
                 df_estoque['Empreendimento'] = df_estoque['Empreendimento'].astype(str).str.strip()
             if 'Bairro' in df_estoque.columns:
                 df_estoque['Bairro'] = df_estoque['Bairro'].astype(str).str.strip()
-                                       
+                                             
         except: 
             df_estoque = pd.DataFrame(columns=['Empreendimento', 'Valor de Venda', 'Status', 'Identificador', 'Bairro', 'Valor de Avaliação Bancária'])
 
@@ -598,7 +614,7 @@ class MotorRecomendacao:
     def __init__(self, df_finan, df_estoque, df_politicas):
         self.df_finan = df_finan
         self.df_estoque = df_estoque
-        self.df_politicas = df_politicas
+        self.df_politicas = df_politicas # Mantido apenas para compatibilidade, não usado logicamente
 
     def obter_enquadramento(self, renda, social, cotista, valor_avaliacao=250000):
         if self.df_finan.empty: return 0.0, 0.0, "N/A"
@@ -2690,7 +2706,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
                         else: st.toast(f"Falha no envio automático: {msg_email}", icon="⚠️")
             try:
                 conn_save = st.connection("gsheets", type=GSheetsConnection)
-                aba_destino = 'BD Simulações' # Corrigido para a nova aba
+                aba_destino = 'BD Simulações' 
                 rendas_ind = d.get('rendas_lista', [])
                 while len(rendas_ind) < 4: rendas_ind.append(0.0)
                 capacidade_entrada = d.get('entrada_total', 0) + d.get('ps_usado', 0)
