@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 =============================================================================
-SISTEMA DE SIMULAÇÃO IMOBILIÁRIA - DIRE RIO V68 (DEBUG FIX)
+SISTEMA DE SIMULAÇÃO IMOBILIÁRIA - DIRE RIO V68 (DEBUG AVANÇADO)
 =============================================================================
 """
 
@@ -50,12 +50,9 @@ except:
 # 0. CONSTANTES E UTILITÁRIOS
 # =============================================================================
 # ID ÚNICO DA PLANILHA "BD Streamlit"
-# Extraído de: https://docs.google.com/spreadsheets/d/1N00McOjO1O_MuKyQhp-CVhpAet_9Lfq-VqVm1FmPV00/edit?gid=1793187812#gid=1793187812
+# Para garantir, vamos usar a URL completa nos metadados, mas o ID para conexão
 ID_GERAL = "1N00McOjO1O_MuKyQhp-CVhpAet_9Lfq-VqVm1FmPV00"
-
-URL_FINAN = f"https://docs.google.com/spreadsheets/d/{ID_GERAL}/edit#gid=0"
-URL_RANKING = f"https://docs.google.com/spreadsheets/d/{ID_GERAL}/edit#gid=0"
-URL_ESTOQUE = f"https://docs.google.com/spreadsheets/d/{ID_GERAL}/edit#gid=0"
+URL_COMPLETA = f"https://docs.google.com/spreadsheets/d/{ID_GERAL}"
 
 URL_FAVICON_RESERVA = "https://direcional.com.br/wp-content/uploads/2021/04/cropped-favicon-direcional-32x32.png"
 
@@ -472,7 +469,7 @@ def scroll_to_top():
 # 1. CARREGAMENTO DE DADOS
 # =============================================================================
 
-@st.cache_data(ttl=300)
+@st.cache_data(ttl=0)
 def carregar_dados_sistema():
     # Inicializa variáveis vazias para evitar erros de retorno se tudo falhar
     df_finan = pd.DataFrame()
@@ -487,6 +484,15 @@ def carregar_dados_sistema():
         conn = st.connection("gsheets", type=GSheetsConnection)
         
         def limpar_moeda(val): return safe_float_convert(val)
+
+        # Helper para tratamento específico do erro 200 (auth)
+        def check_200_error(e):
+            s_err = str(e)
+            if "200" in s_err or "<Response [200]>" in s_err:
+                st.error("ERRO DE PERMISSÃO (200): O Google Sheets bloqueou o acesso.")
+                st.info("SOLUÇÃO: Abra o arquivo 'secrets.toml', copie o 'client_email' e compartilhe a planilha com esse e-mail como EDITOR.")
+            else:
+                st.error(f"Erro ao ler planilha: {e}")
 
         # 1. LOGINS
         try:
@@ -513,7 +519,7 @@ def carregar_dados_sistema():
                 df_logins['Senha'] = df_logins['Senha'].astype(str).str.strip()
                 
         except Exception as e:
-            st.error(f"Erro ao ler aba 'BD Logins': {e}")
+            check_200_error(e)
             df_logins = pd.DataFrame(columns=['Email', 'Senha', 'Nome', 'Cargo', 'Imobiliaria', 'Telefone'])
 
         # 2. SIMULAÇÕES (CADASTROS)
@@ -533,7 +539,7 @@ def carregar_dados_sistema():
             df_finan.columns = [str(c).strip() for c in df_finan.columns]
             for col in df_finan.columns: df_finan[col] = df_finan[col].apply(limpar_moeda)
         except Exception as e:
-            st.error(f"Erro ao ler aba 'BD Financiamentos': {e}")
+            check_200_error(e)
             df_finan = pd.DataFrame()
 
         # 5. ESTOQUE
@@ -613,7 +619,7 @@ def carregar_dados_sistema():
                 df_estoque['Bairro'] = df_estoque['Bairro'].astype(str).str.strip()
                                              
         except Exception as e:
-            st.error(f"Erro ao ler aba 'BD Estoque Filtrada': {e}")
+            check_200_error(e)
             df_estoque = pd.DataFrame(columns=['Empreendimento', 'Valor de Venda', 'Status', 'Identificador', 'Bairro', 'Valor de Avaliação Bancária'])
 
         return df_finan, df_estoque, df_politicas, df_logins, df_cadastros
@@ -1439,21 +1445,29 @@ def tela_login(df_logins):
         email = st.text_input("E-mail", key="login_email")
         senha = st.text_input("Senha", type="password", key="login_pass")
         st.markdown("<br>", unsafe_allow_html=True)
-        if st.button("ACESSAR SISTEMA", type="primary", use_container_width=True):
-            if df_logins.empty: st.error("Base de usuários vazia.")
-            else:
-                user = df_logins[(df_logins['Email'] == email.strip().lower()) & (df_logins['Senha'] == senha.strip())]
-                if not user.empty:
-                    data = user.iloc[0]
-                    st.session_state.update({
-                        'logged_in': True, 'user_email': email,
-                        'user_name': str(data.get('Nome', '')).strip(),
-                        'user_imobiliaria': str(data.get('Imobiliaria', 'Geral')).strip(),
-                        'user_cargo': str(data.get('Cargo', '')).strip(),
-                        'user_phone': str(data.get('Telefone', '')).strip() # Salva telefone
-                    })
-                    st.success("Login realizado!"); st.rerun()
-                else: st.error("Credenciais inválidas.")
+        
+        c_entrar, c_limpar = st.columns(2)
+        with c_entrar:
+            if st.button("ACESSAR SISTEMA", type="primary", use_container_width=True):
+                if df_logins.empty: 
+                    st.error("Base de usuários vazia ou inacessível. Verifique as permissões.")
+                else:
+                    user = df_logins[(df_logins['Email'] == email.strip().lower()) & (df_logins['Senha'] == senha.strip())]
+                    if not user.empty:
+                        data = user.iloc[0]
+                        st.session_state.update({
+                            'logged_in': True, 'user_email': email,
+                            'user_name': str(data.get('Nome', '')).strip(),
+                            'user_imobiliaria': str(data.get('Imobiliaria', 'Geral')).strip(),
+                            'user_cargo': str(data.get('Cargo', '')).strip(),
+                            'user_phone': str(data.get('Telefone', '')).strip() 
+                        })
+                        st.success("Login realizado!"); st.rerun()
+                    else: st.error("Credenciais inválidas.")
+        with c_limpar:
+            if st.button("LIMPAR CACHE DE CONEXÃO", use_container_width=True):
+                st.cache_data.clear()
+                st.rerun()
 
 @st.dialog("Opções de Exportação")
 def show_export_dialog(d):
