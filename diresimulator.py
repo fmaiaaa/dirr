@@ -483,6 +483,7 @@ def carregar_dados_sistema():
         # 1. LOGINS
         try:
             df_logins = conn.read(spreadsheet=ID_GERAL, worksheet="BD Logins")
+            st.write("Dados lidos:", df_logins) # Isso vai mostrar na tela o que ele baixou
             df_logins.columns = [str(c).strip() for c in df_logins.columns]
             
             # Mapeamento específico conforme solicitado
