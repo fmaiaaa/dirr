@@ -447,17 +447,22 @@ def calcular_fluxo_pagamento_detalhado(valor_fin, meses_fin, taxa_anual, sistema
 
 def formatar_link_drive(url):
     """
-    Converte links de visualização do Google Drive em links diretos de thumbnail 
-    para garantir que o st.image consiga renderizar.
+    Retorna uma tupla: (link_thumbnail, link_full_direct)
+    - link_thumbnail: usado na galeria (menor, carrega rápido)
+    - link_full_direct: usado no lightbox (link direto do drive, suporta arquivos grandes)
     """
     if "drive.google.com" in url and "/d/" in url:
         try:
             file_id = url.split("/d/")[1].split("/")[0]
-            # Usar thumbnail para carregar mais rápido e garantir visualização
-            return f"https://drive.google.com/thumbnail?id={file_id}&sz=w1000"
+            # Thumbnail para o slider
+            thumb_link = f"https://drive.google.com/thumbnail?id={file_id}&sz=w1000"
+            # Link direto para visualização raw (export=view)
+            # Isso é necessário para o lightbox funcionar sem redirecionar para a página HTML do Drive
+            full_link = f"https://drive.google.com/uc?export=view&id={file_id}"
+            return thumb_link, full_link
         except:
-            return url
-    return url
+            return url, url
+    return url, url
 
 def scroll_to_top():
     js = """<script>var body = window.parent.document.querySelector(".main"); if (body) { body.scrollTop = 0; } window.scrollTo(0, 0);</script>"""
@@ -564,7 +569,7 @@ def carregar_dados_sistema():
                 df_estoque['Empreendimento'] = df_estoque['Empreendimento'].astype(str).str.strip()
             if 'Bairro' in df_estoque.columns:
                 df_estoque['Bairro'] = df_estoque['Bairro'].astype(str).str.strip()
-                          
+                                       
         except: 
             df_estoque = pd.DataFrame(columns=['Empreendimento', 'Valor de Venda', 'Status', 'Identificador', 'Bairro', 'Valor de Avaliação Bancária'])
 
@@ -657,6 +662,46 @@ def configurar_layout():
         .scrolling-images img:hover {{
             transform: scale(1.02);
             border-color: {COR_AZUL_ESC};
+        }}
+        
+        /* LIGHTBOX MODAL CSS */
+        .modal {{
+            display: none; 
+            position: fixed; 
+            z-index: 99999; 
+            padding-top: 50px; 
+            left: 0;
+            top: 0;
+            width: 100%; 
+            height: 100%; 
+            overflow: auto; 
+            background-color: rgb(0,0,0); 
+            background-color: rgba(0,0,0,0.9); 
+        }}
+        .modal-content {{
+            margin: auto;
+            display: block;
+            width: auto;
+            max-width: 95%;
+            max-height: 90vh;
+            object-fit: contain;
+        }}
+        .close {{
+            position: absolute;
+            top: 15px;
+            right: 35px;
+            color: #f1f1f1;
+            font-size: 40px;
+            font-weight: bold;
+            transition: 0.3s;
+            cursor: pointer;
+            z-index: 100000;
+        }}
+        .close:hover,
+        .close:focus {{
+            color: #bbb;
+            text-decoration: none;
+            cursor: pointer;
         }}
 
         h1, h2, h3, h4 {{
@@ -1567,6 +1612,35 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
         if not lista_produtos:
             st.warning("Nenhum produto cadastrado na galeria.")
         else:
+            # INJETAR JAVASCRIPT E HTML DO MODAL APENAS UMA VEZ
+            st.markdown("""
+            <div id="myModal" class="modal">
+              <span class="close" onclick="closeModal()">&times;</span>
+              <img class="modal-content" id="img01">
+            </div>
+
+            <script>
+            function openModal(src) {
+              var modal = document.getElementById("myModal");
+              var modalImg = document.getElementById("img01");
+              modal.style.display = "block";
+              modalImg.src = src;
+            }
+
+            function closeModal() {
+              document.getElementById("myModal").style.display = "none";
+            }
+            
+            // Fechar ao clicar fora da imagem
+            window.onclick = function(event) {
+              var modal = document.getElementById("myModal");
+              if (event.target == modal) {
+                modal.style.display = "none";
+              }
+            }
+            </script>
+            """, unsafe_allow_html=True)
+
             tabs_produtos = st.tabs(lista_produtos)
             
             for aba, prod_key in zip(tabs_produtos, lista_produtos):
@@ -1623,14 +1697,14 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
                         else:
                             categorias["IMAGENS ILUSTRATIVAS"].append(item)
 
-                    # SEÇÃO 2: IMAGENS (SLIDER HORIZONTAL COM MINIATURAS)
+                    # SEÇÃO 2: IMAGENS (SLIDER HORIZONTAL COM MINIATURAS E LIGHTBOX)
                     if categorias["IMAGENS ILUSTRATIVAS"]:
                         st.markdown("##### Imagens Ilustrativas")
                         slider_html = '<div class="scrolling-images">'
                         for img in categorias["IMAGENS ILUSTRATIVAS"]:
-                            link_thumb = formatar_link_drive(img['link'])
-                            # HTML plano para evitar problemas de indentação do Python
-                            slider_html += f'<a href="{img["link"]}" target="_blank"><img src="{link_thumb}" alt="{img["nome"]}" title="{img["nome"]}"></a>'
+                            link_thumb, link_full = formatar_link_drive(img['link'])
+                            # Usamos onclick para abrir o modal sem redirecionar
+                            slider_html += f'<img src="{link_thumb}" alt="{img["nome"]}" title="{img["nome"]}" onclick="openModal(\'{link_full}\')">'
                         slider_html += '</div>'
                         st.markdown(slider_html, unsafe_allow_html=True)
                         st.markdown("<br>", unsafe_allow_html=True)
@@ -1640,8 +1714,8 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
                         st.markdown("##### Plantas e Implantação")
                         slider_html = '<div class="scrolling-images">'
                         for img in categorias["PLANTAS"]:
-                            link_thumb = formatar_link_drive(img['link'])
-                            slider_html += f'<a href="{img["link"]}" target="_blank"><img src="{link_thumb}" alt="{img["nome"]}" title="{img["nome"]}"></a>'
+                            link_thumb, link_full = formatar_link_drive(img['link'])
+                            slider_html += f'<img src="{link_thumb}" alt="{img["nome"]}" title="{img["nome"]}" onclick="openModal(\'{link_full}\')">'
                         slider_html += '</div>'
                         st.markdown(slider_html, unsafe_allow_html=True)
                         st.markdown("<br>", unsafe_allow_html=True)
@@ -1845,22 +1919,19 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
                     # Vamos montar o HTML completo de uma só vez para garantir a estrutura
                     cards_html = f"""<div class="scrolling-wrapper">"""
                     
-                    for card in final_cards:
-                         row = card['row']
+                    for idx, row in similares.iterrows():
                          # Escaping de aspas simples para evitar conflito na f-string
                          emp_name = row['Empreendimento']
                          unid_name = row['Identificador']
                          val_fmt = fmt_br(row['Valor de Venda'])
-                         label = card['label']
-                         css_badge = card['css']
                          
-                         cards_html += f"""<div class="card-item"><div class="recommendation-card" style="border-top: 4px solid {COR_AZUL_ESC}; height: 100%; justify-content: flex-start;"><span style="font-size:0.65rem; color:{COR_AZUL_ESC}; opacity:0.8;">PERFIL</span><br><div style="margin-top:5px; margin-bottom:15px;"><span class="{css_badge}">{label}</span></div><b style="color:{COR_AZUL_ESC}; font-size:1.1rem;">{emp_name}</b><br><div style="font-size:0.85rem; color:{COR_TEXTO_MUTED}; text-align:center; border-top:1px solid #eee; padding-top:10px; width:100%;"><b>Unidade: {unid_name}</b></div><div class="price-tag" style="font-size:1.4rem; margin:10px 0;">R$ {val_fmt}</div></div></div>"""
+                         cards_html += f"""<div class="card-item"><div class="recommendation-card" style="border-top: 4px solid {COR_AZUL_ESC}; height: 100%; justify-content: flex-start;"><b style="color:{COR_AZUL_ESC}; font-size:1.1rem;">{emp_name}</b><br><div style="font-size:0.85rem; color:{COR_TEXTO_MUTED}; text-align:center; border-top:1px solid #eee; padding-top:10px; width:100%;"><b>Unidade: {unid_name}</b></div><div class="price-tag" style="font-size:1.4rem; margin:10px 0;">R$ {val_fmt}</div></div></div>"""
                     cards_html += "</div>"
                     
                     # Renderiza o HTML corrigido
                     st.markdown(cards_html, unsafe_allow_html=True)
                 else:
-                    st.info("Nenhuma outra unidade encontrada nessa faixa de preço (+/- 10%).")
+                    st.info("Nenhuma outra unidade encontrada nessa faixa de preço (+/- 2500).")
             else:
                 st.info("Dados de estoque indisponíveis para comparação.")
         except Exception:
@@ -2083,13 +2154,13 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
                         max_price_ideal = pool_viavel['Valor de Venda'].max()
                         cand_ideal = pool_viavel[pool_viavel['Valor de Venda'] == max_price_ideal]
                 else:
-                     fallback_pool = df_pool.sort_values('Valor de Venda', ascending=True)
-                     if not fallback_pool.empty:
-                         min_p = fallback_pool['Valor de Venda'].min()
-                         cand_facil = fallback_pool[fallback_pool['Valor de Venda'] == min_p].head(5)
-                         max_p = fallback_pool['Valor de Venda'].max()
-                         cand_ideal = fallback_pool[fallback_pool['Valor de Venda'] == max_p].head(5)
-                         cand_seguro = fallback_pool.iloc[[len(fallback_pool)//2]]
+                      fallback_pool = df_pool.sort_values('Valor de Venda', ascending=True)
+                      if not fallback_pool.empty:
+                          min_p = fallback_pool['Valor de Venda'].min()
+                          cand_facil = fallback_pool[fallback_pool['Valor de Venda'] == min_p].head(5)
+                          max_p = fallback_pool['Valor de Venda'].max()
+                          cand_ideal = fallback_pool[fallback_pool['Valor de Venda'] == max_p].head(5)
+                          cand_seguro = fallback_pool.iloc[[len(fallback_pool)//2]]
 
                 def add_cards_group(label, df_group, css_class):
                     df_u = df_group.drop_duplicates(subset=['Identificador'])
