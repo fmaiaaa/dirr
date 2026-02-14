@@ -329,7 +329,7 @@ def calcular_cor_gradiente(valor):
     return f"rgb({r},{g},{b})"
 
 def calcular_comparativo_sac_price(valor, meses, taxa_anual):
-    if valor <= 0 or meses <= 0:
+    if valor is None or valor <= 0 or meses <= 0:
         return {"SAC": {"primeira": 0, "ultima": 0, "juros": 0}, "PRICE": {"parcela": 0, "juros": 0}}
     i = (1 + taxa_anual/100)**(1/12) - 1
     
@@ -355,7 +355,7 @@ def calcular_comparativo_sac_price(valor, meses, taxa_anual):
     }
 
 def calcular_parcela_financiamento(valor_financiado, meses, taxa_anual_pct, sistema):
-    if valor_financiado <= 0 or meses <= 0: return 0.0
+    if valor_financiado is None or valor_financiado <= 0 or meses <= 0: return 0.0
     i_mensal = (1 + taxa_anual_pct/100)**(1/12) - 1
     if sistema == "PRICE":
         try: return valor_financiado * (i_mensal * (1 + i_mensal)**meses) / ((1 + i_mensal)**meses - 1)
@@ -1962,6 +1962,51 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
     elif passo == 'input':
         st.markdown("### Dados do Cliente")
         
+        # BUSCA DE CLIENTE NA BASE
+        if not df_cadastros.empty:
+            with st.expander("🔍 Buscar Cliente Existente na Base"):
+                clientes_list = df_cadastros['Nome'].unique().tolist() if 'Nome' in df_cadastros.columns else []
+                clientes_list.insert(0, "Selecione um cliente...")
+                cliente_sel = st.selectbox("Selecione o Cliente:", clientes_list, key="busca_cliente_base")
+                
+                if cliente_sel != "Selecione um cliente...":
+                    row_cli = df_cadastros[df_cadastros['Nome'] == cliente_sel].iloc[0]
+                    
+                    # Helper para extrair float
+                    def safe_get_float_row(r, k):
+                        return safe_float_convert(r.get(k, 0))
+                    
+                    # Carregar dados na sessão
+                    rs_load = [safe_get_float_row(row_cli, f'Renda Part. {i}') for i in range(1, 5)]
+                    qtd_p_load = 1
+                    for i in range(4, 0, -1):
+                        if rs_load[i-1] > 0:
+                            qtd_p_load = i
+                            break
+                    
+                    # Helper para data
+                    dn_load = row_cli.get('Data de Nascimento')
+                    try:
+                        if isinstance(dn_load, str):
+                            dn_load = datetime.strptime(dn_load, '%Y-%m-%d').date()
+                    except:
+                        dn_load = date(1990, 1, 1)
+
+                    st.session_state.dados_cliente.update({
+                        'nome': row_cli.get('Nome'),
+                        'cpf': row_cli.get('CPF'),
+                        'data_nascimento': dn_load,
+                        'qtd_participantes': qtd_p_load,
+                        'rendas_lista': rs_load,
+                        'ranking': row_cli.get('Ranking'),
+                        'politica': row_cli.get('Política de Pro Soluto'),
+                        'social': str(row_cli.get('Fator Social', '')).lower() == 'sim',
+                        'cotista': str(row_cli.get('Cotista FGTS', '')).lower() == 'sim'
+                    })
+                    st.toast(f"Dados de {cliente_sel} carregados!", icon="✅")
+                    time.sleep(1)
+                    st.rerun()
+
         # Recuperar valores da sessão ou usar defaults
         curr_nome = st.session_state.dados_cliente.get('nome', "")
         curr_cpf = st.session_state.dados_cliente.get('cpf', "")
@@ -1985,7 +2030,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
                 except: d_nasc_default = date(1990, 1, 1)
 
         data_nasc = st.date_input("Data de Nascimento", value=d_nasc_default, min_value=date(1900, 1, 1), max_value=datetime.now().date(), format="DD/MM/YYYY", key="in_dt_nasc_v3")
-        genero = st.selectbox("Gênero", ["Masculino", "Feminino", "Outro"], index=0, key="in_genero_v3")
+        # Genero removido conforme solicitado
 
         st.markdown("---")
         qtd_part = st.number_input("Participantes na Renda", min_value=1, max_value=4, value=st.session_state.dados_cliente.get('qtd_participantes', 1), step=1, key="qtd_part_v3")
@@ -2004,6 +2049,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
             with cols_renda[i]:
                 def_val = 3500.0 if i == 0 and not rendas_anteriores else 0.0
                 current_val = get_val(i, def_val)
+                # value=None permite iniciar vazio (sem 0.00)
                 val_r = st.number_input(f"Renda Part. {i+1}", min_value=0.0, value=current_val, step=100.0, key=f"renda_part_{i}_v3", placeholder="0,00")
                 if val_r is None: val_r = 0.0
                 renda_total_calc += val_r; lista_rendas_input.append(val_r)
@@ -2026,7 +2072,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
                 'nome': nome, 
                 'cpf': limpar_cpf_visual(cpf_val), 
                 'data_nascimento': data_nasc, 
-                'genero': genero,
+                # 'genero': genero, # Removido
                 'renda': renda_total_calc, 
                 'rendas_lista': lista_rendas_input,
                 'social': social, 
@@ -2308,10 +2354,26 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
         if 'ato_30' not in st.session_state.dados_cliente: st.session_state.dados_cliente['ato_30'] = 0.0
         if 'ato_60' not in st.session_state.dados_cliente: st.session_state.dados_cliente['ato_60'] = 0.0
         if 'ato_90' not in st.session_state.dados_cliente: st.session_state.dados_cliente['ato_90'] = 0.0
+        
+        # Ajuste para campos vazios iniciarem limpos (value=None) se a session não estiver setada
+        # Mas queremos persistir os dados se já foram digitados.
+        # Estratégia: Se na sessão for 0.0 e o usuário não interagiu, value=None.
+        # Porém, para manter a consistência com "voltar", vamos apenas usar value=None se for 0.0 E for a primeira vez.
+        # Simplificação solicitada: "não precise apagar os 0,00". Basta iniciar com None se for 0.
+        
+        def val_input(k):
+            v = st.session_state.get(k, 0.0)
+            return None if v == 0.0 else v
+
+        # Atualizar session_state com chaves fixas se não existirem
         if 'fin_u_key' not in st.session_state: st.session_state['fin_u_key'] = st.session_state.dados_cliente['finan_usado']
-        f_u_input = st.number_input("Financiamento", key="fin_u_key", step=1000.0, placeholder="0,00")
+        
+        f_val_display = val_input('fin_u_key')
+        f_u_input = st.number_input("Financiamento", value=f_val_display, key="fin_u_key", step=1000.0, placeholder="0,00")
+        if f_u_input is None: f_u_input = 0.0
         st.session_state.dados_cliente['finan_usado'] = f_u_input
         st.markdown(f'<span class="inline-ref">Financiamento Máximo: R$ {fmt_br(d.get("finan_estimado", 0))}</span>', unsafe_allow_html=True)
+        
         idx_prazo = 0 if d.get('prazo_financiamento', 360) == 360 else 1
         prazo_finan = st.selectbox("Prazo Financiamento (Meses)", [360, 420], index=idx_prazo, key="prazo_v3_closed")
         st.session_state.dados_cliente['prazo_financiamento'] = prazo_finan
@@ -2320,59 +2382,151 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
         st.session_state.dados_cliente['sistema_amortizacao'] = tab_fin
         taxa_padrao = 8.16; sac_details = calcular_comparativo_sac_price(f_u_input, prazo_finan, taxa_padrao)["SAC"]; price_details = calcular_comparativo_sac_price(f_u_input, prazo_finan, taxa_padrao)["PRICE"]
         st.markdown(f"""<div style="display: flex; justify-content: space-around; margin-bottom: 20px; font-size: 0.85rem; color: #64748b;"><span><b>SAC:</b> R$ {fmt_br(sac_details['primeira'])} a R$ {fmt_br(sac_details['ultima'])} (Juros: R$ {fmt_br(sac_details['juros'])})</span><span><b>PRICE:</b> R$ {fmt_br(price_details['parcela'])} fixas (Juros: R$ {fmt_br(price_details['juros'])})</span></div>""", unsafe_allow_html=True)
+        
         if 'fgts_u_key' not in st.session_state: st.session_state['fgts_u_key'] = st.session_state.dados_cliente['fgts_sub_usado']
-        fgts_u_input = st.number_input("FGTS + Subsídio", key="fgts_u_key", step=1000.0, placeholder="0,00")
+        fgts_val_display = val_input('fgts_u_key')
+        fgts_u_input = st.number_input("FGTS + Subsídio", value=fgts_val_display, key="fgts_u_key", step=1000.0, placeholder="0,00")
+        if fgts_u_input is None: fgts_u_input = 0.0
         st.session_state.dados_cliente['fgts_sub_usado'] = fgts_u_input
         st.markdown(f'<span class="inline-ref">Subsídio Máximo: R$ {fmt_br(d.get("fgts_sub", 0))}</span>', unsafe_allow_html=True)
+        
         st.markdown("<hr style='margin: 10px 0;'>", unsafe_allow_html=True)
         st.markdown("#### Distribuição da Entrada (Saldo a Pagar)")
+        
         if 'ps_u_key' not in st.session_state: st.session_state['ps_u_key'] = st.session_state.dados_cliente['ps_usado']
         ps_atual = st.session_state.get('ps_u_key', 0.0)
+        
+        # Calcular saldo considerando o PS atual também como parte da equação se não for atualizado aqui, 
+        # mas aqui calculamos o saldo para ATOS.
+        # Saldo para atos = Valor - Finan - FGTS - PS
         saldo_para_atos = max(0.0, u_valor - f_u_input - fgts_u_input - ps_atual)
+        
         if 'ato_1_key' not in st.session_state: st.session_state['ato_1_key'] = st.session_state.dados_cliente['ato_final']
         if 'ato_2_key' not in st.session_state: st.session_state['ato_2_key'] = st.session_state.dados_cliente['ato_30']
         if 'ato_3_key' not in st.session_state: st.session_state['ato_3_key'] = st.session_state.dados_cliente['ato_60']
         if 'ato_4_key' not in st.session_state: st.session_state['ato_4_key'] = st.session_state.dados_cliente['ato_90']
         is_emcash = (d.get('politica') == 'Emcash')
+        
         def distribuir_callback(n_parcelas):
-            val = saldo_para_atos / n_parcelas
-            st.session_state['ato_1_key'] = val
-            st.session_state['ato_2_key'] = val if n_parcelas >= 2 else 0.0
-            st.session_state['ato_3_key'] = val if n_parcelas >= 3 else 0.0
-            st.session_state['ato_4_key'] = val if n_parcelas >= 4 and not is_emcash else 0.0
+            # Obter valores atuais
+            a1 = st.session_state.get('ato_1_key', 0.0) or 0.0
+            a2 = st.session_state.get('ato_2_key', 0.0) or 0.0
+            a3 = st.session_state.get('ato_3_key', 0.0) or 0.0
+            a4 = st.session_state.get('ato_4_key', 0.0) or 0.0
+            
+            # Verificar se há algum valor preenchido
+            total_preenchido = a1 + a2 + a3 + a4
+            
+            # Mapear quais campos são elegíveis para receber valor (dentro do N solicitado)
+            # e quais estão vazios (zerados)
+            # A lógica solicitada: "Se todos forem zero, redistribua para todos e se tiver algum diferente de zero, redistribua para o restante."
+            
+            targets = [] # Lista de keys para distribuir
+            current_sum = 0.0
+            
+            # Definir chaves disponíveis baseado em n_parcelas
+            keys_available = ['ato_1_key']
+            if n_parcelas >= 2: keys_available.append('ato_2_key')
+            if n_parcelas >= 3: keys_available.append('ato_3_key')
+            if n_parcelas >= 4 and not is_emcash: keys_available.append('ato_4_key')
+            
+            # Checar valores atuais nessas chaves
+            for k in keys_available:
+                val = st.session_state.get(k, 0.0) or 0.0
+                if val > 0:
+                    current_sum += val
+                else:
+                    targets.append(k)
+            
+            if len(targets) == 0 and total_preenchido > 0:
+                # Todos os slots do N selecionado estão cheios. 
+                # Opção: Redistribuir tudo igualmente (reset) ou avisar?
+                # Pelo prompt "Se todos forem zero... se tiver algum diferente... redistribua para o restante".
+                # Se não tem restante (todos cheios), vamos assumir redistribuição total (comportamento padrão de reset).
+                targets = keys_available
+                current_sum = 0.0
+            
+            if total_preenchido == 0:
+                # Caso base: tudo zero, distribui igual
+                targets = keys_available
+                current_sum = 0.0
+
+            # Saldo a distribuir = Saldo Total Necessário - Já preenchido nos fixos
+            # O "Saldo Total Necessário" é o gap original antes de qualquer ato.
+            # Gap Original = u_valor - f_u_input - fgts_u_input - ps_atual
+            # Mas cuidado: ps_atual vem do input. Se ps mudar, gap muda.
+            # O `saldo_para_atos` calculado fora já é (Total - Fin - FGTS - PS).
+            # Então o valor total alvo para atos é `saldo_para_atos` (assumindo que o que está digitado no PS é o que fica).
+            # Mas se eu já preenchi 1000 num ato, o `saldo_para_atos` visualizado ali no código anterior 
+            # é apenas uma var auxiliar. O objetivo é que Soma(Atos) == Gap.
+            
+            gap_total_atos = max(0.0, u_valor - f_u_input - fgts_u_input - ps_atual)
+            remainder = max(0.0, gap_total_atos - current_sum)
+            
+            if len(targets) > 0:
+                val_per_target = remainder / len(targets)
+                for k in targets:
+                    st.session_state[k] = val_per_target
+            
+            # Zerar os que estão fora do N (ex: clicou 2x, zera 3 e 4)
+            all_keys = ['ato_1_key', 'ato_2_key', 'ato_3_key', 'ato_4_key']
+            for k in all_keys:
+                if k not in keys_available:
+                    st.session_state[k] = 0.0
+
+            # Atualizar dados_cliente para persistência
             st.session_state.dados_cliente['ato_final'] = st.session_state['ato_1_key']
             st.session_state.dados_cliente['ato_30'] = st.session_state['ato_2_key']
             st.session_state.dados_cliente['ato_60'] = st.session_state['ato_3_key']
             st.session_state.dados_cliente['ato_90'] = st.session_state['ato_4_key']
+
         st.markdown('<label style="font-size: 0.8rem; font-weight: 600;">Distribuir Atos Automaticamente:</label>', unsafe_allow_html=True)
         col_dist1, col_dist2, col_dist3, col_dist4 = st.columns(4)
         with col_dist1: st.button("1x", use_container_width=True, key="btn_d1", on_click=distribuir_callback, args=(1,))
         with col_dist2: st.button("2x", use_container_width=True, key="btn_d2", on_click=distribuir_callback, args=(2,))
         with col_dist3: st.button("3x", use_container_width=True, key="btn_d3", on_click=distribuir_callback, args=(3,))
         with col_dist4: st.button("4x", use_container_width=True, disabled=is_emcash, key="btn_d4", on_click=distribuir_callback, args=(4,))
+        
         st.write("") 
         col_a, col_b = st.columns(2)
         with col_a:
-            r1 = st.number_input("Ato (Imediato)", key="ato_1_key", step=100.0, placeholder="0,00"); st.session_state.dados_cliente['ato_final'] = r1
-            r3 = st.number_input("Ato 60 Dias", key="ato_3_key", step=100.0, placeholder="0,00"); st.session_state.dados_cliente['ato_60'] = r3
+            # Usando value=None para limpar visualmente se for 0
+            v_a1 = val_input('ato_1_key'); v_a3 = val_input('ato_3_key')
+            r1 = st.number_input("Ato (Imediato)", value=v_a1, key="ato_1_key", step=100.0, placeholder="0,00")
+            r3 = st.number_input("Ato 60 Dias", value=v_a3, key="ato_3_key", step=100.0, placeholder="0,00")
+            if r1 is None: r1 = 0.0
+            if r3 is None: r3 = 0.0
+            st.session_state.dados_cliente['ato_final'] = r1
+            st.session_state.dados_cliente['ato_60'] = r3
         with col_b:
-            r2 = st.number_input("Ato 30 Dias", key="ato_2_key", step=100.0, placeholder="0,00"); st.session_state.dados_cliente['ato_30'] = r2
-            r4 = st.number_input("Ato 90 Dias", key="ato_4_key", step=100.0, disabled=is_emcash, placeholder="0,00"); st.session_state.dados_cliente['ato_90'] = r4
+            v_a2 = val_input('ato_2_key'); v_a4 = val_input('ato_4_key')
+            r2 = st.number_input("Ato 30 Dias", value=v_a2, key="ato_2_key", step=100.0, placeholder="0,00")
+            r4 = st.number_input("Ato 90 Dias", value=v_a4, key="ato_4_key", step=100.0, disabled=is_emcash, placeholder="0,00")
+            if r2 is None: r2 = 0.0
+            if r4 is None: r4 = 0.0
+            st.session_state.dados_cliente['ato_30'] = r2
+            st.session_state.dados_cliente['ato_90'] = r4
+            
         st.markdown("<hr style='margin: 10px 0;'>", unsafe_allow_html=True)
         col_ps_val, col_ps_parc = st.columns(2)
         ps_max_real = u_valor * d.get('perc_ps', 0)
         with col_ps_val:
-            ps_input_val = st.number_input("Pro Soluto Direcional", key="ps_u_key", step=1000.0, placeholder="0,00"); st.session_state.dados_cliente['ps_usado'] = ps_input_val
+            v_ps_disp = val_input('ps_u_key')
+            ps_input_val = st.number_input("Pro Soluto Direcional", value=v_ps_disp, key="ps_u_key", step=1000.0, placeholder="0,00")
+            if ps_input_val is None: ps_input_val = 0.0
+            st.session_state.dados_cliente['ps_usado'] = ps_input_val
             st.markdown(f'<span class="inline-ref">Limite Permitido ({d.get("perc_ps", 0)*100:.0f}%): R$ {fmt_br(ps_max_real)}</span>', unsafe_allow_html=True)
         with col_ps_parc:
             if 'parc_ps_key' not in st.session_state: st.session_state['parc_ps_key'] = d.get('ps_parcelas', min(60, d.get("prazo_ps_max", 60)))
             parc = st.number_input("Parcelas Pro Soluto", min_value=1, max_value=d.get("prazo_ps_max", 60), key="parc_ps_key"); st.session_state.dados_cliente['ps_parcelas'] = parc
             st.markdown(f'<span class="inline-ref">Prazo Máximo: {d.get("prazo_ps_max", 0)} meses</span>', unsafe_allow_html=True)
+        
         v_parc = ps_input_val / parc if parc > 0 else 0
         st.session_state.dados_cliente['ps_mensal'] = v_parc
         total_entrada_cash = r1 + r2 + r3 + r4
         st.session_state.dados_cliente['entrada_total'] = total_entrada_cash
         gap_final = u_valor - f_u_input - fgts_u_input - ps_input_val - total_entrada_cash
+        
         st.markdown("<hr style='margin: 10px 0;'>", unsafe_allow_html=True)
         fin1, fin2, fin3 = st.columns(3)
         with fin1: st.markdown(f"""<div class="fin-box" style="border-top: 6px solid {COR_AZUL_ESC};"><b>VALOR DO IMÓVEL</b><br>R$ {fmt_br(u_valor)}</div>""", unsafe_allow_html=True)
@@ -2389,90 +2543,3 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
         if st.button("Voltar para Escolha de Unidade", use_container_width=True): st.session_state.passo_simulacao = 'selection'; scroll_to_top(); st.rerun()
 
     elif passo == 'summary':
-        d = st.session_state.dados_cliente
-        st.markdown(f"### Resumo da Simulação - {d.get('nome', 'Cliente')}")
-        st.markdown(f'<div class="summary-header">DADOS DO IMÓVEL</div>', unsafe_allow_html=True)
-        st.markdown(f"""<div class="summary-body"><b>Empreendimento:</b> {d.get('empreendimento_nome')}<br><b>Unidade:</b> {d.get('unidade_id')}<br><b>Valor de Venda:</b> <span style="color: {COR_VERMELHO}; font-weight: 800;">R$ {fmt_br(d.get('imovel_valor', 0))}</span></div>""", unsafe_allow_html=True)
-        st.markdown(f'<div class="summary-header">PLANO DE FINANCIAMENTO</div>', unsafe_allow_html=True)
-        prazo_txt = d.get('prazo_financiamento', 360)
-        parcela_texto = f"Parcela Estimada ({d.get('sistema_amortizacao', 'SAC')} - {prazo_txt}x): R$ {fmt_br(d.get('parcela_financiamento', 0))}"
-        st.markdown(f"""<div class="summary-body"><b>Financiamento Bancário:</b> R$ {fmt_br(d.get('finan_usado', 0))}<br><b>{parcela_texto}</b><br><b>FGTS + Subsídio:</b> R$ {fmt_br(d.get('fgts_sub_usado', 0))}<br><b>Pro Soluto Total:</b> R$ {fmt_br(d.get('ps_usado', 0))} ({d.get('ps_parcelas')}x de R$ {fmt_br(d.get('ps_mensal', 0))})</div>""", unsafe_allow_html=True)
-        st.markdown(f'<div class="summary-header">FLUXO DE ENTRADA (ATO)</div>', unsafe_allow_html=True)
-        st.markdown(f"""<div class="summary-body"><b>Total de Entrada:</b> R$ {fmt_br(d.get('entrada_total', 0))}<br><hr style="border: 0; border-top: 1px solid #e2e8f0; margin: 10px 0;"><b>Ato:</b> R$ {fmt_br(d.get('ato_final', 0))}<br><b>Ato 30 Dias:</b> R$ {fmt_br(d.get('ato_30', 0))}<br><b>Ato 60 Dias:</b> R$ {fmt_br(d.get('ato_60', 0))}<br><b>Ato 90 Dias:</b> R$ {fmt_br(d.get('ato_90', 0))}</div>""", unsafe_allow_html=True)
-        st.markdown("---")
-        if st.button("Opções de Resumo (PDF / E-mail)", use_container_width=True): show_export_dialog(d)
-        st.markdown("---")
-        if st.button("CONCLUIR E SALVAR SIMULAÇÃO", type="primary", use_container_width=True):
-            broker_email = st.session_state.get('user_email')
-            if broker_email:
-                with st.spinner("Gerando PDF e enviando para seu e-mail..."):
-                    pdf_bytes_auto = gerar_resumo_pdf(d)
-                    if pdf_bytes_auto:
-                        sucesso_email, msg_email = enviar_email_smtp(broker_email, d.get('nome', 'Cliente'), pdf_bytes_auto, d)
-                        if sucesso_email: st.toast("PDF enviado para seu e-mail com sucesso!", icon="📧")
-                        else: st.toast(f"Falha no envio automático: {msg_email}", icon="⚠️")
-            try:
-                conn_save = st.connection("gsheets", type=GSheetsConnection)
-                aba_destino = 'Simulações'
-                rendas_ind = d.get('rendas_lista', [])
-                while len(rendas_ind) < 4: rendas_ind.append(0.0)
-                capacidade_entrada = d.get('entrada_total', 0) + d.get('ps_usado', 0)
-                nova_linha = {
-                    "Nome": d.get('nome'), "CPF": d.get('cpf'), "Data de Nascimento": str(d.get('data_nascimento')),
-                    "Prazo Financiamento": d.get('prazo_financiamento'), "Renda Part. 1": rendas_ind[0], "Renda Part. 4": rendas_ind[3],
-                    "Renda Part. 3": rendas_ind[2], "Renda Part. 4.1": 0.0, "Ranking": d.get('ranking'),
-                    "Política de Pro Soluto": d.get('politica'), "Fator Social": "Sim" if d.get('social') else "Não",
-                    "Cotista FGTS": "Sim" if d.get('cotista') else "Não", "Financiamento Aprovado": d.get('finan_f_ref', 0),
-                    "Subsídio Máximo": d.get('sub_f_ref', 0), "Pro Soluto Médio": d.get('ps_usado', 0), "Capacidade de Entrada": capacidade_entrada,
-                    "Poder de Aquisição Médio": (2 * d.get('renda', 0)) + d.get('finan_f_ref', 0) + d.get('sub_f_ref', 0) + (d.get('imovel_valor', 0) * 0.10),
-                    "Empreendimento Final": d.get('empreendimento_nome'), "Unidade Final": d.get('unidade_id'),
-                    "Preço Unidade Final": d.get('imovel_valor', 0), "Financiamento Final": d.get('finan_usado', 0),
-                    "FGTS + Subsídio Final": d.get('fgts_sub_usado', 0), "Pro Soluto Final": d.get('ps_usado', 0),
-                    "Número de Parcelas do Pro Soluto": d.get('ps_parcelas', 0), "Mensalidade PS": d.get('ps_mensal', 0),
-                    "Ato": d.get('ato_final', 0), "Ato 30": d.get('ato_30', 0), "Ato 60": d.get('ato_60', 0), "Ato 90": d.get('ato_90', 0),
-                    "Renda Part. 2": rendas_ind[1], "Nome do Corretor": st.session_state.get('user_name', ''),
-                    "Canal/Imobiliária": st.session_state.get('user_imobiliaria', ''),
-                    "Data/Horário": datetime.now(pytz.timezone('America/Sao_Paulo')).strftime("%d/%m/%Y %H:%M:%S"),
-                    "Sistema de Amortização": d.get('sistema_amortizacao', 'SAC'),
-                    "Quantidade Parcelas Financiamento": d.get('prazo_financiamento', 360),
-                    "Quantidade Parcelas Pro Soluto": d.get('ps_parcelas', 0)
-                }
-                df_novo = pd.DataFrame([nova_linha])
-                try:
-                    df_existente = conn_save.read(spreadsheet=URL_RANKING, worksheet=aba_destino)
-                    df_final_save = pd.concat([df_existente, df_novo], ignore_index=True)
-                except: df_final_save = df_novo
-                conn_save.update(spreadsheet=URL_RANKING, worksheet=aba_destino, data=df_final_save)
-                st.cache_data.clear()
-                st.markdown(f'<div class="custom-alert">Salvo em \'{aba_destino}\'!</div>', unsafe_allow_html=True); time.sleep(2); st.session_state.dados_cliente = {}; st.session_state.passo_simulacao = 'input'; scroll_to_top(); st.rerun()
-            except Exception as e: st.error(f"Erro ao salvar: {e}")
-        if st.button("Voltar para Fechamento Financeiro", use_container_width=True): st.session_state.passo_simulacao = 'payment_flow'; scroll_to_top(); st.rerun()
-
-    st.markdown("<br><br>", unsafe_allow_html=True)
-
-    # Botão Sair fora da coluna para herdar estilo grande
-    if st.button("Sair do Sistema", key="btn_logout_bottom", use_container_width=True):
-        st.session_state['logged_in'] = False
-        st.rerun()
-
-def main():
-    configurar_layout()
-    df_finan, df_estoque, df_politicas, df_logins, df_cadastros = carregar_dados_sistema()
-    logo_src = URL_FAVICON_RESERVA
-    if os.path.exists("favicon.png"):
-        try:
-            with open("favicon.png", "rb") as f:
-                encoded = base64.b64encode(f.read()).decode()
-                logo_src = f"data:image/png;base64,{encoded}"
-        except: pass
-    st.markdown(f'''<div class="header-container"><img src="{logo_src}" style="position: absolute; top: 30px; left: 40px; height: 50px;"><div class="header-title">SIMULADOR IMOBILIÁRIO DV</div><div class="header-subtitle">Sistema de Gestão de Vendas e Viabilidade Imobiliária</div></div>''', unsafe_allow_html=True)
-
-    if 'logged_in' not in st.session_state: st.session_state['logged_in'] = False
-
-    if not st.session_state['logged_in']: tela_login(df_logins)
-    else: aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros)
-
-    st.markdown(f'<div class="footer">Direcional Engenharia - Rio de Janeiro | Developed by Lucas Maia</div>', unsafe_allow_html=True)
-
-if __name__ == "__main__":
-    main()
