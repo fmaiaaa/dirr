@@ -53,7 +53,6 @@ except:
 # Extraído de: https://docs.google.com/spreadsheets/d/1N00McOjO1O_MuKyQhp-CVhpAet_9Lfq-VqVm1FmPV00/edit?gid=1793187812#gid=1793187812
 ID_GERAL = "https://docs.google.com/spreadsheets/d/1N00McOjO1O_MuKyQhp-CVhpAet_9Lfq-VqVm1FmPV00/edit#gid=0"
 
-
 URL_FINAN = f"https://docs.google.com/spreadsheets/d/{ID_GERAL}/edit#gid=0"
 URL_RANKING = f"https://docs.google.com/spreadsheets/d/{ID_GERAL}/edit#gid=0"
 URL_ESTOQUE = f"https://docs.google.com/spreadsheets/d/{ID_GERAL}/edit#gid=0"
@@ -473,24 +472,20 @@ def scroll_to_top():
 # 1. CARREGAMENTO DE DADOS
 # =============================================================================
 
-@st.cache_data(ttl=10) # Reduzi o cache para 10 segundos para teste
+@st.cache_data(ttl=300)
 def carregar_dados_sistema():
     try:
+        if "connections" not in st.secrets:
+            return pd.DataFrame(), pd.DataFrame(), pd.DataFrame(), pd.DataFrame(), pd.DataFrame()
         conn = st.connection("gsheets", type=GSheetsConnection)
-        
-        # TESTE 1: Tentar ler a aba de logins sem filtros
+        def limpar_moeda(val): return safe_float_convert(val)
+
+        # 1. LOGINS
         try:
-            # Lemos a planilha bruta primeiro
-            df_logins_raw = conn.read(spreadsheet=ID_GERAL, worksheet="BD Logins")
-            
-            # Mostra na tela o que foi lido ANTES de qualquer tratamento
-            st.write("DEBUG - Linhas lidas na aba Logins:", len(df_logins_raw))
-            if len(df_logins_raw) > 0:
-                st.write("DEBUG - Colunas reais encontradas:", df_logins_raw.columns.tolist())
-            
-            df_logins = df_logins_raw.copy()
+            df_logins = conn.read(spreadsheet=ID_GERAL, worksheet="BD Logins")
             df_logins.columns = [str(c).strip() for c in df_logins.columns]
             
+            # Mapeamento específico conforme solicitado
             mapa_logins = {
                 'Imobiliária/Canal IMOB': 'Imobiliaria',
                 'Cargo': 'Cargo',
@@ -501,37 +496,116 @@ def carregar_dados_sistema():
             }
             df_logins = df_logins.rename(columns=mapa_logins)
             
+            # Tratamento básico
             if 'Email' in df_logins.columns:
                 df_logins['Email'] = df_logins['Email'].astype(str).str.strip().str.lower()
             if 'Senha' in df_logins.columns:
                 df_logins['Senha'] = df_logins['Senha'].astype(str).str.strip()
                 
-        except Exception as e_logins:
-            st.error(f"Erro ao acessar aba 'BD Logins': {e_logins}")
+        except: 
             df_logins = pd.DataFrame(columns=['Email', 'Senha', 'Nome', 'Cargo', 'Imobiliaria', 'Telefone'])
 
-        # --- RESTANTE DAS LEITURAS (Mantendo seu padrão) ---
-        try: df_cadastros = conn.read(spreadsheet=ID_GERAL, worksheet="BD Simulações")
-        except: df_cadastros = pd.DataFrame()
+        # 2. SIMULAÇÕES (CADASTROS)
+        try: 
+            df_cadastros = conn.read(spreadsheet=ID_GERAL, worksheet="BD Simulações")
+        except: 
+            df_cadastros = pd.DataFrame()
         
+        # 3. RANKING (REMOVIDO - Retorna vazio conforme solicitado)
         df_politicas = pd.DataFrame() 
 
+        # 4. FINANCIAMENTOS
         try:
             df_finan = conn.read(spreadsheet=ID_GERAL, worksheet="BD Financiamentos")
             df_finan.columns = [str(c).strip() for c in df_finan.columns]
-        except: df_finan = pd.DataFrame()
+            for col in df_finan.columns: df_finan[col] = df_finan[col].apply(limpar_moeda)
+        except: 
+            df_finan = pd.DataFrame()
 
+        # 5. ESTOQUE
         try:
             df_raw = conn.read(spreadsheet=ID_GERAL, worksheet="BD Estoque Filtrada")
-            df_estoque = df_raw.rename(columns={'Nome do Empreendimento': 'Empreendimento', 'Valor Final Com Kit': 'Valor de Venda'})
-        except: df_estoque = pd.DataFrame()
+            df_raw.columns = [str(c).strip() for c in df_raw.columns]
+            
+            mapa_estoque = {
+                'Nome do Empreendimento': 'Empreendimento',
+                'Valor Final Com Kit': 'Valor de Venda',
+                'Status da unidade': 'Status',
+                'Identificador': 'Identificador',
+                'Bairro': 'Bairro',
+                'Valor de Avaliação Bancária': 'Valor de Avaliação Bancária',
+                'PS EmCash': 'PS_EmCash',
+                'PS Diamante': 'PS_Diamante',
+                'PS Ouro': 'PS_Ouro',
+                'PS Prata': 'PS_Prata',
+                'PS Bronze': 'PS_Bronze',
+                'PS Aço': 'PS_Aco'
+            }
+            
+            df_estoque = df_raw.rename(columns=mapa_estoque)
+            
+            # Garantir colunas essenciais
+            if 'Valor de Venda' not in df_estoque.columns: df_estoque['Valor de Venda'] = 0.0
+            if 'Valor de Avaliação Bancária' not in df_estoque.columns: df_estoque['Valor de Avaliação Bancária'] = df_estoque['Valor de Venda']
+            if 'Status' not in df_estoque.columns: df_estoque['Status'] = 'Disponível'
+            if 'Empreendimento' not in df_estoque.columns: df_estoque['Empreendimento'] = 'N/A'
+            
+            # Conversões numéricas
+            df_estoque['Valor de Venda'] = df_estoque['Valor de Venda'].apply(limpar_moeda)
+            df_estoque['Valor de Avaliação Bancária'] = df_estoque['Valor de Avaliação Bancária'].apply(limpar_moeda)
+            
+            # Limpar colunas de PS
+            cols_ps = ['PS_EmCash', 'PS_Diamante', 'PS_Ouro', 'PS_Prata', 'PS_Bronze', 'PS_Aco']
+            for c in cols_ps:
+                if c in df_estoque.columns:
+                    df_estoque[c] = df_estoque[c].apply(limpar_moeda)
+                else:
+                    df_estoque[c] = 0.0
+            
+            # Tratamento de Status
+            if 'Status' in df_estoque.columns:
+                 df_estoque['Status'] = df_estoque['Status'].astype(str).str.strip()
+                 # Normalização opcional
+                 df_estoque['Status'] = df_estoque['Status'].apply(lambda x: 'Disponível' if 'Dispon' in x or 'dispon' in x else x)
+
+            # Filtros básicos
+            df_estoque = df_estoque[(df_estoque['Valor de Venda'] > 1000)].copy()
+            if 'Empreendimento' in df_estoque.columns:
+                 df_estoque = df_estoque[df_estoque['Empreendimento'].notnull()]
+            
+            if 'Identificador' not in df_estoque.columns: 
+                df_estoque['Identificador'] = df_estoque.index.astype(str)
+            if 'Bairro' not in df_estoque.columns: 
+                df_estoque['Bairro'] = 'Rio de Janeiro'
+
+            # Extração de Bloco/Andar/Apto para ordenação
+            def extrair_dados_unid(id_unid, tipo):
+                try:
+                    s = str(id_unid)
+                    p, sx = (s.split('-')[0], s.split('-')[-1]) if '-' in s else (s, s)
+                    np_val = re.sub(r'\D', '', p)
+                    ns_val = re.sub(r'\D', '', sx)
+                    if tipo == 'andar': return int(ns_val)//100 if ns_val else 0
+                    if tipo == 'bloco': return int(np_val) if np_val else 1
+                    if tipo == 'apto': return int(ns_val) if ns_val else 0
+                except: return 0 if tipo != 'bloco' else 1
+            df_estoque['Andar'] = df_estoque['Identificador'].apply(lambda x: extrair_dados_unid(x, 'andar'))
+            df_estoque['Bloco_Sort'] = df_estoque['Identificador'].apply(lambda x: extrair_dados_unid(x, 'bloco'))
+            df_estoque['Apto_Sort'] = df_estoque['Identificador'].apply(lambda x: extrair_dados_unid(x, 'apto'))
+            
+            if 'Empreendimento' in df_estoque.columns:
+                df_estoque['Empreendimento'] = df_estoque['Empreendimento'].astype(str).str.strip()
+            if 'Bairro' in df_estoque.columns:
+                df_estoque['Bairro'] = df_estoque['Bairro'].astype(str).str.strip()
+                                             
+        except: 
+            df_estoque = pd.DataFrame(columns=['Empreendimento', 'Valor de Venda', 'Status', 'Identificador', 'Bairro', 'Valor de Avaliação Bancária'])
 
         return df_finan, df_estoque, df_politicas, df_logins, df_cadastros
-
-    except Exception as e_geral:
-        st.error(f"Erro geral na conexão: {e_geral}")
+    except Exception as e:
+        st.error(f"Erro dados: {e}")
         return pd.DataFrame(), pd.DataFrame(), pd.DataFrame(), pd.DataFrame(), pd.DataFrame()
-        
+
 # =============================================================================
 # 2. MOTOR E FUNÇÕES
 # =============================================================================
