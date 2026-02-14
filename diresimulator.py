@@ -49,13 +49,12 @@ except:
 # =============================================================================
 # 0. CONSTANTES E UTILITÁRIOS
 # =============================================================================
-ID_FINAN = "1wJD3tXe1e8FxL4mVEfNKGdtaS__Dl4V6-sm1G6qfL0s"
-ID_RANKING = "1N00McOjO1O_MuKyQhp-CVhpAet_9Lfq-VqVm1FmPV00"
-ID_ESTOQUE = "1VG-hgBkddyssN1OXgIA33CVsKGAdqT-5kwbgizxWDZQ"
+# ID ÚNICO DA PLANILHA "BD Streamlit"
+ID_GERAL = "1N00McOjO1O_MuKyQhp-CVhpAet_9Lfq-VqVm1FmPV00"
 
-URL_FINAN = f"https://docs.google.com/spreadsheets/d/{ID_FINAN}/edit#gid=0"
-URL_RANKING = f"https://docs.google.com/spreadsheets/d/{ID_RANKING}/edit#gid=0"
-URL_ESTOQUE = f"https://docs.google.com/spreadsheets/d/{ID_ESTOQUE}/edit#gid=0"
+URL_FINAN = f"https://docs.google.com/spreadsheets/d/{ID_GERAL}/edit#gid=0"
+URL_RANKING = f"https://docs.google.com/spreadsheets/d/{ID_GERAL}/edit#gid=0"
+URL_ESTOQUE = f"https://docs.google.com/spreadsheets/d/{ID_GERAL}/edit#gid=0"
 
 URL_FAVICON_RESERVA = "https://direcional.com.br/wp-content/uploads/2021/04/cropped-favicon-direcional-32x32.png"
 
@@ -481,7 +480,7 @@ def carregar_dados_sistema():
         def limpar_moeda(val): return safe_float_convert(val)
 
         try:
-            df_logins = conn.read(spreadsheet=URL_RANKING, worksheet="Logins")
+            df_logins = conn.read(spreadsheet=ID_GERAL, worksheet="BD Logins")
             df_logins.columns = [str(c).strip() for c in df_logins.columns]
             mapa = {}
             for col in df_logins.columns:
@@ -497,31 +496,29 @@ def carregar_dados_sistema():
             df_logins['Senha'] = df_logins['Senha'].astype(str).str.strip()
         except: df_logins = pd.DataFrame(columns=['Email', 'Senha'])
 
-        try: df_cadastros = conn.read(spreadsheet=URL_RANKING, worksheet="Simulações")
-        except:
-            try: df_cadastros = conn.read(spreadsheet=URL_RANKING, worksheet="Cadastros")
-            except: df_cadastros = pd.DataFrame()
+        try: df_cadastros = conn.read(spreadsheet=ID_GERAL, worksheet="BD Simulações")
+        except: df_cadastros = pd.DataFrame()
         
         try:
-            df_politicas = conn.read(spreadsheet=URL_RANKING)
+            df_politicas = conn.read(spreadsheet=ID_GERAL, worksheet="BD Ranking")
             df_politicas.columns = [str(c).strip() for c in df_politicas.columns]
             col_class = next((c for c in df_politicas.columns if 'CLASSIFICA' in c.upper() or 'RANKING' in c.upper()), 'CLASSIFICAÇÃO')
             df_politicas = df_politicas.rename(columns={col_class: 'CLASSIFICAÇÃO', 'FAIXA RENDA': 'FAIXA_RENDA', 'FX RENDA 1': 'FX_RENDA_1', 'FX RENDA 2': 'FX_RENDA_2'})
         except: df_politicas = pd.DataFrame()
 
         try:
-            df_finan = conn.read(spreadsheet=URL_FINAN)
+            df_finan = conn.read(spreadsheet=ID_GERAL, worksheet="BD Financiamentos")
             df_finan.columns = [str(c).strip() for c in df_finan.columns]
             for col in df_finan.columns: df_finan[col] = df_finan[col].apply(limpar_moeda)
         except: df_finan = pd.DataFrame()
 
         try:
-            df_raw = conn.read(spreadsheet=URL_ESTOQUE)
+            df_raw = conn.read(spreadsheet=ID_GERAL, worksheet="BD Estoque Filtrada")
             df_raw.columns = [str(c).strip() for c in df_raw.columns]
             
             mapa_estoque = {
                 'Nome do Empreendimento': 'Empreendimento',
-                'VALOR DE VENDA': 'Valor de Venda',
+                'Valor Final Com Kit': 'Valor de Venda',
                 'Status da unidade': 'Status',
                 'Identificador': 'Identificador',
                 'Bairro': 'Bairro',
@@ -1446,6 +1443,177 @@ def show_export_dialog(d):
 # APLICAÇÃO PRINCIPAL
 # =============================================================================
 
+@st.dialog("Cadastrar Novo Cliente")
+def dialog_novo_cliente(motor):
+    # Formulário de Cadastro de Novo Cliente
+    st.markdown("Preencha os dados do cliente para iniciar a simulação.")
+    
+    # Recuperar valores da sessão ou usar defaults
+    curr_nome = st.session_state.dados_cliente.get('nome', "")
+    curr_cpf = st.session_state.dados_cliente.get('cpf', "")
+    
+    nome = st.text_input("Nome Completo", value=curr_nome, placeholder="Nome Completo", key="in_nome_v28")
+    cpf_val = st.text_input("CPF", value=curr_cpf, placeholder="000.000.000-00", key="in_cpf_v3", max_chars=14)
+    
+    if cpf_val and not validar_cpf(cpf_val):
+        st.markdown(f"<small style='color: {COR_VERMELHO};'>CPF inválido</small>", unsafe_allow_html=True)
+
+    d_nasc_default = st.session_state.dados_cliente.get('data_nascimento', date(1990, 1, 1))
+    if isinstance(d_nasc_default, str):
+        try: d_nasc_default = datetime.strptime(d_nasc_default, '%Y-%m-%d').date()
+        except: 
+            try: d_nasc_default = datetime.strptime(d_nasc_default, '%d/%m/%Y').date()
+            except: d_nasc_default = date(1990, 1, 1)
+
+    data_nasc = st.date_input("Data de Nascimento", value=d_nasc_default, min_value=date(1900, 1, 1), max_value=datetime.now().date(), format="DD/MM/YYYY", key="in_dt_nasc_v3")
+
+    st.markdown("---")
+    qtd_part = st.number_input("Participantes na Renda", min_value=1, max_value=4, value=st.session_state.dados_cliente.get('qtd_participantes', 1), step=1, key="qtd_part_v3")
+
+    cols_renda = st.columns(qtd_part)
+    renda_total_calc = 0.0
+    lista_rendas_input = []
+    rendas_anteriores = st.session_state.dados_cliente.get('rendas_lista', [])
+    
+    # Helper to clear input on empty
+    def get_val(idx, default):
+        v = float(rendas_anteriores[idx]) if idx < len(rendas_anteriores) else default
+        return None if v == 0.0 else v
+
+    for i in range(qtd_part):
+        with cols_renda[i]:
+            def_val = 3500.0 if i == 0 and not rendas_anteriores else 0.0
+            current_val = get_val(i, def_val)
+            val_r = st.number_input(f"Renda Part. {i+1}", min_value=0.0, value=current_val, step=100.0, key=f"renda_part_{i}_v3", placeholder="0,00")
+            if val_r is None: val_r = 0.0
+            renda_total_calc += val_r; lista_rendas_input.append(val_r)
+
+    rank_opts = ["DIAMANTE", "OURO", "PRATA", "BRONZE", "AÇO"]
+    curr_ranking = st.session_state.dados_cliente.get('ranking', "DIAMANTE")
+    idx_ranking = rank_opts.index(curr_ranking) if curr_ranking in rank_opts else 0
+    ranking = st.selectbox("Ranking do Cliente", options=rank_opts, index=idx_ranking, key="in_rank_v28")
+    
+    politica_ps = st.selectbox("Política de Pro Soluto", ["Direcional", "Emcash"], index=0 if st.session_state.dados_cliente.get('politica') != "Emcash" else 1, key="in_pol_v28")
+    social = st.toggle("Fator Social", value=st.session_state.dados_cliente.get('social', False), key="in_soc_v28")
+    cotista = st.toggle("Cotista FGTS", value=st.session_state.dados_cliente.get('cotista', True), key="in_cot_v28")
+
+    st.markdown("<br>", unsafe_allow_html=True)
+
+    if st.button("Confirmar e Avançar", type="primary", use_container_width=True):
+        # Validação básica
+        if not nome.strip(): st.error("Por favor, informe o Nome do Cliente."); return
+        if not cpf_val.strip(): st.error("Por favor, informe o CPF do Cliente."); return
+        if not validar_cpf(cpf_val): st.error("CPF Inválido."); return
+        if renda_total_calc <= 0: st.error("A renda total deve ser maior que zero."); return
+
+        # Salvar estado
+        st.session_state.dados_cliente.update({
+            'nome': nome, 
+            'cpf': limpar_cpf_visual(cpf_val), 
+            'data_nascimento': data_nasc, 
+            'renda': renda_total_calc, 
+            'rendas_lista': lista_rendas_input,
+            'social': social, 
+            'cotista': cotista, 
+            'ranking': ranking, 
+            'politica': politica_ps,
+            'qtd_participantes': qtd_part
+        })
+
+        # Processar lógica de negócio (enquadramento inicial)
+        class_b = 'EMCASH' if politica_ps == "Emcash" else ranking
+        map_ps_percent = {'EMCASH': 0.25, 'DIAMANTE': 0.25, 'OURO': 0.20, 'PRATA': 0.18, 'BRONZE': 0.15, 'AÇO': 0.12}
+        perc_ps_max = map_ps_percent.get(class_b, 0.12)
+        prazo_ps_max = 66 if politica_ps == "Emcash" else 84
+        limit_ps_r = 0.30
+        f_faixa_ref, s_faixa_ref, fx_nome_ref = motor.obter_enquadramento(renda_total_calc, social, cotista, valor_avaliacao=240000)
+
+        st.session_state.dados_cliente.update({
+            'perc_ps': perc_ps_max, 
+            'prazo_ps_max': prazo_ps_max,
+            'limit_ps_renda': limit_ps_r, 
+            'finan_f_ref': f_faixa_ref, 
+            'sub_f_ref': s_faixa_ref
+        })
+        
+        # Avançar
+        st.session_state.passo_simulacao = 'guide'
+        st.rerun()
+
+@st.dialog("Buscar Cliente Cadastrado")
+def dialog_buscar_cliente(df_cadastros, motor):
+    if df_cadastros.empty:
+        st.warning("A base de clientes está vazia.")
+        return
+
+    clientes_list = df_cadastros['Nome'].unique().tolist() if 'Nome' in df_cadastros.columns else []
+    clientes_list.insert(0, "Selecione um cliente...")
+    cliente_sel = st.selectbox("Selecione o Cliente:", clientes_list, key="busca_cliente_base")
+    
+    if cliente_sel != "Selecione um cliente..." and st.button("Carregar Dados", type="primary", use_container_width=True):
+        row_cli = df_cadastros[df_cadastros['Nome'] == cliente_sel].iloc[0]
+        
+        # Helper para extrair float
+        def safe_get_float_row(r, k):
+            return safe_float_convert(r.get(k, 0))
+        
+        # Carregar dados na sessão
+        rs_load = [safe_get_float_row(row_cli, f'Renda Part. {i}') for i in range(1, 5)]
+        qtd_p_load = 1
+        for i in range(4, 0, -1):
+            if rs_load[i-1] > 0:
+                qtd_p_load = i
+                break
+        
+        # Calcula o total da renda
+        renda_total_calc = sum(rs_load)
+
+        # Helper para data
+        dn_load = row_cli.get('Data de Nascimento')
+        try:
+            if isinstance(dn_load, str):
+                dn_load = datetime.strptime(dn_load, '%Y-%m-%d').date()
+        except:
+            dn_load = date(1990, 1, 1)
+
+        ranking = row_cli.get('Ranking')
+        politica_ps = row_cli.get('Política de Pro Soluto')
+        social = str(row_cli.get('Fator Social', '')).lower() == 'sim'
+        cotista = str(row_cli.get('Cotista FGTS', '')).lower() == 'sim'
+
+        st.session_state.dados_cliente.update({
+            'nome': row_cli.get('Nome'),
+            'cpf': row_cli.get('CPF'),
+            'data_nascimento': dn_load,
+            'qtd_participantes': qtd_p_load,
+            'rendas_lista': rs_load,
+            'renda': renda_total_calc,
+            'ranking': ranking,
+            'politica': politica_ps,
+            'social': social,
+            'cotista': cotista
+        })
+
+        # Processar lógica de negócio (enquadramento inicial)
+        class_b = 'EMCASH' if politica_ps == "Emcash" else ranking
+        map_ps_percent = {'EMCASH': 0.25, 'DIAMANTE': 0.25, 'OURO': 0.20, 'PRATA': 0.18, 'BRONZE': 0.15, 'AÇO': 0.12}
+        perc_ps_max = map_ps_percent.get(class_b, 0.12)
+        prazo_ps_max = 66 if politica_ps == "Emcash" else 84
+        limit_ps_r = 0.30
+        f_faixa_ref, s_faixa_ref, fx_nome_ref = motor.obter_enquadramento(renda_total_calc, social, cotista, valor_avaliacao=240000)
+
+        st.session_state.dados_cliente.update({
+            'perc_ps': perc_ps_max, 
+            'prazo_ps_max': prazo_ps_max,
+            'limit_ps_renda': limit_ps_r, 
+            'finan_f_ref': f_faixa_ref, 
+            'sub_f_ref': s_faixa_ref
+        })
+
+        st.toast(f"Dados de {cliente_sel} carregados!", icon="✅")
+        st.session_state.passo_simulacao = 'guide'
+        st.rerun()
+
 def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
     passo = st.session_state.get('passo_simulacao', 'input')
     motor = MotorRecomendacao(df_finan, df_estoque, df_politicas)
@@ -1960,158 +2128,80 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
 
     # --- ETAPA 1: INPUT ---
     elif passo == 'input':
-        st.markdown("### Dados do Cliente")
+        st.markdown("### Selecione uma Opção")
         
-        # BUSCA DE CLIENTE NA BASE
-        if not df_cadastros.empty:
-            with st.expander("🔍 Buscar Cliente Existente na Base"):
-                clientes_list = df_cadastros['Nome'].unique().tolist() if 'Nome' in df_cadastros.columns else []
-                clientes_list.insert(0, "Selecione um cliente...")
-                cliente_sel = st.selectbox("Selecione o Cliente:", clientes_list, key="busca_cliente_base")
-                
-                if cliente_sel != "Selecione um cliente...":
-                    row_cli = df_cadastros[df_cadastros['Nome'] == cliente_sel].iloc[0]
-                    
-                    # Helper para extrair float
-                    def safe_get_float_row(r, k):
-                        return safe_float_convert(r.get(k, 0))
-                    
-                    # Carregar dados na sessão
-                    rs_load = [safe_get_float_row(row_cli, f'Renda Part. {i}') for i in range(1, 5)]
-                    qtd_p_load = 1
-                    for i in range(4, 0, -1):
-                        if rs_load[i-1] > 0:
-                            qtd_p_load = i
-                            break
-                    
-                    # Helper para data
-                    dn_load = row_cli.get('Data de Nascimento')
-                    try:
-                        if isinstance(dn_load, str):
-                            dn_load = datetime.strptime(dn_load, '%Y-%m-%d').date()
-                    except:
-                        dn_load = date(1990, 1, 1)
+        # Estilo para os botões quadrados grandes
+        st.markdown(f"""
+        <style>
+        .big-button {{
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            background-color: white;
+            border: 2px solid {COR_BORDA};
+            border-radius: 16px;
+            padding: 40px 20px;
+            height: 250px;
+            width: 100%;
+            cursor: pointer;
+            transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+            text-align: center;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+        }}
+        .big-button:hover {{
+            transform: translateY(-5px);
+            border-color: {COR_VERMELHO};
+            box-shadow: 0 10px 20px rgba(227, 6, 19, 0.15);
+        }}
+        .big-button-icon {{
+            font-size: 3rem;
+            margin-bottom: 20px;
+            color: {COR_VERMELHO};
+        }}
+        .big-button-text {{
+            font-size: 1.2rem;
+            font-weight: 700;
+            color: {COR_AZUL_ESC};
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }}
+        .big-button-sub {{
+            font-size: 0.9rem;
+            color: {COR_TEXTO_MUTED};
+            margin-top: 10px;
+        }}
+        </style>
+        """, unsafe_allow_html=True)
 
-                    st.session_state.dados_cliente.update({
-                        'nome': row_cli.get('Nome'),
-                        'cpf': row_cli.get('CPF'),
-                        'data_nascimento': dn_load,
-                        'qtd_participantes': qtd_p_load,
-                        'rendas_lista': rs_load,
-                        'ranking': row_cli.get('Ranking'),
-                        'politica': row_cli.get('Política de Pro Soluto'),
-                        'social': str(row_cli.get('Fator Social', '')).lower() == 'sim',
-                        'cotista': str(row_cli.get('Cotista FGTS', '')).lower() == 'sim'
-                    })
-                    st.toast(f"Dados de {cliente_sel} carregados!", icon="✅")
-                    time.sleep(1)
-                    st.rerun()
+        col_new, col_search = st.columns(2, gap="large")
 
-        # Recuperar valores da sessão ou usar defaults
-        curr_nome = st.session_state.dados_cliente.get('nome', "")
-        curr_cpf = st.session_state.dados_cliente.get('cpf', "")
-        
-        nome = st.text_input("Nome Completo", value=curr_nome, placeholder="Nome Completo", key="in_nome_v28")
-        cpf_val = st.text_input("CPF", value=curr_cpf, placeholder="000.000.000-00", key="in_cpf_v3", max_chars=14)
-        
-        # Atualizar sessão em tempo real para não perder ao navegar
-        if nome != curr_nome: st.session_state.dados_cliente['nome'] = nome
-        if cpf_val != curr_cpf: st.session_state.dados_cliente['cpf'] = cpf_val
+        with col_new:
+            # Botão Visual (Card)
+            st.markdown(f"""
+            <div class="big-button">
+                <div class="big-button-icon">📝</div>
+                <div class="big-button-text">Cadastrar Novo Cliente</div>
+                <div class="big-button-sub">Iniciar uma nova simulação do zero</div>
+            </div>
+            """, unsafe_allow_html=True)
+            # Botão Funcional (Invisible overlay logic or simple button below)
+            # Streamlit não permite clicar em HTML puro facilmente sem componentes extras.
+            # Vamos usar um botão nativo abaixo do card ou apenas o botão nativo estilizado.
+            # Para manter simples e funcional, usamos o st.button logo abaixo que aciona o dialog.
+            if st.button("Iniciar Cadastro", key="btn_new_client_main", use_container_width=True):
+                dialog_novo_cliente(motor)
 
-        if cpf_val and not validar_cpf(cpf_val):
-            st.markdown(f"<small style='color: {COR_VERMELHO};'>CPF inválido</small>", unsafe_allow_html=True)
-
-        d_nasc_default = st.session_state.dados_cliente.get('data_nascimento', date(1990, 1, 1))
-        if isinstance(d_nasc_default, str):
-            try: d_nasc_default = datetime.strptime(d_nasc_default, '%Y-%m-%d').date()
-            except: 
-                # Try dd/mm/yyyy just in case
-                try: d_nasc_default = datetime.strptime(d_nasc_default, '%d/%m/%Y').date()
-                except: d_nasc_default = date(1990, 1, 1)
-
-        data_nasc = st.date_input("Data de Nascimento", value=d_nasc_default, min_value=date(1900, 1, 1), max_value=datetime.now().date(), format="DD/MM/YYYY", key="in_dt_nasc_v3")
-        # Genero removido conforme solicitado
-
-        st.markdown("---")
-        qtd_part = st.number_input("Participantes na Renda", min_value=1, max_value=4, value=st.session_state.dados_cliente.get('qtd_participantes', 1), step=1, key="qtd_part_v3")
-
-        cols_renda = st.columns(qtd_part)
-        renda_total_calc = 0.0
-        lista_rendas_input = []
-        rendas_anteriores = st.session_state.dados_cliente.get('rendas_lista', [])
-        
-        # Helper to clear input on empty
-        def get_val(idx, default):
-            v = float(rendas_anteriores[idx]) if idx < len(rendas_anteriores) else default
-            return None if v == 0.0 else v
-
-        for i in range(qtd_part):
-            with cols_renda[i]:
-                def_val = 3500.0 if i == 0 and not rendas_anteriores else 0.0
-                current_val = get_val(i, def_val)
-                # value=None permite iniciar vazio (sem 0.00)
-                val_r = st.number_input(f"Renda Part. {i+1}", min_value=0.0, value=current_val, step=100.0, key=f"renda_part_{i}_v3", placeholder="0,00")
-                if val_r is None: val_r = 0.0
-                renda_total_calc += val_r; lista_rendas_input.append(val_r)
-
-        rank_opts = ["DIAMANTE", "OURO", "PRATA", "BRONZE", "AÇO"]
-        # Recuperar seleção anterior se existir
-        curr_ranking = st.session_state.dados_cliente.get('ranking', "DIAMANTE")
-        idx_ranking = rank_opts.index(curr_ranking) if curr_ranking in rank_opts else 0
-        ranking = st.selectbox("Ranking do Cliente", options=rank_opts, index=idx_ranking, key="in_rank_v28")
-        
-        politica_ps = st.selectbox("Política de Pro Soluto", ["Direcional", "Emcash"], index=0 if st.session_state.dados_cliente.get('politica') != "Emcash" else 1, key="in_pol_v28")
-        social = st.toggle("Fator Social", value=st.session_state.dados_cliente.get('social', False), key="in_soc_v28")
-        cotista = st.toggle("Cotista FGTS", value=st.session_state.dados_cliente.get('cotista', True), key="in_cot_v28")
-
-        st.markdown("<br>", unsafe_allow_html=True)
-
-        def processar_avanco(destino):
-            # Salvar estado atual antes de validar/avançar
-            st.session_state.dados_cliente.update({
-                'nome': nome, 
-                'cpf': limpar_cpf_visual(cpf_val), 
-                'data_nascimento': data_nasc, 
-                # 'genero': genero, # Removido
-                'renda': renda_total_calc, 
-                'rendas_lista': lista_rendas_input,
-                'social': social, 
-                'cotista': cotista, 
-                'ranking': ranking, 
-                'politica': politica_ps,
-                'qtd_participantes': qtd_part
-            })
-
-            if not nome.strip(): st.markdown(f'<div class="custom-alert">Por favor, informe o Nome do Cliente para continuar.</div>', unsafe_allow_html=True); return
-            if not cpf_val.strip(): st.markdown(f'<div class="custom-alert">Por favor, informe o CPF do Cliente.</div>', unsafe_allow_html=True); return
-            if not validar_cpf(cpf_val): st.markdown(f'<div class="custom-alert">CPF Inválido. Corrija para continuar.</div>', unsafe_allow_html=True); return
-            if renda_total_calc <= 0: st.markdown(f'<div class="custom-alert">A renda total deve ser maior que zero.</div>', unsafe_allow_html=True); return
-
-            class_b = 'EMCASH' if politica_ps == "Emcash" else ranking
-            map_ps_percent = {'EMCASH': 0.25, 'DIAMANTE': 0.25, 'OURO': 0.20, 'PRATA': 0.18, 'BRONZE': 0.15, 'AÇO': 0.12}
-            perc_ps_max = map_ps_percent.get(class_b, 0.12)
-            prazo_ps_max = 66 if politica_ps == "Emcash" else 84
-            limit_ps_r = 0.30
-            f_faixa_ref, s_faixa_ref, fx_nome_ref = motor.obter_enquadramento(renda_total_calc, social, cotista, valor_avaliacao=240000)
-
-            st.session_state.dados_cliente.update({
-                'perc_ps': perc_ps_max, 
-                'prazo_ps_max': prazo_ps_max,
-                'limit_ps_renda': limit_ps_r, 
-                'finan_f_ref': f_faixa_ref, 
-                'sub_f_ref': s_faixa_ref
-            })
-            st.session_state.passo_simulacao = destino
-            scroll_to_top()
-            st.rerun()
-
-        if st.button("Obter recomendações", type="primary", use_container_width=True, key="btn_avancar_guide"):
-            processar_avanco('guide')
-
-        st.write("") 
-
-        if st.button("Ir direto para escolha de unidades", use_container_width=True, key="btn_avancar_direto"):
-            processar_avanco('selection')
+        with col_search:
+            st.markdown(f"""
+            <div class="big-button">
+                <div class="big-button-icon">🔍</div>
+                <div class="big-button-text">Buscar Cliente Cadastrado</div>
+                <div class="big-button-sub">Carregar dados de simulação anterior</div>
+            </div>
+            """, unsafe_allow_html=True)
+            if st.button("Buscar na Base", key="btn_search_client_main", use_container_width=True):
+                dialog_buscar_cliente(df_cadastros, motor)
 
     # --- ETAPA 2: RECOMENDAÇÃO ---
     elif passo == 'guide':
@@ -2570,7 +2660,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
                         else: st.toast(f"Falha no envio automático: {msg_email}", icon="⚠️")
             try:
                 conn_save = st.connection("gsheets", type=GSheetsConnection)
-                aba_destino = 'Simulações'
+                aba_destino = 'BD Simulações' # Corrigido para a nova aba
                 rendas_ind = d.get('rendas_lista', [])
                 while len(rendas_ind) < 4: rendas_ind.append(0.0)
                 capacidade_entrada = d.get('entrada_total', 0) + d.get('ps_usado', 0)
@@ -2596,10 +2686,10 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
                 }
                 df_novo = pd.DataFrame([nova_linha])
                 try:
-                    df_existente = conn_save.read(spreadsheet=URL_RANKING, worksheet=aba_destino)
+                    df_existente = conn_save.read(spreadsheet=ID_GERAL, worksheet=aba_destino)
                     df_final_save = pd.concat([df_existente, df_novo], ignore_index=True)
                 except: df_final_save = df_novo
-                conn_save.update(spreadsheet=URL_RANKING, worksheet=aba_destino, data=df_final_save)
+                conn_save.update(spreadsheet=ID_GERAL, worksheet=aba_destino, data=df_final_save)
                 st.cache_data.clear()
                 st.markdown(f'<div class="custom-alert">Salvo em \'{aba_destino}\'!</div>', unsafe_allow_html=True); time.sleep(2); st.session_state.dados_cliente = {}; st.session_state.passo_simulacao = 'input'; scroll_to_top(); st.rerun()
             except Exception as e: st.error(f"Erro ao salvar: {e}")
