@@ -59,6 +59,7 @@ URL_RANKING = f"https://docs.google.com/spreadsheets/d/{ID_GERAL}/edit#gid=0"
 URL_ESTOQUE = f"https://docs.google.com/spreadsheets/d/{ID_GERAL}/edit#gid=0"
 
 URL_FAVICON_RESERVA = "https://direcional.com.br/wp-content/uploads/2021/04/cropped-favicon-direcional-32x32.png"
+URL_LOGO_DIRECIONAL_BIG = "https://logodownload.org/wp-content/uploads/2021/04/direcional-engenharia-logo.png"
 
 # Paleta de Cores
 COR_AZUL_ESC = "#002c5d"
@@ -288,10 +289,18 @@ def fmt_br(valor):
 def limpar_cpf_visual(valor):
     if pd.isnull(valor) or valor == "": return ""
     v_str = str(valor).strip()
+    # Remove decimal se existir
     if v_str.endswith('.0'): v_str = v_str[:-2]
     v_nums = re.sub(r'\D', '', v_str)
+    # Garante 11 digitos preenchendo zeros a esquerda
     if v_nums: return v_nums.zfill(11)
     return ""
+
+def formatar_cpf_saida(valor):
+    v = limpar_cpf_visual(valor)
+    if len(v) == 11:
+        return f"{v[:3]}.{v[3:6]}.{v[6:9]}-{v[9:]}"
+    return v
 
 def validar_cpf(cpf):
     cpf = re.sub(r'\D', '', str(cpf))
@@ -509,6 +518,9 @@ def carregar_dados_sistema():
         # 2. SIMULAÇÕES (CADASTROS)
         try: 
             df_cadastros = conn.read(spreadsheet=ID_GERAL, worksheet="BD Simulações")
+            # Garantir formato correto do CPF se existir
+            if 'CPF' in df_cadastros.columns:
+                df_cadastros['CPF'] = df_cadastros['CPF'].apply(limpar_cpf_visual)
         except: 
             df_cadastros = pd.DataFrame()
         
@@ -530,11 +542,11 @@ def carregar_dados_sistema():
             
             mapa_estoque = {
                 'Nome do Empreendimento': 'Empreendimento',
-                'Valor Final Com Kit': 'Valor de Venda',
+                'Valor Comercial Mínimo': 'Valor de Venda', # CORREÇÃO: Removido espaço trailing se houver no mapeamento e aplicado strip() antes
                 'Status da unidade': 'Status',
                 'Identificador': 'Identificador',
                 'Bairro': 'Bairro',
-                'Valor de Avaliação Bancária': 'Valor de Avaliação Bancária',
+                'Valor de Avaliação Bancária': 'Valor de Avaliação Bancária', # Removido espaço trailing
                 'PS EmCash': 'PS_EmCash',
                 'PS Diamante': 'PS_Diamante',
                 'PS Ouro': 'PS_Ouro',
@@ -547,7 +559,16 @@ def carregar_dados_sistema():
                 'Endereço': 'Endereco'
             }
             
-            df_estoque = df_raw.rename(columns=mapa_estoque)
+            # Garantir correspondência mesmo com espaços
+            # Normalizar colunas do raw para sem espaços nas pontas
+            df_raw.columns = [c.strip() for c in df_raw.columns]
+            
+            # Ajustar chaves do mapa para bater com colunas limpas
+            mapa_ajustado = {}
+            for k, v in mapa_estoque.items():
+                mapa_ajustado[k.strip()] = v
+            
+            df_estoque = df_raw.rename(columns=mapa_ajustado)
             
             # Garantir colunas essenciais
             if 'Valor de Venda' not in df_estoque.columns: df_estoque['Valor de Venda'] = 0.0
@@ -1265,9 +1286,13 @@ def gerar_resumo_pdf(d):
         secao("DADOS DO IMÓVEL")
         linha("Empreendimento", str(d.get('empreendimento_nome')))
         linha("Unidade Selecionada", str(d.get('unidade_id')))
-        linha("Valor Comercial (Venda)", f"R$ {fmt_br(d.get('imovel_valor', 0))}", True)
-        if d.get('imovel_avaliacao'):
-             linha("Avaliação Bancária", f"R$ {fmt_br(d.get('imovel_avaliacao', 0))}")
+        
+        # Valor de Venda no Sistema = Valor Comercial Mínimo
+        v_comercial = d.get('imovel_valor', 0)
+        v_avaliacao = d.get('imovel_avaliacao', 0)
+        
+        # No PDF para o cliente, mostramos Avaliação e o "Desconto" para chegar no valor de venda
+        linha("Valor de Tabela/Avaliação", f"R$ {fmt_br(v_avaliacao)}", True)
         
         if d.get('unid_entrega'): linha("Previsão de Entrega", str(d.get('unid_entrega')))
         if d.get('unid_area'): linha("Área Privativa", f"{d.get('unid_area')} m²")
@@ -1275,6 +1300,15 @@ def gerar_resumo_pdf(d):
         if d.get('unid_endereco') and d.get('unid_bairro'): 
             linha("Endereço", f"{d.get('unid_endereco')} - {d.get('unid_bairro')}")
 
+        pdf.ln(4)
+        
+        # SEÇÃO DE NEGOCIAÇÃO (NOVO)
+        secao("CONDIÇÃO COMERCIAL")
+        # Calculamos a diferença como "Desconto"
+        desconto = max(0, v_avaliacao - v_comercial)
+        linha("Desconto/Condição Especial", f"R$ {fmt_br(desconto)}")
+        linha("Valor Final de Venda", f"R$ {fmt_br(v_comercial)}", True)
+        
         pdf.ln(4)
 
         secao("ENGENHARIA FINANCEIRA")
@@ -1377,6 +1411,12 @@ def enviar_email_smtp(destinatario, nome_cliente, pdf_bytes, dados_cliente, tipo
     ps = fmt_br(dados_cliente.get('ps_mensal', 0))
     renda_cli = fmt_br(dados_cliente.get('renda', 0))
     
+    # Dados de atos para tabela do corretor
+    a0 = fmt_br(dados_cliente.get('ato_final', 0))
+    a30 = fmt_br(dados_cliente.get('ato_30', 0))
+    a60 = fmt_br(dados_cliente.get('ato_60', 0))
+    a90 = fmt_br(dados_cliente.get('ato_90', 0))
+    
     corretor_nome = dados_cliente.get('corretor_nome', 'Direcional')
     corretor_tel = dados_cliente.get('corretor_telefone', '')
     corretor_email = dados_cliente.get('corretor_email', '')
@@ -1388,11 +1428,11 @@ def enviar_email_smtp(destinatario, nome_cliente, pdf_bytes, dados_cliente, tipo
         <html>
         <body style="font-family: 'Helvetica', sans-serif; color: #333; background-color: #f9f9f9; margin: 0; padding: 20px;">
             <div style="max-width: 600px; margin: auto; background-color: #fff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 15px rgba(0,0,0,0.05);">
-                <div style="background-color: #002c5d; padding: 30px; text-align: center;">
-                    <img src="https://direcional.com.br/wp-content/uploads/2021/04/cropped-favicon-direcional-32x32.png" width="50" style="margin-bottom: 10px;">
-                    <h2 style="color: #fff; margin: 0; font-weight: 300; letter-spacing: 1px;">Olá, {nome_cliente}!</h2>
+                <div style="background-color: #ffffff; padding: 30px; text-align: center; border-bottom: 4px solid #e30613;">
+                    <img src="{URL_LOGO_DIRECIONAL_BIG}" width="180" style="margin-bottom: 10px;">
                 </div>
                 <div style="padding: 40px;">
+                    <h2 style="color: #002c5d; margin: 0 0 20px 0; font-weight: 300; text-align: center;">Olá, {nome_cliente}!</h2>
                     <p style="font-size: 1.1em; line-height: 1.6; text-align: center; color: #555;">
                         Foi ótimo apresentar as oportunidades da Direcional para você. O imóvel <strong>{emp}</strong> é incrível e desenhamos uma condição especial para o seu perfil.
                     </p>
@@ -1400,10 +1440,13 @@ def enviar_email_smtp(destinatario, nome_cliente, pdf_bytes, dados_cliente, tipo
                     <div style="background-color: #f0f4f8; border-left: 5px solid #e30613; padding: 20px; margin: 30px 0; border-radius: 4px;">
                         <p style="margin: 0; font-weight: bold; color: #002c5d; font-size: 1.2em;">{emp}</p>
                         <p style="margin: 5px 0 0 0; color: #777;">Unidade: {unid}</p>
-                        <p style="margin: 15px 0 0 0; font-size: 1.5em; font-weight: bold; color: #e30613;">R$ {val_venda}</p>
+                        <p style="margin: 15px 0 0 0; font-size: 1.5em; font-weight: bold; color: #e30613;">Valor Promocional: R$ {val_venda}</p>
                     </div>
 
-                    <p style="text-align: center;">Confira os detalhes completos no PDF anexo.</p>
+                    <div style="text-align: center; margin: 35px 0;">
+                        <a href="#" style="background-color: #002c5d; color: #ffffff; padding: 15px 30px; text-decoration: none; font-weight: bold; border-radius: 5px; font-size: 1.1em;">VISUALIZAR PROPOSTA DETALHADA</a>
+                        <p style="font-size: 0.8em; color: #999; margin-top: 10px;">(Abra o arquivo PDF em anexo para ver todos os detalhes)</p>
+                    </div>
                     
                     <div style="margin-top: 40px; border-top: 1px solid #eee; padding-top: 20px; text-align: center;">
                         <p style="margin: 0; font-weight: bold; color: #002c5d;">{corretor_nome}</p>
@@ -1423,9 +1466,12 @@ def enviar_email_smtp(destinatario, nome_cliente, pdf_bytes, dados_cliente, tipo
         <html>
         <body style="font-family: 'Arial', sans-serif; color: #333; background-color: #eee; margin: 0; padding: 20px;">
             <div style="max-width: 650px; margin: auto; background-color: #fff; padding: 30px; border: 1px solid #ccc;">
+                <div style="text-align: center; margin-bottom: 20px;">
+                     <img src="{URL_LOGO_DIRECIONAL_BIG}" width="150">
+                </div>
                 <h3 style="color: #002c5d; border-bottom: 2px solid #e30613; padding-bottom: 10px;">RESUMO DE ATENDIMENTO</h3>
                 
-                <div style="display: flex; margin-bottom: 20px;">
+                <div style="display: flex; margin-bottom: 20px; background: #f9f9f9; padding: 15px;">
                     <div style="flex: 1;">
                         <p style="margin: 5px 0; font-size: 0.9em; color: #666;">CLIENTE</p>
                         <p style="margin: 0; font-weight: bold;">{nome_cliente}</p>
@@ -1438,24 +1484,45 @@ def enviar_email_smtp(destinatario, nome_cliente, pdf_bytes, dados_cliente, tipo
                     </div>
                 </div>
 
+                <h4 style="color: #002c5d; margin-top: 0;">Valores do Imóvel</h4>
                 <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px; font-size: 0.9em;">
                     <tr style="background-color: #f2f2f2;">
-                        <td style="padding: 8px; border: 1px solid #ddd;">Valor Venda</td>
-                        <td style="padding: 8px; border: 1px solid #ddd; text-align: right;"><b>R$ {val_venda}</b></td>
+                        <td style="padding: 8px; border: 1px solid #ddd;">Valor Venda (VCM)</td>
+                        <td style="padding: 8px; border: 1px solid #ddd; text-align: right; color: #e30613;"><b>R$ {val_venda}</b></td>
                     </tr>
                     <tr>
-                        <td style="padding: 8px; border: 1px solid #ddd;">Avaliação</td>
+                        <td style="padding: 8px; border: 1px solid #ddd;">Avaliação Bancária</td>
                         <td style="padding: 8px; border: 1px solid #ddd; text-align: right;">R$ {val_aval}</td>
                     </tr>
+                </table>
+
+                <h4 style="color: #002c5d;">Plano de Pagamento</h4>
+                <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px; font-size: 0.9em;">
                     <tr style="background-color: #f2f2f2;">
                         <td style="padding: 8px; border: 1px solid #ddd;">Entrada Total</td>
                         <td style="padding: 8px; border: 1px solid #ddd; text-align: right; color: #002c5d;"><b>R$ {entrada}</b></td>
                     </tr>
                     <tr>
+                         <td style="padding: 8px; border: 1px solid #ddd;">&nbsp;&nbsp;↳ Ato Imediato</td>
+                         <td style="padding: 8px; border: 1px solid #ddd; text-align: right;">R$ {a0}</td>
+                    </tr>
+                    <tr>
+                         <td style="padding: 8px; border: 1px solid #ddd;">&nbsp;&nbsp;↳ 30 Dias</td>
+                         <td style="padding: 8px; border: 1px solid #ddd; text-align: right;">R$ {a30}</td>
+                    </tr>
+                    <tr>
+                         <td style="padding: 8px; border: 1px solid #ddd;">&nbsp;&nbsp;↳ 60 Dias</td>
+                         <td style="padding: 8px; border: 1px solid #ddd; text-align: right;">R$ {a60}</td>
+                    </tr>
+                     <tr>
+                         <td style="padding: 8px; border: 1px solid #ddd;">&nbsp;&nbsp;↳ 90 Dias</td>
+                         <td style="padding: 8px; border: 1px solid #ddd; text-align: right;">R$ {a90}</td>
+                    </tr>
+                    <tr style="background-color: #f2f2f2;">
                         <td style="padding: 8px; border: 1px solid #ddd;">Financiamento</td>
                         <td style="padding: 8px; border: 1px solid #ddd; text-align: right;">R$ {finan}</td>
                     </tr>
-                    <tr style="background-color: #f2f2f2;">
+                    <tr>
                         <td style="padding: 8px; border: 1px solid #ddd;">Mensal Pro Soluto</td>
                         <td style="padding: 8px; border: 1px solid #ddd; text-align: right;">R$ {ps}</td>
                     </tr>
@@ -1547,57 +1614,57 @@ def dialog_novo_cliente(motor):
     curr_nome = st.session_state.dados_cliente.get('nome', "")
     curr_cpf = st.session_state.dados_cliente.get('cpf', "")
     
-    nome = st.text_input("Nome Completo", value=curr_nome, placeholder="Nome Completo", key="in_nome_v28")
-    cpf_val = st.text_input("CPF", value=curr_cpf, placeholder="000.000.000-00", key="in_cpf_v3", max_chars=14)
-    
-    if cpf_val and not validar_cpf(cpf_val):
-        st.markdown(f"<small style='color: {COR_VERMELHO};'>CPF inválido</small>", unsafe_allow_html=True)
+    with st.form("form_cadastro"):
+        nome = st.text_input("Nome Completo", value=curr_nome, placeholder="Nome Completo", key="in_nome_v28")
+        cpf_val = st.text_input("CPF", value=curr_cpf, placeholder="000.000.000-00", key="in_cpf_v3", max_chars=14)
+        
+        d_nasc_default = st.session_state.dados_cliente.get('data_nascimento', date(1990, 1, 1))
+        if isinstance(d_nasc_default, str):
+            try: d_nasc_default = datetime.strptime(d_nasc_default, '%Y-%m-%d').date()
+            except: 
+                try: d_nasc_default = datetime.strptime(d_nasc_default, '%d/%m/%Y').date()
+                except: d_nasc_default = date(1990, 1, 1)
 
-    d_nasc_default = st.session_state.dados_cliente.get('data_nascimento', date(1990, 1, 1))
-    if isinstance(d_nasc_default, str):
-        try: d_nasc_default = datetime.strptime(d_nasc_default, '%Y-%m-%d').date()
-        except: 
-            try: d_nasc_default = datetime.strptime(d_nasc_default, '%d/%m/%Y').date()
-            except: d_nasc_default = date(1990, 1, 1)
+        data_nasc = st.date_input("Data de Nascimento", value=d_nasc_default, min_value=date(1900, 1, 1), max_value=datetime.now().date(), format="DD/MM/YYYY", key="in_dt_nasc_v3")
 
-    data_nasc = st.date_input("Data de Nascimento", value=d_nasc_default, min_value=date(1900, 1, 1), max_value=datetime.now().date(), format="DD/MM/YYYY", key="in_dt_nasc_v3")
+        st.markdown("---")
+        qtd_part = st.number_input("Participantes na Renda", min_value=1, max_value=4, value=st.session_state.dados_cliente.get('qtd_participantes', 1), step=1, key="qtd_part_v3")
 
-    st.markdown("---")
-    qtd_part = st.number_input("Participantes na Renda", min_value=1, max_value=4, value=st.session_state.dados_cliente.get('qtd_participantes', 1), step=1, key="qtd_part_v3")
+        cols_renda = st.columns(qtd_part)
+        lista_rendas_input = []
+        rendas_anteriores = st.session_state.dados_cliente.get('rendas_lista', [])
+        
+        # Helper to clear input on empty
+        def get_val(idx, default):
+            v = float(rendas_anteriores[idx]) if idx < len(rendas_anteriores) else default
+            return None if v == 0.0 else v
 
-    cols_renda = st.columns(qtd_part)
-    renda_total_calc = 0.0
-    lista_rendas_input = []
-    rendas_anteriores = st.session_state.dados_cliente.get('rendas_lista', [])
-    
-    # Helper to clear input on empty
-    def get_val(idx, default):
-        v = float(rendas_anteriores[idx]) if idx < len(rendas_anteriores) else default
-        return None if v == 0.0 else v
+        for i in range(qtd_part):
+            with cols_renda[i]:
+                def_val = 3500.0 if i == 0 and not rendas_anteriores else 0.0
+                current_val = get_val(i, def_val)
+                # Use value=None if 0.0 to show placeholder "0,00"
+                val_display = None if current_val == 0.0 else current_val
+                
+                val_r = st.number_input(f"Renda Part. {i+1}", min_value=0.0, value=val_display, step=100.0, key=f"renda_part_{i}_v3", placeholder="0,00", format="%.2f")
+                lista_rendas_input.append(val_r)
 
-    for i in range(qtd_part):
-        with cols_renda[i]:
-            def_val = 3500.0 if i == 0 and not rendas_anteriores else 0.0
-            current_val = get_val(i, def_val)
-            # Use value=None if 0.0 to show placeholder "0,00"
-            val_display = None if current_val == 0.0 else current_val
-            
-            val_r = st.number_input(f"Renda Part. {i+1}", min_value=0.0, value=val_display, step=100.0, key=f"renda_part_{i}_v3", placeholder="0,00", format="%.2f")
-            if val_r is None: val_r = 0.0
-            renda_total_calc += val_r; lista_rendas_input.append(val_r)
+        rank_opts = ["DIAMANTE", "OURO", "PRATA", "BRONZE", "AÇO"]
+        curr_ranking = st.session_state.dados_cliente.get('ranking', "DIAMANTE")
+        idx_ranking = rank_opts.index(curr_ranking) if curr_ranking in rank_opts else 0
+        ranking = st.selectbox("Ranking do Cliente", options=rank_opts, index=idx_ranking, key="in_rank_v28")
+        
+        politica_ps = st.selectbox("Política de Pro Soluto", ["Direcional", "Emcash"], index=0 if st.session_state.dados_cliente.get('politica') != "Emcash" else 1, key="in_pol_v28")
+        social = st.toggle("Fator Social", value=st.session_state.dados_cliente.get('social', False), key="in_soc_v28")
+        cotista = st.toggle("Cotista FGTS", value=st.session_state.dados_cliente.get('cotista', True), key="in_cot_v28")
 
-    rank_opts = ["DIAMANTE", "OURO", "PRATA", "BRONZE", "AÇO"]
-    curr_ranking = st.session_state.dados_cliente.get('ranking', "DIAMANTE")
-    idx_ranking = rank_opts.index(curr_ranking) if curr_ranking in rank_opts else 0
-    ranking = st.selectbox("Ranking do Cliente", options=rank_opts, index=idx_ranking, key="in_rank_v28")
-    
-    politica_ps = st.selectbox("Política de Pro Soluto", ["Direcional", "Emcash"], index=0 if st.session_state.dados_cliente.get('politica') != "Emcash" else 1, key="in_pol_v28")
-    social = st.toggle("Fator Social", value=st.session_state.dados_cliente.get('social', False), key="in_soc_v28")
-    cotista = st.toggle("Cotista FGTS", value=st.session_state.dados_cliente.get('cotista', True), key="in_cot_v28")
+        st.markdown("<br>", unsafe_allow_html=True)
+        submitted = st.form_submit_button("Confirmar e Avançar", type="primary", use_container_width=True)
 
-    st.markdown("<br>", unsafe_allow_html=True)
-
-    if st.button("Confirmar e Avançar", type="primary", use_container_width=True):
+    if submitted:
+        # Calcular renda total dentro do submit
+        renda_total_calc = sum([r if r is not None else 0.0 for r in lista_rendas_input])
+        
         # Validação básica
         if not nome.strip(): st.error("Por favor, informe o Nome do Cliente."); return
         if not cpf_val.strip(): st.error("Por favor, informe o CPF do Cliente."); return
@@ -1610,7 +1677,7 @@ def dialog_novo_cliente(motor):
             'cpf': limpar_cpf_visual(cpf_val), 
             'data_nascimento': data_nasc, 
             'renda': renda_total_calc, 
-            'rendas_lista': lista_rendas_input,
+            'rendas_lista': [r if r is not None else 0.0 for r in lista_rendas_input],
             'social': social, 
             'cotista': cotista, 
             'ranking': ranking, 
@@ -1644,90 +1711,100 @@ def dialog_buscar_cliente(df_cadastros, motor):
         st.warning("A base de clientes está vazia.")
         return
 
-    # Ajuste: Lista com Nome e CPF
-    clientes_list = []
-    if 'Nome' in df_cadastros.columns and 'CPF' in df_cadastros.columns:
-        # Criar lista formatada "Nome - CPF"
-        clientes_list = [f"{row['Nome']} - {row['CPF']}" for idx, row in df_cadastros.iterrows()]
-        # Remove duplicatas mantendo a ordem se necessário, ou usa set
-        clientes_list = sorted(list(set(clientes_list)))
+    # Campo de busca
+    search_query = st.text_input("Buscar por Nome ou CPF", placeholder="Digite para filtrar...")
     
-    clientes_list.insert(0, "Selecione um cliente...")
-    cliente_sel_str = st.selectbox("Selecione o Cliente:", clientes_list, key="busca_cliente_base")
+    # Lista de clientes filtrada
+    filtered_df = df_cadastros.copy()
+    if 'Nome' in filtered_df.columns:
+        filtered_df = filtered_df.sort_values('Nome')
+        
+    if search_query:
+        # Filtrar por nome ou CPF
+        term = search_query.lower()
+        mask = filtered_df['Nome'].astype(str).str.lower().str.contains(term)
+        if 'CPF' in filtered_df.columns:
+            mask = mask | filtered_df['CPF'].astype(str).str.contains(term)
+        filtered_df = filtered_df[mask]
+
+    # Container com scroll para lista
+    st.markdown('<div style="max-height: 400px; overflow-y: auto;">', unsafe_allow_html=True)
     
-    if cliente_sel_str != "Selecione um cliente..." and st.button("Carregar Dados", type="primary", use_container_width=True):
-        # Extrair nome da string selecionada (assumindo que o nome está antes do " - ")
-        nome_sel = cliente_sel_str.split(" - ")[0]
-        cpf_sel = cliente_sel_str.split(" - ")[1] if " - " in cliente_sel_str else ""
-        
-        # Buscar pela combinação Nome e CPF para garantir unicidade
-        mask = (df_cadastros['Nome'] == nome_sel)
-        if cpf_sel:
-            mask = mask & (df_cadastros['CPF'] == cpf_sel)
+    if filtered_df.empty:
+        st.info("Nenhum cliente encontrado.")
+    else:
+        for idx, row in filtered_df.iterrows():
+            c_nome = row.get('Nome', 'Sem Nome')
+            c_cpf = formatar_cpf_saida(row.get('CPF', ''))
+            label_btn = f"{c_nome} - {c_cpf}"
             
-        row_cli = df_cadastros[mask].iloc[0]
-        
-        # Helper para extrair float
-        def safe_get_float_row(r, k):
-            return safe_float_convert(r.get(k, 0))
-        
-        # Carregar dados na sessão
-        rs_load = [safe_get_float_row(row_cli, f'Renda Part. {i}') for i in range(1, 5)]
-        qtd_p_load = 1
-        for i in range(4, 0, -1):
-            if rs_load[i-1] > 0:
-                qtd_p_load = i
-                break
-        
-        # Calcula o total da renda
-        renda_total_calc = sum(rs_load)
+            if st.button(label_btn, key=f"btn_cli_{idx}", use_container_width=True):
+                 # Carregar dados e avançar
+                row_cli = row
+                
+                # Helper para extrair float
+                def safe_get_float_row(r, k):
+                    return safe_float_convert(r.get(k, 0))
+                
+                # Carregar dados na sessão
+                rs_load = [safe_get_float_row(row_cli, f'Renda Part. {i}') for i in range(1, 5)]
+                qtd_p_load = 1
+                for i in range(4, 0, -1):
+                    if rs_load[i-1] > 0:
+                        qtd_p_load = i
+                        break
+                
+                # Calcula o total da renda
+                renda_total_calc = sum(rs_load)
 
-        # Helper para data
-        dn_load = row_cli.get('Data de Nascimento')
-        try:
-            if isinstance(dn_load, str):
-                dn_load = datetime.strptime(dn_load, '%Y-%m-%d').date()
-        except:
-            dn_load = date(1990, 1, 1)
+                # Helper para data
+                dn_load = row_cli.get('Data de Nascimento')
+                try:
+                    if isinstance(dn_load, str):
+                        dn_load = datetime.strptime(dn_load, '%Y-%m-%d').date()
+                except:
+                    dn_load = date(1990, 1, 1)
 
-        ranking = row_cli.get('Ranking')
-        politica_ps = row_cli.get('Política de Pro Soluto')
-        social = str(row_cli.get('Fator Social', '')).lower() == 'sim'
-        cotista = str(row_cli.get('Cotista FGTS', '')).lower() == 'sim'
+                ranking = row_cli.get('Ranking')
+                politica_ps = row_cli.get('Política de Pro Soluto')
+                social = str(row_cli.get('Fator Social', '')).lower() == 'sim'
+                cotista = str(row_cli.get('Cotista FGTS', '')).lower() == 'sim'
 
-        st.session_state.dados_cliente.update({
-            'nome': row_cli.get('Nome'),
-            'cpf': row_cli.get('CPF'),
-            'data_nascimento': dn_load,
-            'qtd_participantes': qtd_p_load,
-            'rendas_lista': rs_load,
-            'renda': renda_total_calc,
-            'ranking': ranking,
-            'politica': politica_ps,
-            'social': social,
-            'cotista': cotista,
-            
-            # Carregar histórico de valores usados
-            'finan_usado_historico': safe_get_float_row(row_cli, 'Financiamento Final'),
-            'ps_usado_historico': safe_get_float_row(row_cli, 'Pro Soluto Final'),
-            'fgts_usado_historico': safe_get_float_row(row_cli, 'FGTS + Subsídio Final')
-        })
+                st.session_state.dados_cliente.update({
+                    'nome': row_cli.get('Nome'),
+                    'cpf': row_cli.get('CPF'),
+                    'data_nascimento': dn_load,
+                    'qtd_participantes': qtd_p_load,
+                    'rendas_lista': rs_load,
+                    'renda': renda_total_calc,
+                    'ranking': ranking,
+                    'politica': politica_ps,
+                    'social': social,
+                    'cotista': cotista,
+                    
+                    # Carregar histórico de valores usados
+                    'finan_usado_historico': safe_get_float_row(row_cli, 'Financiamento Final'),
+                    'ps_usado_historico': safe_get_float_row(row_cli, 'Pro Soluto Final'),
+                    'fgts_usado_historico': safe_get_float_row(row_cli, 'FGTS + Subsídio Final')
+                })
 
-        # Processar lógica de negócio (enquadramento inicial)
-        prazo_ps_max = 66 if politica_ps == "Emcash" else 84
-        limit_ps_r = 0.30
-        f_faixa_ref, s_faixa_ref, fx_nome_ref = motor.obter_enquadramento(renda_total_calc, social, cotista, valor_avaliacao=240000)
+                # Processar lógica de negócio (enquadramento inicial)
+                prazo_ps_max = 66 if politica_ps == "Emcash" else 84
+                limit_ps_r = 0.30
+                f_faixa_ref, s_faixa_ref, fx_nome_ref = motor.obter_enquadramento(renda_total_calc, social, cotista, valor_avaliacao=240000)
 
-        st.session_state.dados_cliente.update({
-            'prazo_ps_max': prazo_ps_max,
-            'limit_ps_renda': limit_ps_r, 
-            'finan_f_ref': f_faixa_ref, 
-            'sub_f_ref': s_faixa_ref
-        })
+                st.session_state.dados_cliente.update({
+                    'prazo_ps_max': prazo_ps_max,
+                    'limit_ps_renda': limit_ps_r, 
+                    'finan_f_ref': f_faixa_ref, 
+                    'sub_f_ref': s_faixa_ref
+                })
 
-        st.toast(f"Dados de {nome_sel} carregados!", icon="✅")
-        st.session_state.passo_simulacao = 'guide'
-        st.rerun()
+                st.toast(f"Dados de {c_nome} carregados!", icon="✅")
+                st.session_state.passo_simulacao = 'guide'
+                st.rerun()
+
+    st.markdown('</div>', unsafe_allow_html=True)
 
 def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
     passo = st.session_state.get('passo_simulacao', 'input')
@@ -1795,13 +1872,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
                                 
                                 # FIX CPF: Remove .0 e zfill 11
                                 def fix_cpf_from_row(val):
-                                    if pd.isnull(val): return ""
-                                    s = str(val)
-                                    if s.endswith('.0'): s = s[:-2]
-                                    s = re.sub(r'\D', '', s)
-                                    if 0 < len(s) < 11:
-                                        s = s.zfill(11)
-                                    return s
+                                    return limpar_cpf_visual(val)
 
                                 # Reconstrução de Rendas e Participantes
                                 rs = [safe_get_float(row, f'Renda Part. {i}') for i in range(1, 5)]
@@ -2293,7 +2364,21 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
                          unid_name = row['Identificador']
                          val_fmt = fmt_br(row['Valor de Venda'])
                          
-                         cards_html += f"""<div class="card-item"><div class="recommendation-card" style="border-top: 4px solid {COR_AZUL_ESC}; height: 100%; justify-content: flex-start;"><b style="color:{COR_AZUL_ESC}; font-size:1.1rem;">{emp_name}</b><br><div style="font-size:0.85rem; color:{COR_TEXTO_MUTED}; text-align:center; border-top:1px solid #eee; padding-top:10px; width:100%;"><b>Unidade: {unid_name}</b></div><div class="price-tag" style="font-size:1.4rem; margin:10px 0;">R$ {val_fmt}</div></div></div>"""
+                         # Avaliação também
+                         aval_fmt = fmt_br(row['Valor de Avaliação Bancária'])
+                         
+                         cards_html += f"""<div class="card-item">
+                            <div class="recommendation-card" style="border-top: 4px solid {COR_AZUL_ESC}; height: 100%; justify-content: flex-start;">
+                                <b style="color:{COR_AZUL_ESC}; font-size:1.1rem;">{emp_name}</b><br>
+                                <div style="font-size:0.85rem; color:{COR_TEXTO_MUTED}; text-align:center; border-top:1px solid #eee; padding-top:10px; width:100%;"><b>Unidade: {unid_name}</b></div>
+                                <div style="margin-top:10px; width:100%;">
+                                    <div style="font-size:0.8rem; color:#64748b;">Avaliação</div>
+                                    <div style="font-weight:bold; color:{COR_AZUL_ESC};">R$ {aval_fmt}</div>
+                                    <div style="font-size:0.8rem; color:#64748b; margin-top:5px;">Venda</div>
+                                    <div class="price-tag" style="font-size:1.3rem; margin-top:0;">R$ {val_fmt}</div>
+                                </div>
+                            </div>
+                         </div>"""
                     cards_html += "</div>"
                     st.markdown(cards_html, unsafe_allow_html=True)
                 else:
@@ -2331,7 +2416,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
         # Estilo para os botões quadrados grandes
         st.markdown(f"""
         <style>
-        .big-button {{
+        div.stButton > button.home-card-btn {{
             display: flex;
             flex-direction: column;
             align-items: center;
@@ -2340,34 +2425,22 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
             border: 2px solid {COR_BORDA};
             border-radius: 16px;
             padding: 40px 20px;
-            height: 250px;
+            height: 250px !important;
             width: 100%;
             cursor: pointer;
             transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
             text-align: center;
             box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+            font-size: 1.2rem;
+            color: {COR_AZUL_ESC};
+            white-space: pre-wrap; /* Permite quebra de linha no label */
         }}
-        .big-button:hover {{
+        div.stButton > button.home-card-btn:hover {{
             transform: translateY(-5px);
             border-color: {COR_VERMELHO};
             box-shadow: 0 10px 20px rgba(227, 6, 19, 0.15);
-        }}
-        .big-button-icon {{
-            font-size: 3rem;
-            margin-bottom: 20px;
             color: {COR_VERMELHO};
-        }}
-        .big-button-text {{
-            font-size: 1.2rem;
-            font-weight: 700;
-            color: {COR_AZUL_ESC};
-            text-transform: uppercase;
-            letter-spacing: 0.05em;
-        }}
-        .big-button-sub {{
-            font-size: 0.9rem;
-            color: {COR_TEXTO_MUTED};
-            margin-top: 10px;
+            background-color: #fff;
         }}
         </style>
         """, unsafe_allow_html=True)
@@ -2375,26 +2448,46 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
         col_new, col_search = st.columns(2, gap="large")
 
         with col_new:
-            st.markdown(f"""
-            <div class="big-button">
-                <div class="big-button-icon">📝</div>
-                <div class="big-button-text">Cadastrar Novo Cliente</div>
-                <div class="big-button-sub">Iniciar uma nova simulação do zero</div>
-            </div>
-            """, unsafe_allow_html=True)
-            if st.button("Iniciar Cadastro", key="btn_new_client_main", use_container_width=True):
+            # Botão Quadrado Estilizado
+            if st.button("CADASTRAR NOVO CLIENTE\n(Iniciar nova simulação)", key="btn_home_new", use_container_width=True):
                 dialog_novo_cliente(motor)
 
         with col_search:
-            st.markdown(f"""
-            <div class="big-button">
-                <div class="big-button-icon">🔍</div>
-                <div class="big-button-text">Buscar Cliente Cadastrado</div>
-                <div class="big-button-sub">Carregar dados de simulação anterior</div>
-            </div>
-            """, unsafe_allow_html=True)
-            if st.button("Buscar na Base", key="btn_search_client_main", use_container_width=True):
+            # Botão Quadrado Estilizado
+            if st.button("BUSCAR CLIENTE\n(Base Cadastrada)", key="btn_home_search", use_container_width=True):
                 dialog_buscar_cliente(df_cadastros, motor)
+        
+        # Injeção de CSS específico para os botões da home (após renderização)
+        # O seletor CSS acima tenta pegar pela classe, mas Streamlit não deixa adicionar classe facilmente.
+        # Vamos usar um seletor mais genérico mas dentro do contexto se possível, ou injetar estilo inline forte.
+        # Hack para aplicar estilo aos botões da home especificamente
+        st.markdown("""
+        <style>
+        /* Seleciona botões que contém o texto específico */
+        div[data-testid="stButton"] button p:contains("CADASTRAR NOVO CLIENTE"),
+        div[data-testid="stButton"] button p:contains("BUSCAR CLIENTE") {
+             font-size: 1.2rem;
+             font-weight: 700;
+        }
+        
+        div[data-testid="stButton"]:has(button:active) button,
+        div[data-testid="stButton"] button {
+             height: 250px !important;
+             border-radius: 16px !important;
+             border: 2px solid #eef2f6 !important;
+             background-color: white !important;
+             color: #002c5d !important;
+             box-shadow: 0 4px 6px rgba(0,0,0,0.05) !important;
+        }
+        div[data-testid="stButton"] button:hover {
+             border-color: #e30613 !important;
+             color: #e30613 !important;
+             transform: translateY(-5px);
+             box-shadow: 0 10px 20px rgba(227, 6, 19, 0.15) !important;
+        }
+        </style>
+        """, unsafe_allow_html=True)
+
 
     # --- ETAPA 2: RECOMENDAÇÃO ---
     elif passo == 'guide':
