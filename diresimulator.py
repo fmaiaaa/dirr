@@ -59,7 +59,6 @@ URL_RANKING = f"https://docs.google.com/spreadsheets/d/{ID_GERAL}/edit#gid=0"
 URL_ESTOQUE = f"https://docs.google.com/spreadsheets/d/{ID_GERAL}/edit#gid=0"
 
 URL_FAVICON_RESERVA = "https://direcional.com.br/wp-content/uploads/2021/04/cropped-favicon-direcional-32x32.png"
-URL_LOGO_DIRECIONAL_BIG = "https://logodownload.org/wp-content/uploads/2021/04/direcional-engenharia-logo.png"
 
 # Paleta de Cores
 COR_AZUL_ESC = "#002c5d"
@@ -289,18 +288,10 @@ def fmt_br(valor):
 def limpar_cpf_visual(valor):
     if pd.isnull(valor) or valor == "": return ""
     v_str = str(valor).strip()
-    # Remove decimal se existir
     if v_str.endswith('.0'): v_str = v_str[:-2]
     v_nums = re.sub(r'\D', '', v_str)
-    # Garante 11 digitos preenchendo zeros a esquerda
     if v_nums: return v_nums.zfill(11)
     return ""
-
-def formatar_cpf_saida(valor):
-    v = limpar_cpf_visual(valor)
-    if len(v) == 11:
-        return f"{v[:3]}.{v[3:6]}.{v[6:9]}-{v[9:]}"
-    return v
 
 def validar_cpf(cpf):
     cpf = re.sub(r'\D', '', str(cpf))
@@ -518,9 +509,6 @@ def carregar_dados_sistema():
         # 2. SIMULAÇÕES (CADASTROS)
         try: 
             df_cadastros = conn.read(spreadsheet=ID_GERAL, worksheet="BD Simulações")
-            # Garantir formato correto do CPF se existir
-            if 'CPF' in df_cadastros.columns:
-                df_cadastros['CPF'] = df_cadastros['CPF'].apply(limpar_cpf_visual)
         except: 
             df_cadastros = pd.DataFrame()
         
@@ -542,11 +530,11 @@ def carregar_dados_sistema():
             
             mapa_estoque = {
                 'Nome do Empreendimento': 'Empreendimento',
-                'Valor Comercial Mínimo ': 'Valor de Venda', # CORREÇÃO SOLICITADA
+                'Valor Final Com Kit': 'Valor de Venda',
                 'Status da unidade': 'Status',
                 'Identificador': 'Identificador',
                 'Bairro': 'Bairro',
-                'Valor de Avaliação Bancária ': 'Valor de Avaliação Bancária',
+                'Valor de Avaliação Bancária': 'Valor de Avaliação Bancária',
                 'PS EmCash': 'PS_EmCash',
                 'PS Diamante': 'PS_Diamante',
                 'PS Ouro': 'PS_Ouro',
@@ -1277,13 +1265,9 @@ def gerar_resumo_pdf(d):
         secao("DADOS DO IMÓVEL")
         linha("Empreendimento", str(d.get('empreendimento_nome')))
         linha("Unidade Selecionada", str(d.get('unidade_id')))
-        
-        # Valor de Venda no Sistema = Valor Comercial Mínimo
-        v_comercial = d.get('imovel_valor', 0)
-        v_avaliacao = d.get('imovel_avaliacao', 0)
-        
-        # No PDF para o cliente, mostramos Avaliação e o "Desconto" para chegar no valor de venda
-        linha("Valor de Tabela/Avaliação", f"R$ {fmt_br(v_avaliacao)}", True)
+        linha("Valor Comercial (Venda)", f"R$ {fmt_br(d.get('imovel_valor', 0))}", True)
+        if d.get('imovel_avaliacao'):
+             linha("Avaliação Bancária", f"R$ {fmt_br(d.get('imovel_avaliacao', 0))}")
         
         if d.get('unid_entrega'): linha("Previsão de Entrega", str(d.get('unid_entrega')))
         if d.get('unid_area'): linha("Área Privativa", f"{d.get('unid_area')} m²")
@@ -1291,15 +1275,6 @@ def gerar_resumo_pdf(d):
         if d.get('unid_endereco') and d.get('unid_bairro'): 
             linha("Endereço", f"{d.get('unid_endereco')} - {d.get('unid_bairro')}")
 
-        pdf.ln(4)
-        
-        # SEÇÃO DE NEGOCIAÇÃO (NOVO)
-        secao("CONDIÇÃO COMERCIAL")
-        # Calculamos a diferença como "Desconto"
-        desconto = max(0, v_avaliacao - v_comercial)
-        linha("Desconto/Condição Especial", f"R$ {fmt_br(desconto)}")
-        linha("Valor Final de Venda", f"R$ {fmt_br(v_comercial)}", True)
-        
         pdf.ln(4)
 
         secao("ENGENHARIA FINANCEIRA")
@@ -1402,12 +1377,6 @@ def enviar_email_smtp(destinatario, nome_cliente, pdf_bytes, dados_cliente, tipo
     ps = fmt_br(dados_cliente.get('ps_mensal', 0))
     renda_cli = fmt_br(dados_cliente.get('renda', 0))
     
-    # Dados de atos para tabela do corretor
-    a0 = fmt_br(dados_cliente.get('ato_final', 0))
-    a30 = fmt_br(dados_cliente.get('ato_30', 0))
-    a60 = fmt_br(dados_cliente.get('ato_60', 0))
-    a90 = fmt_br(dados_cliente.get('ato_90', 0))
-    
     corretor_nome = dados_cliente.get('corretor_nome', 'Direcional')
     corretor_tel = dados_cliente.get('corretor_telefone', '')
     corretor_email = dados_cliente.get('corretor_email', '')
@@ -1419,11 +1388,11 @@ def enviar_email_smtp(destinatario, nome_cliente, pdf_bytes, dados_cliente, tipo
         <html>
         <body style="font-family: 'Helvetica', sans-serif; color: #333; background-color: #f9f9f9; margin: 0; padding: 20px;">
             <div style="max-width: 600px; margin: auto; background-color: #fff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 15px rgba(0,0,0,0.05);">
-                <div style="background-color: #ffffff; padding: 30px; text-align: center; border-bottom: 4px solid #e30613;">
-                    <img src="{URL_LOGO_DIRECIONAL_BIG}" width="180" style="margin-bottom: 10px;">
+                <div style="background-color: #002c5d; padding: 30px; text-align: center;">
+                    <img src="https://direcional.com.br/wp-content/uploads/2021/04/cropped-favicon-direcional-32x32.png" width="50" style="margin-bottom: 10px;">
+                    <h2 style="color: #fff; margin: 0; font-weight: 300; letter-spacing: 1px;">Olá, {nome_cliente}!</h2>
                 </div>
                 <div style="padding: 40px;">
-                    <h2 style="color: #002c5d; margin: 0 0 20px 0; font-weight: 300; text-align: center;">Olá, {nome_cliente}!</h2>
                     <p style="font-size: 1.1em; line-height: 1.6; text-align: center; color: #555;">
                         Foi ótimo apresentar as oportunidades da Direcional para você. O imóvel <strong>{emp}</strong> é incrível e desenhamos uma condição especial para o seu perfil.
                     </p>
@@ -1431,13 +1400,10 @@ def enviar_email_smtp(destinatario, nome_cliente, pdf_bytes, dados_cliente, tipo
                     <div style="background-color: #f0f4f8; border-left: 5px solid #e30613; padding: 20px; margin: 30px 0; border-radius: 4px;">
                         <p style="margin: 0; font-weight: bold; color: #002c5d; font-size: 1.2em;">{emp}</p>
                         <p style="margin: 5px 0 0 0; color: #777;">Unidade: {unid}</p>
-                        <p style="margin: 15px 0 0 0; font-size: 1.5em; font-weight: bold; color: #e30613;">Valor Promocional: R$ {val_venda}</p>
+                        <p style="margin: 15px 0 0 0; font-size: 1.5em; font-weight: bold; color: #e30613;">R$ {val_venda}</p>
                     </div>
 
-                    <div style="text-align: center; margin: 35px 0;">
-                        <a href="#" style="background-color: #002c5d; color: #ffffff; padding: 15px 30px; text-decoration: none; font-weight: bold; border-radius: 5px; font-size: 1.1em;">VISUALIZAR PROPOSTA DETALHADA</a>
-                        <p style="font-size: 0.8em; color: #999; margin-top: 10px;">(Abra o arquivo PDF em anexo para ver todos os detalhes)</p>
-                    </div>
+                    <p style="text-align: center;">Confira os detalhes completos no PDF anexo.</p>
                     
                     <div style="margin-top: 40px; border-top: 1px solid #eee; padding-top: 20px; text-align: center;">
                         <p style="margin: 0; font-weight: bold; color: #002c5d;">{corretor_nome}</p>
@@ -1457,12 +1423,9 @@ def enviar_email_smtp(destinatario, nome_cliente, pdf_bytes, dados_cliente, tipo
         <html>
         <body style="font-family: 'Arial', sans-serif; color: #333; background-color: #eee; margin: 0; padding: 20px;">
             <div style="max-width: 650px; margin: auto; background-color: #fff; padding: 30px; border: 1px solid #ccc;">
-                <div style="text-align: center; margin-bottom: 20px;">
-                     <img src="{URL_LOGO_DIRECIONAL_BIG}" width="150">
-                </div>
                 <h3 style="color: #002c5d; border-bottom: 2px solid #e30613; padding-bottom: 10px;">RESUMO DE ATENDIMENTO</h3>
                 
-                <div style="display: flex; margin-bottom: 20px; background: #f9f9f9; padding: 15px;">
+                <div style="display: flex; margin-bottom: 20px;">
                     <div style="flex: 1;">
                         <p style="margin: 5px 0; font-size: 0.9em; color: #666;">CLIENTE</p>
                         <p style="margin: 0; font-weight: bold;">{nome_cliente}</p>
@@ -1475,45 +1438,24 @@ def enviar_email_smtp(destinatario, nome_cliente, pdf_bytes, dados_cliente, tipo
                     </div>
                 </div>
 
-                <h4 style="color: #002c5d; margin-top: 0;">Valores do Imóvel</h4>
                 <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px; font-size: 0.9em;">
                     <tr style="background-color: #f2f2f2;">
-                        <td style="padding: 8px; border: 1px solid #ddd;">Valor Venda (VCM)</td>
-                        <td style="padding: 8px; border: 1px solid #ddd; text-align: right; color: #e30613;"><b>R$ {val_venda}</b></td>
+                        <td style="padding: 8px; border: 1px solid #ddd;">Valor Venda</td>
+                        <td style="padding: 8px; border: 1px solid #ddd; text-align: right;"><b>R$ {val_venda}</b></td>
                     </tr>
                     <tr>
-                        <td style="padding: 8px; border: 1px solid #ddd;">Avaliação Bancária</td>
+                        <td style="padding: 8px; border: 1px solid #ddd;">Avaliação</td>
                         <td style="padding: 8px; border: 1px solid #ddd; text-align: right;">R$ {val_aval}</td>
                     </tr>
-                </table>
-
-                <h4 style="color: #002c5d;">Plano de Pagamento</h4>
-                <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px; font-size: 0.9em;">
                     <tr style="background-color: #f2f2f2;">
                         <td style="padding: 8px; border: 1px solid #ddd;">Entrada Total</td>
                         <td style="padding: 8px; border: 1px solid #ddd; text-align: right; color: #002c5d;"><b>R$ {entrada}</b></td>
                     </tr>
                     <tr>
-                         <td style="padding: 8px; border: 1px solid #ddd;">&nbsp;&nbsp;↳ Ato Imediato</td>
-                         <td style="padding: 8px; border: 1px solid #ddd; text-align: right;">R$ {a0}</td>
-                    </tr>
-                    <tr>
-                         <td style="padding: 8px; border: 1px solid #ddd;">&nbsp;&nbsp;↳ 30 Dias</td>
-                         <td style="padding: 8px; border: 1px solid #ddd; text-align: right;">R$ {a30}</td>
-                    </tr>
-                    <tr>
-                         <td style="padding: 8px; border: 1px solid #ddd;">&nbsp;&nbsp;↳ 60 Dias</td>
-                         <td style="padding: 8px; border: 1px solid #ddd; text-align: right;">R$ {a60}</td>
-                    </tr>
-                     <tr>
-                         <td style="padding: 8px; border: 1px solid #ddd;">&nbsp;&nbsp;↳ 90 Dias</td>
-                         <td style="padding: 8px; border: 1px solid #ddd; text-align: right;">R$ {a90}</td>
-                    </tr>
-                    <tr style="background-color: #f2f2f2;">
                         <td style="padding: 8px; border: 1px solid #ddd;">Financiamento</td>
                         <td style="padding: 8px; border: 1px solid #ddd; text-align: right;">R$ {finan}</td>
                     </tr>
-                    <tr>
+                    <tr style="background-color: #f2f2f2;">
                         <td style="padding: 8px; border: 1px solid #ddd;">Mensal Pro Soluto</td>
                         <td style="padding: 8px; border: 1px solid #ddd; text-align: right;">R$ {ps}</td>
                     </tr>
@@ -1702,12 +1644,11 @@ def dialog_buscar_cliente(df_cadastros, motor):
         st.warning("A base de clientes está vazia.")
         return
 
-    # Ajuste: Lista com Nome e CPF Formatado
+    # Ajuste: Lista com Nome e CPF
     clientes_list = []
     if 'Nome' in df_cadastros.columns and 'CPF' in df_cadastros.columns:
         # Criar lista formatada "Nome - CPF"
-        # Usamos formatar_cpf_saida para exibir bonito
-        clientes_list = [f"{row['Nome']} - {formatar_cpf_saida(row['CPF'])}" for idx, row in df_cadastros.iterrows()]
+        clientes_list = [f"{row['Nome']} - {row['CPF']}" for idx, row in df_cadastros.iterrows()]
         # Remove duplicatas mantendo a ordem se necessário, ou usa set
         clientes_list = sorted(list(set(clientes_list)))
     
@@ -1717,26 +1658,14 @@ def dialog_buscar_cliente(df_cadastros, motor):
     if cliente_sel_str != "Selecione um cliente..." and st.button("Carregar Dados", type="primary", use_container_width=True):
         # Extrair nome da string selecionada (assumindo que o nome está antes do " - ")
         nome_sel = cliente_sel_str.split(" - ")[0]
-        cpf_sel_vis = cliente_sel_str.split(" - ")[1] if " - " in cliente_sel_str else ""
+        cpf_sel = cliente_sel_str.split(" - ")[1] if " - " in cliente_sel_str else ""
         
-        # Normalizar para busca: remover pontuação do CPF visual
-        cpf_sel_clean = limpar_cpf_visual(cpf_sel_vis)
-        
-        # Criar máscara robusta
-        # Normaliza a coluna CPF do dataframe também para garantir match
-        df_cadastros['CPF_Clean'] = df_cadastros['CPF'].apply(limpar_cpf_visual)
-        
-        mask = (df_cadastros['Nome'].astype(str).str.strip() == nome_sel.strip())
-        if cpf_sel_clean:
-            mask = mask & (df_cadastros['CPF_Clean'] == cpf_sel_clean)
-        
-        filtered_df = df_cadastros[mask]
-        
-        if filtered_df.empty:
-            st.error("Erro ao localizar cliente na base. Verifique se os dados não foram alterados.")
-            return
-
-        row_cli = filtered_df.iloc[0]
+        # Buscar pela combinação Nome e CPF para garantir unicidade
+        mask = (df_cadastros['Nome'] == nome_sel)
+        if cpf_sel:
+            mask = mask & (df_cadastros['CPF'] == cpf_sel)
+            
+        row_cli = df_cadastros[mask].iloc[0]
         
         # Helper para extrair float
         def safe_get_float_row(r, k):
@@ -1768,7 +1697,7 @@ def dialog_buscar_cliente(df_cadastros, motor):
 
         st.session_state.dados_cliente.update({
             'nome': row_cli.get('Nome'),
-            'cpf': row_cli.get('CPF_Clean'), # Salva já limpo
+            'cpf': row_cli.get('CPF'),
             'data_nascimento': dn_load,
             'qtd_participantes': qtd_p_load,
             'rendas_lista': rs_load,
@@ -1866,7 +1795,13 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
                                 
                                 # FIX CPF: Remove .0 e zfill 11
                                 def fix_cpf_from_row(val):
-                                    return limpar_cpf_visual(val)
+                                    if pd.isnull(val): return ""
+                                    s = str(val)
+                                    if s.endswith('.0'): s = s[:-2]
+                                    s = re.sub(r'\D', '', s)
+                                    if 0 < len(s) < 11:
+                                        s = s.zfill(11)
+                                    return s
 
                                 # Reconstrução de Rendas e Participantes
                                 rs = [safe_get_float(row, f'Renda Part. {i}') for i in range(1, 5)]
@@ -2358,21 +2293,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
                          unid_name = row['Identificador']
                          val_fmt = fmt_br(row['Valor de Venda'])
                          
-                         # Avaliação também
-                         aval_fmt = fmt_br(row['Valor de Avaliação Bancária'])
-                         
-                         cards_html += f"""<div class="card-item">
-                            <div class="recommendation-card" style="border-top: 4px solid {COR_AZUL_ESC}; height: 100%; justify-content: flex-start;">
-                                <b style="color:{COR_AZUL_ESC}; font-size:1.1rem;">{emp_name}</b><br>
-                                <div style="font-size:0.85rem; color:{COR_TEXTO_MUTED}; text-align:center; border-top:1px solid #eee; padding-top:10px; width:100%;"><b>Unidade: {unid_name}</b></div>
-                                <div style="margin-top:10px; width:100%;">
-                                    <div style="font-size:0.8rem; color:#64748b;">Avaliação</div>
-                                    <div style="font-weight:bold; color:{COR_AZUL_ESC};">R$ {aval_fmt}</div>
-                                    <div style="font-size:0.8rem; color:#64748b; margin-top:5px;">Venda</div>
-                                    <div class="price-tag" style="font-size:1.3rem; margin-top:0;">R$ {val_fmt}</div>
-                                </div>
-                            </div>
-                         </div>"""
+                         cards_html += f"""<div class="card-item"><div class="recommendation-card" style="border-top: 4px solid {COR_AZUL_ESC}; height: 100%; justify-content: flex-start;"><b style="color:{COR_AZUL_ESC}; font-size:1.1rem;">{emp_name}</b><br><div style="font-size:0.85rem; color:{COR_TEXTO_MUTED}; text-align:center; border-top:1px solid #eee; padding-top:10px; width:100%;"><b>Unidade: {unid_name}</b></div><div class="price-tag" style="font-size:1.4rem; margin:10px 0;">R$ {val_fmt}</div></div></div>"""
                     cards_html += "</div>"
                     st.markdown(cards_html, unsafe_allow_html=True)
                 else:
