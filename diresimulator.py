@@ -571,13 +571,11 @@ def carregar_dados_sistema():
                 else:
                     df_estoque[c] = 0.0
             
-            # Tratamento de Status
+            # Tratamento de Status (NÃO FILTRA MAIS)
             if 'Status' in df_estoque.columns:
                  df_estoque['Status'] = df_estoque['Status'].astype(str).str.strip()
-                 # Normalização opcional
-                 df_estoque['Status'] = df_estoque['Status'].apply(lambda x: 'Disponível' if 'Dispon' in x or 'dispon' in x else x)
 
-            # Filtros básicos
+            # Filtros básicos (Mantendo apenas valor > 1000)
             df_estoque = df_estoque[(df_estoque['Valor de Venda'] > 1000)].copy()
             if 'Empreendimento' in df_estoque.columns:
                  df_estoque = df_estoque[df_estoque['Empreendimento'].notnull()]
@@ -2221,26 +2219,54 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
             # Projeção completa solicitada
             df_view = df_fluxo.copy() 
             
-            # Gráfico de Barras Empilhadas com Zoom
+            # Definir pontos para as linhas tracejadas
+            # 1. Fim dos Atos: Onde termina o último ato (mês 1, 2, 3 ou 4)
+            mes_fim_atos = 1
+            if d.get('ato_90', 0) > 0: mes_fim_atos = 4
+            elif d.get('ato_60', 0) > 0: mes_fim_atos = 3
+            elif d.get('ato_30', 0) > 0: mes_fim_atos = 2
+            
+            # 2. Fim do Pro Soluto: Mês da última parcela
+            mes_fim_ps = d.get('ps_parcelas', 0)
+
             # Cores para cada tipo
             domain_tipo = ['Financiamento', 'Pro Soluto', 'Entrada/Ato']
-            range_tipo = [COR_AZUL_ESC, '#f59e0b', COR_VERMELHO] # Azul, Laranja, Vermelho
+            range_tipo = [COR_AZUL_ESC, '#f59e0b', COR_VERMELHO] 
 
             zoom = alt.selection_interval(bind='scales')
 
-            bar_chart = alt.Chart(df_view).mark_bar().encode(
-                x=alt.X('Mês', title='Mês do Financiamento', axis=alt.Axis(tickMinStep=1)),
+            # Base chart with Ordinal x-axis for spacing
+            base = alt.Chart(df_view).encode(
+                x=alt.X('Mês:O', title='Mês do Financiamento', axis=alt.Axis(labelAngle=0)) # Ordinal para separar
+            )
+
+            # Barras Empilhadas
+            bars = base.mark_bar().encode(
                 y=alt.Y('Valor', title='Valor (R$)', stack='zero'),
                 color=alt.Color('Tipo', scale=alt.Scale(domain=domain_tipo, range=range_tipo), legend=alt.Legend(title="Composição")),
                 tooltip=['Mês', 'Tipo', alt.Tooltip('Valor', format=",.2f"), alt.Tooltip('Total', format=",.2f")]
-            ).add_params(
-                zoom
-            ).properties(
-                height=400
             )
 
-            st.altair_chart(bar_chart, use_container_width=True)
-            st.caption("Use o mouse para dar zoom e arrastar o gráfico. A linha do tempo mostra a soma mensal de todos os componentes.")
+            # Linha Fim Atos
+            rule_atos = alt.Chart(pd.DataFrame({'x': [mes_fim_atos]})).mark_rule(color='red', strokeDash=[5, 5]).encode(x='x:O')
+            text_atos = alt.Chart(pd.DataFrame({'x': [mes_fim_atos], 'y': [df_view['Total'].max()]})).mark_text(
+                align='left', baseline='bottom', dx=5, color='red', text='Fim Atos'
+            ).encode(x='x:O', y='y:Q')
+
+            # Linha Fim PS (apenas se existir PS)
+            charts = [bars]
+            if mes_fim_atos > 0:
+                charts.append(rule_atos)
+                # charts.append(text_atos) # Opcional: texto pode poluir se muito próximo
+
+            if mes_fim_ps > 0:
+                rule_ps = alt.Chart(pd.DataFrame({'x': [mes_fim_ps]})).mark_rule(color='orange', strokeDash=[5, 5]).encode(x='x:O')
+                charts.append(rule_ps)
+
+            final_chart = alt.layer(*charts).add_params(zoom).properties(height=400)
+
+            st.altair_chart(final_chart, use_container_width=True)
+            st.caption("Linhas tracejadas indicam o fim do período de Atos (Vermelho) e Pro Soluto (Laranja).")
 
         # --- SEÇÃO 4: OPORTUNIDADES SEMELHANTES ---
         st.markdown("---")
@@ -2260,22 +2286,15 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
                 ].sort_values('Valor de Venda').head(10)
                 
                 if not similares.empty:
-                    # Custom HTML Table without leading indentation - FIX HTML RENDERING
-                    # O Streamlit renderiza strings markdown. Se for HTML puro, precisa ser wrapped e unsafe_allow_html=True
-                    
-                    # Vamos montar o HTML completo de uma só vez para garantir a estrutura
                     cards_html = f"""<div class="scrolling-wrapper">"""
                     
                     for idx, row in similares.iterrows():
-                         # Escaping de aspas simples para evitar conflito na f-string
                          emp_name = row['Empreendimento']
                          unid_name = row['Identificador']
                          val_fmt = fmt_br(row['Valor de Venda'])
                          
                          cards_html += f"""<div class="card-item"><div class="recommendation-card" style="border-top: 4px solid {COR_AZUL_ESC}; height: 100%; justify-content: flex-start;"><b style="color:{COR_AZUL_ESC}; font-size:1.1rem;">{emp_name}</b><br><div style="font-size:0.85rem; color:{COR_TEXTO_MUTED}; text-align:center; border-top:1px solid #eee; padding-top:10px; width:100%;"><b>Unidade: {unid_name}</b></div><div class="price-tag" style="font-size:1.4rem; margin:10px 0;">R$ {val_fmt}</div></div></div>"""
                     cards_html += "</div>"
-                    
-                    # Renderiza o HTML corrigido
                     st.markdown(cards_html, unsafe_allow_html=True)
                 else:
                     st.info("Nenhuma outra unidade encontrada nessa faixa de preço (+/- 2500).")
@@ -2356,7 +2375,6 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
         col_new, col_search = st.columns(2, gap="large")
 
         with col_new:
-            # Botão Visual (Card)
             st.markdown(f"""
             <div class="big-button">
                 <div class="big-button-icon">📝</div>
@@ -2364,10 +2382,6 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
                 <div class="big-button-sub">Iniciar uma nova simulação do zero</div>
             </div>
             """, unsafe_allow_html=True)
-            # Botão Funcional (Invisible overlay logic or simple button below)
-            # Streamlit não permite clicar em HTML puro facilmente sem componentes extras.
-            # Vamos usar um botão nativo abaixo do card ou apenas o botão nativo estilizado.
-            # Para manter simples e funcional, usamos o st.button logo abaixo que aciona o dialog.
             if st.button("Iniciar Cadastro", key="btn_new_client_main", use_container_width=True):
                 dialog_novo_cliente(motor)
 
@@ -2504,25 +2518,35 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
 
                 if not final_cards: st.warning("Nenhuma unidade encontrada.")
                 else:
-                    # HORIZONTAL SCROLL IMPLEMENTATION - CORRIGIDO PARA RENDERIZAR O HTML CORRETAMENTE
-                    # O Streamlit renderiza strings markdown. Se for HTML puro, precisa ser wrapped e unsafe_allow_html=True
-                    
-                    # Vamos montar o HTML completo de uma só vez para garantir a estrutura
                     cards_html = f"""<div class="scrolling-wrapper">"""
                     
                     for card in final_cards:
                          row = card['row']
-                         # Escaping de aspas simples para evitar conflito na f-string
                          emp_name = row['Empreendimento']
                          unid_name = row['Identificador']
                          val_fmt = fmt_br(row['Valor de Venda'])
+                         aval_fmt = fmt_br(row['Valor de Avaliação Bancária'])
                          label = card['label']
                          css_badge = card['css']
                          
-                         cards_html += f"""<div class="card-item"><div class="recommendation-card" style="border-top: 4px solid {COR_AZUL_ESC}; height: 100%; justify-content: flex-start;"><span style="font-size:0.65rem; color:{COR_AZUL_ESC}; opacity:0.8;">PERFIL</span><br><div style="margin-top:5px; margin-bottom:15px;"><span class="{css_badge}">{label}</span></div><b style="color:{COR_AZUL_ESC}; font-size:1.1rem;">{emp_name}</b><br><div style="font-size:0.85rem; color:{COR_TEXTO_MUTED}; text-align:center; border-top:1px solid #eee; padding-top:10px; width:100%;"><b>Unidade: {unid_name}</b></div><div class="price-tag" style="font-size:1.4rem; margin:10px 0;">R$ {val_fmt}</div></div></div>"""
+                         cards_html += f"""
+                         <div class="card-item">
+                            <div class="recommendation-card" style="border-top: 4px solid {COR_AZUL_ESC}; height: 100%; justify-content: flex-start;">
+                                <span style="font-size:0.65rem; color:{COR_AZUL_ESC}; opacity:0.8;">PERFIL</span><br>
+                                <div style="margin-top:5px; margin-bottom:15px;"><span class="{css_badge}">{label}</span></div>
+                                <b style="color:{COR_AZUL_ESC}; font-size:1.1rem;">{emp_name}</b><br>
+                                <div style="font-size:0.85rem; color:{COR_TEXTO_MUTED}; text-align:center; border-top:1px solid #eee; padding-top:10px; width:100%;">
+                                    <b>Unidade: {unid_name}</b>
+                                </div>
+                                <div style="margin: 10px 0; width: 100%;">
+                                    <div style="font-size:0.8rem; color:#64748b;">Avaliação</div>
+                                    <div style="font-weight:bold; color:{COR_AZUL_ESC};">R$ {aval_fmt}</div>
+                                    <div style="font-size:0.8rem; color:#64748b; margin-top:5px;">Venda</div>
+                                    <div class="price-tag" style="font-size:1.3rem; margin-top:0;">R$ {val_fmt}</div>
+                                </div>
+                            </div>
+                         </div>"""
                     cards_html += "</div>"
-                    
-                    # Renderiza o HTML corrigido
                     st.markdown(cards_html, unsafe_allow_html=True)
 
         with tab_estoque:
@@ -2561,15 +2585,17 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
 
                 df_tab_view = df_tab.copy()
                 df_tab_view['Valor de Venda'] = df_tab_view['Valor de Venda'].apply(fmt_br)
+                df_tab_view['Valor de Avaliação Bancária'] = df_tab_view['Valor de Avaliação Bancária'].apply(fmt_br)
                 df_tab_view['Poder_Compra'] = df_tab_view['Poder_Compra'].apply(fmt_br)
                 df_tab_view['Cobertura'] = df_tab_view['Cobertura'].apply(lambda x: f"{x:.1f}%")
 
                 st.dataframe(
-                    df_tab_view[['Identificador', 'Bairro', 'Empreendimento', 'Valor de Venda', 'Poder_Compra', 'Cobertura']],
+                    df_tab_view[['Identificador', 'Bairro', 'Empreendimento', 'Valor de Avaliação Bancária', 'Valor de Venda', 'Poder_Compra', 'Cobertura']],
                     use_container_width=True, hide_index=True,
                     column_config={
                         "Identificador": st.column_config.TextColumn("Unidade"),
-                        "Valor de Venda": st.column_config.TextColumn("Preço (R$)"),
+                        "Valor de Avaliação Bancária": st.column_config.TextColumn("Avaliação (R$)"),
+                        "Valor de Venda": st.column_config.TextColumn("Venda (R$)"),
                         "Poder_Compra": st.column_config.TextColumn("Poder Real (R$)"),
                         "Cobertura": st.column_config.TextColumn("Cobertura"),
                     }
@@ -2606,7 +2632,10 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
                     except: pass
                 def label_uni(uid):
                     u = unidades_disp[unidades_disp['Identificador'] == uid].iloc[0]
-                    return f"{uid} - R$ {fmt_br(u['Valor de Venda'])}"
+                    v_aval = fmt_br(u['Valor de Avaliação Bancária'])
+                    v_venda = fmt_br(u['Valor de Venda'])
+                    return f"{uid} | Aval: R$ {v_aval} | Venda: R$ {v_venda}"
+                
                 uni_escolhida_id = st.selectbox("Escolha a Unidade:", options=current_uni_ids, index=idx_uni, format_func=label_uni, key="sel_uni_new_v3")
                 st.session_state.dados_cliente['unidade_id'] = uni_escolhida_id
                 if uni_escolhida_id:
@@ -2625,6 +2654,10 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
                         col_rank = f"PS_{rank.title()}" if rank else 'PS_Diamante'
                         if rank == 'AÇO': col_rank = 'PS_Aco'
                         ps_max_val = u_row.get(col_rank, 0.0)
+
+                    # Definir limite de parcelas
+                    prazo_max_ps = 66 if pol == 'Emcash' else 84
+                    st.session_state.dados_cliente['prazo_ps_max'] = prazo_max_ps
 
                     poder_t, _ = motor.calcular_poder_compra(d.get('renda', 0), fin_t, sub_t, ps_max_val)
                     percentual_cobertura = min(100, max(0, (poder_t / v_venda) * 100))
@@ -2652,7 +2685,6 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
                         'unidade_id': uni_escolhida_id, 'empreendimento_nome': emp_escolhido, 
                         'imovel_valor': u_row['Valor de Venda'], 'imovel_avaliacao': u_row['Valor de Avaliação Bancária'], 
                         'finan_estimado': fin, 'fgts_sub': sub,
-                        # Salvar novas infos para o resumo
                         'unid_entrega': u_row.get('Data Entrega', ''),
                         'unid_area': u_row.get('Area', ''),
                         'unid_tipo': u_row.get('Tipologia', ''),
