@@ -2801,6 +2801,6 @@ def main():
     else: aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros)
 
     st.markdown(f'<div class="footer">Direcional Engenharia - Rio de Janeiro | Developed by Lucas Maia</div>', unsafe_allow_html=True)
-Coo
+    
 if __name__ == "__main__":
     main()
