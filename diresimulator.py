@@ -25,6 +25,7 @@ import altair as alt
 import folium
 from streamlit_folium import st_folium
 import math
+import json
 
 # Tenta importar fpdf e PIL
 try:
@@ -50,8 +51,6 @@ except:
 # =============================================================================
 # 0. CONSTANTES E UTILITÁRIOS
 # =============================================================================
-# ID ÚNICO DA PLANILHA "BD Streamlit"
-# Extraído de: https://docs.google.com/spreadsheets/d/1N00McOjO1O_MuKyQhp-CVhpAet_9Lfq-VqVm1FmPV00/edit?gid=1793187812#gid=1793187812
 ID_GERAL = "https://docs.google.com/spreadsheets/d/1N00McOjO1O_MuKyQhp-CVhpAet_9Lfq-VqVm1FmPV00/edit#gid=0"
 
 URL_FINAN = f"https://docs.google.com/spreadsheets/d/{ID_GERAL}/edit#gid=0"
@@ -457,22 +456,17 @@ def calcular_fluxo_pagamento_detalhado(valor_fin, meses_fin, taxa_anual, sistema
 
 def formatar_link_drive(url):
     """
-    Retorna uma tupla: (link_thumbnail, link_full_direct)
-    - link_thumbnail: usado na galeria (menor, carrega rápido)
-    - link_full_direct: usado no lightbox (link direto do drive, suporta arquivos grandes)
+    Retorna apenas a URL direta se for Google Drive para usar no modal customizado.
     """
     if "drive.google.com" in url and "/d/" in url:
         try:
             file_id = url.split("/d/")[1].split("/")[0]
-            # Thumbnail para o slider
-            thumb_link = f"https://drive.google.com/thumbnail?id={file_id}&sz=w1000"
             # Link direto para visualização raw (export=view)
-            # Isso é necessário para o lightbox funcionar sem redirecionar para a página HTML do Drive
             full_link = f"https://drive.google.com/uc?export=view&id={file_id}"
-            return thumb_link, full_link
+            return full_link
         except:
-            return url, url
-    return url, url
+            return url
+    return url
 
 def scroll_to_top():
     js = """<script>var body = window.parent.document.querySelector(".main"); if (body) { body.scrollTop = 0; } window.scrollTo(0, 0);</script>"""
@@ -748,20 +742,19 @@ def configurar_layout():
             display: none; 
             position: fixed; 
             z-index: 99999; 
-            padding-top: 50px; 
+            padding-top: 20px; 
             left: 0;
             top: 0;
             width: 100%; 
             height: 100%; 
-            overflow: auto; 
-            background-color: rgb(0,0,0); 
-            background-color: rgba(0,0,0,0.9); 
+            overflow: hidden; 
+            background-color: rgba(0,0,0,0.95);
         }}
         .modal-content {{
             margin: auto;
             display: block;
             width: auto;
-            max-width: 95%;
+            max-width: 90%;
             max-height: 90vh;
             object-fit: contain;
         }}
@@ -782,6 +775,24 @@ def configurar_layout():
             text-decoration: none;
             cursor: pointer;
         }}
+        .prev, .next {{
+            cursor: pointer;
+            position: absolute;
+            top: 50%;
+            width: auto;
+            padding: 16px;
+            margin-top: -50px;
+            color: white;
+            font-weight: bold;
+            font-size: 30px;
+            transition: 0.6s ease;
+            border-radius: 0 3px 3px 0;
+            user-select: none;
+            -webkit-user-select: none;
+        }}
+        .next {{ right: 0; border-radius: 3px 0 0 3px; }}
+        .prev {{ left: 0; border-radius: 3px 0 0 3px; }}
+        .prev:hover, .next:hover {{ background-color: rgba(0,0,0,0.8); }}
 
         h1, h2, h3, h4 {{
             font-family: 'Montserrat', sans-serif !important;
@@ -1169,6 +1180,24 @@ def configurar_layout():
         }}
 
         .footer {{ text-align: center; padding: 80px 0; color: {COR_AZUL_ESC} !important; font-size: 0.8rem; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; opacity: 0.6; }}
+        
+        /* Estilização específica dos botões da Home */
+        div[data-testid="stButton"] button.home-card-btn {{
+             height: 250px !important;
+             border-radius: 16px !important;
+             border: 2px solid #eef2f6 !important;
+             background-color: white !important;
+             color: #002c5d !important;
+             box-shadow: 0 4px 6px rgba(0,0,0,0.05) !important;
+             font-size: 1.2rem !important;
+             font-weight: 700 !important;
+        }}
+        div[data-testid="stButton"] button.home-card-btn:hover {{
+             border-color: #e30613 !important;
+             color: #e30613 !important;
+             transform: translateY(-5px);
+             box-shadow: 0 10px 20px rgba(227, 6, 19, 0.15) !important;
+        }}
         </style>
     """, unsafe_allow_html=True)
 
@@ -1552,10 +1581,14 @@ def tela_login(df_logins):
     c1, c2, c3 = st.columns([1, 1.5, 1])
     with c2:
         st.markdown("<br><br><h3 style='text-align:center;'>LOGIN</h3>", unsafe_allow_html=True)
-        email = st.text_input("E-mail", key="login_email")
-        senha = st.text_input("Senha", type="password", key="login_pass")
-        st.markdown("<br>", unsafe_allow_html=True)
-        if st.button("ACESSAR SISTEMA", type="primary", use_container_width=True):
+        # Envelopando em form para submissão com Enter
+        with st.form("login_form"):
+            email = st.text_input("E-mail", key="login_email")
+            senha = st.text_input("Senha", type="password", key="login_pass")
+            st.markdown("<br>", unsafe_allow_html=True)
+            submitted = st.form_submit_button("ACESSAR SISTEMA", type="primary", use_container_width=True)
+            
+        if submitted:
             if df_logins.empty: st.error("Base de usuários vazia.")
             else:
                 user = df_logins[(df_logins['Email'] == email.strip().lower()) & (df_logins['Senha'] == senha.strip())]
@@ -1609,6 +1642,7 @@ def show_export_dialog(d):
 def dialog_novo_cliente(motor):
     # Formulário de Cadastro de Novo Cliente
     st.markdown("Preencha os dados do cliente para iniciar a simulação.")
+    st.markdown('<div style="max-height: 65vh; overflow-y: auto; padding-right: 10px;">', unsafe_allow_html=True)
     
     # Recuperar valores da sessão ou usar defaults
     curr_nome = st.session_state.dados_cliente.get('nome', "")
@@ -1660,6 +1694,8 @@ def dialog_novo_cliente(motor):
 
         st.markdown("<br>", unsafe_allow_html=True)
         submitted = st.form_submit_button("Confirmar e Avançar", type="primary", use_container_width=True)
+    
+    st.markdown('</div>', unsafe_allow_html=True)
 
     if submitted:
         # Calcular renda total dentro do submit
@@ -1727,8 +1763,8 @@ def dialog_buscar_cliente(df_cadastros, motor):
             mask = mask | filtered_df['CPF'].astype(str).str.contains(term)
         filtered_df = filtered_df[mask]
 
-    # Container com scroll para lista
-    st.markdown('<div style="max-height: 400px; overflow-y: auto;">', unsafe_allow_html=True)
+    # Container com scroll para lista - Aumentado altura para notebooks
+    st.markdown('<div style="max-height: 60vh; overflow-y: auto; padding-right: 5px;">', unsafe_allow_html=True)
     
     if filtered_df.empty:
         st.info("Nenhum cliente encontrado.")
@@ -1976,20 +2012,57 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
             <div id="myModal" class="modal">
               <span class="close" onclick="closeModal()">&times;</span>
               <img class="modal-content" id="img01">
+              <a class="prev" onclick="plusSlides(-1)">&#10094;</a>
+              <a class="next" onclick="plusSlides(1)">&#10095;</a>
             </div>
 
             <script>
-            function openModal(src) {
-              var modal = document.getElementById("myModal");
-              var modalImg = document.getElementById("img01");
-              modal.style.display = "block";
-              modalImg.src = src;
+            let currentImageIndex = 0;
+            let currentImages = [];
+
+            // Função para abrir o modal com uma lista de imagens e um índice inicial
+            function openGallery(imagesJson, index) {
+                currentImages = JSON.parse(imagesJson);
+                currentImageIndex = index;
+                showImage(currentImageIndex);
+                document.getElementById("myModal").style.display = "block";
             }
 
             function closeModal() {
-              document.getElementById("myModal").style.display = "none";
+                document.getElementById("myModal").style.display = "none";
+            }
+
+            function plusSlides(n) {
+                currentImageIndex += n;
+                if (currentImageIndex >= currentImages.length) {
+                    currentImageIndex = 0;
+                }
+                if (currentImageIndex < 0) {
+                    currentImageIndex = currentImages.length - 1;
+                }
+                showImage(currentImageIndex);
+            }
+
+            function showImage(index) {
+                var modalImg = document.getElementById("img01");
+                modalImg.src = currentImages[index];
             }
             
+            // Navegar com teclado
+            document.addEventListener('keydown', function(event) {
+                if(document.getElementById("myModal").style.display === "block"){
+                    if(event.key === "ArrowLeft") {
+                        plusSlides(-1);
+                    }
+                    else if(event.key === "ArrowRight") {
+                        plusSlides(1);
+                    }
+                    else if(event.key === "Escape") {
+                        closeModal();
+                    }
+                }
+            });
+
             // Fechar ao clicar fora da imagem
             window.onclick = function(event) {
               var modal = document.getElementById("myModal");
@@ -2008,53 +2081,6 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
                     meta = CATALOGO_PRODUTOS[prod_key]
                     
                     st.markdown(f"#### {prod_key}")
-                    
-                    # --- NOVO: INFOS DO EMPREENDIMENTO ---
-                    if not df_estoque.empty and 'Empreendimento' in df_estoque.columns:
-                        df_emp_info = df_estoque[df_estoque['Empreendimento'] == prod_key]
-                        if not df_emp_info.empty:
-                            # Cálculos
-                            var_preco = f"A partir de R$ {fmt_br(df_emp_info['Valor de Venda'].min())}"
-                            
-                            areas = []
-                            if 'Area' in df_emp_info.columns:
-                                areas_vals = pd.to_numeric(df_emp_info['Area'], errors='coerce').dropna()
-                                if not areas_vals.empty:
-                                    areas = [f"{areas_vals.min()}m²" if areas_vals.min() == areas_vals.max() else f"{areas_vals.min()}m² a {areas_vals.max()}m²"]
-                            metragem_txt = areas[0] if areas else "N/A"
-                            
-                            num_unidades = len(df_emp_info)
-                            num_blocos = df_emp_info['Bloco_Sort'].nunique() if 'Bloco_Sort' in df_emp_info.columns else 1
-                            
-                            # Fórmula solicitada: sup(numero de unidades/numero de blocos) = teto(unidades/blocos)
-                            # Ou simplesmente usar o max Andar se disponível
-                            qtd_andares = "N/A"
-                            if num_blocos > 0:
-                                qtd_andares = math.ceil(num_unidades / num_blocos)
-                                # Se preferir usar o dado real da coluna Andar:
-                                # if 'Andar' in df_emp_info.columns and df_emp_info['Andar'].max() > 0:
-                                #     qtd_andares = df_emp_info['Andar'].max()
-                            
-                            bairro_info = df_emp_info['Bairro'].iloc[0] if 'Bairro' in df_emp_info.columns else "N/A"
-                            endereco_info = df_emp_info['Endereco'].iloc[0] if 'Endereco' in df_emp_info.columns else "N/A"
-                            entrega_info = df_emp_info['Data Entrega'].iloc[0] if 'Data Entrega' in df_emp_info.columns else "N/A"
-                            
-                            st.markdown(f"""
-                            <div style="background-color: #f8fafc; padding: 20px; border-radius: 12px; border: 1px solid #e2e8f0; margin-bottom: 20px;">
-                                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px;">
-                                    <div><small style="color:#64748b; font-weight:bold;">PREÇO</small><br><span style="color:{COR_AZUL_ESC}; font-weight:bold;">{var_preco}</span></div>
-                                    <div><small style="color:#64748b; font-weight:bold;">METRAGEM</small><br><span style="color:{COR_AZUL_ESC}; font-weight:bold;">{metragem_txt}</span></div>
-                                    <div><small style="color:#64748b; font-weight:bold;">TOTAL UNIDADES</small><br><span style="color:{COR_AZUL_ESC}; font-weight:bold;">{num_unidades}</span></div>
-                                    <div><small style="color:#64748b; font-weight:bold;">BLOCOS</small><br><span style="color:{COR_AZUL_ESC}; font-weight:bold;">{num_blocos}</span></div>
-                                    <div><small style="color:#64748b; font-weight:bold;">UNID. POR BLOCO (MÉDIA)</small><br><span style="color:{COR_AZUL_ESC}; font-weight:bold;">{qtd_andares}</span></div>
-                                    <div><small style="color:#64748b; font-weight:bold;">BAIRRO</small><br><span style="color:{COR_AZUL_ESC}; font-weight:bold;">{bairro_info}</span></div>
-                                    <div><small style="color:#64748b; font-weight:bold;">DATA ENTREGA</small><br><span style="color:{COR_AZUL_ESC}; font-weight:bold;">{entrega_info}</span></div>
-                                </div>
-                                <div style="margin-top: 15px; border-top: 1px solid #e2e8f0; padding-top: 10px;">
-                                    <small style="color:#64748b; font-weight:bold;">ENDEREÇO</small><br><span style="color:{COR_AZUL_ESC};">{endereco_info}</span>
-                                </div>
-                            </div>
-                            """, unsafe_allow_html=True)
                     
                     # SEÇÃO 1: VÍDEO E MAPA (Lado a Lado 50/50)
                     col_vid, col_map = st.columns(2)
@@ -2082,60 +2108,153 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
                             st.info("Mapa indisponível.")
                     
                     st.markdown("---")
+
+                    # --- BOX DE INFORMAÇÕES (NOVO) ---
+                    if not df_estoque.empty and 'Empreendimento' in df_estoque.columns:
+                        df_emp_info = df_estoque[df_estoque['Empreendimento'] == prod_key]
+                        if not df_emp_info.empty:
+                            # Cálculos
+                            min_p = df_emp_info['Valor de Venda'].min()
+                            max_p = df_emp_info['Valor de Venda'].max()
+                            var_preco = f"R$ {fmt_br(min_p)} a R$ {fmt_br(max_p)}"
+                            
+                            areas_vals = []
+                            if 'Area' in df_emp_info.columns:
+                                areas_vals = pd.to_numeric(df_emp_info['Area'], errors='coerce').dropna()
+                            
+                            if not areas_vals.empty:
+                                min_area = areas_vals.min()
+                                max_area = areas_vals.max()
+                                metragem_txt = f"{min_area}m² a {max_area}m²"
+                                
+                                # Cálculo preço m2
+                                min_m2 = min_p / max_area if max_area > 0 else 0
+                                max_m2 = max_p / min_area if min_area > 0 else 0
+                                var_m2 = f"R$ {fmt_br(min_m2)} a R$ {fmt_br(max_m2)}"
+                            else:
+                                metragem_txt = "N/A"
+                                var_m2 = "N/A"
+                            
+                            num_unidades = len(df_emp_info)
+                            num_blocos = df_emp_info['Bloco_Sort'].nunique() if 'Bloco_Sort' in df_emp_info.columns else 1
+                            
+                            bairro_info = df_emp_info['Bairro'].iloc[0] if 'Bairro' in df_emp_info.columns else "N/A"
+                            endereco_info = df_emp_info['Endereco'].iloc[0] if 'Endereco' in df_emp_info.columns else "N/A"
+                            entrega_info = df_emp_info['Data Entrega'].iloc[0] if 'Data Entrega' in df_emp_info.columns else "N/A"
+                            
+                            st.markdown(f"""
+                            <div class="summary-body" style="padding: 20px; margin-bottom: 20px;">
+                                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px;">
+                                    <div><small style="color:#64748b; font-weight:bold;">VARIAÇÃO PREÇO</small><br><span style="color:{COR_AZUL_ESC}; font-weight:bold;">{var_preco}</span></div>
+                                    <div><small style="color:#64748b; font-weight:bold;">METRAGEM</small><br><span style="color:{COR_AZUL_ESC}; font-weight:bold;">{metragem_txt}</span></div>
+                                    <div><small style="color:#64748b; font-weight:bold;">PREÇO M²</small><br><span style="color:{COR_AZUL_ESC}; font-weight:bold;">{var_m2}</span></div>
+                                    <div><small style="color:#64748b; font-weight:bold;">ENTREGA</small><br><span style="color:{COR_AZUL_ESC}; font-weight:bold;">{entrega_info}</span></div>
+                                    <div><small style="color:#64748b; font-weight:bold;">BLOCOS / UNID.</small><br><span style="color:{COR_AZUL_ESC}; font-weight:bold;">{num_blocos} / {num_unidades}</span></div>
+                                    <div><small style="color:#64748b; font-weight:bold;">BAIRRO</small><br><span style="color:{COR_AZUL_ESC}; font-weight:bold;">{bairro_info}</span></div>
+                                </div>
+                                <div style="margin-top: 15px; border-top: 1px solid #e2e8f0; padding-top: 10px;">
+                                    <small style="color:#64748b; font-weight:bold;">ENDEREÇO</small><br><span style="color:{COR_AZUL_ESC};">{endereco_info}</span>
+                                </div>
+                            </div>
+                            """, unsafe_allow_html=True)
+                    
+                    st.markdown("---")
                     
                     # Organizar imagens por categoria (Seções Verticais)
                     imagens_raw = meta.get("imagens", [])
-                    categorias = {"IMAGENS ILUSTRATIVAS": [], "PLANTAS": [], "OUTROS": []}
+                    categorias = {"MAPA": [], "MASTERPLAN": [], "PLANTAS": [], "IMAGENS ILUSTRATIVAS": []}
                     link_ficha = None
+                    
+                    # Prepara array global de imagens para o slider JS
+                    all_images_links = []
 
                     for item in imagens_raw:
                         nome_up = item['nome'].upper()
-                        # Identificar Ficha Técnica para o botão
+                        # Identificar Ficha Técnica
                         if "FICHA" in nome_up or "PDF" in nome_up:
                             link_ficha = item['link']
                             continue
                         
+                        # Extrair link direto
+                        full_link = formatar_link_drive(item['link'])
+                        
+                        # Adicionar a lista global para navegação nas setas
+                        # (Opcional: se quiser navegar só dentro da categoria, mudar logica. Aqui navega em tudo)
+                        # Vou colocar na ordem de exibição abaixo
+                        
                         # Categorizar
-                        if "PLANTA" in nome_up or "MASTERPLAN" in nome_up:
-                            categorias["PLANTAS"].append(item)
-                        elif "LOGO" in nome_up or "MAPA" in nome_up:
-                            categorias["OUTROS"].append(item)
+                        if "MAPA" in nome_up:
+                            categorias["MAPA"].append((item, full_link))
+                        elif "MASTERPLAN" in nome_up:
+                            categorias["MASTERPLAN"].append((item, full_link))
+                        elif "PLANTA" in nome_up:
+                            categorias["PLANTAS"].append((item, full_link))
                         else:
-                            categorias["IMAGENS ILUSTRATIVAS"].append(item)
+                            categorias["IMAGENS ILUSTRATIVAS"].append((item, full_link))
 
-                    # SEÇÃO 2: IMAGENS (SLIDER HORIZONTAL COM MINIATURAS E LIGHTBOX)
-                    if categorias["IMAGENS ILUSTRATIVAS"]:
-                        st.markdown("##### Imagens Ilustrativas")
-                        slider_html = '<div class="scrolling-images">'
-                        for img in categorias["IMAGENS ILUSTRATIVAS"]:
-                            link_thumb, link_full = formatar_link_drive(img['link'])
-                            # Usamos onclick para abrir o modal sem redirecionar
-                            slider_html += f'<img src="{link_thumb}" alt="{img["nome"]}" title="{img["nome"]}" onclick="openModal(\'{link_full}\')">'
-                        slider_html += '</div>'
-                        st.markdown(slider_html, unsafe_allow_html=True)
-                        st.markdown("<br>", unsafe_allow_html=True)
-
-                    # SEÇÃO 3: PLANTAS
-                    if categorias["PLANTAS"]:
-                        st.markdown("##### Plantas e Implantação")
-                        slider_html = '<div class="scrolling-images">'
-                        for img in categorias["PLANTAS"]:
-                            link_thumb, link_full = formatar_link_drive(img['link'])
+                    # Construir lista ordenada final de links para o JS
+                    # Ordem: Mapa -> Masterplan -> Plantas -> Imagens
+                    ordered_links = []
+                    for cat in ["MAPA", "MASTERPLAN", "PLANTAS", "IMAGENS ILUSTRATIVAS"]:
+                        for _, link in categorias[cat]:
+                            ordered_links.append(link)
+                    
+                    # Serializar para JSON para passar ao JS
+                    json_links = json.dumps(ordered_links)
+                    
+                    # Função auxiliar para renderizar HTML de imagem
+                    def render_img_html(img_list, start_index):
+                        html = '<div class="scrolling-images">'
+                        local_idx = start_index
+                        for item, link in img_list:
+                            # Thumbnail usa o link direto mesmo para simplicidade ou gerador de thumb se existir
+                            # Aqui usando full link no src, browser faz cache. Se for pesado, ideal seria thumb.
+                            # Mas o formatar_link_drive retorna full para o modal.
+                            # Para src da img tag, se for drive, podemos tentar thumbnail.
                             
-                            # CORREÇÃO MASTERPLAN: Imagens gigantes não geram thumbnail. Usar Placeholder.
-                            if "MASTERPLAN" in img['nome'].upper():
-                                slider_html += f'''
-                                <div class="masterplan-placeholder" onclick="openModal('{link_full}')">
+                            # Tentar reconstruir thumb se for drive
+                            thumb_src = link
+                            if "drive.google.com/uc?export=view&id=" in link:
+                                fid = link.split("id=")[1]
+                                thumb_src = f"https://drive.google.com/thumbnail?id={fid}&sz=w600"
+
+                            # Masterplan placeholder
+                            if "MASTERPLAN" in item['nome'].upper():
+                                html += f'''
+                                <div class="masterplan-placeholder" onclick='openGallery({json_links}, {local_idx})'>
                                     <div style="font-size: 3rem; margin-bottom: 10px;">🗺️</div>
                                     <div>MASTERPLAN</div>
-                                    <div style="font-size: 0.7rem; font-weight: 400; margin-top: 5px;">Clique para visualizar</div>
+                                    <div style="font-size: 0.7rem; font-weight: 400; margin-top: 5px;">Clique para ampliar</div>
                                 </div>
                                 '''
                             else:
-                                slider_html += f'<img src="{link_thumb}" alt="{img["nome"]}" title="{img["nome"]}" onclick="openModal(\'{link_full}\')">'
-                        slider_html += '</div>'
-                        st.markdown(slider_html, unsafe_allow_html=True)
-                        st.markdown("<br>", unsafe_allow_html=True)
+                                html += f'''<img src="{thumb_src}" alt="{item["nome"]}" title="{item["nome"]}" onclick='openGallery({json_links}, {local_idx})'>'''
+                            local_idx += 1
+                        html += '</div>'
+                        return html, local_idx
+
+                    # Renderizar Seções
+                    current_global_index = 0
+                    
+                    if categorias["MAPA"]:
+                        st.markdown("##### Localização")
+                        html_content, current_global_index = render_img_html(categorias["MAPA"], current_global_index)
+                        st.markdown(html_content, unsafe_allow_html=True)
+
+                    if categorias["MASTERPLAN"]:
+                        st.markdown("##### Masterplan")
+                        html_content, current_global_index = render_img_html(categorias["MASTERPLAN"], current_global_index)
+                        st.markdown(html_content, unsafe_allow_html=True)
+
+                    if categorias["PLANTAS"]:
+                        st.markdown("##### Plantas")
+                        html_content, current_global_index = render_img_html(categorias["PLANTAS"], current_global_index)
+                        st.markdown(html_content, unsafe_allow_html=True)
+                        
+                    if categorias["IMAGENS ILUSTRATIVAS"]:
+                        st.markdown("##### Imagens Ilustrativas")
+                        html_content, current_global_index = render_img_html(categorias["IMAGENS ILUSTRATIVAS"], current_global_index)
+                        st.markdown(html_content, unsafe_allow_html=True)
 
                     st.markdown("---")
                     
@@ -2312,24 +2431,24 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
             )
 
             # Barras Empilhadas
+            # FORÇAR ORDEM DE EMPILHAMENTO: Financiamento (baixo) -> PS -> Atos (topo)
+            # Altair empilha na ordem reversa da lista no 'order' se sort=ascending?
+            # Vamos testar explicitamente.
             bars = base.mark_bar().encode(
                 y=alt.Y('Valor', title='Valor (R$)', stack='zero'),
                 color=alt.Color('Tipo', scale=alt.Scale(domain=domain_tipo, range=range_tipo), legend=alt.Legend(title="Composição")),
+                order=alt.Order('Tipo', sort=['Financiamento', 'Pro Soluto', 'Entrada/Ato']), # Define a ordem de empilhamento
                 tooltip=['Mês', 'Tipo', alt.Tooltip('Valor', format=",.2f"), alt.Tooltip('Total', format=",.2f")]
             )
 
             # Linha Fim Atos
             rule_atos = alt.Chart(pd.DataFrame({'x': [mes_fim_atos]})).mark_rule(color='red', strokeDash=[5, 5]).encode(x='x:O')
-            text_atos = alt.Chart(pd.DataFrame({'x': [mes_fim_atos], 'y': [df_view['Total'].max()]})).mark_text(
-                align='left', baseline='bottom', dx=5, color='red', text='Fim Atos'
-            ).encode(x='x:O', y='y:Q')
-
+            
             # Linha Fim PS (apenas se existir PS)
             charts = [bars]
             if mes_fim_atos > 0:
                 charts.append(rule_atos)
-                # charts.append(text_atos) # Opcional: texto pode poluir se muito próximo
-
+                
             if mes_fim_ps > 0:
                 rule_ps = alt.Chart(pd.DataFrame({'x': [mes_fim_ps]})).mark_rule(color='orange', strokeDash=[5, 5]).encode(x='x:O')
                 charts.append(rule_ps)
@@ -2337,7 +2456,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
             final_chart = alt.layer(*charts).add_params(zoom).properties(height=400)
 
             st.altair_chart(final_chart, use_container_width=True)
-            st.caption("Linhas tracejadas indicam o fim do período de Atos (Vermelho) e Pro Soluto (Laranja).")
+            st.caption("Linha Vermelha Tracejada: Fim dos Atos | Linha Laranja Tracejada: Fim do Pro Soluto")
 
         # --- SEÇÃO 4: OPORTUNIDADES SEMELHANTES ---
         st.markdown("---")
@@ -2391,16 +2510,23 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
         st.markdown("<br><br>", unsafe_allow_html=True)
         
         # --- BOTÃO VOLTAR (FULL WIDTH) ---
-        st.markdown("""
+        st.markdown(f"""
             <style>
-            div.stButton > button {
+            div.stButton > button {{
                 width: 100%;
-                border-radius: 0px;
+                border-radius: 16px; 
                 height: 60px;
-                font-size: 16px;
+                font-size: 1.1rem;
                 font-weight: bold;
                 text-transform: uppercase;
-            }
+                background-color: white;
+                color: {COR_AZUL_ESC};
+                border: 2px solid {COR_BORDA};
+            }}
+            div.stButton > button:hover {{
+                border-color: {COR_VERMELHO};
+                color: {COR_VERMELHO};
+            }}
             </style>
         """, unsafe_allow_html=True)
 
@@ -2413,10 +2539,10 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
     elif passo == 'input':
         st.markdown("### Selecione uma Opção")
         
-        # Estilo para os botões quadrados grandes
+        # Estilo para os botões quadrados grandes (CSS Injetado Globalmente para garantir aplicação)
         st.markdown(f"""
         <style>
-        div.stButton > button.home-card-btn {{
+        .home-card-btn {{
             display: flex;
             flex-direction: column;
             align-items: center;
@@ -2433,9 +2559,10 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
             box-shadow: 0 4px 6px rgba(0,0,0,0.05);
             font-size: 1.2rem;
             color: {COR_AZUL_ESC};
-            white-space: pre-wrap; /* Permite quebra de linha no label */
+            white-space: pre-wrap; 
+            font-weight: 800;
         }}
-        div.stButton > button.home-card-btn:hover {{
+        .home-card-btn:hover {{
             transform: translateY(-5px);
             border-color: {COR_VERMELHO};
             box-shadow: 0 10px 20px rgba(227, 6, 19, 0.15);
@@ -2457,34 +2584,24 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
             if st.button("BUSCAR CLIENTE\n(Base Cadastrada)", key="btn_home_search", use_container_width=True):
                 dialog_buscar_cliente(df_cadastros, motor)
         
-        # Injeção de CSS específico para os botões da home (após renderização)
-        # O seletor CSS acima tenta pegar pela classe, mas Streamlit não deixa adicionar classe facilmente.
-        # Vamos usar um seletor mais genérico mas dentro do contexto se possível, ou injetar estilo inline forte.
-        # Hack para aplicar estilo aos botões da home especificamente
+        # Hack CSS para forçar estilo nos botões gerados pelo Streamlit (já que não podemos por classe direta neles facilmente)
         st.markdown("""
         <style>
-        /* Seleciona botões que contém o texto específico */
         div[data-testid="stButton"] button p:contains("CADASTRAR NOVO CLIENTE"),
         div[data-testid="stButton"] button p:contains("BUSCAR CLIENTE") {
              font-size: 1.2rem;
-             font-weight: 700;
+             font-weight: 800;
+             line-height: 1.5;
         }
         
         div[data-testid="stButton"]:has(button:active) button,
         div[data-testid="stButton"] button {
-             height: 250px !important;
-             border-radius: 16px !important;
-             border: 2px solid #eef2f6 !important;
-             background-color: white !important;
-             color: #002c5d !important;
-             box-shadow: 0 4px 6px rgba(0,0,0,0.05) !important;
+             /* Tenta aplicar estilo se o texto bater (seletor :has é moderno) */
+             /* Fallback generalizado para botões grandes nesta página */
         }
-        div[data-testid="stButton"] button:hover {
-             border-color: #e30613 !important;
-             color: #e30613 !important;
-             transform: translateY(-5px);
-             box-shadow: 0 10px 20px rgba(227, 6, 19, 0.15) !important;
-        }
+        
+        /* Aplicando estilo específico aos botões com as chaves específicas (se possível via nth-child, mas arriscado) */
+        /* Melhor confiar no CSS global injetado acima para botões gerais e sobrescrever onde necessário */
         </style>
         """, unsafe_allow_html=True)
 
@@ -2796,8 +2913,8 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
         st.markdown(f"""
         <div class="custom-alert" style="flex-direction: column; align-items: flex-start; padding: 20px;">
             <div style="font-size: 1.1rem; margin-bottom: 5px;">{u_nome} - {u_unid}</div>
-            <div style="font-size: 0.9rem; opacity: 0.9;">Valor Comercial Mínimo: <b>R$ {fmt_br(u_valor)}</b></div>
             <div style="font-size: 0.9rem; opacity: 0.9;">Valor de Avaliação Bancária: <b>R$ {fmt_br(u_aval)}</b></div>
+            <div style="font-size: 0.9rem; opacity: 0.9;">Valor Comercial Mínimo: <b>R$ {fmt_br(u_valor)}</b></div>
         </div>
         """, unsafe_allow_html=True)
         
