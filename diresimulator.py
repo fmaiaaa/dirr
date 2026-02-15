@@ -1267,7 +1267,10 @@ def gerar_resumo_pdf(d):
         secao("DADOS DO IMÓVEL")
         linha("Empreendimento", str(d.get('empreendimento_nome')))
         linha("Unidade Selecionada", str(d.get('unidade_id')))
-        linha("Valor de Venda", f"R$ {fmt_br(d.get('imovel_valor', 0))}", True)
+        linha("Valor Comercial (Venda)", f"R$ {fmt_br(d.get('imovel_valor', 0))}", True)
+        if d.get('imovel_avaliacao'):
+             linha("Avaliação Bancária", f"R$ {fmt_br(d.get('imovel_avaliacao', 0))}")
+        
         if d.get('unid_entrega'): linha("Previsão de Entrega", str(d.get('unid_entrega')))
         if d.get('unid_area'): linha("Área Privativa", f"{d.get('unid_area')} m²")
         if d.get('unid_tipo'): linha("Tipologia", str(d.get('unid_tipo')))
@@ -1354,7 +1357,7 @@ def gerar_resumo_pdf(d):
     except:
         return None
 
-def enviar_email_smtp(destinatario, nome_cliente, pdf_bytes, dados_cliente):
+def enviar_email_smtp(destinatario, nome_cliente, pdf_bytes, dados_cliente, tipo='cliente'):
     if "email" not in st.secrets: return False, "Configuracoes de e-mail nao encontradas."
     try:
         smtp_server = st.secrets["email"]["smtp_server"].strip()
@@ -1364,81 +1367,107 @@ def enviar_email_smtp(destinatario, nome_cliente, pdf_bytes, dados_cliente):
     except Exception as e: return False, f"Erro config: {e}"
 
     msg = MIMEMultipart('alternative')
-    msg['From'] = sender_email; msg['To'] = destinatario; msg['Subject'] = f"Resumo da Simulação - {nome_cliente}"
+    msg['From'] = sender_email; msg['To'] = destinatario
     
     # Extrair dados para o email
     emp = dados_cliente.get('empreendimento_nome', 'Seu Imóvel')
     unid = dados_cliente.get('unidade_id', '')
     val_venda = fmt_br(dados_cliente.get('imovel_valor', 0))
+    val_aval = fmt_br(dados_cliente.get('imovel_avaliacao', 0))
     entrada = fmt_br(dados_cliente.get('entrada_total', 0))
     finan = fmt_br(dados_cliente.get('finan_usado', 0))
     ps = fmt_br(dados_cliente.get('ps_mensal', 0))
+    renda_cli = fmt_br(dados_cliente.get('renda', 0))
     
     corretor_nome = dados_cliente.get('corretor_nome', 'Direcional')
     corretor_tel = dados_cliente.get('corretor_telefone', '')
     corretor_email = dados_cliente.get('corretor_email', '')
     
-    # HTML Content - ESTILIZADO E DETALHADO
-    html_content = f"""
-    <html>
-    <body style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; color: #002c5d; background-color: #f4f6f8; margin: 0; padding: 20px;">
-        <div style="max-width: 650px; margin: auto; background-color: #ffffff; padding: 40px; border-radius: 12px; box-shadow: 0 10px 25px rgba(0,0,0,0.05); border-top: 6px solid #e30613;">
-            <div style="text-align: center; margin-bottom: 30px;">
-                <h2 style="color: #002c5d; margin: 0; text-transform: uppercase; letter-spacing: 2px;">Resumo de Simulação</h2>
-                <p style="color: #64748b; font-size: 0.9em; margin-top: 5px;">O sonho da sua casa própria está mais perto!</p>
-            </div>
-
-            <p>Olá, <strong>{nome_cliente}</strong>!</p>
-            <p>Foi um prazer apresentar as oportunidades da Direcional. Veja abaixo um resumo exclusivo da proposta que desenhamos para você:</p>
-            
-            <div style="background-color: #f8fafc; border-radius: 8px; padding: 20px; margin: 25px 0; border: 1px solid #e2e8f0;">
-                <h3 style="color: #002c5d; margin-top: 0; border-bottom: 2px solid #e30613; padding-bottom: 10px; display: inline-block;">{emp}</h3>
-                <p style="margin: 5px 0 0 0; color: #64748b; font-weight: bold;">Unidade: {unid}</p>
-            </div>
-
-            <table style="width: 100%; border-collapse: separate; border-spacing: 0; margin-bottom: 30px;">
-                <tr>
-                    <td style="padding: 15px; border-bottom: 1px solid #e2e8f0; color: #64748b;">Valor do Imóvel</td>
-                    <td style="padding: 15px; border-bottom: 1px solid #e2e8f0; font-weight: bold; font-size: 1.2em; color: #e30613; text-align: right;">R$ {val_venda}</td>
-                </tr>
-                <tr>
-                    <td style="padding: 15px; border-bottom: 1px solid #e2e8f0; color: #64748b;">Entrada Total</td>
-                    <td style="padding: 15px; border-bottom: 1px solid #e2e8f0; font-weight: bold; color: #002c5d; text-align: right;">R$ {entrada}</td>
-                </tr>
-                <tr>
-                    <td style="padding: 15px; border-bottom: 1px solid #e2e8f0; color: #64748b;">Financiamento Bancário</td>
-                    <td style="padding: 15px; border-bottom: 1px solid #e2e8f0; font-weight: bold; color: #002c5d; text-align: right;">R$ {finan}</td>
-                </tr>
-                <tr>
-                    <td style="padding: 15px; border-bottom: 1px solid #e2e8f0; color: #64748b;">Mensalidade Pro Soluto</td>
-                    <td style="padding: 15px; border-bottom: 1px solid #e2e8f0; font-weight: bold; color: #002c5d; text-align: right;">R$ {ps}</td>
-                </tr>
-            </table>
-            
-            <div style="text-align: center; margin: 30px 0;">
-                <p style="background-color: #e30613; color: white; display: inline-block; padding: 10px 20px; border-radius: 50px; font-weight: bold; font-size: 0.9em;">ANEXO: PDF DETALHADO DA SIMULAÇÃO</p>
-            </div>
-
-            <p style="font-size: 0.9em; color: #64748b; line-height: 1.6;">Este documento é uma simulação preliminar sujeita a análise de crédito e disponibilidade da unidade. Analise com carinho e conte comigo para tirar qualquer dúvida.</p>
-            
-            <div style="margin-top: 40px; padding-top: 20px; border-top: 1px solid #e2e8f0; display: flex; align-items: center;">
-                <div style="flex-grow: 1;">
-                    <p style="margin: 0; font-weight: bold; color: #002c5d; font-size: 1.1em;">{corretor_nome}</p>
-                    <p style="margin: 2px 0; font-size: 0.9em; color: #e30613;">Consultor(a) Direcional</p>
-                    <p style="margin: 5px 0 0 0; font-size: 0.9em; color: #64748b;">{corretor_tel}</p>
-                    <p style="margin: 2px 0; font-size: 0.9em; color: #64748b;">{corretor_email}</p>
+    # TEMPLATE CLIENTE (Foco no sonho, design limpo)
+    if tipo == 'cliente':
+        msg['Subject'] = f"Seu sonho está próximo! Simulação - {emp}"
+        html_content = f"""
+        <html>
+        <body style="font-family: 'Helvetica', sans-serif; color: #333; background-color: #f9f9f9; margin: 0; padding: 20px;">
+            <div style="max-width: 600px; margin: auto; background-color: #fff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 15px rgba(0,0,0,0.05);">
+                <div style="background-color: #002c5d; padding: 30px; text-align: center;">
+                    <img src="https://direcional.com.br/wp-content/uploads/2021/04/cropped-favicon-direcional-32x32.png" width="50" style="margin-bottom: 10px;">
+                    <h2 style="color: #fff; margin: 0; font-weight: 300; letter-spacing: 1px;">Olá, {nome_cliente}!</h2>
                 </div>
-                <div style="text-align: right;">
-                    <img src="https://direcional.com.br/wp-content/uploads/2021/04/cropped-favicon-direcional-32x32.png" width="40" alt="Direcional">
+                <div style="padding: 40px;">
+                    <p style="font-size: 1.1em; line-height: 1.6; text-align: center; color: #555;">
+                        Foi ótimo apresentar as oportunidades da Direcional para você. O imóvel <strong>{emp}</strong> é incrível e desenhamos uma condição especial para o seu perfil.
+                    </p>
+                    
+                    <div style="background-color: #f0f4f8; border-left: 5px solid #e30613; padding: 20px; margin: 30px 0; border-radius: 4px;">
+                        <p style="margin: 0; font-weight: bold; color: #002c5d; font-size: 1.2em;">{emp}</p>
+                        <p style="margin: 5px 0 0 0; color: #777;">Unidade: {unid}</p>
+                        <p style="margin: 15px 0 0 0; font-size: 1.5em; font-weight: bold; color: #e30613;">R$ {val_venda}</p>
+                    </div>
+
+                    <p style="text-align: center;">Confira os detalhes completos no PDF anexo.</p>
+                    
+                    <div style="margin-top: 40px; border-top: 1px solid #eee; padding-top: 20px; text-align: center;">
+                        <p style="margin: 0; font-weight: bold; color: #002c5d;">{corretor_nome}</p>
+                        <p style="margin: 5px 0; color: #777; font-size: 0.9em;">Seu Consultor Direcional</p>
+                        <a href="tel:{corretor_tel}" style="color: #e30613; text-decoration: none; font-weight: bold;">{corretor_tel}</a>
+                    </div>
                 </div>
             </div>
-        </div>
-        <div style="text-align: center; margin-top: 20px; font-size: 0.8em; color: #94a3b8;">
-            &copy; {datetime.now().year} Direcional Engenharia. Todos os direitos reservados.
-        </div>
-    </body>
-    </html>
-    """
+        </body>
+        </html>
+        """
+    
+    # TEMPLATE CORRETOR (Foco técnico, dados completos)
+    else:
+        msg['Subject'] = f"LEAD: {nome_cliente} - {emp} - {unid}"
+        html_content = f"""
+        <html>
+        <body style="font-family: 'Arial', sans-serif; color: #333; background-color: #eee; margin: 0; padding: 20px;">
+            <div style="max-width: 650px; margin: auto; background-color: #fff; padding: 30px; border: 1px solid #ccc;">
+                <h3 style="color: #002c5d; border-bottom: 2px solid #e30613; padding-bottom: 10px;">RESUMO DE ATENDIMENTO</h3>
+                
+                <div style="display: flex; margin-bottom: 20px;">
+                    <div style="flex: 1;">
+                        <p style="margin: 5px 0; font-size: 0.9em; color: #666;">CLIENTE</p>
+                        <p style="margin: 0; font-weight: bold;">{nome_cliente}</p>
+                        <p style="margin: 0; font-size: 0.9em;">Renda: R$ {renda_cli}</p>
+                    </div>
+                    <div style="flex: 1;">
+                        <p style="margin: 5px 0; font-size: 0.9em; color: #666;">PRODUTO</p>
+                        <p style="margin: 0; font-weight: bold;">{emp}</p>
+                        <p style="margin: 0;">Unid: {unid}</p>
+                    </div>
+                </div>
+
+                <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px; font-size: 0.9em;">
+                    <tr style="background-color: #f2f2f2;">
+                        <td style="padding: 8px; border: 1px solid #ddd;">Valor Venda</td>
+                        <td style="padding: 8px; border: 1px solid #ddd; text-align: right;"><b>R$ {val_venda}</b></td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 8px; border: 1px solid #ddd;">Avaliação</td>
+                        <td style="padding: 8px; border: 1px solid #ddd; text-align: right;">R$ {val_aval}</td>
+                    </tr>
+                    <tr style="background-color: #f2f2f2;">
+                        <td style="padding: 8px; border: 1px solid #ddd;">Entrada Total</td>
+                        <td style="padding: 8px; border: 1px solid #ddd; text-align: right; color: #002c5d;"><b>R$ {entrada}</b></td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 8px; border: 1px solid #ddd;">Financiamento</td>
+                        <td style="padding: 8px; border: 1px solid #ddd; text-align: right;">R$ {finan}</td>
+                    </tr>
+                    <tr style="background-color: #f2f2f2;">
+                        <td style="padding: 8px; border: 1px solid #ddd;">Mensal Pro Soluto</td>
+                        <td style="padding: 8px; border: 1px solid #ddd; text-align: right;">R$ {ps}</td>
+                    </tr>
+                </table>
+                
+                <p style="font-size: 0.8em; color: #999; text-align: center;">Simulação gerada via Direcional Rio Simulador.</p>
+            </div>
+        </body>
+        </html>
+        """
     
     msg.attach(MIMEText(html_content, 'html'))
     
@@ -1496,12 +1525,12 @@ def show_export_dialog(d):
         st.warning("Geração de PDF indisponível.")
 
     st.markdown("---")
-    st.markdown("**Enviar por E-mail**")
-    email = st.text_input("Endereço de e-mail", placeholder="cliente@exemplo.com")
-    if st.button("Enviar Email", use_container_width=True):
+    st.markdown("**Enviar por E-mail (Cliente)**")
+    email = st.text_input("Endereço de e-mail do cliente", placeholder="cliente@exemplo.com")
+    if st.button("Enviar Email para Cliente", use_container_width=True):
         if email and "@" in email:
-            # Passando DADOS COMPLETOS para o email HTML
-            sucesso, msg = enviar_email_smtp(email, d.get('nome', 'Cliente'), pdf_data, d)
+            # Passando DADOS COMPLETOS para o email HTML e tipo CLIENTE
+            sucesso, msg = enviar_email_smtp(email, d.get('nome', 'Cliente'), pdf_data, d, tipo='cliente')
             if sucesso: st.success(msg)
             else: st.error(msg)
         else:
@@ -2600,7 +2629,20 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
                     poder_t, _ = motor.calcular_poder_compra(d.get('renda', 0), fin_t, sub_t, ps_max_val)
                     percentual_cobertura = min(100, max(0, (poder_t / v_venda) * 100))
                     cor_term = calcular_cor_gradiente(percentual_cobertura)
-                    st.markdown(f"""<div style="margin-top: 20px; padding: 15px; border: 1px solid #e2e8f0; border-radius: 10px; background-color: #f8fafc; text-align: center;"><p style="margin: 0; font-weight: 700; font-size: 0.9rem; color: #002c5d;">TERMÔMETRO DE VIABILIDADE</p><div style="width: 100%; background-color: #e2e8f0; border-radius: 5px; height: 10px; margin: 10px 0;"><div style="width: {percentual_cobertura}%; background: linear-gradient(90deg, #e30613 0%, #002c5d 100%); height: 100%; border-radius: 5px; transition: width 0.5s;"></div></div><small>{percentual_cobertura:.1f}% Coberto</small></div>""", unsafe_allow_html=True)
+                    st.markdown(f"""
+                        <div style="margin-top: 20px; padding: 15px; border: 1px solid #e2e8f0; border-radius: 10px; background-color: #f8fafc; text-align: center;">
+                            <div style="display: flex; justify-content: space-around; margin-bottom: 10px; font-size: 0.9rem;">
+                                <div><b>Valor de Avaliação:</b><br>R$ {fmt_br(v_aval)}</div>
+                                <div><b>Valor Comercial (Venda):</b><br>R$ {fmt_br(v_venda)}</div>
+                            </div>
+                            <hr style="margin: 10px 0; border: 0; border-top: 1px solid #e2e8f0;">
+                            <p style="margin: 0; font-weight: 700; font-size: 0.9rem; color: #002c5d;">TERMÔMETRO DE VIABILIDADE</p>
+                            <div style="width: 100%; background-color: #e2e8f0; border-radius: 5px; height: 10px; margin: 10px 0;">
+                                <div style="width: {percentual_cobertura}%; background: linear-gradient(90deg, #e30613 0%, #002c5d 100%); height: 100%; border-radius: 5px; transition: width 0.5s;"></div>
+                            </div>
+                            <small>{percentual_cobertura:.1f}% Coberto</small>
+                        </div>
+                    """, unsafe_allow_html=True)
             st.markdown("<br>", unsafe_allow_html=True)
             if st.button("Avançar para Fechamento Financeiro", type="primary", use_container_width=True):
                 if uni_escolhida_id:
@@ -2629,8 +2671,8 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
         st.markdown(f"""
         <div class="custom-alert" style="flex-direction: column; align-items: flex-start; padding: 20px;">
             <div style="font-size: 1.1rem; margin-bottom: 5px;">{u_nome} - {u_unid}</div>
-            <div style="font-size: 0.9rem; opacity: 0.9;">Valor de Venda: <b>R$ {fmt_br(u_valor)}</b></div>
-            <div style="font-size: 0.9rem; opacity: 0.9;">Avaliação Bancária: <b>R$ {fmt_br(u_aval)}</b></div>
+            <div style="font-size: 0.9rem; opacity: 0.9;">Valor Comercial Mínimo: <b>R$ {fmt_br(u_valor)}</b></div>
+            <div style="font-size: 0.9rem; opacity: 0.9;">Valor de Avaliação Bancária: <b>R$ {fmt_br(u_aval)}</b></div>
         </div>
         """, unsafe_allow_html=True)
         
@@ -2713,85 +2755,71 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
         
         is_emcash = (d.get('politica') == 'Emcash')
         
-        def distribuir_callback(n_parcelas):
-            # Obter valores atuais (com fallback para 0.0 se None)
-            a1 = st.session_state.get('ato_1_key') or 0.0
-            a2 = st.session_state.get('ato_2_key') or 0.0
-            a3 = st.session_state.get('ato_3_key') or 0.0
-            a4 = st.session_state.get('ato_4_key') or 0.0
+        # --- NOVO ATO 1 (Imediato) FULL WIDTH ---
+        v1 = val_none(st.session_state.get('ato_1_key', 0.0))
+        r1 = st.number_input("Ato (Entrada Imediata)", value=v1, key="ato_1_key", step=100.0, format="%.2f", placeholder="0,00", help="Valor pago no ato da assinatura.")
+        st.session_state.dados_cliente['ato_final'] = r1 if r1 else 0.0
+        
+        # Função para distribuir o restante
+        def distribuir_restante(n_parcelas):
+            # Valor já inserido no Ato 1
+            a1_atual = st.session_state.get('ato_1_key') or 0.0
             
-            total_preenchido = a1 + a2 + a3 + a4
+            # Gap total atualizado (quanto falta para fechar a conta dos atos)
+            # Gap = Valor - Finan - FGTS - PS
+            gap_total = max(0.0, u_valor - f_u_input - fgts_u_input - ps_atual)
             
-            targets = [] # Lista de keys para distribuir
-            current_sum = 0.0
+            # Restante a distribuir nos outros atos
+            restante = max(0.0, gap_total - a1_atual)
             
-            # Definir chaves disponíveis baseado em n_parcelas
-            keys_available = ['ato_1_key']
-            if n_parcelas >= 2: keys_available.append('ato_2_key')
-            if n_parcelas >= 3: keys_available.append('ato_3_key')
-            if n_parcelas >= 4 and not is_emcash: keys_available.append('ato_4_key')
-            
-            # Checar valores atuais nessas chaves
-            for k in keys_available:
-                val = st.session_state.get(k) or 0.0
-                if val > 0:
-                    current_sum += val
-                else:
-                    targets.append(k)
-            
-            if len(targets) == 0 and total_preenchido > 0:
-                targets = keys_available
-                current_sum = 0.0
-            
-            if total_preenchido == 0:
-                targets = keys_available
-                current_sum = 0.0
+            if restante > 0 and n_parcelas > 0:
+                val_per_target = restante / n_parcelas
+                
+                # Distribuir conforme politica
+                if n_parcelas == 2: # 30/60
+                    st.session_state['ato_2_key'] = val_per_target
+                    st.session_state['ato_3_key'] = val_per_target
+                    st.session_state['ato_4_key'] = 0.0
+                elif n_parcelas == 3: # 30/60/90
+                    st.session_state['ato_2_key'] = val_per_target
+                    st.session_state['ato_3_key'] = val_per_target
+                    st.session_state['ato_4_key'] = val_per_target
+            else:
+                # Se não há restante ou negativo, zerar futuros
+                st.session_state['ato_2_key'] = 0.0
+                st.session_state['ato_3_key'] = 0.0
+                st.session_state['ato_4_key'] = 0.0
 
-            gap_total_atos = max(0.0, u_valor - f_u_input - fgts_u_input - ps_atual)
-            remainder = max(0.0, gap_total_atos - current_sum)
-            
-            if len(targets) > 0:
-                val_per_target = remainder / len(targets)
-                for k in targets:
-                    st.session_state[k] = val_per_target
-            
-            # Zerar os que estão fora do N (ex: clicou 2x, zera 3 e 4)
-            all_keys = ['ato_1_key', 'ato_2_key', 'ato_3_key', 'ato_4_key']
-            for k in all_keys:
-                if k not in keys_available:
-                    st.session_state[k] = 0.0 # Aqui mantemos 0.0 para zerar explicitamente
-
-            # Atualizar dados_cliente para persistência
-            st.session_state.dados_cliente['ato_final'] = st.session_state['ato_1_key']
+            # Atualizar session persistente
             st.session_state.dados_cliente['ato_30'] = st.session_state['ato_2_key']
             st.session_state.dados_cliente['ato_60'] = st.session_state['ato_3_key']
             st.session_state.dados_cliente['ato_90'] = st.session_state['ato_4_key']
 
-        st.markdown('<label style="font-size: 0.8rem; font-weight: 600;">Distribuir Atos Automaticamente:</label>', unsafe_allow_html=True)
-        col_dist1, col_dist2, col_dist3, col_dist4 = st.columns(4)
-        with col_dist1: st.button("1x", use_container_width=True, key="btn_d1", on_click=distribuir_callback, args=(1,))
-        with col_dist2: st.button("2x", use_container_width=True, key="btn_d2", on_click=distribuir_callback, args=(2,))
-        with col_dist3: st.button("3x", use_container_width=True, key="btn_d3", on_click=distribuir_callback, args=(3,))
-        with col_dist4: st.button("4x", use_container_width=True, disabled=is_emcash, key="btn_d4", on_click=distribuir_callback, args=(4,))
+        st.markdown('<label style="font-size: 0.8rem; font-weight: 600;">Opções de Redistribuição do Saldo Restante:</label>', unsafe_allow_html=True)
+        col_dist_a, col_dist_b = st.columns(2)
+        
+        # Botões de distribuição do restante
+        with col_dist_a: 
+            st.button("Distribuir Restante em 2x (30/60)", use_container_width=True, key="btn_rest_2x", on_click=distribuir_restante, args=(2,))
+        with col_dist_b: 
+            st.button("Distribuir Restante em 3x (30/60/90)", use_container_width=True, disabled=is_emcash, key="btn_rest_3x", on_click=distribuir_restante, args=(3,))
         
         st.write("") 
-        col_a, col_b = st.columns(2)
-        with col_a:
-            v1 = val_none(st.session_state.get('ato_1_key', 0.0))
-            v3 = val_none(st.session_state.get('ato_3_key', 0.0))
-            r1 = st.number_input("Ato (Imediato)", value=v1, key="ato_1_key", step=100.0, format="%.2f", placeholder="0,00")
-            r3 = st.number_input("Ato 60 Dias", value=v3, key="ato_3_key", step=100.0, format="%.2f", placeholder="0,00")
+        col_atos_rest1, col_atos_rest2, col_atos_rest3 = st.columns(3)
+        
+        with col_atos_rest1:
+            v2 = val_none(st.session_state.get('ato_2_key', 0.0))
+            r2 = st.number_input("Ato 30 Dias", value=v2, key="ato_2_key", step=100.0, format="%.2f", placeholder="0,00")
+            st.session_state.dados_cliente['ato_30'] = r2 if r2 else 0.0
             
-            st.session_state.dados_cliente['ato_final'] = r1 if r1 else 0.0
+        with col_atos_rest2:
+            v3 = val_none(st.session_state.get('ato_3_key', 0.0))
+            r3 = st.number_input("Ato 60 Dias", value=v3, key="ato_3_key", step=100.0, format="%.2f", placeholder="0,00")
             st.session_state.dados_cliente['ato_60'] = r3 if r3 else 0.0
             
-        with col_b:
-            v2 = val_none(st.session_state.get('ato_2_key', 0.0))
+        with col_atos_rest3:
             v4 = val_none(st.session_state.get('ato_4_key', 0.0))
-            r2 = st.number_input("Ato 30 Dias", value=v2, key="ato_2_key", step=100.0, format="%.2f", placeholder="0,00")
             r4 = st.number_input("Ato 90 Dias", value=v4, key="ato_4_key", step=100.0, disabled=is_emcash, format="%.2f", placeholder="0,00")
-            
-            st.session_state.dados_cliente['ato_30'] = r2 if r2 else 0.0
             st.session_state.dados_cliente['ato_90'] = r4 if r4 else 0.0
             
         st.markdown("<hr style='margin: 10px 0;'>", unsafe_allow_html=True)
@@ -2864,7 +2892,13 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
         d = st.session_state.dados_cliente
         st.markdown(f"### Resumo da Simulação - {d.get('nome', 'Cliente')}")
         st.markdown(f'<div class="summary-header">DADOS DO IMÓVEL</div>', unsafe_allow_html=True)
-        st.markdown(f"""<div class="summary-body"><b>Empreendimento:</b> {d.get('empreendimento_nome')}<br><b>Unidade:</b> {d.get('unidade_id')}<br><b>Valor de Venda:</b> <span style="color: {COR_VERMELHO}; font-weight: 800;">R$ {fmt_br(d.get('imovel_valor', 0))}</span></div>""", unsafe_allow_html=True)
+        st.markdown(f"""
+        <div class="summary-body">
+            <b>Empreendimento:</b> {d.get('empreendimento_nome')}<br>
+            <b>Unidade:</b> {d.get('unidade_id')}<br>
+            <b>Valor Comercial (Venda):</b> <span style="color: {COR_VERMELHO}; font-weight: 800;">R$ {fmt_br(d.get('imovel_valor', 0))}</span><br>
+            <b>Avaliação Bancária:</b> R$ {fmt_br(d.get('imovel_avaliacao', 0))}
+        </div>""", unsafe_allow_html=True)
         
         # --- NOVO: EXIBIR DETALHES ADICIONAIS ---
         st.markdown(f'<div class="summary-header">DETALHES DA UNIDADE</div>', unsafe_allow_html=True)
@@ -2892,7 +2926,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
                 with st.spinner("Gerando PDF e enviando para seu e-mail..."):
                     pdf_bytes_auto = gerar_resumo_pdf(d)
                     if pdf_bytes_auto:
-                        sucesso_email, msg_email = enviar_email_smtp(broker_email, d.get('nome', 'Cliente'), pdf_bytes_auto, d)
+                        sucesso_email, msg_email = enviar_email_smtp(broker_email, d.get('nome', 'Cliente'), pdf_bytes_auto, d, tipo='corretor')
                         if sucesso_email: st.toast("PDF enviado para seu e-mail com sucesso!", icon="📧")
                         else: st.toast(f"Falha no envio automático: {msg_email}", icon="⚠️")
             try:
