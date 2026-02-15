@@ -597,7 +597,7 @@ def carregar_dados_sistema():
                 df_estoque['Empreendimento'] = df_estoque['Empreendimento'].astype(str).str.strip()
             if 'Bairro' in df_estoque.columns:
                 df_estoque['Bairro'] = df_estoque['Bairro'].astype(str).str.strip()
-                                             
+                                                 
         except: 
             df_estoque = pd.DataFrame(columns=['Empreendimento', 'Valor de Venda', 'Status', 'Identificador', 'Bairro', 'Valor de Avaliação Bancária'])
 
@@ -689,6 +689,30 @@ def configurar_layout():
         .scrolling-images img:hover {{
             transform: scale(1.02);
             border-color: {COR_AZUL_ESC};
+        }}
+        
+        /* MASTERPLAN PLACEHOLDER */
+        .masterplan-placeholder {{
+            height: 250px;
+            width: 350px;
+            background-color: #f1f5f9;
+            border: 2px dashed #cbd5e1;
+            border-radius: 12px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            color: #64748b;
+            font-weight: 700;
+            font-size: 0.9rem;
+            flex: 0 0 auto;
+            transition: all 0.2s;
+        }}
+        .masterplan-placeholder:hover {{
+            border-color: {COR_AZUL_ESC};
+            color: {COR_AZUL_ESC};
+            background-color: #e2e8f0;
         }}
         
         /* LIGHTBOX MODAL CSS */
@@ -1905,7 +1929,18 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
                         slider_html = '<div class="scrolling-images">'
                         for img in categorias["PLANTAS"]:
                             link_thumb, link_full = formatar_link_drive(img['link'])
-                            slider_html += f'<img src="{link_thumb}" alt="{img["nome"]}" title="{img["nome"]}" onclick="openModal(\'{link_full}\')">'
+                            
+                            # CORREÇÃO MASTERPLAN: Imagens gigantes não geram thumbnail. Usar Placeholder.
+                            if "MASTERPLAN" in img['nome'].upper():
+                                slider_html += f'''
+                                <div class="masterplan-placeholder" onclick="openModal('{link_full}')">
+                                    <div style="font-size: 3rem; margin-bottom: 10px;">🗺️</div>
+                                    <div>MASTERPLAN</div>
+                                    <div style="font-size: 0.7rem; font-weight: 400; margin-top: 5px;">Clique para visualizar</div>
+                                </div>
+                                '''
+                            else:
+                                slider_html += f'<img src="{link_thumb}" alt="{img["nome"]}" title="{img["nome"]}" onclick="openModal(\'{link_full}\')">'
                         slider_html += '</div>'
                         st.markdown(slider_html, unsafe_allow_html=True)
                         st.markdown("<br>", unsafe_allow_html=True)
@@ -1985,7 +2020,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
                 
                 # Define cores personalizadas para cada tipo de pagamento
                 color_scale = alt.Scale(domain=['Ato', '30 Dias', '60 Dias', '90 Dias', 'Pro Soluto', 'Financiamento', 'FGTS/Subsídio'],
-                                        range=['#e30613', '#c0392b', '#94a3b8', '#64748b', '#f59e0b', '#002c5d', '#10b981'])
+                                                        range=['#e30613', '#c0392b', '#94a3b8', '#64748b', '#f59e0b', '#002c5d', '#10b981'])
 
                 # Selection for interactivity
                 hover = alt.selection_point(on='mouseover', empty=False, fields=['Tipo'])
@@ -2020,7 +2055,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
                 df_renda = pd.DataFrame(pie_renda, columns=['Participante', 'Renda'])
                 
                 color_scale_renda = alt.Scale(domain=[f"Part. {i+1}" for i in range(len(pie_renda))],
-                                              range=['#002c5d', '#e30613', '#f59e0b', '#10b981'])
+                                                        range=['#002c5d', '#e30613', '#f59e0b', '#10b981'])
 
                 hover_renda = alt.selection_point(on='mouseover', empty=False, fields=['Participante'])
 
@@ -2276,10 +2311,10 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
                     cheapest = df_disp_total.sort_values('Valor de Venda', ascending=True).iloc[0]
                     emp_fallback = cheapest['Empreendimento']
                     st.markdown(f"""
-                            <div class="card" style="min-height: 80px; padding: 15px; border-top: 3px solid {COR_AZUL_ESC};">
-                                <p style="margin:0; font-weight:700; color:{COR_AZUL_ESC};">{emp_fallback}</p>
-                                <p style="margin:5px 0 0 0; font-size:0.85rem; color:{COR_TEXTO_MUTED};">Melhor preço disponível: R$ {fmt_br(cheapest['Valor de Venda'])}</p>
-                            </div>
+                                <div class="card" style="min-height: 80px; padding: 15px; border-top: 3px solid {COR_AZUL_ESC};">
+                                    <p style="margin:0; font-weight:700; color:{COR_AZUL_ESC};">{emp_fallback}</p>
+                                    <p style="margin:5px 0 0 0; font-size:0.85rem; color:{COR_TEXTO_MUTED};">Melhor preço disponível: R$ {fmt_br(cheapest['Valor de Venda'])}</p>
+                                </div>
                         """, unsafe_allow_html=True)
                  else:
                     st.error("Sem estoque disponível.")
@@ -2766,6 +2801,6 @@ def main():
     else: aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros)
 
     st.markdown(f'<div class="footer">Direcional Engenharia - Rio de Janeiro | Developed by Lucas Maia</div>', unsafe_allow_html=True)
-
+Coo
 if __name__ == "__main__":
     main()
