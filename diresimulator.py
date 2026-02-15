@@ -24,6 +24,7 @@ import pytz
 import altair as alt
 import folium
 from streamlit_folium import st_folium
+import math
 
 # Tenta importar fpdf e PIL
 try:
@@ -539,7 +540,11 @@ def carregar_dados_sistema():
                 'PS Ouro': 'PS_Ouro',
                 'PS Prata': 'PS_Prata',
                 'PS Bronze': 'PS_Bronze',
-                'PS Aço': 'PS_Aco'
+                'PS Aço': 'PS_Aco',
+                'Data de Entrega da Obra': 'Data Entrega',
+                'Área privativa total': 'Area',
+                'Tipo Planta/Área': 'Tipologia',
+                'Endereço': 'Endereco'
             }
             
             df_estoque = df_raw.rename(columns=mapa_estoque)
@@ -549,6 +554,10 @@ def carregar_dados_sistema():
             if 'Valor de Avaliação Bancária' not in df_estoque.columns: df_estoque['Valor de Avaliação Bancária'] = df_estoque['Valor de Venda']
             if 'Status' not in df_estoque.columns: df_estoque['Status'] = 'Disponível'
             if 'Empreendimento' not in df_estoque.columns: df_estoque['Empreendimento'] = 'N/A'
+            if 'Data Entrega' not in df_estoque.columns: df_estoque['Data Entrega'] = ''
+            if 'Area' not in df_estoque.columns: df_estoque['Area'] = ''
+            if 'Tipologia' not in df_estoque.columns: df_estoque['Tipologia'] = ''
+            if 'Endereco' not in df_estoque.columns: df_estoque['Endereco'] = ''
             
             # Conversões numéricas
             df_estoque['Valor de Venda'] = df_estoque['Valor de Venda'].apply(limpar_moeda)
@@ -1259,6 +1268,11 @@ def gerar_resumo_pdf(d):
         linha("Empreendimento", str(d.get('empreendimento_nome')))
         linha("Unidade Selecionada", str(d.get('unidade_id')))
         linha("Valor de Venda", f"R$ {fmt_br(d.get('imovel_valor', 0))}", True)
+        if d.get('unid_entrega'): linha("Previsão de Entrega", str(d.get('unid_entrega')))
+        if d.get('unid_area'): linha("Área Privativa", f"{d.get('unid_area')} m²")
+        if d.get('unid_tipo'): linha("Tipologia", str(d.get('unid_tipo')))
+        if d.get('unid_endereco') and d.get('unid_bairro'): 
+            linha("Endereço", f"{d.get('unid_endereco')} - {d.get('unid_bairro')}")
 
         pdf.ln(4)
 
@@ -1863,6 +1877,53 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
                     meta = CATALOGO_PRODUTOS[prod_key]
                     
                     st.markdown(f"#### {prod_key}")
+                    
+                    # --- NOVO: INFOS DO EMPREENDIMENTO ---
+                    if not df_estoque.empty and 'Empreendimento' in df_estoque.columns:
+                        df_emp_info = df_estoque[df_estoque['Empreendimento'] == prod_key]
+                        if not df_emp_info.empty:
+                            # Cálculos
+                            var_preco = f"A partir de R$ {fmt_br(df_emp_info['Valor de Venda'].min())}"
+                            
+                            areas = []
+                            if 'Area' in df_emp_info.columns:
+                                areas_vals = pd.to_numeric(df_emp_info['Area'], errors='coerce').dropna()
+                                if not areas_vals.empty:
+                                    areas = [f"{areas_vals.min()}m²" if areas_vals.min() == areas_vals.max() else f"{areas_vals.min()}m² a {areas_vals.max()}m²"]
+                            metragem_txt = areas[0] if areas else "N/A"
+                            
+                            num_unidades = len(df_emp_info)
+                            num_blocos = df_emp_info['Bloco_Sort'].nunique() if 'Bloco_Sort' in df_emp_info.columns else 1
+                            
+                            # Fórmula solicitada: sup(numero de unidades/numero de blocos) = teto(unidades/blocos)
+                            # Ou simplesmente usar o max Andar se disponível
+                            qtd_andares = "N/A"
+                            if num_blocos > 0:
+                                qtd_andares = math.ceil(num_unidades / num_blocos)
+                                # Se preferir usar o dado real da coluna Andar:
+                                # if 'Andar' in df_emp_info.columns and df_emp_info['Andar'].max() > 0:
+                                #     qtd_andares = df_emp_info['Andar'].max()
+                            
+                            bairro_info = df_emp_info['Bairro'].iloc[0] if 'Bairro' in df_emp_info.columns else "N/A"
+                            endereco_info = df_emp_info['Endereco'].iloc[0] if 'Endereco' in df_emp_info.columns else "N/A"
+                            entrega_info = df_emp_info['Data Entrega'].iloc[0] if 'Data Entrega' in df_emp_info.columns else "N/A"
+                            
+                            st.markdown(f"""
+                            <div style="background-color: #f8fafc; padding: 20px; border-radius: 12px; border: 1px solid #e2e8f0; margin-bottom: 20px;">
+                                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px;">
+                                    <div><small style="color:#64748b; font-weight:bold;">PREÇO</small><br><span style="color:{COR_AZUL_ESC}; font-weight:bold;">{var_preco}</span></div>
+                                    <div><small style="color:#64748b; font-weight:bold;">METRAGEM</small><br><span style="color:{COR_AZUL_ESC}; font-weight:bold;">{metragem_txt}</span></div>
+                                    <div><small style="color:#64748b; font-weight:bold;">TOTAL UNIDADES</small><br><span style="color:{COR_AZUL_ESC}; font-weight:bold;">{num_unidades}</span></div>
+                                    <div><small style="color:#64748b; font-weight:bold;">BLOCOS</small><br><span style="color:{COR_AZUL_ESC}; font-weight:bold;">{num_blocos}</span></div>
+                                    <div><small style="color:#64748b; font-weight:bold;">UNID. POR BLOCO (MÉDIA)</small><br><span style="color:{COR_AZUL_ESC}; font-weight:bold;">{qtd_andares}</span></div>
+                                    <div><small style="color:#64748b; font-weight:bold;">BAIRRO</small><br><span style="color:{COR_AZUL_ESC}; font-weight:bold;">{bairro_info}</span></div>
+                                    <div><small style="color:#64748b; font-weight:bold;">DATA ENTREGA</small><br><span style="color:{COR_AZUL_ESC}; font-weight:bold;">{entrega_info}</span></div>
+                                </div>
+                                <div style="margin-top: 15px; border-top: 1px solid #e2e8f0; padding-top: 10px;">
+                                    <small style="color:#64748b; font-weight:bold;">ENDEREÇO</small><br><span style="color:{COR_AZUL_ESC};">{endereco_info}</span>
+                                </div>
+                            </div>
+                            """, unsafe_allow_html=True)
                     
                     # SEÇÃO 1: VÍDEO E MAPA (Lado a Lado 50/50)
                     col_vid, col_map = st.columns(2)
@@ -2512,7 +2573,17 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
                 if uni_escolhida_id:
                     u_row = unidades_disp[unidades_disp['Identificador'] == uni_escolhida_id].iloc[0]
                     fin, sub, _ = motor.obter_enquadramento(d.get('renda', 0), d.get('social', False), d.get('cotista', True), u_row['Valor de Avaliação Bancária'])
-                    st.session_state.dados_cliente.update({'unidade_id': uni_escolhida_id, 'empreendimento_nome': emp_escolhido, 'imovel_valor': u_row['Valor de Venda'], 'imovel_avaliacao': u_row['Valor de Avaliação Bancária'], 'finan_estimado': fin, 'fgts_sub': sub})
+                    st.session_state.dados_cliente.update({
+                        'unidade_id': uni_escolhida_id, 'empreendimento_nome': emp_escolhido, 
+                        'imovel_valor': u_row['Valor de Venda'], 'imovel_avaliacao': u_row['Valor de Avaliação Bancária'], 
+                        'finan_estimado': fin, 'fgts_sub': sub,
+                        # Salvar novas infos para o resumo
+                        'unid_entrega': u_row.get('Data Entrega', ''),
+                        'unid_area': u_row.get('Area', ''),
+                        'unid_tipo': u_row.get('Tipologia', ''),
+                        'unid_endereco': u_row.get('Endereco', ''),
+                        'unid_bairro': u_row.get('Bairro', '')
+                    })
                     st.session_state.passo_simulacao = 'payment_flow'; scroll_to_top(); st.rerun()
             if st.button("Voltar para Recomendação de Imóveis", use_container_width=True): st.session_state.passo_simulacao = 'guide'; scroll_to_top(); st.rerun()
 
@@ -2530,7 +2601,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
         </div>
         """, unsafe_allow_html=True)
         
-        def get_float_or_none(val): return None if val == 0.0 else val
+        # Correção do warning: Garantir inicialização e não passar value se key existe
         if 'finan_usado' not in st.session_state.dados_cliente: st.session_state.dados_cliente['finan_usado'] = d.get('finan_estimado', 0.0)
         if 'fgts_sub_usado' not in st.session_state.dados_cliente: st.session_state.dados_cliente['fgts_sub_usado'] = d.get('fgts_sub', 0.0)
         if 'ps_usado' not in st.session_state.dados_cliente: st.session_state.dados_cliente['ps_usado'] = 0.0
@@ -2539,16 +2610,12 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
         if 'ato_60' not in st.session_state.dados_cliente: st.session_state.dados_cliente['ato_60'] = 0.0
         if 'ato_90' not in st.session_state.dados_cliente: st.session_state.dados_cliente['ato_90'] = 0.0
         
-        def val_input(k):
-            v = st.session_state.get(k, 0.0)
-            return None if v == 0.0 else v
-
-        # Atualizar session_state com chaves fixas se não existirem
-        if 'fin_u_key' not in st.session_state: st.session_state['fin_u_key'] = st.session_state.dados_cliente['finan_usado']
+        # --- INPUT FINANCIAMENTO ---
+        # Inicializa a key se não existir
+        if 'fin_u_key' not in st.session_state:
+            st.session_state['fin_u_key'] = st.session_state.dados_cliente.get('finan_usado', 0.0)
         
-        f_val_display = val_input('fin_u_key')
-        f_u_input = st.number_input("Financiamento", value=f_val_display, key="fin_u_key", step=1000.0, placeholder="0,00")
-        if f_u_input is None: f_u_input = 0.0
+        f_u_input = st.number_input("Financiamento", key="fin_u_key", step=1000.0, format="%.2f")
         st.session_state.dados_cliente['finan_usado'] = f_u_input
         st.markdown(f'<span class="inline-ref">Financiamento Máximo: R$ {fmt_br(d.get("finan_estimado", 0))}</span>', unsafe_allow_html=True)
         
@@ -2561,34 +2628,37 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
         taxa_padrao = 8.16; sac_details = calcular_comparativo_sac_price(f_u_input, prazo_finan, taxa_padrao)["SAC"]; price_details = calcular_comparativo_sac_price(f_u_input, prazo_finan, taxa_padrao)["PRICE"]
         st.markdown(f"""<div style="display: flex; justify-content: space-around; margin-bottom: 20px; font-size: 0.85rem; color: #64748b;"><span><b>SAC:</b> R$ {fmt_br(sac_details['primeira'])} a R$ {fmt_br(sac_details['ultima'])} (Juros: R$ {fmt_br(sac_details['juros'])})</span><span><b>PRICE:</b> R$ {fmt_br(price_details['parcela'])} fixas (Juros: R$ {fmt_br(price_details['juros'])})</span></div>""", unsafe_allow_html=True)
         
-        if 'fgts_u_key' not in st.session_state: st.session_state['fgts_u_key'] = st.session_state.dados_cliente['fgts_sub_usado']
-        fgts_val_display = val_input('fgts_u_key')
-        fgts_u_input = st.number_input("FGTS + Subsídio", value=fgts_val_display, key="fgts_u_key", step=1000.0, placeholder="0,00")
-        if fgts_u_input is None: fgts_u_input = 0.0
+        # --- INPUT FGTS ---
+        if 'fgts_u_key' not in st.session_state:
+            st.session_state['fgts_u_key'] = st.session_state.dados_cliente.get('fgts_sub_usado', 0.0)
+        fgts_u_input = st.number_input("FGTS + Subsídio", key="fgts_u_key", step=1000.0, format="%.2f")
         st.session_state.dados_cliente['fgts_sub_usado'] = fgts_u_input
         st.markdown(f'<span class="inline-ref">Subsídio Máximo: R$ {fmt_br(d.get("fgts_sub", 0))}</span>', unsafe_allow_html=True)
         
         st.markdown("<hr style='margin: 10px 0;'>", unsafe_allow_html=True)
         st.markdown("#### Distribuição da Entrada (Saldo a Pagar)")
         
-        if 'ps_u_key' not in st.session_state: st.session_state['ps_u_key'] = st.session_state.dados_cliente['ps_usado']
-        ps_atual = st.session_state.get('ps_u_key', 0.0)
+        if 'ps_u_key' not in st.session_state:
+             st.session_state['ps_u_key'] = st.session_state.dados_cliente.get('ps_usado', 0.0)
+        ps_atual = st.session_state['ps_u_key']
         
         # Saldo para atos = Valor - Finan - FGTS - PS
         saldo_para_atos = max(0.0, u_valor - f_u_input - fgts_u_input - ps_atual)
         
-        if 'ato_1_key' not in st.session_state: st.session_state['ato_1_key'] = st.session_state.dados_cliente['ato_final']
-        if 'ato_2_key' not in st.session_state: st.session_state['ato_2_key'] = st.session_state.dados_cliente['ato_30']
-        if 'ato_3_key' not in st.session_state: st.session_state['ato_3_key'] = st.session_state.dados_cliente['ato_60']
-        if 'ato_4_key' not in st.session_state: st.session_state['ato_4_key'] = st.session_state.dados_cliente['ato_90']
+        # Inicializa chaves de atos se necessário
+        if 'ato_1_key' not in st.session_state: st.session_state['ato_1_key'] = st.session_state.dados_cliente.get('ato_final', 0.0)
+        if 'ato_2_key' not in st.session_state: st.session_state['ato_2_key'] = st.session_state.dados_cliente.get('ato_30', 0.0)
+        if 'ato_3_key' not in st.session_state: st.session_state['ato_3_key'] = st.session_state.dados_cliente.get('ato_60', 0.0)
+        if 'ato_4_key' not in st.session_state: st.session_state['ato_4_key'] = st.session_state.dados_cliente.get('ato_90', 0.0)
+        
         is_emcash = (d.get('politica') == 'Emcash')
         
         def distribuir_callback(n_parcelas):
             # Obter valores atuais
-            a1 = st.session_state.get('ato_1_key', 0.0) or 0.0
-            a2 = st.session_state.get('ato_2_key', 0.0) or 0.0
-            a3 = st.session_state.get('ato_3_key', 0.0) or 0.0
-            a4 = st.session_state.get('ato_4_key', 0.0) or 0.0
+            a1 = st.session_state.get('ato_1_key', 0.0)
+            a2 = st.session_state.get('ato_2_key', 0.0)
+            a3 = st.session_state.get('ato_3_key', 0.0)
+            a4 = st.session_state.get('ato_4_key', 0.0)
             
             total_preenchido = a1 + a2 + a3 + a4
             
@@ -2603,7 +2673,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
             
             # Checar valores atuais nessas chaves
             for k in keys_available:
-                val = st.session_state.get(k, 0.0) or 0.0
+                val = st.session_state.get(k, 0.0)
                 if val > 0:
                     current_sum += val
                 else:
@@ -2647,20 +2717,13 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
         st.write("") 
         col_a, col_b = st.columns(2)
         with col_a:
-            # Usando value=None para limpar visualmente se for 0
-            v_a1 = val_input('ato_1_key'); v_a3 = val_input('ato_3_key')
-            r1 = st.number_input("Ato (Imediato)", value=v_a1, key="ato_1_key", step=100.0, placeholder="0,00")
-            r3 = st.number_input("Ato 60 Dias", value=v_a3, key="ato_3_key", step=100.0, placeholder="0,00")
-            if r1 is None: r1 = 0.0
-            if r3 is None: r3 = 0.0
+            r1 = st.number_input("Ato (Imediato)", key="ato_1_key", step=100.0, format="%.2f")
+            r3 = st.number_input("Ato 60 Dias", key="ato_3_key", step=100.0, format="%.2f")
             st.session_state.dados_cliente['ato_final'] = r1
             st.session_state.dados_cliente['ato_60'] = r3
         with col_b:
-            v_a2 = val_input('ato_2_key'); v_a4 = val_input('ato_4_key')
-            r2 = st.number_input("Ato 30 Dias", value=v_a2, key="ato_2_key", step=100.0, placeholder="0,00")
-            r4 = st.number_input("Ato 90 Dias", value=v_a4, key="ato_4_key", step=100.0, disabled=is_emcash, placeholder="0,00")
-            if r2 is None: r2 = 0.0
-            if r4 is None: r4 = 0.0
+            r2 = st.number_input("Ato 30 Dias", key="ato_2_key", step=100.0, format="%.2f")
+            r4 = st.number_input("Ato 90 Dias", key="ato_4_key", step=100.0, disabled=is_emcash, format="%.2f")
             st.session_state.dados_cliente['ato_30'] = r2
             st.session_state.dados_cliente['ato_90'] = r4
             
@@ -2685,9 +2748,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
                      ps_max_real = row_u.get(col_rank, 0.0)
 
         with col_ps_val:
-            v_ps_disp = val_input('ps_u_key')
-            ps_input_val = st.number_input("Pro Soluto Direcional", value=v_ps_disp, key="ps_u_key", step=1000.0, placeholder="0,00")
-            if ps_input_val is None: ps_input_val = 0.0
+            ps_input_val = st.number_input("Pro Soluto Direcional", key="ps_u_key", step=1000.0, format="%.2f")
             st.session_state.dados_cliente['ps_usado'] = ps_input_val
             st.markdown(f'<span class="inline-ref">Limite Permitido: R$ {fmt_br(ps_max_real)}</span>', unsafe_allow_html=True)
         with col_ps_parc:
@@ -2721,6 +2782,18 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
         st.markdown(f"### Resumo da Simulação - {d.get('nome', 'Cliente')}")
         st.markdown(f'<div class="summary-header">DADOS DO IMÓVEL</div>', unsafe_allow_html=True)
         st.markdown(f"""<div class="summary-body"><b>Empreendimento:</b> {d.get('empreendimento_nome')}<br><b>Unidade:</b> {d.get('unidade_id')}<br><b>Valor de Venda:</b> <span style="color: {COR_VERMELHO}; font-weight: 800;">R$ {fmt_br(d.get('imovel_valor', 0))}</span></div>""", unsafe_allow_html=True)
+        
+        # --- NOVO: EXIBIR DETALHES ADICIONAIS ---
+        st.markdown(f'<div class="summary-header">DETALHES DA UNIDADE</div>', unsafe_allow_html=True)
+        detalhes_html = f"""<div class="summary-body">"""
+        if d.get('unid_entrega'): detalhes_html += f"<b>Previsão de Entrega:</b> {d.get('unid_entrega')}<br>"
+        if d.get('unid_area'): detalhes_html += f"<b>Área Privativa Total:</b> {d.get('unid_area')} m²<br>"
+        if d.get('unid_tipo'): detalhes_html += f"<b>Tipo Planta/Área:</b> {d.get('unid_tipo')}<br>"
+        if d.get('unid_endereco') and d.get('unid_bairro'): 
+            detalhes_html += f"<b>Localização:</b> {d.get('unid_endereco')} - {d.get('unid_bairro')}"
+        detalhes_html += "</div>"
+        st.markdown(detalhes_html, unsafe_allow_html=True)
+        
         st.markdown(f'<div class="summary-header">PLANO DE FINANCIAMENTO</div>', unsafe_allow_html=True)
         prazo_txt = d.get('prazo_financiamento', 360)
         parcela_texto = f"Parcela Estimada ({d.get('sistema_amortizacao', 'SAC')} - {prazo_txt}x): R$ {fmt_br(d.get('parcela_financiamento', 0))}"
@@ -2801,6 +2874,6 @@ def main():
     else: aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros)
 
     st.markdown(f'<div class="footer">Direcional Engenharia - Rio de Janeiro | Developed by Lucas Maia</div>', unsafe_allow_html=True)
-    
+
 if __name__ == "__main__":
     main()
