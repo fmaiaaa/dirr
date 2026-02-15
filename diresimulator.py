@@ -1552,7 +1552,10 @@ def dialog_novo_cliente(motor):
         with cols_renda[i]:
             def_val = 3500.0 if i == 0 and not rendas_anteriores else 0.0
             current_val = get_val(i, def_val)
-            val_r = st.number_input(f"Renda Part. {i+1}", min_value=0.0, value=current_val, step=100.0, key=f"renda_part_{i}_v3", placeholder="0,00")
+            # Use value=None if 0.0 to show placeholder "0,00"
+            val_display = None if current_val == 0.0 else current_val
+            
+            val_r = st.number_input(f"Renda Part. {i+1}", min_value=0.0, value=val_display, step=100.0, key=f"renda_part_{i}_v3", placeholder="0,00", format="%.2f")
             if val_r is None: val_r = 0.0
             renda_total_calc += val_r; lista_rendas_input.append(val_r)
 
@@ -1585,7 +1588,11 @@ def dialog_novo_cliente(motor):
             'cotista': cotista, 
             'ranking': ranking, 
             'politica': politica_ps,
-            'qtd_participantes': qtd_part
+            'qtd_participantes': qtd_part,
+            # Limpar históricos se for novo cliente
+            'finan_usado_historico': 0.0,
+            'ps_usado_historico': 0.0,
+            'fgts_usado_historico': 0.0
         })
 
         # Processar lógica de negócio (enquadramento inicial)
@@ -1610,12 +1617,28 @@ def dialog_buscar_cliente(df_cadastros, motor):
         st.warning("A base de clientes está vazia.")
         return
 
-    clientes_list = df_cadastros['Nome'].unique().tolist() if 'Nome' in df_cadastros.columns else []
-    clientes_list.insert(0, "Selecione um cliente...")
-    cliente_sel = st.selectbox("Selecione o Cliente:", clientes_list, key="busca_cliente_base")
+    # Ajuste: Lista com Nome e CPF
+    clientes_list = []
+    if 'Nome' in df_cadastros.columns and 'CPF' in df_cadastros.columns:
+        # Criar lista formatada "Nome - CPF"
+        clientes_list = [f"{row['Nome']} - {row['CPF']}" for idx, row in df_cadastros.iterrows()]
+        # Remove duplicatas mantendo a ordem se necessário, ou usa set
+        clientes_list = sorted(list(set(clientes_list)))
     
-    if cliente_sel != "Selecione um cliente..." and st.button("Carregar Dados", type="primary", use_container_width=True):
-        row_cli = df_cadastros[df_cadastros['Nome'] == cliente_sel].iloc[0]
+    clientes_list.insert(0, "Selecione um cliente...")
+    cliente_sel_str = st.selectbox("Selecione o Cliente:", clientes_list, key="busca_cliente_base")
+    
+    if cliente_sel_str != "Selecione um cliente..." and st.button("Carregar Dados", type="primary", use_container_width=True):
+        # Extrair nome da string selecionada (assumindo que o nome está antes do " - ")
+        nome_sel = cliente_sel_str.split(" - ")[0]
+        cpf_sel = cliente_sel_str.split(" - ")[1] if " - " in cliente_sel_str else ""
+        
+        # Buscar pela combinação Nome e CPF para garantir unicidade
+        mask = (df_cadastros['Nome'] == nome_sel)
+        if cpf_sel:
+            mask = mask & (df_cadastros['CPF'] == cpf_sel)
+            
+        row_cli = df_cadastros[mask].iloc[0]
         
         # Helper para extrair float
         def safe_get_float_row(r, k):
@@ -1655,7 +1678,12 @@ def dialog_buscar_cliente(df_cadastros, motor):
             'ranking': ranking,
             'politica': politica_ps,
             'social': social,
-            'cotista': cotista
+            'cotista': cotista,
+            
+            # Carregar histórico de valores usados
+            'finan_usado_historico': safe_get_float_row(row_cli, 'Financiamento Final'),
+            'ps_usado_historico': safe_get_float_row(row_cli, 'Pro Soluto Final'),
+            'fgts_usado_historico': safe_get_float_row(row_cli, 'FGTS + Subsídio Final')
         })
 
         # Processar lógica de negócio (enquadramento inicial)
@@ -1670,7 +1698,7 @@ def dialog_buscar_cliente(df_cadastros, motor):
             'sub_f_ref': s_faixa_ref
         })
 
-        st.toast(f"Dados de {cliente_sel} carregados!", icon="✅")
+        st.toast(f"Dados de {nome_sel} carregados!", icon="✅")
         st.session_state.passo_simulacao = 'guide'
         st.rerun()
 
@@ -1788,6 +1816,11 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
                                     'finan_usado': safe_get_float(row, 'Financiamento Final'),
                                     'fgts_sub_usado': safe_get_float(row, 'FGTS + Subsídio Final'),
                                     'ps_usado': safe_get_float(row, 'Pro Soluto Final'),
+                                    
+                                    # Carregar Histórico
+                                    'finan_usado_historico': safe_get_float(row, 'Financiamento Final'),
+                                    'ps_usado_historico': safe_get_float(row, 'Pro Soluto Final'),
+                                    'fgts_usado_historico': safe_get_float(row, 'FGTS + Subsídio Final'),
                                     
                                     'ps_parcelas': int(float(str(row.get('Número de Parcelas do Pro Soluto', 0)).replace(',','.'))),
                                     'ps_mensal': safe_get_float(row, 'Mensalidade PS'),
@@ -2610,14 +2643,29 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
         if 'ato_60' not in st.session_state.dados_cliente: st.session_state.dados_cliente['ato_60'] = 0.0
         if 'ato_90' not in st.session_state.dados_cliente: st.session_state.dados_cliente['ato_90'] = 0.0
         
+        # Helper para value=None se 0.0
+        def val_none(v): return None if v == 0.0 else v
+
         # --- INPUT FINANCIAMENTO ---
-        # Inicializa a key se não existir
         if 'fin_u_key' not in st.session_state:
             st.session_state['fin_u_key'] = st.session_state.dados_cliente.get('finan_usado', 0.0)
         
-        f_u_input = st.number_input("Financiamento", key="fin_u_key", step=1000.0, format="%.2f")
+        # Use value=None se o valor atual for 0.0 para mostrar placeholder
+        fin_val = val_none(st.session_state['fin_u_key'])
+        
+        f_u_input = st.number_input("Financiamento", value=fin_val, key="fin_u_key", step=1000.0, format="%.2f", placeholder="0,00")
+        if f_u_input is None: f_u_input = 0.0
+        
         st.session_state.dados_cliente['finan_usado'] = f_u_input
-        st.markdown(f'<span class="inline-ref">Financiamento Máximo: R$ {fmt_br(d.get("finan_estimado", 0))}</span>', unsafe_allow_html=True)
+        
+        # Construir label de referencia com histórico
+        fin_max = d.get("finan_estimado", 0)
+        fin_hist = d.get("finan_usado_historico", 0)
+        ref_text_fin = f"Financiamento Máximo: R$ {fmt_br(fin_max)}"
+        if fin_hist > 0:
+            ref_text_fin += f" | Financiamento Específico (Anterior): R$ {fmt_br(fin_hist)}"
+            
+        st.markdown(f'<span class="inline-ref">{ref_text_fin}</span>', unsafe_allow_html=True)
         
         idx_prazo = 0 if d.get('prazo_financiamento', 360) == 360 else 1
         prazo_finan = st.selectbox("Prazo Financiamento (Meses)", [360, 420], index=idx_prazo, key="prazo_v3_closed")
@@ -2631,9 +2679,21 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
         # --- INPUT FGTS ---
         if 'fgts_u_key' not in st.session_state:
             st.session_state['fgts_u_key'] = st.session_state.dados_cliente.get('fgts_sub_usado', 0.0)
-        fgts_u_input = st.number_input("FGTS + Subsídio", key="fgts_u_key", step=1000.0, format="%.2f")
+        
+        fgts_val = val_none(st.session_state['fgts_u_key'])
+        fgts_u_input = st.number_input("FGTS + Subsídio", value=fgts_val, key="fgts_u_key", step=1000.0, format="%.2f", placeholder="0,00")
+        if fgts_u_input is None: fgts_u_input = 0.0
+        
         st.session_state.dados_cliente['fgts_sub_usado'] = fgts_u_input
-        st.markdown(f'<span class="inline-ref">Subsídio Máximo: R$ {fmt_br(d.get("fgts_sub", 0))}</span>', unsafe_allow_html=True)
+        
+        # Referencia FGTS
+        fgts_max = d.get("fgts_sub", 0)
+        fgts_hist = d.get("fgts_usado_historico", 0)
+        ref_text_fgts = f"Subsídio Máximo: R$ {fmt_br(fgts_max)}"
+        if fgts_hist > 0:
+            ref_text_fgts += f" | FGTS+Sub Específico (Anterior): R$ {fmt_br(fgts_hist)}"
+            
+        st.markdown(f'<span class="inline-ref">{ref_text_fgts}</span>', unsafe_allow_html=True)
         
         st.markdown("<hr style='margin: 10px 0;'>", unsafe_allow_html=True)
         st.markdown("#### Distribuição da Entrada (Saldo a Pagar)")
@@ -2654,11 +2714,11 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
         is_emcash = (d.get('politica') == 'Emcash')
         
         def distribuir_callback(n_parcelas):
-            # Obter valores atuais
-            a1 = st.session_state.get('ato_1_key', 0.0)
-            a2 = st.session_state.get('ato_2_key', 0.0)
-            a3 = st.session_state.get('ato_3_key', 0.0)
-            a4 = st.session_state.get('ato_4_key', 0.0)
+            # Obter valores atuais (com fallback para 0.0 se None)
+            a1 = st.session_state.get('ato_1_key') or 0.0
+            a2 = st.session_state.get('ato_2_key') or 0.0
+            a3 = st.session_state.get('ato_3_key') or 0.0
+            a4 = st.session_state.get('ato_4_key') or 0.0
             
             total_preenchido = a1 + a2 + a3 + a4
             
@@ -2673,7 +2733,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
             
             # Checar valores atuais nessas chaves
             for k in keys_available:
-                val = st.session_state.get(k, 0.0)
+                val = st.session_state.get(k) or 0.0
                 if val > 0:
                     current_sum += val
                 else:
@@ -2699,7 +2759,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
             all_keys = ['ato_1_key', 'ato_2_key', 'ato_3_key', 'ato_4_key']
             for k in all_keys:
                 if k not in keys_available:
-                    st.session_state[k] = 0.0
+                    st.session_state[k] = 0.0 # Aqui mantemos 0.0 para zerar explicitamente
 
             # Atualizar dados_cliente para persistência
             st.session_state.dados_cliente['ato_final'] = st.session_state['ato_1_key']
@@ -2717,15 +2777,22 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
         st.write("") 
         col_a, col_b = st.columns(2)
         with col_a:
-            r1 = st.number_input("Ato (Imediato)", key="ato_1_key", step=100.0, format="%.2f")
-            r3 = st.number_input("Ato 60 Dias", key="ato_3_key", step=100.0, format="%.2f")
-            st.session_state.dados_cliente['ato_final'] = r1
-            st.session_state.dados_cliente['ato_60'] = r3
+            v1 = val_none(st.session_state.get('ato_1_key', 0.0))
+            v3 = val_none(st.session_state.get('ato_3_key', 0.0))
+            r1 = st.number_input("Ato (Imediato)", value=v1, key="ato_1_key", step=100.0, format="%.2f", placeholder="0,00")
+            r3 = st.number_input("Ato 60 Dias", value=v3, key="ato_3_key", step=100.0, format="%.2f", placeholder="0,00")
+            
+            st.session_state.dados_cliente['ato_final'] = r1 if r1 else 0.0
+            st.session_state.dados_cliente['ato_60'] = r3 if r3 else 0.0
+            
         with col_b:
-            r2 = st.number_input("Ato 30 Dias", key="ato_2_key", step=100.0, format="%.2f")
-            r4 = st.number_input("Ato 90 Dias", key="ato_4_key", step=100.0, disabled=is_emcash, format="%.2f")
-            st.session_state.dados_cliente['ato_30'] = r2
-            st.session_state.dados_cliente['ato_90'] = r4
+            v2 = val_none(st.session_state.get('ato_2_key', 0.0))
+            v4 = val_none(st.session_state.get('ato_4_key', 0.0))
+            r2 = st.number_input("Ato 30 Dias", value=v2, key="ato_2_key", step=100.0, format="%.2f", placeholder="0,00")
+            r4 = st.number_input("Ato 90 Dias", value=v4, key="ato_4_key", step=100.0, disabled=is_emcash, format="%.2f", placeholder="0,00")
+            
+            st.session_state.dados_cliente['ato_30'] = r2 if r2 else 0.0
+            st.session_state.dados_cliente['ato_90'] = r4 if r4 else 0.0
             
         st.markdown("<hr style='margin: 10px 0;'>", unsafe_allow_html=True)
         col_ps_val, col_ps_parc = st.columns(2)
@@ -2748,9 +2815,18 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
                      ps_max_real = row_u.get(col_rank, 0.0)
 
         with col_ps_val:
-            ps_input_val = st.number_input("Pro Soluto Direcional", key="ps_u_key", step=1000.0, format="%.2f")
+            ps_val_state = val_none(st.session_state['ps_u_key'])
+            ps_input_val = st.number_input("Pro Soluto Direcional", value=ps_val_state, key="ps_u_key", step=1000.0, format="%.2f", placeholder="0,00")
+            if ps_input_val is None: ps_input_val = 0.0
             st.session_state.dados_cliente['ps_usado'] = ps_input_val
-            st.markdown(f'<span class="inline-ref">Limite Permitido: R$ {fmt_br(ps_max_real)}</span>', unsafe_allow_html=True)
+            
+            # Referencia PS
+            ps_hist = d.get("ps_usado_historico", 0)
+            ref_text_ps = f"Limite Permitido: R$ {fmt_br(ps_max_real)}"
+            if ps_hist > 0:
+                ref_text_ps += f" | PS Específico (Anterior): R$ {fmt_br(ps_hist)}"
+            st.markdown(f'<span class="inline-ref">{ref_text_ps}</span>', unsafe_allow_html=True)
+            
         with col_ps_parc:
             if 'parc_ps_key' not in st.session_state: st.session_state['parc_ps_key'] = d.get('ps_parcelas', min(60, d.get("prazo_ps_max", 60)))
             parc = st.number_input("Parcelas Pro Soluto", min_value=1, max_value=d.get("prazo_ps_max", 60), key="parc_ps_key"); st.session_state.dados_cliente['ps_parcelas'] = parc
@@ -2758,7 +2834,14 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
         
         v_parc = ps_input_val / parc if parc > 0 else 0
         st.session_state.dados_cliente['ps_mensal'] = v_parc
-        total_entrada_cash = r1 + r2 + r3 + r4
+        
+        # Recalcular valores atuais para o resumo
+        r1_val = st.session_state.dados_cliente['ato_final']
+        r2_val = st.session_state.dados_cliente['ato_30']
+        r3_val = st.session_state.dados_cliente['ato_60']
+        r4_val = st.session_state.dados_cliente['ato_90']
+        
+        total_entrada_cash = r1_val + r2_val + r3_val + r4_val
         st.session_state.dados_cliente['entrada_total'] = total_entrada_cash
         gap_final = u_valor - f_u_input - fgts_u_input - ps_input_val - total_entrada_cash
         
