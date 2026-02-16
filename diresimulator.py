@@ -409,6 +409,9 @@ def calcular_fluxo_pagamento_detalhado(valor_fin, meses_fin, taxa_anual, sistema
     # Mês 5+: Parcela Fin + Parcela PS (até fim do PS)
     # Pós PS: Apenas Parcela Fin
 
+    # Mapa de ordem de empilhamento: Financiamento (base) -> Pro Soluto -> Ato (topo)
+    order_map = {'Financiamento': 1, 'Pro Soluto': 2, 'Entrada/Ato': 3}
+
     for m in range(1, meses_fin + 1):
         if sistema == 'SAC':
             juros = saldo_devedor * i_mensal
@@ -446,6 +449,7 @@ def calcular_fluxo_pagamento_detalhado(valor_fin, meses_fin, taxa_anual, sistema
             'Mês': int(m),
             'Valor': float(parc_fin),
             'Tipo': 'Financiamento',
+            'Ordem_Tipo': order_map['Financiamento'],
             'Total': float(parc_fin + parc_ps + val_ato)
         })
         
@@ -455,6 +459,7 @@ def calcular_fluxo_pagamento_detalhado(valor_fin, meses_fin, taxa_anual, sistema
                 'Mês': int(m),
                 'Valor': float(parc_ps),
                 'Tipo': 'Pro Soluto',
+                'Ordem_Tipo': order_map['Pro Soluto'],
                 'Total': float(parc_fin + parc_ps + val_ato)
             })
             
@@ -464,6 +469,7 @@ def calcular_fluxo_pagamento_detalhado(valor_fin, meses_fin, taxa_anual, sistema
                 'Mês': int(m),
                 'Valor': float(val_ato),
                 'Tipo': 'Entrada/Ato',
+                'Ordem_Tipo': order_map['Entrada/Ato'],
                 'Total': float(parc_fin + parc_ps + val_ato)
             })
     
@@ -1582,7 +1588,7 @@ def enviar_email_smtp(destinatario, nome_cliente, pdf_bytes, dados_cliente, tipo
                                     <h4 style="color: #002c5d; margin-top: 0;">Valores do Imóvel</h4>
                                     <table width="100%" border="1" cellspacing="0" cellpadding="8" style="border-collapse: collapse; border-color: #ddd; margin-bottom: 20px; font-size: 14px;">
                                         <tr style="background-color: #f2f2f2;">
-                                            <td>Valor Venda (VCM)</td>
+                                            <td>Valor de Venda</td>
                                             <td align="right" style="color: #e30613;"><b>R$ {val_venda}</b></td>
                                         </tr>
                                         <tr>
@@ -2524,7 +2530,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
             bars = base.mark_bar().encode(
                 y=alt.Y('Valor', title='Valor (R$)', stack='zero'),
                 color=alt.Color('Tipo', scale=alt.Scale(domain=domain_tipo, range=range_tipo), legend=alt.Legend(title="Composição")),
-                order=alt.Order('Tipo', sort=['Financiamento', 'Pro Soluto', 'Entrada/Ato']), # Define a ordem de empilhamento
+                order=alt.Order('Ordem_Tipo', sort='ascending'), # Define a ordem de empilhamento usando a coluna auxiliar
                 tooltip=['Mês', 'Tipo', alt.Tooltip('Valor', format=",.2f"), alt.Tooltip('Total', format=",.2f")]
             )
 
@@ -3022,7 +3028,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
                         <div style="margin-top: 20px; padding: 15px; border: 1px solid #e2e8f0; border-radius: 10px; background-color: #f8fafc; text-align: center;">
                             <div style="display: flex; justify-content: space-around; margin-bottom: 10px; font-size: 0.9rem;">
                                 <div><b>Valor de Avaliação:</b><br>R$ {fmt_br(v_aval)}</div>
-                                <div><b>Valor Comercial (Venda):</b><br>R$ {fmt_br(v_venda)}</div>
+                                <div><b>Valor de Venda:</b><br>R$ {fmt_br(v_venda)}</div>
                             </div>
                             <hr style="margin: 10px 0; border: 0; border-top: 1px solid #e2e8f0;">
                             <p style="margin: 0; font-weight: 700; font-size: 0.9rem; color: #002c5d;">TERMÔMETRO DE VIABILIDADE</p>
@@ -3061,7 +3067,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
         <div class="custom-alert" style="flex-direction: column; align-items: flex-start; padding: 20px;">
             <div style="font-size: 1.1rem; margin-bottom: 5px;">{u_nome} - {u_unid}</div>
             <div style="font-size: 0.9rem; opacity: 0.9;">Valor de Avaliação Bancária: <b>R$ {fmt_br(u_aval)}</b></div>
-            <div style="font-size: 0.9rem; opacity: 0.9;">Valor Comercial Mínimo: <b>R$ {fmt_br(u_valor)}</b></div>
+            <div style="font-size: 0.9rem; opacity: 0.9;">Valor de Venda: <b>R$ {fmt_br(u_valor)}</b></div>
         </div>
         """, unsafe_allow_html=True)
         
@@ -3096,7 +3102,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
         if fin_hist > 0:
             ref_text_fin += f" | Financiamento Específico (Anterior): R$ {fmt_br(fin_hist)}"
             
-        st.markdown(f'<span class="inline-ref">{ref_text_fin}</span>', unsafe_allow_html=True)
+        st.markdown(f'<div class="inline-ref" style="background-color: transparent; padding: 0; font-family: inherit; font-size: 0.72rem; color: {COR_AZUL_ESC}; margin-top: -12px; margin-bottom: 15px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; display: block; opacity: 0.9;">{ref_text_fin}</div>', unsafe_allow_html=True)
         
         idx_prazo = 0 if d.get('prazo_financiamento', 360) == 360 else 1
         prazo_finan = st.selectbox("Prazo Financiamento (Meses)", [360, 420], index=idx_prazo, key="prazo_v3_closed")
@@ -3124,7 +3130,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
         if fgts_hist > 0:
             ref_text_fgts += f" | FGTS+Sub Específico (Anterior): R$ {fmt_br(fgts_hist)}"
             
-        st.markdown(f'<span class="inline-ref">{ref_text_fgts}</span>', unsafe_allow_html=True)
+        st.markdown(f'<div class="inline-ref" style="background-color: transparent; padding: 0; font-family: inherit; font-size: 0.72rem; color: {COR_AZUL_ESC}; margin-top: -12px; margin-bottom: 15px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; display: block; opacity: 0.9;">{ref_text_fgts}</div>', unsafe_allow_html=True)
         
         st.markdown("<hr style='margin: 10px 0;'>", unsafe_allow_html=True)
         st.markdown("#### Distribuição da Entrada (Saldo a Pagar)")
@@ -3242,7 +3248,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
             ref_text_ps = f"Limite Permitido: R$ {fmt_br(ps_max_real)}"
             if ps_hist > 0:
                 ref_text_ps += f" | PS Específico (Anterior): R$ {fmt_br(ps_hist)}"
-            st.markdown(f'<span class="inline-ref">{ref_text_ps}</span>', unsafe_allow_html=True)
+            st.markdown(f'<div class="inline-ref" style="background-color: transparent; padding: 0; font-family: inherit; font-size: 0.72rem; color: {COR_AZUL_ESC}; margin-top: -12px; margin-bottom: 15px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; display: block; opacity: 0.9;">{ref_text_ps}</div>', unsafe_allow_html=True)
             
         with col_ps_parc:
             if 'parc_ps_key' not in st.session_state: st.session_state['parc_ps_key'] = d.get('ps_parcelas', min(60, d.get("prazo_ps_max", 60)))
@@ -3261,7 +3267,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
         if vc_input_val is None: vc_input_val = 0.0
         
         ref_text_vc = f"Folga Volta ao Caixa: R$ {fmt_br(vc_ref)}"
-        st.markdown(f'<span class="inline-ref">{ref_text_vc}</span>', unsafe_allow_html=True)
+        st.markdown(f'<div class="inline-ref" style="background-color: transparent; padding: 0; font-family: inherit; font-size: 0.72rem; color: {COR_AZUL_ESC}; margin-top: -12px; margin-bottom: 15px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; display: block; opacity: 0.9;">{ref_text_vc}</div>', unsafe_allow_html=True)
         
         # Recalcular valores atuais para o resumo
         r1_val = st.session_state.dados_cliente['ato_final']
