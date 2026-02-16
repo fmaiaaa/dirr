@@ -575,7 +575,7 @@ def carregar_dados_sistema():
                 'Área privativa total': 'Area',
                 'Tipo Planta/Área': 'Tipologia',
                 'Endereço': 'Endereco',
-                'Folga Volta o Caixa': 'Volta_Caixa_Ref' # Novo mapeamento
+                'Folga Volta ao Caixa': 'Volta_Caixa_Ref' # Mapeamento corrigido
             }
             
             # Garantir correspondência mesmo com espaços
@@ -2531,13 +2531,13 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
             # Linha Fim Atos
             charts = [bars]
             if mes_fim_atos > 0:
-                # Conversão explícita para int
-                rule_atos = alt.Chart(pd.DataFrame({'x': [int(mes_fim_atos)]})).mark_rule(color='red', strokeDash=[5, 5]).encode(x='x:O')
+                # Conversão explícita para int e usar mesma coluna 'Mês'
+                rule_atos = alt.Chart(pd.DataFrame({'Mês': [int(mes_fim_atos)]})).mark_rule(color='red', strokeDash=[5, 5]).encode(x='Mês:O')
                 charts.append(rule_atos)
                 
             if mes_fim_ps > 0:
-                # Conversão explícita para int
-                rule_ps = alt.Chart(pd.DataFrame({'x': [int(mes_fim_ps)]})).mark_rule(color='orange', strokeDash=[5, 5]).encode(x='x:O')
+                # Conversão explícita para int e usar mesma coluna 'Mês'
+                rule_ps = alt.Chart(pd.DataFrame({'Mês': [int(mes_fim_ps)]})).mark_rule(color='orange', strokeDash=[5, 5]).encode(x='Mês:O')
                 charts.append(rule_ps)
 
             final_chart = alt.layer(*charts).add_params(zoom).properties(height=400)
