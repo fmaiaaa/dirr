@@ -551,7 +551,7 @@ def carregar_dados_sistema():
                 'Área privativa total': 'Area',
                 'Tipo Planta/Área': 'Tipologia',
                 'Endereço': 'Endereco',
-                'Folga Volta o Caixa': 'Volta_Caixa_Ref' # Novo mapeamento
+                'Folga Volta ao Caixa': 'Volta_Caixa_Ref' # Novo mapeamento
             }
             
             # Garantir correspondência mesmo com espaços
