@@ -531,12 +531,21 @@ def carregar_dados_sistema():
 
         # 5. ESTOQUE
         try:
+            # Tenta carregar os dados
             df_raw = conn.read(spreadsheet=ID_GERAL, worksheet="BD Estoque Filtrada")
             df_raw.columns = [str(c).strip() for c in df_raw.columns]
             
+            # --- CORREÇÃO: VERIFICAR COLUNA DE VALOR DE VENDA ---
+            # Se a coluna 'Valor de Venda' não existir (pois pode não ter propagado ou estar em outra aba),
+            # usamos 'Valor Comercial Mínimo' como fallback para garantir que o estoque seja encontrado.
+            col_valor_venda = 'Valor de Venda'
+            if 'Valor de Venda' not in df_raw.columns:
+                if 'Valor Comercial Mínimo' in df_raw.columns:
+                    col_valor_venda = 'Valor Comercial Mínimo'
+            
             mapa_estoque = {
                 'Nome do Empreendimento': 'Empreendimento',
-                'Valor de Venda': 'Valor de Venda', # Mapeado para a nova coluna "Valor de Venda"
+                col_valor_venda: 'Valor de Venda', # Usa a coluna detectada
                 'Status da unidade': 'Status',
                 'Identificador': 'Identificador',
                 'Bairro': 'Bairro',
@@ -551,7 +560,7 @@ def carregar_dados_sistema():
                 'Área privativa total': 'Area',
                 'Tipo Planta/Área': 'Tipologia',
                 'Endereço': 'Endereco',
-                'Folga Volta ao Caixa': 'Volta_Caixa_Ref' # Novo mapeamento
+                'Folga Volta o Caixa': 'Volta_Caixa_Ref' # Novo mapeamento
             }
             
             # Garantir correspondência mesmo com espaços
@@ -561,7 +570,8 @@ def carregar_dados_sistema():
             # Ajustar chaves do mapa para bater com colunas limpas
             mapa_ajustado = {}
             for k, v in mapa_estoque.items():
-                mapa_ajustado[k.strip()] = v
+                if k.strip() in df_raw.columns:
+                    mapa_ajustado[k.strip()] = v
             
             df_estoque = df_raw.rename(columns=mapa_ajustado)
             
@@ -2412,6 +2422,11 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
             # Projeção completa solicitada
             df_view = df_fluxo.copy() 
             
+            # CORREÇÃO ALTAIR: Conversão explícita de tipos para evitar SchemaValidationError
+            df_view['Mês'] = df_view['Mês'].astype(int)
+            df_view['Valor'] = df_view['Valor'].astype(float)
+            df_view['Total'] = df_view['Total'].astype(float)
+            
             # Definir pontos para as linhas tracejadas
             # 1. Fim dos Atos: Onde termina o último ato (mês 1, 2, 3 ou 4)
             mes_fim_atos = 1
@@ -2434,9 +2449,6 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
             )
 
             # Barras Empilhadas
-            # FORÇAR ORDEM DE EMPILHAMENTO: Financiamento (baixo) -> PS -> Atos (topo)
-            # Altair empilha na ordem reversa da lista no 'order' se sort=ascending?
-            # Vamos testar explicitamente.
             bars = base.mark_bar().encode(
                 y=alt.Y('Valor', title='Valor (R$)', stack='zero'),
                 color=alt.Color('Tipo', scale=alt.Scale(domain=domain_tipo, range=range_tipo), legend=alt.Legend(title="Composição")),
@@ -2445,15 +2457,15 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
             )
 
             # Linha Fim Atos
-            rule_atos = alt.Chart(pd.DataFrame({'x': [mes_fim_atos]})).mark_rule(color='red', strokeDash=[5, 5]).encode(x='x:O')
-            
-            # Linha Fim PS (apenas se existir PS)
             charts = [bars]
             if mes_fim_atos > 0:
+                # Conversão explícita para int
+                rule_atos = alt.Chart(pd.DataFrame({'x': [int(mes_fim_atos)]})).mark_rule(color='red', strokeDash=[5, 5]).encode(x='x:O')
                 charts.append(rule_atos)
                 
             if mes_fim_ps > 0:
-                rule_ps = alt.Chart(pd.DataFrame({'x': [mes_fim_ps]})).mark_rule(color='orange', strokeDash=[5, 5]).encode(x='x:O')
+                # Conversão explícita para int
+                rule_ps = alt.Chart(pd.DataFrame({'x': [int(mes_fim_ps)]})).mark_rule(color='orange', strokeDash=[5, 5]).encode(x='x:O')
                 charts.append(rule_ps)
 
             final_chart = alt.layer(*charts).add_params(zoom).properties(height=400)
