@@ -26,6 +26,7 @@ import folium
 from streamlit_folium import st_folium
 import math
 import json
+import urllib.parse
 
 # Tenta importar fpdf e PIL
 try:
@@ -1454,6 +1455,8 @@ def gerar_resumo_pdf(d):
 
 def enviar_email_smtp(destinatario, nome_cliente, pdf_bytes, dados_cliente, tipo='cliente'):
     if "email" not in st.secrets: return False, "Configuracoes de e-mail nao encontradas."
+    import urllib.parse
+    
     try:
         smtp_server = st.secrets["email"]["smtp_server"].strip()
         smtp_port = int(st.secrets["email"]["smtp_port"])
@@ -1484,6 +1487,15 @@ def enviar_email_smtp(destinatario, nome_cliente, pdf_bytes, dados_cliente, tipo
     corretor_tel = dados_cliente.get('corretor_telefone', '')
     corretor_email = dados_cliente.get('corretor_email', '')
     
+    corretor_tel_clean = re.sub(r'\D', '', corretor_tel)
+    if not corretor_tel_clean.startswith('55'):
+        corretor_tel_clean = '55' + corretor_tel_clean # Assuming Brazil
+
+    wa_msg = f"Olá {corretor_nome}, sou {nome_cliente}. Realizei uma simulação para o {emp} (Unidade {unid}) e gostaria de saber mais detalhes."
+    wa_link = f"https://wa.me/{corretor_tel_clean}?text={urllib.parse.quote(wa_msg)}"
+    
+    URL_LOGO_BRANCA = "https://drive.google.com/uc?export=view&id=1m0iX6FCikIBIx4gtSX3Y_YMYxxND2wAh"
+
     # TEMPLATE CLIENTE (Foco no sonho, design limpo, usando Tabelas para evitar sobreposição)
     if tipo == 'cliente':
         msg['Subject'] = f"Seu sonho está próximo! Simulação - {emp}"
@@ -1500,8 +1512,8 @@ def enviar_email_smtp(destinatario, nome_cliente, pdf_bytes, dados_cliente, tipo
                         <table width="600" border="0" cellspacing="0" cellpadding="0" style="background-color: #fff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 15px rgba(0,0,0,0.05);">
                             <!-- Cabeçalho -->
                             <tr>
-                                <td align="center" style="background-color: #ffffff; padding: 30px; border-bottom: 4px solid #e30613;">
-                                    <img src="{URL_FAVICON_RESERVA}" width="64" style="display: block;">
+                                <td align="center" style="background-color: #002c5d; padding: 30px; border-bottom: 4px solid #e30613;">
+                                    <img src="{URL_LOGO_BRANCA}" width="150" style="display: block;">
                                 </td>
                             </tr>
                             <!-- Corpo -->
@@ -1524,17 +1536,22 @@ def enviar_email_smtp(destinatario, nome_cliente, pdf_bytes, dados_cliente, tipo
                                     </table>
 
                                     <div style="text-align: center; margin: 35px 0;">
-                                        <a href="#" style="background-color: #002c5d; color: #ffffff; padding: 15px 30px; text-decoration: none; font-weight: bold; border-radius: 5px; font-size: 16px; display: inline-block;">VISUALIZAR PROPOSTA DETALHADA</a>
+                                        <a href="{wa_link}" style="background-color: #25D366; color: #ffffff; padding: 15px 30px; text-decoration: none; font-weight: bold; border-radius: 5px; font-size: 16px; display: inline-block;">FALAR COM O CORRETOR NO WHATSAPP</a>
                                         <p style="font-size: 12px; color: #999; margin-top: 10px;">(Abra o arquivo PDF em anexo para ver todos os detalhes)</p>
                                     </div>
                                     
                                     <!-- Rodapé Interno -->
-                                    <table width="100%" border="0" cellspacing="0" cellpadding="0" style="margin-top: 40px; border-top: 1px solid #eee; padding-top: 20px;">
+                                    <table width="100%" border="0" cellspacing="0" cellpadding="20" style="margin-top: 40px; background-color: #002c5d; color: #ffffff;">
                                         <tr>
                                             <td align="center">
-                                                <p style="margin: 0; font-weight: bold; color: #002c5d;">{corretor_nome}</p>
-                                                <p style="margin: 5px 0; color: #777; font-size: 14px;">Seu Consultor Direcional</p>
-                                                <a href="tel:{corretor_tel}" style="color: #e30613; text-decoration: none; font-weight: bold;">{corretor_tel}</a>
+                                                <p style="margin: 0; font-size: 16px; font-weight: bold; color: #ffffff;">{corretor_nome.upper()}</p>
+                                                <p style="margin: 5px 0 15px 0; font-size: 12px; text-transform: uppercase; letter-spacing: 1px; color: #e30613;">Consultor Direcional</p>
+                                                
+                                                <p style="margin: 0; font-size: 14px;">
+                                                    <span style="color: #ffffff;">WhatsApp:</span> <a href="{wa_link}" style="color: #e30613; text-decoration: none; font-weight: bold;">{corretor_tel}</a>
+                                                    <span style="margin: 0 10px; color: #666;">|</span>
+                                                    <span style="color: #ffffff;">Email:</span> <a href="mailto:{corretor_email}" style="color: #e30613; text-decoration: none; font-weight: bold;">{corretor_email}</a>
+                                                </p>
                                             </td>
                                         </tr>
                                     </table>
@@ -1588,7 +1605,7 @@ def enviar_email_smtp(destinatario, nome_cliente, pdf_bytes, dados_cliente, tipo
                                     <h4 style="color: #002c5d; margin-top: 0;">Valores do Imóvel</h4>
                                     <table width="100%" border="1" cellspacing="0" cellpadding="8" style="border-collapse: collapse; border-color: #ddd; margin-bottom: 20px; font-size: 14px;">
                                         <tr style="background-color: #f2f2f2;">
-                                            <td>Valor de Venda</td>
+                                            <td>Valor Venda (VCM)</td>
                                             <td align="right" style="color: #e30613;"><b>R$ {val_venda}</b></td>
                                         </tr>
                                         <tr>
