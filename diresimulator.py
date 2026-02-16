@@ -314,6 +314,21 @@ def validar_cpf(cpf):
     if resto != int(cpf[10]): return False
     return True
 
+# Função para máscara automática de CPF
+def aplicar_mascara_cpf(valor):
+    # Remove tudo que não é dígito
+    v = re.sub(r'\D', '', str(valor))
+    # Limita a 11 dígitos
+    v = v[:11]
+    # Aplica máscara progressiva
+    if len(v) > 9:
+        return f"{v[:3]}.{v[3:6]}.{v[6:9]}-{v[9:]}"
+    elif len(v) > 6:
+        return f"{v[:3]}.{v[3:6]}.{v[6:]}"
+    elif len(v) > 3:
+        return f"{v[:3]}.{v[3:]}"
+    return v
+
 def safe_float_convert(val):
     if pd.isnull(val) or val == "": return 0.0
     if isinstance(val, (int, float, np.number)): return float(val)
@@ -1198,7 +1213,7 @@ def configurar_layout():
         div[data-testid="stButton"] button.home-card-btn {{
              height: 250px !important;
              border-radius: 16px !important;
-             border: 1px solid #eef2f6 !important;
+             border: 2px solid #eef2f6 !important;
              background-color: white !important;
              color: #002c5d !important;
              box-shadow: 0 4px 6px rgba(0,0,0,0.05) !important;
@@ -1463,115 +1478,158 @@ def enviar_email_smtp(destinatario, nome_cliente, pdf_bytes, dados_cliente, tipo
     corretor_tel = dados_cliente.get('corretor_telefone', '')
     corretor_email = dados_cliente.get('corretor_email', '')
     
-    # TEMPLATE CLIENTE (Foco no sonho, design limpo)
+    # TEMPLATE CLIENTE (Foco no sonho, design limpo, usando Tabelas para evitar sobreposição)
     if tipo == 'cliente':
         msg['Subject'] = f"Seu sonho está próximo! Simulação - {emp}"
         html_content = f"""
+        <!DOCTYPE html>
         <html>
-        <body style="font-family: 'Helvetica', sans-serif; color: #333; background-color: #f9f9f9; margin: 0; padding: 20px;">
-            <div style="max-width: 600px; margin: auto; background-color: #fff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 15px rgba(0,0,0,0.05);">
-                <div style="background-color: #ffffff; padding: 30px; text-align: center; border-bottom: 4px solid #e30613;">
-                    <img src="{URL_LOGO_DIRECIONAL_BIG}" width="180" style="margin-bottom: 10px;">
-                </div>
-                <div style="padding: 40px;">
-                    <h2 style="color: #002c5d; margin: 0 0 20px 0; font-weight: 300; text-align: center;">Olá, {nome_cliente}!</h2>
-                    <p style="font-size: 1.1em; line-height: 1.6; text-align: center; color: #555;">
-                        Foi ótimo apresentar as oportunidades da Direcional para você. O imóvel <strong>{emp}</strong> é incrível e desenhamos uma condição especial para o seu perfil.
-                    </p>
-                    
-                    <div style="background-color: #f0f4f8; border-left: 5px solid #e30613; padding: 20px; margin: 30px 0; border-radius: 4px;">
-                        <p style="margin: 0; font-weight: bold; color: #002c5d; font-size: 1.2em;">{emp}</p>
-                        <p style="margin: 5px 0 0 0; color: #777;">Unidade: {unid}</p>
-                        <p style="margin: 15px 0 0 0; font-size: 1.5em; font-weight: bold; color: #e30613;">Valor Promocional: R$ {val_venda}</p>
-                    </div>
+        <head>
+        <meta charset="UTF-8">
+        </head>
+        <body style="font-family: 'Helvetica', Arial, sans-serif; color: #333; background-color: #f9f9f9; margin: 0; padding: 20px;">
+            <table width="100%" border="0" cellspacing="0" cellpadding="0">
+                <tr>
+                    <td align="center">
+                        <table width="600" border="0" cellspacing="0" cellpadding="0" style="background-color: #fff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 15px rgba(0,0,0,0.05);">
+                            <!-- Cabeçalho -->
+                            <tr>
+                                <td align="center" style="background-color: #ffffff; padding: 30px; border-bottom: 4px solid #e30613;">
+                                    <img src="{URL_FAVICON_RESERVA}" width="64" style="display: block;">
+                                </td>
+                            </tr>
+                            <!-- Corpo -->
+                            <tr>
+                                <td style="padding: 40px;">
+                                    <h2 style="color: #002c5d; margin: 0 0 20px 0; font-weight: 300; text-align: center;">Olá, {nome_cliente}!</h2>
+                                    <p style="font-size: 16px; line-height: 1.6; text-align: center; color: #555;">
+                                        Foi ótimo apresentar as oportunidades da Direcional para você. O imóvel <strong>{emp}</strong> é incrível e desenhamos uma condição especial para o seu perfil.
+                                    </p>
+                                    
+                                    <!-- Card Destaque -->
+                                    <table width="100%" border="0" cellspacing="0" cellpadding="20" style="background-color: #f0f4f8; border-left: 5px solid #e30613; margin: 30px 0; border-radius: 4px;">
+                                        <tr>
+                                            <td>
+                                                <p style="margin: 0; font-weight: bold; color: #002c5d; font-size: 18px;">{emp}</p>
+                                                <p style="margin: 5px 0 0 0; color: #777;">Unidade: {unid}</p>
+                                                <p style="margin: 15px 0 0 0; font-size: 24px; font-weight: bold; color: #e30613;">Valor Promocional: R$ {val_venda}</p>
+                                            </td>
+                                        </tr>
+                                    </table>
 
-                    <div style="text-align: center; margin: 35px 0;">
-                        <a href="#" style="background-color: #002c5d; color: #ffffff; padding: 15px 30px; text-decoration: none; font-weight: bold; border-radius: 5px; font-size: 1.1em;">VISUALIZAR PROPOSTA DETALHADA</a>
-                        <p style="font-size: 0.8em; color: #999; margin-top: 10px;">(Abra o arquivo PDF em anexo para ver todos os detalhes)</p>
-                    </div>
-                    
-                    <div style="margin-top: 40px; border-top: 1px solid #eee; padding-top: 20px; text-align: center;">
-                        <p style="margin: 0; font-weight: bold; color: #002c5d;">{corretor_nome}</p>
-                        <p style="margin: 5px 0; color: #777; font-size: 0.9em;">Seu Consultor Direcional</p>
-                        <a href="tel:{corretor_tel}" style="color: #e30613; text-decoration: none; font-weight: bold;">{corretor_tel}</a>
-                    </div>
-                </div>
-            </div>
+                                    <div style="text-align: center; margin: 35px 0;">
+                                        <a href="#" style="background-color: #002c5d; color: #ffffff; padding: 15px 30px; text-decoration: none; font-weight: bold; border-radius: 5px; font-size: 16px; display: inline-block;">VISUALIZAR PROPOSTA DETALHADA</a>
+                                        <p style="font-size: 12px; color: #999; margin-top: 10px;">(Abra o arquivo PDF em anexo para ver todos os detalhes)</p>
+                                    </div>
+                                    
+                                    <!-- Rodapé Interno -->
+                                    <table width="100%" border="0" cellspacing="0" cellpadding="0" style="margin-top: 40px; border-top: 1px solid #eee; padding-top: 20px;">
+                                        <tr>
+                                            <td align="center">
+                                                <p style="margin: 0; font-weight: bold; color: #002c5d;">{corretor_nome}</p>
+                                                <p style="margin: 5px 0; color: #777; font-size: 14px;">Seu Consultor Direcional</p>
+                                                <a href="tel:{corretor_tel}" style="color: #e30613; text-decoration: none; font-weight: bold;">{corretor_tel}</a>
+                                            </td>
+                                        </tr>
+                                    </table>
+                                </td>
+                            </tr>
+                        </table>
+                    </td>
+                </tr>
+            </table>
         </body>
         </html>
         """
     
-    # TEMPLATE CORRETOR (Foco técnico, dados completos)
+    # TEMPLATE CORRETOR (Foco técnico, dados completos, usando Tabelas)
     else:
         msg['Subject'] = f"LEAD: {nome_cliente} - {emp} - {unid}"
         html_content = f"""
+        <!DOCTYPE html>
         <html>
+        <head>
+        <meta charset="UTF-8">
+        </head>
         <body style="font-family: 'Arial', sans-serif; color: #333; background-color: #eee; margin: 0; padding: 20px;">
-            <div style="max-width: 650px; margin: auto; background-color: #fff; padding: 30px; border: 1px solid #ccc;">
-                <div style="text-align: center; margin-bottom: 20px;">
-                     <img src="{URL_LOGO_DIRECIONAL_BIG}" width="150">
-                </div>
-                <h3 style="color: #002c5d; border-bottom: 2px solid #e30613; padding-bottom: 10px;">RESUMO DE ATENDIMENTO</h3>
-                
-                <div style="display: flex; margin-bottom: 20px; background: #f9f9f9; padding: 15px;">
-                    <div style="flex: 1;">
-                        <p style="margin: 5px 0; font-size: 0.9em; color: #666;">CLIENTE</p>
-                        <p style="margin: 0; font-weight: bold;">{nome_cliente}</p>
-                        <p style="margin: 0; font-size: 0.9em;">Renda: R$ {renda_cli}</p>
-                    </div>
-                    <div style="flex: 1;">
-                        <p style="margin: 5px 0; font-size: 0.9em; color: #666;">PRODUTO</p>
-                        <p style="margin: 0; font-weight: bold;">{emp}</p>
-                        <p style="margin: 0;">Unid: {unid}</p>
-                    </div>
-                </div>
+            <table width="100%" border="0" cellspacing="0" cellpadding="0">
+                <tr>
+                    <td align="center">
+                        <table width="650" border="0" cellspacing="0" cellpadding="30" style="background-color: #fff; border: 1px solid #ccc;">
+                            <tr>
+                                <td>
+                                    <div style="text-align: center; margin-bottom: 20px;">
+                                         <img src="{URL_FAVICON_RESERVA}" width="50">
+                                    </div>
+                                    <h3 style="color: #002c5d; border-bottom: 2px solid #e30613; padding-bottom: 10px; margin-top: 0;">RESUMO DE ATENDIMENTO</h3>
+                                    
+                                    <!-- Info Header -->
+                                    <table width="100%" border="0" cellspacing="0" cellpadding="15" style="margin-bottom: 20px; background: #f9f9f9;">
+                                        <tr>
+                                            <td width="50%" valign="top">
+                                                <p style="margin: 0 0 5px 0; font-size: 12px; color: #666;">CLIENTE</p>
+                                                <p style="margin: 0; font-weight: bold; font-size: 16px;">{nome_cliente}</p>
+                                                <p style="margin: 5px 0 0 0; font-size: 14px;">Renda: R$ {renda_cli}</p>
+                                            </td>
+                                            <td width="50%" valign="top">
+                                                <p style="margin: 0 0 5px 0; font-size: 12px; color: #666;">PRODUTO</p>
+                                                <p style="margin: 0; font-weight: bold; font-size: 16px;">{emp}</p>
+                                                <p style="margin: 5px 0 0 0;">Unid: {unid}</p>
+                                            </td>
+                                        </tr>
+                                    </table>
 
-                <h4 style="color: #002c5d; margin-top: 0;">Valores do Imóvel</h4>
-                <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px; font-size: 0.9em;">
-                    <tr style="background-color: #f2f2f2;">
-                        <td style="padding: 8px; border: 1px solid #ddd;">Valor Venda (VCM)</td>
-                        <td style="padding: 8px; border: 1px solid #ddd; text-align: right; color: #e30613;"><b>R$ {val_venda}</b></td>
-                    </tr>
-                    <tr>
-                        <td style="padding: 8px; border: 1px solid #ddd;">Avaliação Bancária</td>
-                        <td style="padding: 8px; border: 1px solid #ddd; text-align: right;">R$ {val_aval}</td>
-                    </tr>
-                </table>
+                                    <h4 style="color: #002c5d; margin-top: 0;">Valores do Imóvel</h4>
+                                    <table width="100%" border="1" cellspacing="0" cellpadding="8" style="border-collapse: collapse; border-color: #ddd; margin-bottom: 20px; font-size: 14px;">
+                                        <tr style="background-color: #f2f2f2;">
+                                            <td>Valor Venda (VCM)</td>
+                                            <td align="right" style="color: #e30613;"><b>R$ {val_venda}</b></td>
+                                        </tr>
+                                        <tr>
+                                            <td>Avaliação Bancária</td>
+                                            <td align="right">R$ {val_aval}</td>
+                                        </tr>
+                                    </table>
 
-                <h4 style="color: #002c5d;">Plano de Pagamento</h4>
-                <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px; font-size: 0.9em;">
-                    <tr style="background-color: #f2f2f2;">
-                        <td style="padding: 8px; border: 1px solid #ddd;">Entrada Total</td>
-                        <td style="padding: 8px; border: 1px solid #ddd; text-align: right; color: #002c5d;"><b>R$ {entrada}</b></td>
-                    </tr>
-                    <tr>
-                         <td style="padding: 8px; border: 1px solid #ddd;">&nbsp;&nbsp;↳ Ato Imediato</td>
-                         <td style="padding: 8px; border: 1px solid #ddd; text-align: right;">R$ {a0}</td>
-                    </tr>
-                    <tr>
-                         <td style="padding: 8px; border: 1px solid #ddd;">&nbsp;&nbsp;↳ 30 Dias</td>
-                         <td style="padding: 8px; border: 1px solid #ddd; text-align: right;">R$ {a30}</td>
-                    </tr>
-                    <tr>
-                         <td style="padding: 8px; border: 1px solid #ddd;">&nbsp;&nbsp;↳ 60 Dias</td>
-                         <td style="padding: 8px; border: 1px solid #ddd; text-align: right;">R$ {a60}</td>
-                    </tr>
-                     <tr>
-                         <td style="padding: 8px; border: 1px solid #ddd;">&nbsp;&nbsp;↳ 90 Dias</td>
-                         <td style="padding: 8px; border: 1px solid #ddd; text-align: right;">R$ {a90}</td>
-                    </tr>
-                    <tr style="background-color: #f2f2f2;">
-                        <td style="padding: 8px; border: 1px solid #ddd;">Financiamento</td>
-                        <td style="padding: 8px; border: 1px solid #ddd; text-align: right;">R$ {finan}</td>
-                    </tr>
-                    <tr>
-                        <td style="padding: 8px; border: 1px solid #ddd;">Mensal Pro Soluto</td>
-                        <td style="padding: 8px; border: 1px solid #ddd; text-align: right;">R$ {ps}</td>
-                    </tr>
-                </table>
-                
-                <p style="font-size: 0.8em; color: #999; text-align: center;">Simulação gerada via Direcional Rio Simulador.</p>
-            </div>
+                                    <h4 style="color: #002c5d;">Plano de Pagamento</h4>
+                                    <table width="100%" border="1" cellspacing="0" cellpadding="8" style="border-collapse: collapse; border-color: #ddd; margin-bottom: 20px; font-size: 14px;">
+                                        <tr style="background-color: #f2f2f2;">
+                                            <td>Entrada Total</td>
+                                            <td align="right" style="color: #002c5d;"><b>R$ {entrada}</b></td>
+                                        </tr>
+                                        <tr>
+                                             <td>&nbsp;&nbsp;↳ Ato Imediato</td>
+                                             <td align="right">R$ {a0}</td>
+                                        </tr>
+                                        <tr>
+                                             <td>&nbsp;&nbsp;↳ 30 Dias</td>
+                                             <td align="right">R$ {a30}</td>
+                                        </tr>
+                                        <tr>
+                                             <td>&nbsp;&nbsp;↳ 60 Dias</td>
+                                             <td align="right">R$ {a60}</td>
+                                        </tr>
+                                         <tr>
+                                             <td>&nbsp;&nbsp;↳ 90 Dias</td>
+                                             <td align="right">R$ {a90}</td>
+                                        </tr>
+                                        <tr style="background-color: #f2f2f2;">
+                                            <td>Financiamento</td>
+                                            <td align="right">R$ {finan}</td>
+                                        </tr>
+                                        <tr>
+                                            <td>Mensal Pro Soluto</td>
+                                            <td align="right">R$ {ps}</td>
+                                        </tr>
+                                    </table>
+                                    
+                                    <p style="font-size: 12px; color: #999; text-align: center; margin-top: 30px;">Simulação gerada via Direcional Rio Simulador.</p>
+                                </td>
+                            </tr>
+                        </table>
+                    </td>
+                </tr>
+            </table>
         </body>
         </html>
         """
@@ -1663,6 +1721,12 @@ def dialog_novo_cliente(motor):
     
     with st.form("form_cadastro"):
         nome = st.text_input("Nome Completo", value=curr_nome, placeholder="Nome Completo", key="in_nome_v28")
+        
+        # --- LÓGICA DE MÁSCARA AUTOMÁTICA DE CPF NO CARREGAMENTO ---
+        # Se o CPF já existe no estado, aplicamos a máscara para exibição
+        if curr_cpf:
+            curr_cpf = aplicar_mascara_cpf(curr_cpf)
+            
         cpf_val = st.text_input("CPF", value=curr_cpf, placeholder="000.000.000-00", key="in_cpf_v3", max_chars=14)
         
         d_nasc_default = st.session_state.dados_cliente.get('data_nascimento', date(1990, 1, 1))
@@ -1717,13 +1781,17 @@ def dialog_novo_cliente(motor):
         # Validação básica
         if not nome.strip(): st.error("Por favor, informe o Nome do Cliente."); return
         if not cpf_val.strip(): st.error("Por favor, informe o CPF do Cliente."); return
+        
+        # Aplicar formatação automática do CPF ao salvar (garantia)
+        cpf_formatado = aplicar_mascara_cpf(cpf_val)
+        
         if not validar_cpf(cpf_val): st.error("CPF Inválido."); return
         if renda_total_calc <= 0: st.error("A renda total deve ser maior que zero."); return
 
         # Salvar estado
         st.session_state.dados_cliente.update({
             'nome': nome, 
-            'cpf': limpar_cpf_visual(cpf_val), 
+            'cpf': limpar_cpf_visual(cpf_formatado), 
             'data_nascimento': data_nasc, 
             'renda': renda_total_calc, 
             'rendas_lista': [r if r is not None else 0.0 for r in lista_rendas_input],
@@ -2594,10 +2662,6 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
         """, unsafe_allow_html=True)
 
         # Aplicando estilos específicos via CSS Injetado para simular o border-top colorido
-        # Como não podemos colocar classes diretamente no st.button, usamos seletores CSS avançados ou estilizamos o container
-        # Hack: Usaremos containers com borda no topo e botões dentro, ou tentaremos estilizar via nth-child se estavel.
-        # Melhor abordagem: Estilo Global para botões nesta pagina e diferenciacao visual se possivel.
-        # Dado a limitacao, vamos usar o estilo "Card" generico definido acima e injetar CSS especifico para os botoes desta seção.
         
         st.markdown(f"""
         <style>
