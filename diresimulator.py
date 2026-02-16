@@ -1198,7 +1198,7 @@ def configurar_layout():
         div[data-testid="stButton"] button.home-card-btn {{
              height: 250px !important;
              border-radius: 16px !important;
-             border: 2px solid #eef2f6 !important;
+             border: 1px solid #eef2f6 !important;
              background-color: white !important;
              color: #002c5d !important;
              box-shadow: 0 4px 6px rgba(0,0,0,0.05) !important;
@@ -1750,8 +1750,9 @@ def dialog_novo_cliente(motor):
             'sub_f_ref': s_faixa_ref
         })
         
-        # Avançar
-        st.session_state.passo_simulacao = 'guide'
+        # NÃO AVANÇAR AUTOMATICAMENTE - Manter em 'input' mas marcar cliente como ativo
+        # st.session_state.passo_simulacao = 'guide' 
+        st.session_state.cliente_ativo = True
         st.rerun()
 
 @st.dialog("Buscar Cliente Cadastrado")
@@ -1850,7 +1851,9 @@ def dialog_buscar_cliente(df_cadastros, motor):
                 })
 
                 st.toast(f"Dados de {c_nome} carregados!", icon="✅")
-                st.session_state.passo_simulacao = 'guide'
+                # NÃO AVANÇAR AUTOMATICAMENTE
+                # st.session_state.passo_simulacao = 'guide'
+                st.session_state.cliente_ativo = True
                 st.rerun()
 
     st.markdown('</div>', unsafe_allow_html=True)
@@ -1997,6 +2000,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
                                     if k in st.session_state: del st.session_state[k]
 
                                 st.session_state.passo_simulacao = 'client_analytics'
+                                st.session_state.cliente_ativo = True
                                 scroll_to_top()
                                 st.rerun()
                     else: st.caption("Nenhum histórico recente.")
@@ -2554,16 +2558,19 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
     elif passo == 'input':
         st.markdown("### Selecione uma Opção")
         
-        # Estilo para os botões quadrados grandes (CSS Injetado Globalmente para garantir aplicação)
+        # ESTILO ATUALIZADO PARA PARECER COM "CARDS DE RECOMENDAÇÃO"
+        # Borda no topo: Vermelho para cadastrar, Azul para buscar
+        # Fundo branco, sombra, arredondado
         st.markdown(f"""
         <style>
+        /* Estilo base para os botões "Cards" da home */
         .home-card-btn {{
             display: flex;
             flex-direction: column;
             align-items: center;
             justify-content: center;
-            background-color: white;
-            border: 2px solid {COR_BORDA};
+            background-color: #ffffff;
+            border: 1px solid #eef2f6; /* Borda sutil como o recommendation-card */
             border-radius: 16px;
             padding: 40px 20px;
             height: 250px !important;
@@ -2571,18 +2578,63 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
             cursor: pointer;
             transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
             text-align: center;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+            box-shadow: 0 4px 6px rgba(0,0,0,0.05); /* Sombra suave inicial */
             font-size: 1.2rem;
             color: {COR_AZUL_ESC};
             white-space: pre-wrap; 
             font-weight: 800;
         }}
+        
         .home-card-btn:hover {{
             transform: translateY(-5px);
-            border-color: {COR_VERMELHO};
-            box-shadow: 0 10px 20px rgba(227, 6, 19, 0.15);
-            color: {COR_VERMELHO};
+            box-shadow: 0 12px 24px rgba(0, 44, 93, 0.15); /* Sombra mais forte no hover */
             background-color: #fff;
+        }}
+        </style>
+        """, unsafe_allow_html=True)
+
+        # Aplicando estilos específicos via CSS Injetado para simular o border-top colorido
+        # Como não podemos colocar classes diretamente no st.button, usamos seletores CSS avançados ou estilizamos o container
+        # Hack: Usaremos containers com borda no topo e botões dentro, ou tentaremos estilizar via nth-child se estavel.
+        # Melhor abordagem: Estilo Global para botões nesta pagina e diferenciacao visual se possivel.
+        # Dado a limitacao, vamos usar o estilo "Card" generico definido acima e injetar CSS especifico para os botoes desta seção.
+        
+        st.markdown(f"""
+        <style>
+        /* Botão da Esquerda (Cadastrar) - Borda Vermelha */
+        div[data-testid="column"]:nth-of-type(1) div[data-testid="stButton"] button {{
+             border-top: 5px solid {COR_VERMELHO} !important;
+             border-radius: 16px !important;
+             height: 250px !important;
+             box-shadow: 0 4px 6px rgba(0,0,0,0.05) !important;
+             background-color: white !important;
+             color: {COR_AZUL_ESC} !important;
+             font-size: 1.2rem !important;
+             font-weight: 800 !important;
+             transition: all 0.3s ease !important;
+        }}
+        div[data-testid="column"]:nth-of-type(1) div[data-testid="stButton"] button:hover {{
+             transform: translateY(-5px);
+             box-shadow: 0 10px 20px rgba(227, 6, 19, 0.15) !important;
+             border-color: {COR_VERMELHO} !important;
+        }}
+
+        /* Botão da Direita (Buscar) - Borda Azul */
+        div[data-testid="column"]:nth-of-type(2) div[data-testid="stButton"] button {{
+             border-top: 5px solid {COR_AZUL_ESC} !important;
+             border-radius: 16px !important;
+             height: 250px !important;
+             box-shadow: 0 4px 6px rgba(0,0,0,0.05) !important;
+             background-color: white !important;
+             color: {COR_AZUL_ESC} !important;
+             font-size: 1.2rem !important;
+             font-weight: 800 !important;
+             transition: all 0.3s ease !important;
+        }}
+        div[data-testid="column"]:nth-of-type(2) div[data-testid="stButton"] button:hover {{
+             transform: translateY(-5px);
+             box-shadow: 0 10px 20px rgba(0, 44, 93, 0.15) !important;
+             border-color: {COR_AZUL_ESC} !important;
         }}
         </style>
         """, unsafe_allow_html=True)
@@ -2590,35 +2642,50 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
         col_new, col_search = st.columns(2, gap="large")
 
         with col_new:
-            # Botão Quadrado Estilizado
             if st.button("CADASTRAR NOVO CLIENTE\n(Iniciar nova simulação)", key="btn_home_new", use_container_width=True):
                 dialog_novo_cliente(motor)
 
         with col_search:
-            # Botão Quadrado Estilizado
             if st.button("BUSCAR CLIENTE\n(Base Cadastrada)", key="btn_home_search", use_container_width=True):
                 dialog_buscar_cliente(df_cadastros, motor)
         
-        # Hack CSS para forçar estilo nos botões gerados pelo Streamlit (já que não podemos por classe direta neles facilmente)
-        st.markdown("""
-        <style>
-        div[data-testid="stButton"] button p:contains("CADASTRAR NOVO CLIENTE"),
-        div[data-testid="stButton"] button p:contains("BUSCAR CLIENTE") {
-             font-size: 1.2rem;
-             font-weight: 800;
-             line-height: 1.5;
-        }
+        # --- VERIFICAÇÃO DE CLIENTE ATIVO PARA EXIBIR OPÇÕES INFERIORES ---
+        # Se um cliente foi selecionado/cadastrado, mostramos as opções de navegação
+        cliente_ativo = st.session_state.get('cliente_ativo', False)
+        nome_cliente = st.session_state.dados_cliente.get('nome', None)
         
-        div[data-testid="stButton"]:has(button:active) button,
-        div[data-testid="stButton"] button {
-             /* Tenta aplicar estilo se o texto bater (seletor :has é moderno) */
-             /* Fallback generalizado para botões grandes nesta página */
-        }
-        
-        /* Aplicando estilo específico aos botões com as chaves específicas (se possível via nth-child, mas arriscado) */
-        /* Melhor confiar no CSS global injetado acima para botões gerais e sobrescrever onde necessário */
-        </style>
-        """, unsafe_allow_html=True)
+        if cliente_ativo and nome_cliente:
+            st.markdown("---")
+            st.markdown(f"##### Cliente Ativo: <span style='color:{COR_VERMELHO}'>{nome_cliente}</span>", unsafe_allow_html=True)
+            st.caption("Selecione como deseja prosseguir com este cliente:")
+            
+            # Botões de ação full-width
+            c_opt1, c_opt2 = st.columns(2)
+            
+            # Estilo específico para estes botões de ação (Barras inferiores)
+            st.markdown(f"""
+            <style>
+            div[data-testid="column"] button.action-bar-btn {{
+                height: 70px !important;
+                font-size: 1rem !important;
+                border-radius: 12px !important;
+                text-transform: uppercase;
+                font-weight: 700;
+            }}
+            </style>
+            """, unsafe_allow_html=True)
+            
+            with c_opt1:
+                if st.button("OBTER RECOMENDAÇÃO DE IMÓVEIS", type="primary", use_container_width=True, key="btn_action_guide"):
+                    st.session_state.passo_simulacao = 'guide'
+                    scroll_to_top()
+                    st.rerun()
+            
+            with c_opt2:
+                if st.button("ESCOLHA DIRETA DE UNIDADE (ESTOQUE)", use_container_width=True, key="btn_action_selection"):
+                    st.session_state.passo_simulacao = 'selection'
+                    scroll_to_top()
+                    st.rerun()
 
 
     # --- ETAPA 2: RECOMENDAÇÃO ---
