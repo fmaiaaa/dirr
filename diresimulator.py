@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 =============================================================================
-SISTEMA DE SIMULAÇÃO IMOBILIÁRIA - DIRE RIO V68 (SINGLE SOURCE - UPDATE)
+SISTEMA DE SIMULAÇÃO IMOBILIÁRIA - DIRE RIO V69 (SINGLE SOURCE - UPDATE)
 =============================================================================
 """
 
@@ -536,21 +536,22 @@ def carregar_dados_sistema():
             
             mapa_estoque = {
                 'Nome do Empreendimento': 'Empreendimento',
-                'Valor Comercial Mínimo': 'Valor de Venda', # CORREÇÃO: Removido espaço trailing se houver no mapeamento e aplicado strip() antes
+                'Valor de Venda': 'Valor de Venda', # Mapeado para a nova coluna "Valor de Venda"
                 'Status da unidade': 'Status',
                 'Identificador': 'Identificador',
                 'Bairro': 'Bairro',
-                'Valor de Avaliação Bancária': 'Valor de Avaliação Bancária', # Removido espaço trailing
+                'Valor de Avaliação Bancária': 'Valor de Avaliação Bancária', 
                 'PS EmCash': 'PS_EmCash',
                 'PS Diamante': 'PS_Diamante',
                 'PS Ouro': 'PS_Ouro',
                 'PS Prata': 'PS_Prata',
                 'PS Bronze': 'PS_Bronze',
                 'PS Aço': 'PS_Aco',
-                'Data de Entrega da Obra': 'Data Entrega',
+                'Previsão de expedição do habite-se': 'Data Entrega', # Alterado para Previsão de expedição do habite-se
                 'Área privativa total': 'Area',
                 'Tipo Planta/Área': 'Tipologia',
-                'Endereço': 'Endereco'
+                'Endereço': 'Endereco',
+                'Folga Volta o Caixa': 'Volta_Caixa_Ref' # Novo mapeamento
             }
             
             # Garantir correspondência mesmo com espaços
@@ -573,10 +574,12 @@ def carregar_dados_sistema():
             if 'Area' not in df_estoque.columns: df_estoque['Area'] = ''
             if 'Tipologia' not in df_estoque.columns: df_estoque['Tipologia'] = ''
             if 'Endereco' not in df_estoque.columns: df_estoque['Endereco'] = ''
+            if 'Volta_Caixa_Ref' not in df_estoque.columns: df_estoque['Volta_Caixa_Ref'] = 0.0 # Garantir coluna nova
             
             # Conversões numéricas
             df_estoque['Valor de Venda'] = df_estoque['Valor de Venda'].apply(limpar_moeda)
             df_estoque['Valor de Avaliação Bancária'] = df_estoque['Valor de Avaliação Bancária'].apply(limpar_moeda)
+            df_estoque['Volta_Caixa_Ref'] = df_estoque['Volta_Caixa_Ref'].apply(limpar_moeda) # Converter nova coluna
             
             # Limpar colunas de PS
             cols_ps = ['PS_EmCash', 'PS_Diamante', 'PS_Ouro', 'PS_Prata', 'PS_Bronze', 'PS_Aco']
@@ -1496,7 +1499,7 @@ def enviar_email_smtp(destinatario, nome_cliente, pdf_bytes, dados_cliente, tipo
         <body style="font-family: 'Arial', sans-serif; color: #333; background-color: #eee; margin: 0; padding: 20px;">
             <div style="max-width: 650px; margin: auto; background-color: #fff; padding: 30px; border: 1px solid #ccc;">
                 <div style="text-align: center; margin-bottom: 20px;">
-                      <img src="{URL_LOGO_DIRECIONAL_BIG}" width="150">
+                     <img src="{URL_LOGO_DIRECIONAL_BIG}" width="150">
                 </div>
                 <h3 style="color: #002c5d; border-bottom: 2px solid #e30613; padding-bottom: 10px;">RESUMO DE ATENDIMENTO</h3>
                 
@@ -1543,7 +1546,7 @@ def enviar_email_smtp(destinatario, nome_cliente, pdf_bytes, dados_cliente, tipo
                          <td style="padding: 8px; border: 1px solid #ddd;">&nbsp;&nbsp;↳ 60 Dias</td>
                          <td style="padding: 8px; border: 1px solid #ddd; text-align: right;">R$ {a60}</td>
                     </tr>
-                      <tr>
+                     <tr>
                          <td style="padding: 8px; border: 1px solid #ddd;">&nbsp;&nbsp;↳ 90 Dias</td>
                          <td style="padding: 8px; border: 1px solid #ddd; text-align: right;">R$ {a90}</td>
                     </tr>
@@ -1977,7 +1980,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
                                     'in_nome_v28', 'in_cpf_v3', 'in_dt_nasc_v3', 'in_genero_v3', 
                                     'qtd_part_v3', 'in_rank_v28', 'in_pol_v28', 'in_soc_v28', 'in_cot_v28',
                                     'fin_u_key', 'fgts_u_key', 'ps_u_key', 'parc_ps_key', 
-                                    'ato_1_key', 'ato_2_key', 'ato_3_key', 'ato_4_key'
+                                    'ato_1_key', 'ato_2_key', 'ato_3_key', 'ato_4_key', 'volta_caixa_key'
                                 ]
                                 for i in range(5): keys_to_reset.append(f"renda_part_{i}_v3")
                                 for k in keys_to_reset:
@@ -2020,7 +2023,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
             let currentImageIndex = 0;
             let currentImages = [];
 
-            # Função para abrir o modal com uma lista de imagens e um índice inicial
+            // Função para abrir o modal com uma lista de imagens e um índice inicial
             function openGallery(imagesJson, index) {
                 currentImages = JSON.parse(imagesJson);
                 currentImageIndex = index;
@@ -2048,7 +2051,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
                 modalImg.src = currentImages[index];
             }
             
-            # Navegar com teclado
+            // Navegar com teclado
             document.addEventListener('keydown', function(event) {
                 if(document.getElementById("myModal").style.display === "block"){
                     if(event.key === "ArrowLeft") {
@@ -2063,7 +2066,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
                 }
             });
 
-            # Fechar ao clicar fora da imagem
+            // Fechar ao clicar fora da imagem
             window.onclick = function(event) {
               var modal = document.getElementById("myModal");
               if (event.target == modal) {
@@ -2331,7 +2334,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
                 
                 # Define cores personalizadas para cada tipo de pagamento
                 color_scale = alt.Scale(domain=['Ato', '30 Dias', '60 Dias', '90 Dias', 'Pro Soluto', 'Financiamento', 'FGTS/Subsídio'],
-                                        range=['#e30613', '#c0392b', '#94a3b8', '#64748b', '#f59e0b', '#002c5d', '#10b981'])
+                                                                  range=['#e30613', '#c0392b', '#94a3b8', '#64748b', '#f59e0b', '#002c5d', '#10b981'])
 
                 # Selection for interactivity
                 hover = alt.selection_point(on='mouseover', empty=False, fields=['Tipo'])
@@ -2366,7 +2369,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
                 df_renda = pd.DataFrame(pie_renda, columns=['Participante', 'Renda'])
                 
                 color_scale_renda = alt.Scale(domain=[f"Part. {i+1}" for i in range(len(pie_renda))],
-                                        range=['#002c5d', '#e30613', '#f59e0b', '#10b981'])
+                                                                  range=['#002c5d', '#e30613', '#f59e0b', '#10b981'])
 
                 hover_renda = alt.selection_point(on='mouseover', empty=False, fields=['Participante'])
 
@@ -2899,7 +2902,8 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
                         'unid_area': u_row.get('Area', ''),
                         'unid_tipo': u_row.get('Tipologia', ''),
                         'unid_endereco': u_row.get('Endereco', ''),
-                        'unid_bairro': u_row.get('Bairro', '')
+                        'unid_bairro': u_row.get('Bairro', ''),
+                        'volta_caixa_ref': u_row.get('Volta_Caixa_Ref', 0.0) # Salva a referência na sessão
                     })
                     st.session_state.passo_simulacao = 'payment_flow'; scroll_to_top(); st.rerun()
             if st.button("Voltar para Recomendação de Imóveis", use_container_width=True): st.session_state.passo_simulacao = 'guide'; scroll_to_top(); st.rerun()
@@ -3105,6 +3109,17 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
         v_parc = ps_input_val / parc if parc > 0 else 0
         st.session_state.dados_cliente['ps_mensal'] = v_parc
         
+        # --- INPUT VOLTA AO CAIXA (NOVO) ---
+        st.markdown("<hr style='margin: 10px 0;'>", unsafe_allow_html=True)
+        if 'volta_caixa_key' not in st.session_state: st.session_state['volta_caixa_key'] = 0.0
+        
+        vc_ref = d.get('volta_caixa_ref', 0.0)
+        vc_input_val = st.number_input("Volta ao Caixa", value=val_none(st.session_state['volta_caixa_key']), key="volta_caixa_key", step=1000.0, format="%.2f", placeholder="0,00")
+        if vc_input_val is None: vc_input_val = 0.0
+        
+        ref_text_vc = f"Folga Volta ao Caixa: R$ {fmt_br(vc_ref)}"
+        st.markdown(f'<span class="inline-ref">{ref_text_vc}</span>', unsafe_allow_html=True)
+        
         # Recalcular valores atuais para o resumo
         r1_val = st.session_state.dados_cliente['ato_final']
         r2_val = st.session_state.dados_cliente['ato_30']
@@ -3113,7 +3128,9 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
         
         total_entrada_cash = r1_val + r2_val + r3_val + r4_val
         st.session_state.dados_cliente['entrada_total'] = total_entrada_cash
-        gap_final = u_valor - f_u_input - fgts_u_input - ps_input_val - total_entrada_cash
+        
+        # Inclui o Volta ao Caixa na dedução do GAP FINAL
+        gap_final = u_valor - f_u_input - fgts_u_input - ps_input_val - total_entrada_cash - vc_input_val
         
         st.markdown("<hr style='margin: 10px 0;'>", unsafe_allow_html=True)
         fin1, fin2, fin3 = st.columns(3)
@@ -3195,7 +3212,8 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
                     "Data/Horário": datetime.now(pytz.timezone('America/Sao_Paulo')).strftime("%d/%m/%Y %H:%M:%S"),
                     "Sistema de Amortização": d.get('sistema_amortizacao', 'SAC'),
                     "Quantidade Parcelas Financiamento": d.get('prazo_financiamento', 360),
-                    "Quantidade Parcelas Pro Soluto": d.get('ps_parcelas', 0)
+                    "Quantidade Parcelas Pro Soluto": d.get('ps_parcelas', 0),
+                    "Volta ao Caixa": st.session_state.get('volta_caixa_key', 0.0) # Adicionado ao salvamento
                 }
                 df_novo = pd.DataFrame([nova_linha])
                 try:
