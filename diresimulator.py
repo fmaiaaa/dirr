@@ -386,6 +386,14 @@ def calcular_fluxo_pagamento_detalhado(valor_fin, meses_fin, taxa_anual, sistema
         pmt_price = valor_fin * (i_mensal * (1 + i_mensal)**meses_fin) / ((1 + i_mensal)**meses_fin - 1)
 
     # Gera fluxo até o final do financiamento
+    # LÓGICA SOLICITADA:
+    # Mês 1: Parcela Fin + Parcela PS + Ato 0 (Imediato)
+    # Mês 2: Parcela Fin + Parcela PS + Ato 30
+    # Mês 3: Parcela Fin + Parcela PS + Ato 60
+    # Mês 4: Parcela Fin + Parcela PS + Ato 90
+    # Mês 5+: Parcela Fin + Parcela PS (até fim do PS)
+    # Pós PS: Apenas Parcela Fin
+
     for m in range(1, meses_fin + 1):
         if sistema == 'SAC':
             juros = saldo_devedor * i_mensal
@@ -528,7 +536,7 @@ def carregar_dados_sistema():
             
             mapa_estoque = {
                 'Nome do Empreendimento': 'Empreendimento',
-                'Valor de Venda': 'Valor de Venda', # CORREÇÃO PEDIDA
+                'Valor Comercial Mínimo': 'Valor de Venda', # CORREÇÃO: Removido espaço trailing se houver no mapeamento e aplicado strip() antes
                 'Status da unidade': 'Status',
                 'Identificador': 'Identificador',
                 'Bairro': 'Bairro',
@@ -539,8 +547,7 @@ def carregar_dados_sistema():
                 'PS Prata': 'PS_Prata',
                 'PS Bronze': 'PS_Bronze',
                 'PS Aço': 'PS_Aco',
-                'Previsão de expedição do habite-se': 'Data Entrega', # CORREÇÃO PEDIDA
-                'Folga Volta o Caixa': 'Volta_Caixa', # CORREÇÃO PEDIDA
+                'Data de Entrega da Obra': 'Data Entrega',
                 'Área privativa total': 'Area',
                 'Tipo Planta/Área': 'Tipologia',
                 'Endereço': 'Endereco'
@@ -566,12 +573,10 @@ def carregar_dados_sistema():
             if 'Area' not in df_estoque.columns: df_estoque['Area'] = ''
             if 'Tipologia' not in df_estoque.columns: df_estoque['Tipologia'] = ''
             if 'Endereco' not in df_estoque.columns: df_estoque['Endereco'] = ''
-            if 'Volta_Caixa' not in df_estoque.columns: df_estoque['Volta_Caixa'] = 0.0
             
             # Conversões numéricas
             df_estoque['Valor de Venda'] = df_estoque['Valor de Venda'].apply(limpar_moeda)
             df_estoque['Valor de Avaliação Bancária'] = df_estoque['Valor de Avaliação Bancária'].apply(limpar_moeda)
-            df_estoque['Volta_Caixa'] = df_estoque['Volta_Caixa'].apply(limpar_moeda)
             
             # Limpar colunas de PS
             cols_ps = ['PS_EmCash', 'PS_Diamante', 'PS_Ouro', 'PS_Prata', 'PS_Bronze', 'PS_Aco']
@@ -614,9 +619,9 @@ def carregar_dados_sistema():
                 df_estoque['Empreendimento'] = df_estoque['Empreendimento'].astype(str).str.strip()
             if 'Bairro' in df_estoque.columns:
                 df_estoque['Bairro'] = df_estoque['Bairro'].astype(str).str.strip()
-                                                      
+                                                                  
         except: 
-            df_estoque = pd.DataFrame(columns=['Empreendimento', 'Valor de Venda', 'Status', 'Identificador', 'Bairro', 'Valor de Avaliação Bancária', 'Volta_Caixa'])
+            df_estoque = pd.DataFrame(columns=['Empreendimento', 'Valor de Venda', 'Status', 'Identificador', 'Bairro', 'Valor de Avaliação Bancária'])
 
         return df_finan, df_estoque, df_politicas, df_logins, df_cadastros
     except Exception as e:
@@ -702,38 +707,10 @@ def configurar_layout():
             cursor: pointer;
             transition: transform 0.2s;
             border: 1px solid #eee;
-            position: relative;
         }}
         .scrolling-images img:hover {{
             transform: scale(1.02);
             border-color: {COR_AZUL_ESC};
-        }}
-        
-        /* IMAGE OVERLAY ICON (FULLSCREEN) */
-        .img-container {{
-            position: relative;
-            display: inline-block;
-            margin-right: 15px;
-        }}
-        .img-fullscreen-btn {{
-            position: absolute;
-            top: 10px;
-            right: 10px;
-            background: rgba(0,0,0,0.6);
-            color: white;
-            border-radius: 4px;
-            padding: 5px;
-            cursor: pointer;
-            font-size: 1.2rem;
-            z-index: 10;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            width: 32px;
-            height: 32px;
-        }}
-        .img-fullscreen-btn:hover {{
-            background: {COR_VERMELHO};
         }}
         
         /* MASTERPLAN PLACEHOLDER */
@@ -1233,19 +1210,11 @@ def render_stepper(current_step_name):
         {"id": "summary", "label": "Resumo"}
     ]
     current_idx = 0
-    # Ajuste: input e client_selected compartilham o primeiro step visual
-    step_mapping = {'client_analytics': 0, 'input': 0}
-    
-    found = False
     for i, s in enumerate(steps):
         if s["id"] == current_step_name:
             current_idx = i
-            found = True
             break
     
-    if not found and current_step_name == 'client_analytics':
-        current_idx = 0
-
     html = '<div class="stepper-container"><div class="stepper-line-bg"></div>'
     for i, step in enumerate(steps):
         status_class = ""
@@ -1479,8 +1448,9 @@ def enviar_email_smtp(destinatario, nome_cliente, pdf_bytes, dados_cliente, tipo
     
     corretor_nome = dados_cliente.get('corretor_nome', 'Direcional')
     corretor_tel = dados_cliente.get('corretor_telefone', '')
+    corretor_email = dados_cliente.get('corretor_email', '')
     
-    # TEMPLATE CLIENTE
+    # TEMPLATE CLIENTE (Foco no sonho, design limpo)
     if tipo == 'cliente':
         msg['Subject'] = f"Seu sonho está próximo! Simulação - {emp}"
         html_content = f"""
@@ -1488,25 +1458,23 @@ def enviar_email_smtp(destinatario, nome_cliente, pdf_bytes, dados_cliente, tipo
         <body style="font-family: 'Helvetica', sans-serif; color: #333; background-color: #f9f9f9; margin: 0; padding: 20px;">
             <div style="max-width: 600px; margin: auto; background-color: #fff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 15px rgba(0,0,0,0.05);">
                 <div style="background-color: #ffffff; padding: 30px; text-align: center; border-bottom: 4px solid #e30613;">
-                    <!-- Use o favicon que é mais garantido de aparecer se a logo big falhar -->
-                    <img src="{URL_FAVICON_RESERVA}" width="64" style="margin-bottom: 10px;">
-                    <br>
-                    <span style="color: #002c5d; font-weight: bold; font-size: 1.2em;">DIRECIONAL</span>
+                    <img src="{URL_LOGO_DIRECIONAL_BIG}" width="180" style="margin-bottom: 10px;">
                 </div>
                 <div style="padding: 40px;">
                     <h2 style="color: #002c5d; margin: 0 0 20px 0; font-weight: 300; text-align: center;">Olá, {nome_cliente}!</h2>
                     <p style="font-size: 1.1em; line-height: 1.6; text-align: center; color: #555;">
-                        Foi ótimo apresentar as oportunidades da Direcional para você. O imóvel <strong>{emp}</strong> é incrível.
+                        Foi ótimo apresentar as oportunidades da Direcional para você. O imóvel <strong>{emp}</strong> é incrível e desenhamos uma condição especial para o seu perfil.
                     </p>
                     
                     <div style="background-color: #f0f4f8; border-left: 5px solid #e30613; padding: 20px; margin: 30px 0; border-radius: 4px;">
                         <p style="margin: 0; font-weight: bold; color: #002c5d; font-size: 1.2em;">{emp}</p>
                         <p style="margin: 5px 0 0 0; color: #777;">Unidade: {unid}</p>
-                        <p style="margin: 15px 0 0 0; font-size: 1.5em; font-weight: bold; color: #e30613;">R$ {val_venda}</p>
+                        <p style="margin: 15px 0 0 0; font-size: 1.5em; font-weight: bold; color: #e30613;">Valor Promocional: R$ {val_venda}</p>
                     </div>
 
                     <div style="text-align: center; margin: 35px 0;">
-                        <p style="font-size: 0.9em; color: #555;">Veja a proposta detalhada no PDF em anexo.</p>
+                        <a href="#" style="background-color: #002c5d; color: #ffffff; padding: 15px 30px; text-decoration: none; font-weight: bold; border-radius: 5px; font-size: 1.1em;">VISUALIZAR PROPOSTA DETALHADA</a>
+                        <p style="font-size: 0.8em; color: #999; margin-top: 10px;">(Abra o arquivo PDF em anexo para ver todos os detalhes)</p>
                     </div>
                     
                     <div style="margin-top: 40px; border-top: 1px solid #eee; padding-top: 20px; text-align: center;">
@@ -1520,7 +1488,7 @@ def enviar_email_smtp(destinatario, nome_cliente, pdf_bytes, dados_cliente, tipo
         </html>
         """
     
-    # TEMPLATE CORRETOR
+    # TEMPLATE CORRETOR (Foco técnico, dados completos)
     else:
         msg['Subject'] = f"LEAD: {nome_cliente} - {emp} - {unid}"
         html_content = f"""
@@ -1528,40 +1496,68 @@ def enviar_email_smtp(destinatario, nome_cliente, pdf_bytes, dados_cliente, tipo
         <body style="font-family: 'Arial', sans-serif; color: #333; background-color: #eee; margin: 0; padding: 20px;">
             <div style="max-width: 650px; margin: auto; background-color: #fff; padding: 30px; border: 1px solid #ccc;">
                 <div style="text-align: center; margin-bottom: 20px;">
-                     <img src="{URL_FAVICON_RESERVA}" width="50">
+                      <img src="{URL_LOGO_DIRECIONAL_BIG}" width="150">
                 </div>
                 <h3 style="color: #002c5d; border-bottom: 2px solid #e30613; padding-bottom: 10px;">RESUMO DE ATENDIMENTO</h3>
                 
-                <p><b>CLIENTE:</b> {nome_cliente}</p>
-                <p><b>RENDA:</b> R$ {renda_cli}</p>
-                <p><b>PRODUTO:</b> {emp} - Unid: {unid}</p>
+                <div style="display: flex; margin-bottom: 20px; background: #f9f9f9; padding: 15px;">
+                    <div style="flex: 1;">
+                        <p style="margin: 5px 0; font-size: 0.9em; color: #666;">CLIENTE</p>
+                        <p style="margin: 0; font-weight: bold;">{nome_cliente}</p>
+                        <p style="margin: 0; font-size: 0.9em;">Renda: R$ {renda_cli}</p>
+                    </div>
+                    <div style="flex: 1;">
+                        <p style="margin: 5px 0; font-size: 0.9em; color: #666;">PRODUTO</p>
+                        <p style="margin: 0; font-weight: bold;">{emp}</p>
+                        <p style="margin: 0;">Unid: {unid}</p>
+                    </div>
+                </div>
 
-                <table style="width: 100%; border-collapse: collapse; margin-top: 20px; font-size: 0.9em;">
+                <h4 style="color: #002c5d; margin-top: 0;">Valores do Imóvel</h4>
+                <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px; font-size: 0.9em;">
                     <tr style="background-color: #f2f2f2;">
-                        <td style="padding: 8px; border: 1px solid #ddd;">Valor Venda</td>
-                        <td style="padding: 8px; border: 1px solid #ddd; text-align: right;"><b>R$ {val_venda}</b></td>
+                        <td style="padding: 8px; border: 1px solid #ddd;">Valor Venda (VCM)</td>
+                        <td style="padding: 8px; border: 1px solid #ddd; text-align: right; color: #e30613;"><b>R$ {val_venda}</b></td>
                     </tr>
                     <tr>
+                        <td style="padding: 8px; border: 1px solid #ddd;">Avaliação Bancária</td>
+                        <td style="padding: 8px; border: 1px solid #ddd; text-align: right;">R$ {val_aval}</td>
+                    </tr>
+                </table>
+
+                <h4 style="color: #002c5d;">Plano de Pagamento</h4>
+                <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px; font-size: 0.9em;">
+                    <tr style="background-color: #f2f2f2;">
                         <td style="padding: 8px; border: 1px solid #ddd;">Entrada Total</td>
-                        <td style="padding: 8px; border: 1px solid #ddd; text-align: right;"><b>R$ {entrada}</b></td>
+                        <td style="padding: 8px; border: 1px solid #ddd; text-align: right; color: #002c5d;"><b>R$ {entrada}</b></td>
                     </tr>
                     <tr>
-                        <td style="padding: 8px; border: 1px solid #ddd;">Ato</td>
-                        <td style="padding: 8px; border: 1px solid #ddd; text-align: right;">R$ {a0}</td>
+                         <td style="padding: 8px; border: 1px solid #ddd;">&nbsp;&nbsp;↳ Ato Imediato</td>
+                         <td style="padding: 8px; border: 1px solid #ddd; text-align: right;">R$ {a0}</td>
                     </tr>
                     <tr>
-                        <td style="padding: 8px; border: 1px solid #ddd;">30/60/90 Dias</td>
-                        <td style="padding: 8px; border: 1px solid #ddd; text-align: right;">{a30} / {a60} / {a90}</td>
+                         <td style="padding: 8px; border: 1px solid #ddd;">&nbsp;&nbsp;↳ 30 Dias</td>
+                         <td style="padding: 8px; border: 1px solid #ddd; text-align: right;">R$ {a30}</td>
+                    </tr>
+                    <tr>
+                         <td style="padding: 8px; border: 1px solid #ddd;">&nbsp;&nbsp;↳ 60 Dias</td>
+                         <td style="padding: 8px; border: 1px solid #ddd; text-align: right;">R$ {a60}</td>
+                    </tr>
+                      <tr>
+                         <td style="padding: 8px; border: 1px solid #ddd;">&nbsp;&nbsp;↳ 90 Dias</td>
+                         <td style="padding: 8px; border: 1px solid #ddd; text-align: right;">R$ {a90}</td>
                     </tr>
                     <tr style="background-color: #f2f2f2;">
                         <td style="padding: 8px; border: 1px solid #ddd;">Financiamento</td>
                         <td style="padding: 8px; border: 1px solid #ddd; text-align: right;">R$ {finan}</td>
                     </tr>
                     <tr>
-                        <td style="padding: 8px; border: 1px solid #ddd;">Pro Soluto (Mensal)</td>
+                        <td style="padding: 8px; border: 1px solid #ddd;">Mensal Pro Soluto</td>
                         <td style="padding: 8px; border: 1px solid #ddd; text-align: right;">R$ {ps}</td>
                     </tr>
                 </table>
+                
+                <p style="font-size: 0.8em; color: #999; text-align: center;">Simulação gerada via Direcional Rio Simulador.</p>
             </div>
         </body>
         </html>
@@ -1654,11 +1650,7 @@ def dialog_novo_cliente(motor):
     
     with st.form("form_cadastro"):
         nome = st.text_input("Nome Completo", value=curr_nome, placeholder="Nome Completo", key="in_nome_v28")
-        
-        # CPF com formatação automática básica (mask like behavior)
-        # Streamlit não suporta mask nativo, então usamos a formatação do valor atual se ele já existir
-        cpf_val_raw = curr_cpf
-        cpf_val = st.text_input("CPF", value=cpf_val_raw, placeholder="000.000.000-00", key="in_cpf_v3", max_chars=14)
+        cpf_val = st.text_input("CPF", value=curr_cpf, placeholder="000.000.000-00", key="in_cpf_v3", max_chars=14)
         
         d_nasc_default = st.session_state.dados_cliente.get('data_nascimento', date(1990, 1, 1))
         if isinstance(d_nasc_default, str):
@@ -1676,7 +1668,7 @@ def dialog_novo_cliente(motor):
         lista_rendas_input = []
         rendas_anteriores = st.session_state.dados_cliente.get('rendas_lista', [])
         
-        # Helper to clear input on empty (0.0 -> None)
+        # Helper to clear input on empty
         def get_val(idx, default):
             v = float(rendas_anteriores[idx]) if idx < len(rendas_anteriores) else default
             return None if v == 0.0 else v
@@ -1685,7 +1677,7 @@ def dialog_novo_cliente(motor):
             with cols_renda[i]:
                 def_val = 3500.0 if i == 0 and not rendas_anteriores else 0.0
                 current_val = get_val(i, def_val)
-                # Se for 0.0, exibe None para aparecer o placeholder "0,00"
+                # Use value=None if 0.0 to show placeholder "0,00"
                 val_display = None if current_val == 0.0 else current_val
                 
                 val_r = st.number_input(f"Renda Part. {i+1}", min_value=0.0, value=val_display, step=100.0, key=f"renda_part_{i}_v3", placeholder="0,00", format="%.2f")
@@ -1701,7 +1693,7 @@ def dialog_novo_cliente(motor):
         cotista = st.toggle("Cotista FGTS", value=st.session_state.dados_cliente.get('cotista', True), key="in_cot_v28")
 
         st.markdown("<br>", unsafe_allow_html=True)
-        submitted = st.form_submit_button("SALVAR DADOS", type="primary", use_container_width=True)
+        submitted = st.form_submit_button("Confirmar e Avançar", type="primary", use_container_width=True)
     
     st.markdown('</div>', unsafe_allow_html=True)
 
@@ -1745,8 +1737,8 @@ def dialog_novo_cliente(motor):
             'sub_f_ref': s_faixa_ref
         })
         
-        # Mudar para estado que mostra opções na página principal, não avançar direto
-        st.session_state.passo_simulacao = 'client_selected'
+        # Avançar
+        st.session_state.passo_simulacao = 'guide'
         st.rerun()
 
 @st.dialog("Buscar Cliente Cadastrado")
@@ -1771,7 +1763,7 @@ def dialog_buscar_cliente(df_cadastros, motor):
             mask = mask | filtered_df['CPF'].astype(str).str.contains(term)
         filtered_df = filtered_df[mask]
 
-    # Container com scroll para lista
+    # Container com scroll para lista - Aumentado altura para notebooks
     st.markdown('<div style="max-height: 60vh; overflow-y: auto; padding-right: 5px;">', unsafe_allow_html=True)
     
     if filtered_df.empty:
@@ -1845,8 +1837,7 @@ def dialog_buscar_cliente(df_cadastros, motor):
                 })
 
                 st.toast(f"Dados de {c_nome} carregados!", icon="✅")
-                # Fica na mesma página (input) mas com cliente selecionado
-                st.session_state.passo_simulacao = 'client_selected'
+                st.session_state.passo_simulacao = 'guide'
                 st.rerun()
 
     st.markdown('</div>', unsafe_allow_html=True)
@@ -1927,7 +1918,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
                                         qtd_p = i
                                         break
                                 
-                                # Calcula o total da renda
+                                # Calcula o total da renda (CORREÇÃO DO BUG R$ 0,00)
                                 renda_total = sum(rs)
 
                                 soc = str(row.get('Fator Social', '')).strip().lower() in ['sim', 's', 'true']
@@ -1944,7 +1935,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
                                     'data_nascimento': row.get('Data de Nascimento'),
                                     'qtd_participantes': qtd_p,
                                     'rendas_lista': rs,
-                                    'renda': renda_total,
+                                    'renda': renda_total,  # Chave adicionada explicitamente
                                     'ranking': row.get('Ranking'),
                                     'politica': row.get('Política de Pro Soluto'),
                                     'social': soc,
@@ -2007,18 +1998,15 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
     # --- GALERIA DE PRODUTOS ---
     if passo == 'gallery':
         st.markdown("### Galeria de Produtos")
+        st.markdown("---")
         
         # Obter lista de produtos
         lista_produtos = sorted(list(CATALOGO_PRODUTOS.keys()))
         
+        # TABS PARA SELEÇÃO HORIZONTAL (SLIDER-LIKE)
         if not lista_produtos:
             st.warning("Nenhum produto cadastrado na galeria.")
         else:
-            # Seleção horizontal via Pills/Radio
-            prod_key = st.radio("Selecione o Empreendimento", lista_produtos, horizontal=True, label_visibility="collapsed")
-            
-            st.markdown("---")
-            
             # INJETAR JAVASCRIPT E HTML DO MODAL APENAS UMA VEZ
             st.markdown("""
             <div id="myModal" class="modal">
@@ -2085,171 +2073,199 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
             </script>
             """, unsafe_allow_html=True)
 
-            if prod_key:
-                # Recupera metadados
-                meta = CATALOGO_PRODUTOS[prod_key]
-                
-                # SEÇÃO 1: VÍDEO E MAPA (Lado a Lado 50/50 com mesma altura)
-                col_vid, col_map = st.columns([1, 1])
-                
-                with col_vid:
-                    st.markdown('<div style="height: 360px; display: flex; align-items: center; justify-content: center; background: #000; border-radius: 10px; overflow: hidden;">', unsafe_allow_html=True)
-                    if meta.get("video"):
-                        st.video(meta["video"])
-                    else:
-                        st.info("Vídeo indisponível.")
-                    st.markdown('</div>', unsafe_allow_html=True)
-                        
-                with col_map:
-                    if meta.get("lat") and meta.get("lon"):
-                        # Mapa Folium com OpenStreetMap (Mostra ruas e referências)
-                        m = folium.Map(location=[meta['lat'], meta['lon']], zoom_start=15, tiles="OpenStreetMap")
-                        folium.Marker(
-                            [meta['lat'], meta['lon']], 
-                            popup=prod_key, 
-                            tooltip=prod_key,
-                            icon=folium.Icon(color="red", icon="home")
-                        ).add_to(m)
-                        
-                        # Renderiza o mapa com altura fixa para alinhar com o vídeo
-                        st_folium(m, height=360, use_container_width=True)
-                    else:
-                        st.info("Mapa indisponível.")
-                
-                st.markdown("---")
-
-                # --- BOX DE INFORMAÇÕES ---
-                if not df_estoque.empty and 'Empreendimento' in df_estoque.columns:
-                    df_emp_info = df_estoque[df_estoque['Empreendimento'] == prod_key]
-                    if not df_emp_info.empty:
-                        # Cálculos
-                        min_p = df_emp_info['Valor de Venda'].min()
-                        max_p = df_emp_info['Valor de Venda'].max()
-                        var_preco = f"R$ {fmt_br(min_p)} a R$ {fmt_br(max_p)}"
-                        
-                        areas_vals = []
-                        if 'Area' in df_emp_info.columns:
-                            areas_vals = pd.to_numeric(df_emp_info['Area'], errors='coerce').dropna()
-                        
-                        if not areas_vals.empty:
-                            min_area = areas_vals.min()
-                            max_area = areas_vals.max()
-                            metragem_txt = f"{min_area}m² a {max_area}m²"
-                            
-                            # Cálculo preço m2
-                            min_m2 = min_p / max_area if max_area > 0 else 0
-                            max_m2 = max_p / min_area if min_area > 0 else 0
-                            var_m2 = f"R$ {fmt_br(min_m2)} a R$ {fmt_br(max_m2)}"
+            tabs_produtos = st.tabs(lista_produtos)
+            
+            for aba, prod_key in zip(tabs_produtos, lista_produtos):
+                with aba:
+                    # Recupera metadados
+                    meta = CATALOGO_PRODUTOS[prod_key]
+                    
+                    st.markdown(f"#### {prod_key}")
+                    
+                    # SEÇÃO 1: VÍDEO E MAPA (Lado a Lado 50/50)
+                    col_vid, col_map = st.columns(2)
+                    
+                    with col_vid:
+                        if meta.get("video"):
+                            st.video(meta["video"])
                         else:
-                            metragem_txt = "N/A"
-                            var_m2 = "N/A"
-                        
-                        num_unidades = len(df_emp_info)
-                        num_blocos = df_emp_info['Bloco_Sort'].nunique() if 'Bloco_Sort' in df_emp_info.columns else 1
-                        
-                        bairro_info = df_emp_info['Bairro'].iloc[0] if 'Bairro' in df_emp_info.columns else "N/A"
-                        endereco_info = df_emp_info['Endereco'].iloc[0] if 'Endereco' in df_emp_info.columns else "N/A"
-                        entrega_info = df_emp_info['Data Entrega'].iloc[0] if 'Data Entrega' in df_emp_info.columns else "N/A"
-                        
-                        st.markdown(f"""
-                        <div class="summary-body" style="padding: 20px; margin-bottom: 20px;">
-                            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px;">
-                                <div><small style="color:#64748b; font-weight:bold;">VARIAÇÃO PREÇO</small><br><span style="color:{COR_AZUL_ESC}; font-weight:bold;">{var_preco}</span></div>
-                                <div><small style="color:#64748b; font-weight:bold;">METRAGEM</small><br><span style="color:{COR_AZUL_ESC}; font-weight:bold;">{metragem_txt}</span></div>
-                                <div><small style="color:#64748b; font-weight:bold;">PREÇO M²</small><br><span style="color:{COR_AZUL_ESC}; font-weight:bold;">{var_m2}</span></div>
-                                <div><small style="color:#64748b; font-weight:bold;">ENTREGA</small><br><span style="color:{COR_AZUL_ESC}; font-weight:bold;">{entrega_info}</span></div>
-                                <div><small style="color:#64748b; font-weight:bold;">BLOCOS / UNID.</small><br><span style="color:{COR_AZUL_ESC}; font-weight:bold;">{num_blocos} / {num_unidades}</span></div>
-                                <div><small style="color:#64748b; font-weight:bold;">BAIRRO</small><br><span style="color:{COR_AZUL_ESC}; font-weight:bold;">{bairro_info}</span></div>
+                            st.info("Vídeo indisponível.")
+                            
+                    with col_map:
+                        if meta.get("lat") and meta.get("lon"):
+                            # Mapa Folium com OpenStreetMap (Mostra ruas e referências)
+                            m = folium.Map(location=[meta['lat'], meta['lon']], zoom_start=15, tiles="OpenStreetMap")
+                            folium.Marker(
+                                [meta['lat'], meta['lon']], 
+                                popup=prod_key, 
+                                tooltip=prod_key,
+                                icon=folium.Icon(color="red", icon="home")
+                            ).add_to(m)
+                            
+                            # Renderiza o mapa com altura fixa para alinhar com o vídeo
+                            st_folium(m, height=360, use_container_width=True)
+                        else:
+                            st.info("Mapa indisponível.")
+                    
+                    st.markdown("---")
+
+                    # --- BOX DE INFORMAÇÕES (NOVO) ---
+                    if not df_estoque.empty and 'Empreendimento' in df_estoque.columns:
+                        df_emp_info = df_estoque[df_estoque['Empreendimento'] == prod_key]
+                        if not df_emp_info.empty:
+                            # Cálculos
+                            min_p = df_emp_info['Valor de Venda'].min()
+                            max_p = df_emp_info['Valor de Venda'].max()
+                            var_preco = f"R$ {fmt_br(min_p)} a R$ {fmt_br(max_p)}"
+                            
+                            areas_vals = []
+                            if 'Area' in df_emp_info.columns:
+                                areas_vals = pd.to_numeric(df_emp_info['Area'], errors='coerce').dropna()
+                            
+                            if not areas_vals.empty:
+                                min_area = areas_vals.min()
+                                max_area = areas_vals.max()
+                                metragem_txt = f"{min_area}m² a {max_area}m²"
+                                
+                                # Cálculo preço m2
+                                min_m2 = min_p / max_area if max_area > 0 else 0
+                                max_m2 = max_p / min_area if min_area > 0 else 0
+                                var_m2 = f"R$ {fmt_br(min_m2)} a R$ {fmt_br(max_m2)}"
+                            else:
+                                metragem_txt = "N/A"
+                                var_m2 = "N/A"
+                            
+                            num_unidades = len(df_emp_info)
+                            num_blocos = df_emp_info['Bloco_Sort'].nunique() if 'Bloco_Sort' in df_emp_info.columns else 1
+                            
+                            bairro_info = df_emp_info['Bairro'].iloc[0] if 'Bairro' in df_emp_info.columns else "N/A"
+                            endereco_info = df_emp_info['Endereco'].iloc[0] if 'Endereco' in df_emp_info.columns else "N/A"
+                            entrega_info = df_emp_info['Data Entrega'].iloc[0] if 'Data Entrega' in df_emp_info.columns else "N/A"
+                            
+                            st.markdown(f"""
+                            <div class="summary-body" style="padding: 20px; margin-bottom: 20px;">
+                                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px;">
+                                    <div><small style="color:#64748b; font-weight:bold;">VARIAÇÃO PREÇO</small><br><span style="color:{COR_AZUL_ESC}; font-weight:bold;">{var_preco}</span></div>
+                                    <div><small style="color:#64748b; font-weight:bold;">METRAGEM</small><br><span style="color:{COR_AZUL_ESC}; font-weight:bold;">{metragem_txt}</span></div>
+                                    <div><small style="color:#64748b; font-weight:bold;">PREÇO M²</small><br><span style="color:{COR_AZUL_ESC}; font-weight:bold;">{var_m2}</span></div>
+                                    <div><small style="color:#64748b; font-weight:bold;">ENTREGA</small><br><span style="color:{COR_AZUL_ESC}; font-weight:bold;">{entrega_info}</span></div>
+                                    <div><small style="color:#64748b; font-weight:bold;">BLOCOS / UNID.</small><br><span style="color:{COR_AZUL_ESC}; font-weight:bold;">{num_blocos} / {num_unidades}</span></div>
+                                    <div><small style="color:#64748b; font-weight:bold;">BAIRRO</small><br><span style="color:{COR_AZUL_ESC}; font-weight:bold;">{bairro_info}</span></div>
+                                </div>
+                                <div style="margin-top: 15px; border-top: 1px solid #e2e8f0; padding-top: 10px;">
+                                    <small style="color:#64748b; font-weight:bold;">ENDEREÇO</small><br><span style="color:{COR_AZUL_ESC};">{endereco_info}</span>
+                                </div>
                             </div>
-                            <div style="margin-top: 15px; border-top: 1px solid #e2e8f0; padding-top: 10px;">
-                                <small style="color:#64748b; font-weight:bold;">ENDEREÇO</small><br><span style="color:{COR_AZUL_ESC};">{endereco_info}</span>
-                            </div>
-                        </div>
-                        """, unsafe_allow_html=True)
-                
-                st.markdown("---")
-                
-                # Organizar imagens por categoria e consolidar em uma lista ordenada
-                imagens_raw = meta.get("imagens", [])
-                link_ficha = None
-                
-                # Listas temporárias para ordenação
-                mapas = []
-                masterplan = []
-                plantas = []
-                ilustrativas = []
-
-                for item in imagens_raw:
-                    nome_up = item['nome'].upper()
-                    # Identificar Ficha Técnica
-                    if "FICHA" in nome_up or "PDF" in nome_up:
-                        link_ficha = item['link']
-                        continue
+                            """, unsafe_allow_html=True)
                     
-                    # Extrair link direto
-                    full_link = formatar_link_drive(item['link'])
+                    st.markdown("---")
                     
-                    # Categorizar
-                    if "MAPA" in nome_up:
-                        mapas.append((item, full_link))
-                    elif "MASTERPLAN" in nome_up:
-                        masterplan.append((item, full_link))
-                    elif "PLANTA" in nome_up:
-                        plantas.append((item, full_link))
-                    else:
-                        ilustrativas.append((item, full_link))
-
-                # Ordem consolidada: Mapa -> Masterplan -> Plantas -> Imagens
-                consolidated_list = mapas + masterplan + plantas + ilustrativas
-                
-                # Serializar para JSON para passar ao JS
-                all_links = [link for _, link in consolidated_list]
-                json_links = json.dumps(all_links)
-                
-                # Renderizar todas as imagens na mesma linha horizontal (scrolling-images)
-                html = '<div class="scrolling-images">'
-                local_idx = 0
-                for item, link in consolidated_list:
-                    # Tentar reconstruir thumb se for drive
-                    thumb_src = link
-                    if "drive.google.com/uc?export=view&id=" in link:
-                        fid = link.split("id=")[1]
-                        thumb_src = f"https://drive.google.com/thumbnail?id={fid}&sz=w600"
-
-                    # Masterplan placeholder ou imagem
-                    content = f'''<img src="{thumb_src}" alt="{item["nome"]}" title="{item["nome"]}" onclick='openGallery({json_links}, {local_idx})'>'''
+                    # Organizar imagens por categoria (Seções Verticais)
+                    imagens_raw = meta.get("imagens", [])
+                    categorias = {"MAPA": [], "MASTERPLAN": [], "PLANTAS": [], "IMAGENS ILUSTRATIVAS": []}
+                    link_ficha = None
                     
-                    if "MASTERPLAN" in item['nome'].upper():
-                        # Placeholder opcional se não tiver imagem, mas aqui assumimos que tem
-                        # Se quiser placeholder, descomentar:
-                        # content = f'''<div class="masterplan-placeholder" onclick='openGallery({json_links}, {local_idx})'>...</div>'''
-                        pass
+                    # Prepara array global de imagens para o slider JS
+                    all_images_links = []
 
-                    html += f'''
-                    <div class="img-container">
-                        {content}
-                        <div class="img-fullscreen-btn" onclick='openGallery({json_links}, {local_idx})'>&#x26F6;</div>
-                    </div>
-                    '''
-                    local_idx += 1
-                html += '</div>'
-                
-                st.markdown("##### Galeria Visual")
-                st.markdown(html, unsafe_allow_html=True)
+                    for item in imagens_raw:
+                        nome_up = item['nome'].upper()
+                        # Identificar Ficha Técnica
+                        if "FICHA" in nome_up or "PDF" in nome_up:
+                            link_ficha = item['link']
+                            continue
+                        
+                        # Extrair link direto
+                        full_link = formatar_link_drive(item['link'])
+                        
+                        # Adicionar a lista global para navegação nas setas
+                        # (Opcional: se quiser navegar só dentro da categoria, mudar logica. Aqui navega em tudo)
+                        # Vou colocar na ordem de exibição abaixo
+                        
+                        # Categorizar
+                        if "MAPA" in nome_up:
+                            categorias["MAPA"].append((item, full_link))
+                        elif "MASTERPLAN" in nome_up:
+                            categorias["MASTERPLAN"].append((item, full_link))
+                        elif "PLANTA" in nome_up:
+                            categorias["PLANTAS"].append((item, full_link))
+                        else:
+                            categorias["IMAGENS ILUSTRATIVAS"].append((item, full_link))
 
-                st.markdown("---")
-                
-                # SEÇÃO 4: FICHA TÉCNICA (BOTÃO CENTRALIZADO)
-                if link_ficha:
-                    c1, c2, c3 = st.columns([1, 2, 1])
-                    with c2:
-                        st.link_button("BAIXAR FICHA TÉCNICA", link_ficha, use_container_width=True)
+                    # Construir lista ordenada final de links para o JS
+                    # Ordem: Mapa -> Masterplan -> Plantas -> Imagens
+                    ordered_links = []
+                    for cat in ["MAPA", "MASTERPLAN", "PLANTAS", "IMAGENS ILUSTRATIVAS"]:
+                        for _, link in categorias[cat]:
+                            ordered_links.append(link)
+                    
+                    # Serializar para JSON para passar ao JS
+                    json_links = json.dumps(ordered_links)
+                    
+                    # Função auxiliar para renderizar HTML de imagem
+                    def render_img_html(img_list, start_index):
+                        html = '<div class="scrolling-images">'
+                        local_idx = start_index
+                        for item, link in img_list:
+                            # Thumbnail usa o link direto mesmo para simplicidade ou gerador de thumb se existir
+                            # Aqui usando full link no src, browser faz cache. Se for pesado, ideal seria thumb.
+                            # Mas o formatar_link_drive retorna full para o modal.
+                            # Para src da img tag, se for drive, podemos tentar thumbnail.
+                            
+                            # Tentar reconstruir thumb se for drive
+                            thumb_src = link
+                            if "drive.google.com/uc?export=view&id=" in link:
+                                fid = link.split("id=")[1]
+                                thumb_src = f"https://drive.google.com/thumbnail?id={fid}&sz=w600"
+
+                            # Masterplan placeholder
+                            if "MASTERPLAN" in item['nome'].upper():
+                                html += f'''
+                                <div class="masterplan-placeholder" onclick='openGallery({json_links}, {local_idx})'>
+                                    <div style="font-size: 3rem; margin-bottom: 10px;">🗺️</div>
+                                    <div>MASTERPLAN</div>
+                                    <div style="font-size: 0.7rem; font-weight: 400; margin-top: 5px;">Clique para ampliar</div>
+                                </div>
+                                '''
+                            else:
+                                html += f'''<img src="{thumb_src}" alt="{item["nome"]}" title="{item["nome"]}" onclick='openGallery({json_links}, {local_idx})'>'''
+                            local_idx += 1
+                        html += '</div>'
+                        return html, local_idx
+
+                    # Renderizar Seções
+                    current_global_index = 0
+                    
+                    if categorias["MAPA"]:
+                        st.markdown("##### Localização")
+                        html_content, current_global_index = render_img_html(categorias["MAPA"], current_global_index)
+                        st.markdown(html_content, unsafe_allow_html=True)
+
+                    if categorias["MASTERPLAN"]:
+                        st.markdown("##### Masterplan")
+                        html_content, current_global_index = render_img_html(categorias["MASTERPLAN"], current_global_index)
+                        st.markdown(html_content, unsafe_allow_html=True)
+
+                    if categorias["PLANTAS"]:
+                        st.markdown("##### Plantas")
+                        html_content, current_global_index = render_img_html(categorias["PLANTAS"], current_global_index)
+                        st.markdown(html_content, unsafe_allow_html=True)
+                        
+                    if categorias["IMAGENS ILUSTRATIVAS"]:
+                        st.markdown("##### Imagens Ilustrativas")
+                        html_content, current_global_index = render_img_html(categorias["IMAGENS ILUSTRATIVAS"], current_global_index)
+                        st.markdown(html_content, unsafe_allow_html=True)
+
+                    st.markdown("---")
+                    
+                    # SEÇÃO 4: FICHA TÉCNICA (BOTÃO CENTRALIZADO)
+                    if link_ficha:
+                        c1, c2, c3 = st.columns([1, 2, 1])
+                        with c2:
+                            st.link_button("BAIXAR FICHA TÉCNICA", link_ficha, use_container_width=True)
 
     # --- ABA ANALYTICS (SECURE TAB - ALTAIR) ---
     elif passo == 'client_analytics':
-        # ... (código existente mantido) ...
-        # (Para brevidade, mantive o código da aba analytics igual ao original pois não houve pedido de alteração lá)
-        # Entretanto, preciso inserir o código completo. Vou recolocar o bloco client_analytics aqui.
         d = st.session_state.dados_cliente
         
         st.markdown(f"### Painel do Cliente: {d.get('nome', 'Não Informado')}")
@@ -2258,11 +2274,13 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
         with st.container():
             col1, col2, col3 = st.columns(3)
             
+            # Format Data Nascimento
             dn = str(d.get('data_nascimento', ''))
             if '-' in dn:
                 try: dn = datetime.strptime(dn, '%Y-%m-%d').strftime('%d/%m/%Y')
                 except: pass
             
+            # Format CPF
             cpf_show = d.get('cpf', '')
             if len(cpf_show) == 11:
                 cpf_show = f"{cpf_show[:3]}.{cpf_show[3:6]}.{cpf_show[6:9]}-{cpf_show[9:]}"
@@ -2297,6 +2315,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
         # --- SEÇÃO 2: GRÁFICOS DE PIZZA (COMPOSIÇÃO) ---
         g_col1, g_col2 = st.columns(2)
         
+        # Gráfico 1: Composição da Compra
         with g_col1:
             st.markdown("##### Composição da Compra")
             labels = ['Ato', '30 Dias', '60 Dias', '90 Dias', 'Pro Soluto', 'Financiamento', 'FGTS/Subsídio']
@@ -2305,12 +2324,18 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
                 d.get('ps_usado', 0), d.get('finan_usado', 0), d.get('fgts_sub_usado', 0)
             ]
             
+            # Filter zeros for cleaner chart
             clean_data = [(l, v) for l, v in zip(labels, values) if v > 0]
             if clean_data:
                 df_pie = pd.DataFrame(clean_data, columns=['Tipo', 'Valor'])
+                
+                # Define cores personalizadas para cada tipo de pagamento
                 color_scale = alt.Scale(domain=['Ato', '30 Dias', '60 Dias', '90 Dias', 'Pro Soluto', 'Financiamento', 'FGTS/Subsídio'],
                                         range=['#e30613', '#c0392b', '#94a3b8', '#64748b', '#f59e0b', '#002c5d', '#10b981'])
+
+                # Selection for interactivity
                 hover = alt.selection_point(on='mouseover', empty=False, fields=['Tipo'])
+
                 base = alt.Chart(df_pie).encode(theta=alt.Theta("Valor", stack=True))
                 pie = base.mark_arc(innerRadius=60, outerRadius=120).encode(
                     color=alt.Color("Tipo", scale=color_scale, legend=None),
@@ -2320,25 +2345,31 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
                     stroke=alt.condition(hover, alt.value('white'), alt.value(None)),
                     strokeWidth=alt.condition(hover, alt.value(2), alt.value(0))
                 ).add_params(hover)
+                
                 text = base.mark_text(radius=140).encode(
                     text=alt.Text("Valor", format=",.2f"),
                     order=alt.Order("Valor", sort="descending"),
                     color=alt.value(COR_AZUL_ESC)  
                 )
+                
                 final_pie = pie.encode(color=alt.Color("Tipo", scale=color_scale, legend=alt.Legend(orient="bottom", columns=2, title=None))).configure_view(strokeWidth=0).configure_axis(grid=False, domain=False)
                 st.altair_chart(final_pie, use_container_width=True)
             else:
                 st.info("Sem dados financeiros suficientes.")
 
+        # Gráfico 2: Composição de Renda
         with g_col2:
             st.markdown("##### Composição de Renda")
             rendas = d.get('rendas_lista', [])
             pie_renda = [(f"Part. {i+1}", r) for i, r in enumerate(rendas) if r > 0]
             if pie_renda:
                 df_renda = pd.DataFrame(pie_renda, columns=['Participante', 'Renda'])
+                
                 color_scale_renda = alt.Scale(domain=[f"Part. {i+1}" for i in range(len(pie_renda))],
                                         range=['#002c5d', '#e30613', '#f59e0b', '#10b981'])
+
                 hover_renda = alt.selection_point(on='mouseover', empty=False, fields=['Participante'])
+
                 base = alt.Chart(df_renda).encode(theta=alt.Theta("Renda", stack=True))
                 pie = base.mark_arc(innerRadius=60, outerRadius=120).encode(
                     color=alt.Color("Participante", scale=color_scale_renda, legend=alt.Legend(orient="bottom", title=None)),
@@ -2348,18 +2379,23 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
                     stroke=alt.condition(hover_renda, alt.value('white'), alt.value(None)),
                     strokeWidth=alt.condition(hover_renda, alt.value(2), alt.value(0))
                 ).add_params(hover_renda)
+
                 st.altair_chart(pie.configure_view(strokeWidth=0), use_container_width=True)
             else:
                 st.caption("Renda única ou não informada.")
 
-        # --- SEÇÃO 3: PROJEÇÃO ---
+        # --- SEÇÃO 3: PROJEÇÃO DE FLUXO DE PAGAMENTOS (BAR CHART + ZOOM) ---
         st.markdown("---")
-        st.markdown("##### Projeção da Parcela Mensal")
+        st.markdown("##### Projeção da Parcela Mensal (Financiamento + Pro Soluto + Atos)")
+        
+        # Recuperar dados para projeção
         v_fin = d.get('finan_usado', 0)
         p_fin = d.get('prazo_financiamento', 360)
         p_ps = d.get('ps_parcelas', 0)
         v_ps_mensal = d.get('ps_mensal', 0)
         sist = d.get('sistema_amortizacao', 'SAC')
+        
+        # Recuperar dados de ATOS para o cálculo correto do fluxo inicial
         atos_dict_calc = {
             'ato_final': d.get('ato_final', 0),
             'ato_30': d.get('ato_30', 0),
@@ -2369,65 +2405,87 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
         
         if v_fin > 0 and p_fin > 0:
             df_fluxo = calcular_fluxo_pagamento_detalhado(v_fin, p_fin, 8.16, sist, v_ps_mensal, p_ps, atos_dict_calc)
+            
+            # Projeção completa solicitada
             df_view = df_fluxo.copy() 
+            
+            # Definir pontos para as linhas tracejadas
+            # 1. Fim dos Atos: Onde termina o último ato (mês 1, 2, 3 ou 4)
             mes_fim_atos = 1
             if d.get('ato_90', 0) > 0: mes_fim_atos = 4
             elif d.get('ato_60', 0) > 0: mes_fim_atos = 3
             elif d.get('ato_30', 0) > 0: mes_fim_atos = 2
+            
+            # 2. Fim do Pro Soluto: Mês da última parcela
             mes_fim_ps = d.get('ps_parcelas', 0)
+
+            # Cores para cada tipo
             domain_tipo = ['Financiamento', 'Pro Soluto', 'Entrada/Ato']
             range_tipo = [COR_AZUL_ESC, '#f59e0b', COR_VERMELHO] 
+
             zoom = alt.selection_interval(bind='scales')
-            
-            # --- CORREÇÃO DO ERRO ALTAIR AQUI ---
-            # Garantir tipos de dados explicitos no Tooltip
+
+            # Base chart with Ordinal x-axis for spacing
             base = alt.Chart(df_view).encode(
-                x=alt.X('Mês:O', title='Mês do Financiamento', axis=alt.Axis(labelAngle=0))
+                x=alt.X('Mês:O', title='Mês do Financiamento', axis=alt.Axis(labelAngle=0)) # Ordinal para separar
             )
+
+            # Barras Empilhadas
+            # FORÇAR ORDEM DE EMPILHAMENTO: Financiamento (baixo) -> PS -> Atos (topo)
+            # Altair empilha na ordem reversa da lista no 'order' se sort=ascending?
+            # Vamos testar explicitamente.
             bars = base.mark_bar().encode(
-                y=alt.Y('Valor:Q', title='Valor (R$)', stack='zero'),
-                color=alt.Color('Tipo:N', scale=alt.Scale(domain=domain_tipo, range=range_tipo), legend=alt.Legend(title="Composição")),
-                order=alt.Order('Tipo:N', sort=['Financiamento', 'Pro Soluto', 'Entrada/Ato']),
-                # Tooltip com tipos explícitos para evitar SchemaValidationError
-                tooltip=[
-                    alt.Tooltip('Mês:O'), 
-                    alt.Tooltip('Tipo:N'), 
-                    alt.Tooltip('Valor:Q', format=",.2f"), 
-                    alt.Tooltip('Total:Q', format=",.2f")
-                ]
+                y=alt.Y('Valor', title='Valor (R$)', stack='zero'),
+                color=alt.Color('Tipo', scale=alt.Scale(domain=domain_tipo, range=range_tipo), legend=alt.Legend(title="Composição")),
+                order=alt.Order('Tipo', sort=['Financiamento', 'Pro Soluto', 'Entrada/Ato']), # Define a ordem de empilhamento
+                tooltip=['Mês', 'Tipo', alt.Tooltip('Valor', format=",.2f"), alt.Tooltip('Total', format=",.2f")]
             )
+
+            # Linha Fim Atos
             rule_atos = alt.Chart(pd.DataFrame({'x': [mes_fim_atos]})).mark_rule(color='red', strokeDash=[5, 5]).encode(x='x:O')
+            
+            # Linha Fim PS (apenas se existir PS)
             charts = [bars]
-            if mes_fim_atos > 0: charts.append(rule_atos)
+            if mes_fim_atos > 0:
+                charts.append(rule_atos)
+                
             if mes_fim_ps > 0:
                 rule_ps = alt.Chart(pd.DataFrame({'x': [mes_fim_ps]})).mark_rule(color='orange', strokeDash=[5, 5]).encode(x='x:O')
                 charts.append(rule_ps)
+
             final_chart = alt.layer(*charts).add_params(zoom).properties(height=400)
-            
-            if not df_view.empty:
-                st.altair_chart(final_chart, use_container_width=True)
+
+            st.altair_chart(final_chart, use_container_width=True)
             st.caption("Linha Vermelha Tracejada: Fim dos Atos | Linha Laranja Tracejada: Fim do Pro Soluto")
 
-        # --- SEÇÃO 4: SEMELHANTES ---
+        # --- SEÇÃO 4: OPORTUNIDADES SEMELHANTES ---
         st.markdown("---")
         st.markdown("##### Oportunidades Semelhantes (Faixa de Preço)")
+        
         target_price = d.get('imovel_valor', 0)
+        
         try:
             if 'Valor de Venda' in df_estoque.columns and target_price > 0:
                 min_p = target_price - 2500
                 max_p = target_price + 2500
+                
                 similares = df_estoque[
                     (df_estoque['Valor de Venda'] >= min_p) & 
                     (df_estoque['Valor de Venda'] <= max_p) &
                     (df_estoque['Empreendimento'] != d.get('empreendimento_nome')) 
                 ].sort_values('Valor de Venda').head(10)
+                
                 if not similares.empty:
                     cards_html = f"""<div class="scrolling-wrapper">"""
+                    
                     for idx, row in similares.iterrows():
                          emp_name = row['Empreendimento']
                          unid_name = row['Identificador']
                          val_fmt = fmt_br(row['Valor de Venda'])
+                         
+                         # Avaliação também
                          aval_fmt = fmt_br(row['Valor de Avaliação Bancária'])
+                         
                          cards_html += f"""<div class="card-item">
                             <div class="recommendation-card" style="border-top: 4px solid {COR_AZUL_ESC}; height: 100%; justify-content: flex-start;">
                                 <b style="color:{COR_AZUL_ESC}; font-size:1.1rem;">{emp_name}</b><br>
@@ -2442,13 +2500,16 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
                          </div>"""
                     cards_html += "</div>"
                     st.markdown(cards_html, unsafe_allow_html=True)
-                else: st.info("Nenhuma outra unidade encontrada nessa faixa de preço (+/- 2500).")
-            else: st.info("Dados de estoque indisponíveis para comparação.")
-        except Exception: st.info("Não foi possível carregar oportunidades semelhantes.")
+                else:
+                    st.info("Nenhuma outra unidade encontrada nessa faixa de preço (+/- 2500).")
+            else:
+                st.info("Dados de estoque indisponíveis para comparação.")
+        except Exception:
+             st.info("Não foi possível carregar oportunidades semelhantes.")
         
         st.markdown("<br><br>", unsafe_allow_html=True)
         
-        # Botão Voltar Estilizado
+        # --- BOTÃO VOLTAR (FULL WIDTH) ---
         st.markdown(f"""
             <style>
             div.stButton > button {{
@@ -2468,115 +2529,81 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
             }}
             </style>
         """, unsafe_allow_html=True)
+
         if st.button("VOLTAR AO SIMULADOR", type="primary", use_container_width=True):
              st.session_state.passo_simulacao = 'input'
              scroll_to_top()
              st.rerun()
 
-    # --- ETAPA 1: INPUT OU CLIENTE SELECIONADO ---
-    elif passo == 'input' or passo == 'client_selected':
+    # --- ETAPA 1: INPUT ---
+    elif passo == 'input':
+        st.markdown("### Selecione uma Opção")
         
-        # Se cliente foi selecionado, mostra resumo e opções de navegação
-        if passo == 'client_selected':
-            d = st.session_state.dados_cliente
-            st.markdown(f"### Cliente Ativo: <span style='color:{COR_VERMELHO}'>{d.get('nome', 'N/A')}</span>", unsafe_allow_html=True)
-            st.info("Cliente carregado com sucesso. Selecione uma opção abaixo para prosseguir.")
-            
-            # Opções de Navegação Estilizadas
-            col_opt1, col_opt2 = st.columns(2, gap="medium")
-            
-            # CSS para botões grandes de opção
-            st.markdown(f"""
-            <style>
-            div[data-testid="stButton"] button.option-btn {{
-                height: 120px !important;
-                background-color: {COR_AZUL_ESC} !important;
-                color: white !important;
-                font-size: 1.1rem !important;
-                border: none !important;
-                box-shadow: 0 4px 10px rgba(0,0,0,0.2) !important;
-            }}
-            div[data-testid="stButton"] button.option-btn:hover {{
-                background-color: {COR_VERMELHO} !important;
-                transform: translateY(-2px);
-            }}
-            </style>
-            """, unsafe_allow_html=True)
-            
-            with col_opt1:
-                if st.button("RECOMENDAÇÃO DE UNIDADES\n(Análise Automática)", use_container_width=True, type="primary"):
-                    st.session_state.passo_simulacao = 'guide'
-                    st.rerun()
-            with col_opt2:
-                if st.button("ESCOLHA DIRETA DE UNIDADE\n(Lista de Estoque)", use_container_width=True, type="primary"):
-                    st.session_state.passo_simulacao = 'selection'
-                    st.rerun()
-            
-            st.markdown("---")
-            if st.button("Trocar de Cliente / Novo Cadastro", use_container_width=True):
-                st.session_state.passo_simulacao = 'input'
-                st.rerun()
+        # Estilo para os botões quadrados grandes (CSS Injetado Globalmente para garantir aplicação)
+        st.markdown(f"""
+        <style>
+        .home-card-btn {{
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            background-color: white;
+            border: 2px solid {COR_BORDA};
+            border-radius: 16px;
+            padding: 40px 20px;
+            height: 250px !important;
+            width: 100%;
+            cursor: pointer;
+            transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+            text-align: center;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+            font-size: 1.2rem;
+            color: {COR_AZUL_ESC};
+            white-space: pre-wrap; 
+            font-weight: 800;
+        }}
+        .home-card-btn:hover {{
+            transform: translateY(-5px);
+            border-color: {COR_VERMELHO};
+            box-shadow: 0 10px 20px rgba(227, 6, 19, 0.15);
+            color: {COR_VERMELHO};
+            background-color: #fff;
+        }}
+        </style>
+        """, unsafe_allow_html=True)
 
-        # Se nenhum cliente selecionado, mostra opções de cadastro/busca
-        else:
-            st.markdown("### Selecione uma Opção")
-            
-            # Estilo para os botões quadrados grandes com cores Direcional
-            st.markdown(f"""
-            <style>
-            .home-card-btn {{
-                display: flex;
-                flex-direction: column;
-                align-items: center;
-                justify-content: center;
-                background-color: white;
-                border: 2px solid {COR_AZUL_ESC};
-                border-radius: 16px;
-                padding: 40px 20px;
-                height: 250px !important;
-                width: 100%;
-                cursor: pointer;
-                transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
-                text-align: center;
-                box-shadow: 0 4px 15px rgba(0, 44, 93, 0.1);
-                font-size: 1.3rem;
-                color: {COR_AZUL_ESC};
-                white-space: pre-wrap; 
-                font-weight: 800;
-            }}
-            .home-card-btn:hover {{
-                transform: translateY(-5px);
-                border-color: {COR_VERMELHO};
-                box-shadow: 0 10px 25px rgba(227, 6, 19, 0.2);
-                color: {COR_VERMELHO};
-                background-color: #fff;
-            }}
-            /* Aplicar estilo via seletor específico hacky */
-            div[data-testid="column"] div[data-testid="stButton"] button {{
-                 border: 2px solid {COR_AZUL_ESC} !important;
-                 color: {COR_AZUL_ESC} !important;
-                 height: 150px !important;
-                 font-size: 1.2rem !important;
-                 border-radius: 16px !important;
-            }}
-            div[data-testid="column"] div[data-testid="stButton"] button:hover {{
-                 border-color: {COR_VERMELHO} !important;
-                 color: {COR_VERMELHO} !important;
-                 background-color: white !important;
-                 box-shadow: 0 5px 15px rgba(227,6,19,0.15) !important;
-            }}
-            </style>
-            """, unsafe_allow_html=True)
+        col_new, col_search = st.columns(2, gap="large")
 
-            col_new, col_search = st.columns(2, gap="large")
+        with col_new:
+            # Botão Quadrado Estilizado
+            if st.button("CADASTRAR NOVO CLIENTE\n(Iniciar nova simulação)", key="btn_home_new", use_container_width=True):
+                dialog_novo_cliente(motor)
 
-            with col_new:
-                if st.button("CADASTRAR NOVO CLIENTE\n(Iniciar nova simulação)", key="btn_home_new", use_container_width=True):
-                    dialog_novo_cliente(motor)
-
-            with col_search:
-                if st.button("BUSCAR CLIENTE\n(Base Cadastrada)", key="btn_home_search", use_container_width=True):
-                    dialog_buscar_cliente(df_cadastros, motor)
+        with col_search:
+            # Botão Quadrado Estilizado
+            if st.button("BUSCAR CLIENTE\n(Base Cadastrada)", key="btn_home_search", use_container_width=True):
+                dialog_buscar_cliente(df_cadastros, motor)
+        
+        # Hack CSS para forçar estilo nos botões gerados pelo Streamlit (já que não podemos por classe direta neles facilmente)
+        st.markdown("""
+        <style>
+        div[data-testid="stButton"] button p:contains("CADASTRAR NOVO CLIENTE"),
+        div[data-testid="stButton"] button p:contains("BUSCAR CLIENTE") {
+             font-size: 1.2rem;
+             font-weight: 800;
+             line-height: 1.5;
+        }
+        
+        div[data-testid="stButton"]:has(button:active) button,
+        div[data-testid="stButton"] button {
+             /* Tenta aplicar estilo se o texto bater (seletor :has é moderno) */
+             /* Fallback generalizado para botões grandes nesta página */
+        }
+        
+        /* Aplicando estilo específico aos botões com as chaves específicas (se possível via nth-child, mas arriscado) */
+        /* Melhor confiar no CSS global injetado acima para botões gerais e sobrescrever onde necessário */
+        </style>
+        """, unsafe_allow_html=True)
 
 
     # --- ETAPA 2: RECOMENDAÇÃO ---
@@ -2598,6 +2625,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
 
                 fin, sub, fx_n = motor.obter_enquadramento(d.get('renda', 0), d.get('social', False), d.get('cotista', True), v_aval)
                 
+                # SELEÇÃO DO PRO SOLUTO POR COLUNA
                 pol = d.get('politica', 'Direcional')
                 rank = d.get('ranking', 'DIAMANTE')
                 
@@ -2605,8 +2633,12 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
                 if pol == 'Emcash':
                     ps_max_val = row.get('PS_EmCash', 0.0)
                 else:
+                    # Tenta pegar coluna pelo ranking
+                    # Assumindo nomes de coluna 'PS Diamante' -> 'PS_Diamante'
                     col_rank = f"PS_{rank.title()}" if rank else 'PS_Diamante'
+                    # Ajuste para caso Aço (sem cedilha) se necessário, mas mapeamento deve resolver
                     if rank == 'AÇO': col_rank = 'PS_Aco'
+                    
                     ps_max_val = row.get(col_rank, 0.0)
 
                 capacity = ps_max_val + fin + sub + (2 * d.get('renda', 0))
@@ -2659,13 +2691,16 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
             else:
                 pool_viavel = df_pool[df_pool['Viavel']]
                 cand_facil = pd.DataFrame(); cand_ideal = pd.DataFrame(); cand_seguro = pd.DataFrame()
+                
                 final_cards = []
 
                 if not pool_viavel.empty:
                     min_price_vi = pool_viavel['Valor de Venda'].min()
                     cand_facil = pool_viavel[pool_viavel['Valor de Venda'] == min_price_vi]
+                    
                     max_cob = pool_viavel['Cobertura'].max()
                     cand_seguro = pool_viavel[pool_viavel['Cobertura'] == max_cob]
+                    
                     ideal_pool = pool_viavel[pool_viavel['Cobertura'] >= 100]
                     if not ideal_pool.empty:
                         max_price_ideal = ideal_pool['Valor de Venda'].max()
@@ -2694,6 +2729,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
                 if not final_cards: st.warning("Nenhuma unidade encontrada.")
                 else:
                     cards_html = f"""<div class="scrolling-wrapper">"""
+                    
                     for card in final_cards:
                          row = card['row']
                          emp_name = row['Empreendimento']
@@ -2702,6 +2738,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
                          aval_fmt = fmt_br(row['Valor de Avaliação Bancária'])
                          label = card['label']
                          css_badge = card['css']
+                         
                          cards_html += f"""
                          <div class="card-item">
                             <div class="recommendation-card" style="border-top: 4px solid {COR_AZUL_ESC}; height: 100%; justify-content: flex-start;">
@@ -2862,8 +2899,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
                         'unid_area': u_row.get('Area', ''),
                         'unid_tipo': u_row.get('Tipologia', ''),
                         'unid_endereco': u_row.get('Endereco', ''),
-                        'unid_bairro': u_row.get('Bairro', ''),
-                        'unid_volta_caixa': u_row.get('Volta_Caixa', 0.0) # Novo campo
+                        'unid_bairro': u_row.get('Bairro', '')
                     })
                     st.session_state.passo_simulacao = 'payment_flow'; scroll_to_top(); st.rerun()
             if st.button("Voltar para Recomendação de Imóveis", use_container_width=True): st.session_state.passo_simulacao = 'guide'; scroll_to_top(); st.rerun()
@@ -3035,6 +3071,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
         ps_max_real = 0.0
         if 'unidade_id' in d and 'empreendimento_nome' in d:
              # Filtra na tabela estoque
+             # Note: df_estoque está disponível no escopo de aba_simulador_automacao
              row_u = df_estoque[(df_estoque['Identificador'] == d['unidade_id']) & (df_estoque['Empreendimento'] == d['empreendimento_nome'])]
              if not row_u.empty:
                  row_u = row_u.iloc[0]
@@ -3076,10 +3113,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
         
         total_entrada_cash = r1_val + r2_val + r3_val + r4_val
         st.session_state.dados_cliente['entrada_total'] = total_entrada_cash
-        
-        # Cálculo Gap Final considerando Volta ao Caixa
-        val_volta_caixa = d.get('unid_volta_caixa', 0.0)
-        gap_final = u_valor - f_u_input - fgts_u_input - ps_input_val - total_entrada_cash - val_volta_caixa
+        gap_final = u_valor - f_u_input - fgts_u_input - ps_input_val - total_entrada_cash
         
         st.markdown("<hr style='margin: 10px 0;'>", unsafe_allow_html=True)
         fin1, fin2, fin3 = st.columns(3)
@@ -3087,11 +3121,6 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
         with fin2: st.markdown(f"""<div class="fin-box" style="border-top: 6px solid {COR_VERMELHO};"><b>MENSALIDADE PS</b><br>R$ {fmt_br(v_parc)} ({parc}x)</div>""", unsafe_allow_html=True)
         cor_saldo = COR_AZUL_ESC if abs(gap_final) <= 1.0 else COR_VERMELHO
         with fin3: st.markdown(f"""<div class="fin-box" style="border-top: 6px solid {cor_saldo};"><b>SALDO A COBRIR</b><br>R$ {fmt_br(gap_final)}</div>""", unsafe_allow_html=True)
-        
-        # Mostrar Volta ao Caixa se houver
-        if val_volta_caixa > 0:
-             st.info(f"💰 Volta ao Caixa Aplicado: R$ {fmt_br(val_volta_caixa)}")
-
         if abs(gap_final) > 1.0: st.error(f"Atenção: {'Falta cobrir' if gap_final > 0 else 'Valor excedente de'} R$ {fmt_br(abs(gap_final))}.")
         parcela_fin = calcular_parcela_financiamento(f_u_input, prazo_finan, 8.16, tab_fin)
         st.session_state.dados_cliente['parcela_financiamento'] = parcela_fin
