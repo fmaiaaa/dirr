@@ -1545,7 +1545,7 @@ def enviar_email_smtp(destinatario, nome_cliente, pdf_bytes, dados_cliente, tipo
                                         <tr>
                                             <td align="center">
                                                 <p style="margin: 0; font-size: 16px; font-weight: bold; color: #ffffff;">{corretor_nome.upper()}</p>
-                                                <p style="margin: 5px 0 15px 0; font-size: 12px; text-transform: uppercase; letter-spacing: 1px; color: #e30613;">Consultor Direcional</p>
+                                                <p style="margin: 5px 0 15px 0; font-size: 12px; font-weight: bold; text-transform: uppercase; letter-spacing: 1px; color: #e30613;">Consultor Direcional</p>
                                                 
                                                 <p style="margin: 0; font-size: 14px;">
                                                     <span style="color: #ffffff;">WhatsApp:</span> <a href="{wa_link}" style="color: #e30613; text-decoration: none; font-weight: bold;">{corretor_tel}</a>
@@ -1578,12 +1578,15 @@ def enviar_email_smtp(destinatario, nome_cliente, pdf_bytes, dados_cliente, tipo
             <table width="100%" border="0" cellspacing="0" cellpadding="0">
                 <tr>
                     <td align="center">
-                        <table width="650" border="0" cellspacing="0" cellpadding="30" style="background-color: #fff; border: 1px solid #ccc;">
+                        <table width="650" border="0" cellspacing="0" cellpadding="0" style="background-color: #fff; border: 1px solid #ccc;">
+                            <!-- Header Azul com Logo Branca -->
                             <tr>
-                                <td>
-                                    <div style="text-align: center; margin-bottom: 20px;">
-                                         <img src="{URL_FAVICON_RESERVA}" width="50">
-                                    </div>
+                                <td align="center" style="background-color: #002c5d; padding: 20px; border-bottom: 4px solid #e30613;">
+                                    <img src="{URL_LOGO_BRANCA}" width="150" style="display: block;">
+                                </td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 30px;">
                                     <h3 style="color: #002c5d; border-bottom: 2px solid #e30613; padding-bottom: 10px; margin-top: 0;">RESUMO DE ATENDIMENTO</h3>
                                     
                                     <!-- Info Header -->
