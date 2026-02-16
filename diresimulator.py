@@ -443,28 +443,28 @@ def calcular_fluxo_pagamento_detalhado(valor_fin, meses_fin, taxa_anual, sistema
         # Adicionar componentes separados para o gráfico empilhado
         # Financiamento
         fluxo.append({
-            'Mês': m,
-            'Valor': parc_fin,
+            'Mês': int(m),
+            'Valor': float(parc_fin),
             'Tipo': 'Financiamento',
-            'Total': parc_fin + parc_ps + val_ato
+            'Total': float(parc_fin + parc_ps + val_ato)
         })
         
         # Pro Soluto (se houver)
         if parc_ps > 0:
             fluxo.append({
-                'Mês': m,
-                'Valor': parc_ps,
+                'Mês': int(m),
+                'Valor': float(parc_ps),
                 'Tipo': 'Pro Soluto',
-                'Total': parc_fin + parc_ps + val_ato
+                'Total': float(parc_fin + parc_ps + val_ato)
             })
             
         # Atos (se houver)
         if val_ato > 0:
             fluxo.append({
-                'Mês': m,
-                'Valor': val_ato,
+                'Mês': int(m),
+                'Valor': float(val_ato),
                 'Tipo': 'Entrada/Ato',
-                'Total': parc_fin + parc_ps + val_ato
+                'Total': float(parc_fin + parc_ps + val_ato)
             })
     
     return pd.DataFrame(fluxo)
@@ -2997,7 +2997,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
                 if uni_escolhida_id:
                     u_row = unidades_disp[unidades_disp['Identificador'] == uni_escolhida_id].iloc[0]
                     v_aval = u_row['Valor de Avaliação Bancária']; v_venda = u_row['Valor de Venda']
-                    fin_t, sub_t, _ = motor.obter_enquadramento(d.get('renda', 0), d.get('social', False), d.get('cotista', True), v_aval)
+                    fin_t, sub_t, _ = motor.obter_enquadramento(d.get('renda', 0), d.get('social', False), d.get('cotista', True), u_row['Valor de Avaliação Bancária'])
                     
                     # SELEÇÃO DO PRO SOLUTO POR COLUNA
                     pol = d.get('politica', 'Direcional')
