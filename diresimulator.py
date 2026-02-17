@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 =============================================================================
-SISTEMA DE SIMULAÇÃO IMOBILIÁRIA - DIRE RIO V71 (FIX CSS SYNTAX)
+SISTEMA DE SIMULAÇÃO IMOBILIÁRIA - DIRE RIO V69 (SINGLE SOURCE - UPDATE)
 =============================================================================
 """
 
@@ -654,7 +654,7 @@ def carregar_dados_sistema():
                 df_estoque['Empreendimento'] = df_estoque['Empreendimento'].astype(str).str.strip()
             if 'Bairro' in df_estoque.columns:
                 df_estoque['Bairro'] = df_estoque['Bairro'].astype(str).str.strip()
-                                                                              
+                                                                  
         except: 
             df_estoque = pd.DataFrame(columns=['Empreendimento', 'Valor de Venda', 'Status', 'Identificador', 'Bairro', 'Valor de Avaliação Bancária'])
 
@@ -841,7 +841,7 @@ def configurar_layout():
             color: {COR_AZUL_ESC} !important;
         }}
 
-        .block-container {{ max-width: 1400px !important; padding: 2rem 2rem !important; }}
+        .block-container {{ max-width: 1400px !important; padding: 4rem 2rem !important; }}
 
         div[data-baseweb="input"] {{
             border-radius: 8px !important;
@@ -973,7 +973,32 @@ def configurar_layout():
         }}
 
         .header-container {{
-             display: none !important;
+            text-align: center;
+            padding: 70px 0;
+            background: #ffffff;
+            margin-bottom: 60px;
+            border-radius: 0 0 40px 40px;
+            border-bottom: 1px solid {COR_BORDA};
+            box-shadow: 0 15px 35px -20px rgba(0,44,93,0.1);
+            position: relative;
+        }}
+        .header-title {{
+            font-family: 'Montserrat', sans-serif;
+            color: {COR_AZUL_ESC};
+            font-size: 3rem;
+            font-weight: 900;
+            margin: 0;
+            text-transform: uppercase;
+            letter-spacing: 0.2em;
+        }}
+        .header-subtitle {{
+            color: {COR_AZUL_ESC};
+            font-size: 1rem;
+            font-weight: 600;
+            margin-top: 15px;
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
+            opacity: 0.8;
         }}
 
         .card, .fin-box, .recommendation-card, .login-card {{
@@ -1207,33 +1232,6 @@ def configurar_layout():
              color: #e30613 !important;
              transform: translateY(-5px);
              box-shadow: 0 10px 20px rgba(227, 6, 19, 0.15) !important;
-        }}
-
-        /* --- NAVBAR STYLES --- */
-        .nav-btn {{
-            border: none !important;
-            background: transparent !important;
-            color: {COR_AZUL_ESC} !important;
-            font-weight: 600 !important;
-            font-size: 0.9rem !important;
-            box-shadow: none !important;
-            padding: 0 10px !important;
-            height: 50px !important;
-        }}
-        .nav-btn:hover {{
-            color: {COR_VERMELHO} !important;
-            background: transparent !important;
-            border: none !important;
-        }}
-        .profile-pop-btn {{
-            border-radius: 50% !important;
-            width: 45px !important;
-            height: 45px !important;
-            padding: 0 !important;
-            background: {COR_AZUL_ESC} !important;
-            color: white !important;
-            font-weight: bold !important;
-            border: none !important;
         }}
         </style>
     """, unsafe_allow_html=True)
@@ -1959,127 +1957,31 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
     motor = MotorRecomendacao(df_finan, df_estoque, df_politicas)
     if 'dados_cliente' not in st.session_state: st.session_state.dados_cliente = {}
 
-    user_name = st.session_state.get('user_name', 'Corretor').upper()
-    user_initial = user_name[0] if user_name else 'C'
-    user_cargo = st.session_state.get('user_cargo', 'Consultor').upper()
-    user_imob = st.session_state.get('user_imobiliaria', 'Direcional').upper()
+    # --- SIDEBAR PERFIL (ATUALIZADA) ---
+    with st.sidebar:
+        user_name = st.session_state.get('user_name', 'Corretor').upper()
+        user_cargo = st.session_state.get('user_cargo', 'Consultor').upper()
+        user_imob = st.session_state.get('user_imobiliaria', 'Direcional').upper()
 
-    # --- NOVO HEADER CUSTOMIZADO ---
-    c_logo, c_nav, c_profile = st.columns([1, 4, 1], gap="small", vertical_alignment="center")
+        st.markdown(f"""
+        <div class="sidebar-profile">
+            <div class="profile-avatar">{user_name[0] if user_name else 'C'}</div>
+            <div class="profile-name" style="font-weight: 800; color: {COR_AZUL_ESC}; font-size: 1.1rem; margin-bottom: 5px;">{user_name}</div>
+            <div class="profile-role" style="color: {COR_VERMELHO}; font-weight: 700; font-size: 0.9rem;">{user_cargo}</div>
+            <div class="profile-sub" style="color: {COR_AZUL_ESC}; font-size: 0.85rem;">{user_imob}</div>
+        </div>
+        """, unsafe_allow_html=True)
 
-    with c_logo:
-        # Usando a URL existente como imagem clicável (Button com imagem simulada ou link)
-        # O Streamlit não permite click na imagem direto sem hack, então uso um botão transparente ou st.image e st.button abaixo
-        # Workaround visual: Botão com ícone ou apenas a imagem.
-        # Preferência: Botão invisível sobre a imagem ou apenas a imagem que reseta o estado.
-        # Vou usar st.button com label, mas customizando o CSS para parecer o logo.
-        # Como o user mandou um link de DRIVE FOLDER, vou usar o URL_LOGO_DIRECIONAL_BIG definido no código.
-        if st.button("🏠 Home", key="btn_logo_reset", use_container_width=False, type="secondary"):
+        st.markdown("---")
+        st.markdown("#### Navegação")
+        if st.button("Simulador", use_container_width=True):
             st.session_state.passo_simulacao = 'input'
             st.rerun()
+        if st.button("Galeria de Produtos", use_container_width=True):
+            st.session_state.passo_simulacao = 'gallery'
+            st.rerun()
 
-    with c_nav:
-        # Menu Central
-        nav_cols = st.columns(5)
-        with nav_cols[0]:
-            if st.button("Simulador", key="nav_sim", use_container_width=True):
-                st.session_state.passo_simulacao = 'input'
-                st.rerun()
-        with nav_cols[1]:
-            if st.button("Galeria", key="nav_gal", use_container_width=True):
-                st.session_state.passo_simulacao = 'gallery'
-                st.rerun()
-        with nav_cols[2]:
-            if st.button("Campanhas", key="nav_camp", use_container_width=True):
-                st.toast("Módulo de Campanhas em breve!", icon="🚀")
-        with nav_cols[3]:
-            if st.button("Treinamentos", key="nav_treina", use_container_width=True):
-                st.toast("Portal de Treinamentos em breve!", icon="📚")
-        with nav_cols[4]:
-            if st.button("Feed", key="nav_feed", use_container_width=True):
-                st.toast("Feed Direcional em breve!", icon="📢")
-
-    with c_profile:
-        # Canto Direito: Círculo com Inicial e Popover
-        # Alinhamento à direita usando colunas internas ou CSS
-        cp1, cp2 = st.columns([2, 1])
-        with cp2:
-            with st.popover(user_initial, use_container_width=False):
-                # Conteúdo do "Quadradinho"
-                st.markdown(f"""
-                <div style="text-align: center;">
-                    <div style="width: 60px; height: 60px; background-color: {COR_AZUL_ESC}; color: white; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 1.5rem; font-weight: bold; margin: 0 auto 10px auto;">
-                        {user_initial}
-                    </div>
-                    <div style="font-weight: 800; color: {COR_AZUL_ESC}; font-size: 1rem;">{user_name}</div>
-                    <div style="color: {COR_VERMELHO}; font-size: 0.85rem; font-weight: 600;">{user_cargo}</div>
-                    <div style="color: #64748b; font-size: 0.8rem;">{user_imob}</div>
-                </div>
-                <hr style="margin: 10px 0;">
-                """, unsafe_allow_html=True)
-                
-                if st.button("Painel do Corretor", use_container_width=True, key="pop_painel"):
-                    st.toast("Painel do Corretor em desenvolvimento.")
-                
-                if st.button("Configurações", use_container_width=True, key="pop_config"):
-                    st.toast("Configurações em breve.")
-                
-                st.markdown("<br>", unsafe_allow_html=True)
-                if st.button("Sair", key="pop_logout", use_container_width=True):
-                    st.session_state['logged_in'] = False
-                    st.rerun()
-    
-    # CSS Customizado para o Navbar e Botão de Perfil
-    st.markdown(f"""
-    <style>
-    /* Estilo para botões de navegação parecerem links */
-    div[data-testid="column"] button[key^="nav_"] {{
-        background: transparent !important;
-        border: none !important;
-        color: {COR_AZUL_ESC} !important;
-        font-weight: 600 !important;
-        box-shadow: none !important;
-        transition: color 0.2s;
-    }}
-    div[data-testid="column"] button[key^="nav_"]:hover {{
-        color: {COR_VERMELHO} !important;
-        background: transparent !important;
-    }}
-    
-    /* Botão que aciona o Popover (Círculo) */
-    button[data-testid="baseButton-secondary"] {{
-        /* Atinge o botão do popover se for secondary, ajuste fino necessário as vezes */
-    }}
-    
-    /* Forçar o botão do popover a ser redondo e colorido - hack via seletor de elemento pai/filho pode ser instável, 
-       mas no Streamlit atual o botão do popover geralmente herda secondary */
-    div[data-testid="stPopover"] > button {{
-        border-radius: 50% !important;
-        width: 45px !important;
-        height: 45px !important;
-        padding: 0 !important;
-        background-color: {COR_AZUL_ESC} !important;
-        color: white !important;
-        border: none !important;
-        font-weight: bold !important;
-        font-size: 1.1rem !important;
-        box-shadow: 0 2px 5px rgba(0,0,0,0.2) !important;
-    }}
-    
-    /* Botão Logo Home */
-    div[data-testid="column"] button[key="btn_logo_reset"] {{
-        border: 2px solid {COR_AZUL_ESC} !important;
-        color: {COR_AZUL_ESC} !important;
-        font-weight: 800 !important;
-        height: 45px !important;
-    }}
-    </style>
-    """, unsafe_allow_html=True)
-
-    st.markdown("---")
-
-    # --- SIDEBAR: APENAS HISTÓRICO AGORA ---
-    with st.sidebar:
+        st.markdown("---")
         st.markdown("#### Histórico de Simulações")
 
         search_term = st.text_input("Buscar cliente...", placeholder="Digite o nome", label_visibility="collapsed")
@@ -2540,7 +2442,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
                 
                 # Define cores personalizadas para cada tipo de pagamento
                 color_scale = alt.Scale(domain=['Ato', '30 Dias', '60 Dias', '90 Dias', 'Pro Soluto', 'Financiamento', 'FGTS/Subsídio'],
-                                                                    range=['#e30613', '#c0392b', '#94a3b8', '#64748b', '#f59e0b', '#002c5d', '#10b981'])
+                                                                  range=['#e30613', '#c0392b', '#94a3b8', '#64748b', '#f59e0b', '#002c5d', '#10b981'])
 
                 # Selection for interactivity
                 hover = alt.selection_point(on='mouseover', empty=False, fields=['Tipo'])
@@ -2575,7 +2477,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
                 df_renda = pd.DataFrame(pie_renda, columns=['Participante', 'Renda'])
                 
                 color_scale_renda = alt.Scale(domain=[f"Part. {i+1}" for i in range(len(pie_renda))],
-                                                                        range=['#002c5d', '#e30613', '#f59e0b', '#10b981'])
+                                                                  range=['#002c5d', '#e30613', '#f59e0b', '#10b981'])
 
                 hover_renda = alt.selection_point(on='mouseover', empty=False, fields=['Participante'])
 
@@ -3503,23 +3405,19 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
 def main():
     configurar_layout()
     df_finan, df_estoque, df_politicas, df_logins, df_cadastros = carregar_dados_sistema()
-    # Header antigo removido para usar o novo layout na função aba_simulador_automacao
-    
+    logo_src = URL_FAVICON_RESERVA
+    if os.path.exists("favicon.png"):
+        try:
+            with open("favicon.png", "rb") as f:
+                encoded = base64.b64encode(f.read()).decode()
+                logo_src = f"data:image/png;base64,{encoded}"
+        except: pass
+    st.markdown(f'''<div class="header-container"><img src="{logo_src}" style="position: absolute; top: 30px; left: 40px; height: 50px;"><div class="header-title">SIMULADOR IMOBILIÁRIO DV</div><div class="header-subtitle">Sistema de Gestão de Vendas e Viabilidade Imobiliária</div></div>''', unsafe_allow_html=True)
+
     if 'logged_in' not in st.session_state: st.session_state['logged_in'] = False
 
-    if not st.session_state['logged_in']: 
-        # Mantém logo no login para identificação
-        logo_src = URL_FAVICON_RESERVA
-        if os.path.exists("favicon.png"):
-            try:
-                with open("favicon.png", "rb") as f:
-                    encoded = base64.b64encode(f.read()).decode()
-                    logo_src = f"data:image/png;base64,{encoded}"
-            except: pass
-        st.markdown(f'''<div class="header-container" style="display:block !important;"><img src="{logo_src}" style="position: absolute; top: 30px; left: 40px; height: 50px;"><div class="header-title">SIMULADOR IMOBILIÁRIO DV</div><div class="header-subtitle">Sistema de Gestão de Vendas e Viabilidade Imobiliária</div></div>''', unsafe_allow_html=True)
-        tela_login(df_logins)
-    else: 
-        aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros)
+    if not st.session_state['logged_in']: tela_login(df_logins)
+    else: aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros)
 
     st.markdown(f'<div class="footer">Direcional Engenharia - Rio de Janeiro | Developed by Lucas Maia</div>', unsafe_allow_html=True)
 
