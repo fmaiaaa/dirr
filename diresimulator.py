@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 =============================================================================
-SISTEMA DE SIMULAÇÃO IMOBILIÁRIA - DIRE RIO V70 (HEADER UPDATE)
+SISTEMA DE SIMULAÇÃO IMOBILIÁRIA - DIRE RIO V71 (FIX CSS SYNTAX)
 =============================================================================
 """
 
@@ -972,9 +972,9 @@ def configurar_layout():
             min-height: 30px !important;
         }}
 
-        .header-container {
+        .header-container {{
              display: none !important;
-        }
+        }}
 
         .card, .fin-box, .recommendation-card, .login-card {{
             background: #ffffff;
