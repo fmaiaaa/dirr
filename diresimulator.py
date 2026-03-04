@@ -922,52 +922,36 @@ def configurar_layout():
             align-items: center !important;
         }}
 
-        /* Botão × DENTRO do campo: posicionado à direita, visível só no hover */
-        div[data-testid="stHorizontalBlock"]:has([data-testid="stNumberInput"]):has(button) {{
-            position: relative !important;
-        }}
+        /* Linha campo + botão ×: mesma altura, bordas unidas (campo e × sempre visíveis) */
         div[data-testid="stHorizontalBlock"]:has([data-testid="stNumberInput"]):has(button) > div {{
             align-items: flex-end !important;
+            gap: 0 !important;
         }}
-        /* Espaço à direita do campo para o botão × (evita texto por baixo do ×) */
+        /* Campo: borda direita reta para encostar no × */
         div[data-testid="stHorizontalBlock"]:has([data-testid="stNumberInput"]):has(button) [data-testid="stNumberInput"] div[data-baseweb="input"] {{
-            padding-right: 48px !important;
+            border-top-right-radius: 0 !important;
+            border-bottom-right-radius: 0 !important;
+            border-right: 1px solid #e2e8f0 !important;
         }}
-        div[data-testid="stHorizontalBlock"]:has([data-testid="stNumberInput"]):has(button) [data-testid="stNumberInput"] input {{
-            padding-right: 48px !important;
-        }}
-        /* Coluna do botão ×: sobreposta ao campo, alinhada à direita e à altura do input */
+        /* Botão ×: mesma altura 48px, borda esquerda unida ao campo; destaque no hover */
         div[data-testid="stHorizontalBlock"]:has([data-testid="stNumberInput"]):has(button) > div > div:last-child {{
-            position: absolute !important;
-            right: 0 !important;
-            bottom: 0 !important;
-            width: 48px !important;
-            min-width: 48px !important;
-            height: 48px !important;
             display: flex !important;
-            align-items: center !important;
-            justify-content: center !important;
-            padding: 0 !important;
-            background: transparent !important;
-            border: none !important;
-            box-shadow: none !important;
-            pointer-events: none !important;
-            opacity: 0 !important;
-            transition: opacity 0.2s ease !important;
-        }}
-        div[data-testid="stHorizontalBlock"]:has([data-testid="stNumberInput"]):has(button):hover > div > div:last-child {{
-            opacity: 1 !important;
-            pointer-events: auto !important;
+            align-items: stretch !important;
         }}
         div[data-testid="stHorizontalBlock"]:has([data-testid="stNumberInput"]):has(button) > div > div:last-child button {{
             min-height: 48px !important;
             height: 48px !important;
-            width: 48px !important;
-            border-radius: 0 8px 8px 0 !important;
+            border-top-left-radius: 0 !important;
+            border-bottom-left-radius: 0 !important;
+            border-left: none !important;
             display: inline-flex !important;
             align-items: center !important;
             justify-content: center !important;
-            pointer-events: auto !important;
+            transition: background 0.2s ease, color 0.2s ease !important;
+        }}
+        div[data-testid="stHorizontalBlock"]:has([data-testid="stNumberInput"]):has(button) > div > div:last-child button:hover {{
+            background: #e2e8f0 !important;
+            color: {COR_VERMELHO} !important;
         }}
 
         div[data-baseweb="select"] span {{
