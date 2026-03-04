@@ -403,6 +403,10 @@ def calcular_comparativo_sac_price(valor, meses, taxa_anual):
         "PRICE": {"parcela": pmt_price, "juros": juros_price}
     }
 
+def _clear_session_num(key, valor_padrao=0.0):
+    """Callback para botão ×: zera o valor do campo na session_state."""
+    st.session_state[key] = valor_padrao
+
 def calcular_parcela_financiamento(valor_financiado, meses, taxa_anual_pct, sistema):
     if valor_financiado is None or valor_financiado <= 0 or meses <= 0: return 0.0
     i_mensal = (1 + taxa_anual_pct/100)**(1/12) - 1
@@ -2781,30 +2785,50 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
         st.session_state.dados_cliente['finan_f_ref'] = f_curva
         st.session_state.dados_cliente['sub_f_ref'] = s_curva
         d = st.session_state.dados_cliente
-        def val_none_f(v): return None if (v is None or v == 0 or v == 0.0) else v
         if d.get('finan_usado') is None or (isinstance(d.get('finan_usado'), (int, float)) and d.get('finan_usado') == 0):
             st.session_state.dados_cliente['finan_usado'] = d.get('finan_f_ref', 0.0) or 0.0
         if d.get('fgts_sub_usado') is None or (isinstance(d.get('fgts_sub_usado'), (int, float)) and d.get('fgts_sub_usado') == 0):
             st.session_state.dados_cliente['fgts_sub_usado'] = d.get('sub_f_ref', 0.0) or 0.0
         d = st.session_state.dados_cliente
-        fin_default = val_none_f(d.get('finan_usado', 0))
-        f_u = st.number_input("Financiamento Aprovado (R$)", value=fin_default, key="fin_aprovado_key", step=1000.0, format="%.2f", placeholder="0,00")
-        if f_u is None: f_u = 0.0
-        st.session_state.dados_cliente['finan_usado'] = f_u
+        def _num_f(k, default=0.0):
+            v = st.session_state.dados_cliente.get(k, st.session_state.get(k, default))
+            if v is None: return default
+            try: return float(v)
+            except (TypeError, ValueError): return default
+        fin_default = _num_f('finan_usado', 0.0)
+        col_fin_a, col_fin_x = st.columns([0.92, 0.08])
+        with col_fin_a:
+            f_u = st.number_input("Financiamento Aprovado (R$)", value=fin_default, key="fin_aprovado_key", step=1000.0, format="%.2f", placeholder="0,00")
+        with col_fin_x:
+            st.markdown("<div style='margin-top: 28px;'></div>", unsafe_allow_html=True)
+            if st.button("×", key="clear_fin_aprov", help="Limpar"): _clear_session_num("fin_aprovado_key", 0.0); st.rerun()
+        if f_u is None: st.session_state['fin_aprovado_key'] = 0.0; f_u = 0.0
+        st.session_state.dados_cliente['finan_usado'] = float(f_u) if f_u is not None else 0.0
         fin_max = d.get("finan_f_ref", 0)
         st.markdown(f'<div class="inline-ref" style="background-color: transparent; padding: 0; font-family: inherit; font-size: 0.72rem; color: {COR_AZUL_ESC}; margin-top: -12px; margin-bottom: 15px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; display: block; opacity: 0.9;">Financiamento Máximo (curva): R$ {fmt_br(fin_max)}</div>', unsafe_allow_html=True)
 
-        sub_default = val_none_f(d.get('fgts_sub_usado', 0))
-        s_u = st.number_input("Subsídio Aprovado / FGTS + Subsídio (R$)", value=sub_default, key="sub_aprovado_key", step=1000.0, format="%.2f", placeholder="0,00")
-        if s_u is None: s_u = 0.0
-        st.session_state.dados_cliente['fgts_sub_usado'] = s_u
+        sub_default = _num_f('fgts_sub_usado', 0.0)
+        col_sub_a, col_sub_x = st.columns([0.92, 0.08])
+        with col_sub_a:
+            s_u = st.number_input("Subsídio Aprovado / FGTS + Subsídio (R$)", value=sub_default, key="sub_aprovado_key", step=1000.0, format="%.2f", placeholder="0,00")
+        with col_sub_x:
+            st.markdown("<div style='margin-top: 28px;'></div>", unsafe_allow_html=True)
+            if st.button("×", key="clear_sub_aprov", help="Limpar"): _clear_session_num("sub_aprovado_key", 0.0); st.rerun()
+        if s_u is None: st.session_state['sub_aprovado_key'] = 0.0; s_u = 0.0
+        st.session_state.dados_cliente['fgts_sub_usado'] = float(s_u) if s_u is not None else 0.0
         fgts_max = d.get("sub_f_ref", 0)
         st.markdown(f'<div class="inline-ref" style="background-color: transparent; padding: 0; font-family: inherit; font-size: 0.72rem; color: {COR_AZUL_ESC}; margin-top: -12px; margin-bottom: 15px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; display: block; opacity: 0.9;">Subsídio Máximo (curva): R$ {fmt_br(fgts_max)}</div>', unsafe_allow_html=True)
 
         prazo_atual = d.get('prazo_financiamento', 360)
-        try: prazo_atual = int(prazo_atual)
+        try: prazo_atual = int(prazo_atual) if prazo_atual is not None else 360
         except: prazo_atual = 360
-        prazo_sel = st.number_input("Prazo do Financiamento (meses)", value=prazo_atual, key="prazo_aprovado_key", min_value=12, max_value=600, step=1)
+        col_prazo_a, col_prazo_x = st.columns([0.92, 0.08])
+        with col_prazo_a:
+            prazo_sel = st.number_input("Prazo do Financiamento (meses)", value=prazo_atual, key="prazo_aprovado_key", min_value=12, max_value=600, step=1)
+        with col_prazo_x:
+            st.markdown("<div style='margin-top: 28px;'></div>", unsafe_allow_html=True)
+            if st.button("×", key="clear_prazo_aprov", help="Limpar (volta a 360)"): _clear_session_num("prazo_aprovado_key", 360); st.session_state.dados_cliente['prazo_financiamento'] = 360; st.rerun()
+        if prazo_sel is None: st.session_state['prazo_aprovado_key'] = 360; prazo_sel = 360
         st.session_state.dados_cliente['prazo_financiamento'] = int(prazo_sel)
 
         idx_tab = 0 if d.get('sistema_amortizacao', "SAC") == "SAC" else 1
@@ -3140,8 +3164,8 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
     elif passo == 'payment_flow':
         d = st.session_state.dados_cliente
         st.markdown("### Distribuição da Entrada (Fechamento)")
-        # Valores já preenchidos na 2ª aba (Fechamento) e na escolha da unidade
-        u_valor = d.get('imovel_valor', 0)
+        # Valores já preenchidos na 2ª aba (Fechamento) e na escolha da unidade (garantir numérico)
+        u_valor = float(d.get('imovel_valor', 0) or 0)
         u_nome = d.get('empreendimento_nome', 'N/A')
         u_unid = d.get('unidade_id', 'N/A')
         u_aval = d.get('imovel_avaliacao', u_valor)
@@ -3167,13 +3191,17 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
         if 'ato_30' not in st.session_state.dados_cliente: st.session_state.dados_cliente['ato_30'] = 0.0
         if 'ato_60' not in st.session_state.dados_cliente: st.session_state.dados_cliente['ato_60'] = 0.0
         if 'ato_90' not in st.session_state.dados_cliente: st.session_state.dados_cliente['ato_90'] = 0.0
-        def val_none(v): return None if v == 0.0 else v
+        def _num_val(k, default=0.0):
+            v = st.session_state.get(k, default)
+            if v is None: return default
+            try: return float(v)
+            except (TypeError, ValueError): return default
 
         st.markdown("#### Distribuição da Entrada (Saldo a Pagar)")
         
         if 'ps_u_key' not in st.session_state:
              st.session_state['ps_u_key'] = st.session_state.dados_cliente.get('ps_usado', 0.0)
-        ps_atual = st.session_state['ps_u_key']
+        ps_atual = _num_val('ps_u_key', 0.0)
         
         # Saldo para atos = Valor - Finan - FGTS - PS
         saldo_para_atos = max(0.0, u_valor - f_u_input - fgts_u_input - ps_atual)
@@ -3186,15 +3214,21 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
         
         is_emcash = (d.get('politica') == 'Emcash')
         
-        # --- ATO 1 (Imediato) - min_value=0 para permitir apagar e preencher de novo ---
-        v1 = val_none(st.session_state.get('ato_1_key', 0.0))
-        r1 = st.number_input("Ato (Entrada Imediata)", value=v1, key="ato_1_key", min_value=0.0, step=100.0, format="%.2f", placeholder="0,00", help="Valor pago no ato da assinatura.")
-        st.session_state.dados_cliente['ato_final'] = r1 if r1 is not None else 0.0
+        # --- ATO 1 (Imediato) com × para limpar; valor vazio mostra 0 ---
+        v1 = _num_val('ato_1_key', 0.0)
+        col_a1, col_x1 = st.columns([0.92, 0.08])
+        with col_a1:
+            r1 = st.number_input("Ato (Entrada Imediata)", value=v1, key="ato_1_key", min_value=0.0, step=100.0, format="%.2f", placeholder="0,00", help="Valor pago no ato da assinatura.")
+        with col_x1:
+            st.markdown("<div style='margin-top: 28px;'></div>", unsafe_allow_html=True)
+            if st.button("×", key="clear_ato_1", help="Limpar"): _clear_session_num("ato_1_key", 0.0); st.rerun()
+        if r1 is None: st.session_state['ato_1_key'] = 0.0
+        st.session_state.dados_cliente['ato_final'] = float(r1) if r1 is not None else 0.0
         
         # Função para distribuir o restante (usa PS atual da session)
         def distribuir_restante(n_parcelas):
-            a1_atual = st.session_state.get('ato_1_key') or 0.0
-            ps_atual_cb = st.session_state.get('ps_u_key') or 0.0
+            a1_atual = float(st.session_state.get('ato_1_key') or 0.0)
+            ps_atual_cb = float(st.session_state.get('ps_u_key') or 0.0)
             gap_total = max(0.0, u_valor - f_u_input - fgts_u_input - ps_atual_cb)
             
             # Restante a distribuir nos outros atos
@@ -3236,19 +3270,34 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
         col_atos_rest1, col_atos_rest2, col_atos_rest3 = st.columns(3)
         
         with col_atos_rest1:
-            v2 = val_none(st.session_state.get('ato_2_key', 0.0))
-            r2 = st.number_input("Ato 30 Dias", value=v2, key="ato_2_key", min_value=0.0, step=100.0, format="%.2f", placeholder="0,00")
-            st.session_state.dados_cliente['ato_30'] = r2 if r2 is not None else 0.0
+            c2a, c2x = st.columns([0.88, 0.12])
+            with c2a:
+                r2 = st.number_input("Ato 30 Dias", value=_num_val('ato_2_key', 0.0), key="ato_2_key", min_value=0.0, step=100.0, format="%.2f", placeholder="0,00")
+            with c2x:
+                st.markdown("<div style='margin-top: 28px;'></div>", unsafe_allow_html=True)
+                if st.button("×", key="clear_ato_2", help="Limpar"): _clear_session_num("ato_2_key", 0.0); st.rerun()
+            if r2 is None: st.session_state['ato_2_key'] = 0.0
+            st.session_state.dados_cliente['ato_30'] = float(r2) if r2 is not None else 0.0
             
         with col_atos_rest2:
-            v3 = val_none(st.session_state.get('ato_3_key', 0.0))
-            r3 = st.number_input("Ato 60 Dias", value=v3, key="ato_3_key", min_value=0.0, step=100.0, format="%.2f", placeholder="0,00")
-            st.session_state.dados_cliente['ato_60'] = r3 if r3 is not None else 0.0
+            c3a, c3x = st.columns([0.88, 0.12])
+            with c3a:
+                r3 = st.number_input("Ato 60 Dias", value=_num_val('ato_3_key', 0.0), key="ato_3_key", min_value=0.0, step=100.0, format="%.2f", placeholder="0,00")
+            with c3x:
+                st.markdown("<div style='margin-top: 28px;'></div>", unsafe_allow_html=True)
+                if st.button("×", key="clear_ato_3", help="Limpar"): _clear_session_num("ato_3_key", 0.0); st.rerun()
+            if r3 is None: st.session_state['ato_3_key'] = 0.0
+            st.session_state.dados_cliente['ato_60'] = float(r3) if r3 is not None else 0.0
             
         with col_atos_rest3:
-            v4 = val_none(st.session_state.get('ato_4_key', 0.0))
-            r4 = st.number_input("Ato 90 Dias", value=v4, key="ato_4_key", min_value=0.0, step=100.0, disabled=is_emcash, format="%.2f", placeholder="0,00")
-            st.session_state.dados_cliente['ato_90'] = r4 if r4 is not None else 0.0
+            c4a, c4x = st.columns([0.88, 0.12])
+            with c4a:
+                r4 = st.number_input("Ato 90 Dias", value=_num_val('ato_4_key', 0.0), key="ato_4_key", min_value=0.0, step=100.0, disabled=is_emcash, format="%.2f", placeholder="0,00")
+            with c4x:
+                st.markdown("<div style='margin-top: 28px;'></div>", unsafe_allow_html=True)
+                if st.button("×", key="clear_ato_4", help="Limpar", disabled=is_emcash): _clear_session_num("ato_4_key", 0.0); st.rerun()
+            if r4 is None: st.session_state['ato_4_key'] = 0.0
+            st.session_state.dados_cliente['ato_90'] = float(r4) if r4 is not None else 0.0
             
         st.markdown("<hr style='margin: 10px 0;'>", unsafe_allow_html=True)
         col_ps_val, col_ps_parc = st.columns(2)
@@ -3271,16 +3320,21 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
                      ps_max_real = row_u.get(col_rank, 0.0)
 
         with col_ps_val:
-            ps_val_state = val_none(st.session_state['ps_u_key'])
-            ps_input_val = st.number_input("Pro Soluto Direcional", value=ps_val_state, key="ps_u_key", step=1000.0, format="%.2f", placeholder="0,00")
-            if ps_input_val is None: ps_input_val = 0.0
-            st.session_state.dados_cliente['ps_usado'] = ps_input_val
+            c_ps_a, c_ps_x = st.columns([0.88, 0.12])
+            with c_ps_a:
+                ps_input_val = st.number_input("Pro Soluto Direcional", value=_num_val('ps_u_key', 0.0), key="ps_u_key", step=1000.0, format="%.2f", placeholder="0,00")
+            with c_ps_x:
+                st.markdown("<div style='margin-top: 28px;'></div>", unsafe_allow_html=True)
+                if st.button("×", key="clear_ps_u", help="Limpar"): _clear_session_num("ps_u_key", 0.0); st.rerun()
+            if ps_input_val is None: st.session_state['ps_u_key'] = 0.0; ps_input_val = 0.0
+            st.session_state.dados_cliente['ps_usado'] = float(ps_input_val) if ps_input_val is not None else 0.0
             ref_text_ps = f"Limite Permitido: R$ {fmt_br(ps_max_real)}"
             st.markdown(f'<div class="inline-ref" style="background-color: transparent; padding: 0; font-family: inherit; font-size: 0.72rem; color: {COR_AZUL_ESC}; margin-top: -12px; margin-bottom: 15px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; display: block; opacity: 0.9;">{ref_text_ps}</div>', unsafe_allow_html=True)
             
         with col_ps_parc:
             if 'parc_ps_key' not in st.session_state: st.session_state['parc_ps_key'] = d.get('ps_parcelas', min(60, d.get("prazo_ps_max", 60)))
-            parc = st.number_input("Parcelas Pro Soluto", min_value=1, max_value=d.get("prazo_ps_max", 60), key="parc_ps_key")
+            parc_val = st.number_input("Parcelas Pro Soluto", min_value=1, max_value=d.get("prazo_ps_max", 60), key="parc_ps_key")
+            parc = int(parc_val) if parc_val is not None and parc_val >= 1 else 1
             st.session_state.dados_cliente['ps_parcelas'] = parc
             st.markdown(f'<span class="inline-ref">Prazo Máximo: {d.get("prazo_ps_max", 0)} meses</span>', unsafe_allow_html=True)
         
@@ -3293,8 +3347,14 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
         if 'volta_caixa_key' not in st.session_state: st.session_state['volta_caixa_key'] = 0.0
         
         vc_ref = d.get('volta_caixa_ref', 0.0)
-        vc_input_val = st.number_input("Volta ao Caixa", value=val_none(st.session_state['volta_caixa_key']), key="volta_caixa_key", step=1000.0, format="%.2f", placeholder="0,00")
-        if vc_input_val is None: vc_input_val = 0.0
+        c_vc_a, c_vc_x = st.columns([0.92, 0.08])
+        with c_vc_a:
+            vc_input_val = st.number_input("Volta ao Caixa", value=_num_val('volta_caixa_key', 0.0), key="volta_caixa_key", step=1000.0, format="%.2f", placeholder="0,00")
+        with c_vc_x:
+            st.markdown("<div style='margin-top: 28px;'></div>", unsafe_allow_html=True)
+            if st.button("×", key="clear_volta_caixa", help="Limpar"): _clear_session_num("volta_caixa_key", 0.0); st.rerun()
+        if vc_input_val is None: st.session_state['volta_caixa_key'] = 0.0; vc_input_val = 0.0
+        vc_input_val = float(vc_input_val) if vc_input_val is not None else 0.0
         
         ref_text_vc = f"Folga Volta ao Caixa: R$ {fmt_br(vc_ref)}"
         st.markdown(f'<div class="inline-ref" style="background-color: transparent; padding: 0; font-family: inherit; font-size: 0.72rem; color: {COR_AZUL_ESC}; margin-top: -12px; margin-bottom: 15px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; display: block; opacity: 0.9;">{ref_text_vc}</div>', unsafe_allow_html=True)
