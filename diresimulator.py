@@ -2774,10 +2774,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
             st.markdown(f"##### Cliente Ativo: <span style='color:{COR_VERMELHO}'>{nome_cliente}</span>", unsafe_allow_html=True)
             st.caption("Selecione como deseja prosseguir com este cliente:")
             
-            # Botões de ação full-width
-            c_opt1, c_opt2 = st.columns(2)
-            
-            # Estilo específico para estes botões de ação (Barras inferiores)
+            # Botão único: escolha entre recomendações ou estoque é feita após preencher valores
             st.markdown(f"""
             <style>
             div[data-testid="column"] button.action-bar-btn {{
@@ -2789,18 +2786,10 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
             }}
             </style>
             """, unsafe_allow_html=True)
-            
-            with c_opt1:
-                if st.button("PREENCHER VALORES APROVADOS E VER RECOMENDAÇÕES", type="primary", use_container_width=True, key="btn_action_guide"):
-                    st.session_state.passo_simulacao = 'fechamento_aprovado'
-                    scroll_to_top()
-                    st.rerun()
-            
-            with c_opt2:
-                if st.button("PREENCHER VALORES APROVADOS E ESCOLHER UNIDADE", use_container_width=True, key="btn_action_selection"):
-                    st.session_state.passo_simulacao = 'fechamento_aprovado'
-                    scroll_to_top()
-                    st.rerun()
+            if st.button("PREENCHER VALORES APROVADOS", type="primary", use_container_width=True, key="btn_action_fechamento"):
+                st.session_state.passo_simulacao = 'fechamento_aprovado'
+                scroll_to_top()
+                st.rerun()
 
     # --- ETAPA 2: VALORES APROVADOS (FECHAMENTO FINANCEIRO) - 2ª ABA ---
     elif passo == 'fechamento_aprovado':
@@ -2818,18 +2807,38 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
         f_u = st.number_input("Financiamento Aprovado (R$)", value=fin_default, key="fin_aprovado_key", step=1000.0, format="%.2f", placeholder="0,00")
         if f_u is None: f_u = 0.0
         st.session_state.dados_cliente['finan_usado'] = f_u
+        fin_max = d.get("finan_f_ref", 0)
+        fin_hist = d.get("finan_usado_historico", 0)
+        ref_text_fin = f"Financiamento Máximo (curva): R$ {fmt_br(fin_max)}"
+        if fin_hist and fin_hist > 0:
+            ref_text_fin += f" | Financiamento Específico (Anterior): R$ {fmt_br(fin_hist)}"
+        st.markdown(f'<div class="inline-ref" style="background-color: transparent; padding: 0; font-family: inherit; font-size: 0.72rem; color: {COR_AZUL_ESC}; margin-top: -12px; margin-bottom: 15px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; display: block; opacity: 0.9;">{ref_text_fin}</div>', unsafe_allow_html=True)
+
         sub_default = val_none_f(d.get('fgts_sub_usado', 0))
         s_u = st.number_input("Subsídio Aprovado / FGTS + Subsídio (R$)", value=sub_default, key="sub_aprovado_key", step=1000.0, format="%.2f", placeholder="0,00")
         if s_u is None: s_u = 0.0
         st.session_state.dados_cliente['fgts_sub_usado'] = s_u
-        opcoes_prazo = [180, 240, 300, 360, 420]
+        fgts_max = d.get("sub_f_ref", 0)
+        fgts_hist = d.get("fgts_usado_historico", 0)
+        ref_text_fgts = f"Subsídio Máximo (curva): R$ {fmt_br(fgts_max)}"
+        if fgts_hist and fgts_hist > 0:
+            ref_text_fgts += f" | FGTS+Sub Específico (Anterior): R$ {fmt_br(fgts_hist)}"
+        st.markdown(f'<div class="inline-ref" style="background-color: transparent; padding: 0; font-family: inherit; font-size: 0.72rem; color: {COR_AZUL_ESC}; margin-top: -12px; margin-bottom: 15px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; display: block; opacity: 0.9;">{ref_text_fgts}</div>', unsafe_allow_html=True)
+
         prazo_atual = d.get('prazo_financiamento', 360)
-        idx_prazo = opcoes_prazo.index(prazo_atual) if prazo_atual in opcoes_prazo else 3
-        prazo_sel = st.selectbox("Prazo do Financiamento (meses)", opcoes_prazo, index=idx_prazo, key="prazo_aprovado_key")
-        st.session_state.dados_cliente['prazo_financiamento'] = prazo_sel
+        try: prazo_atual = int(prazo_atual)
+        except: prazo_atual = 360
+        prazo_sel = st.number_input("Prazo do Financiamento (meses)", value=prazo_atual, key="prazo_aprovado_key", min_value=12, max_value=600, step=1)
+        st.session_state.dados_cliente['prazo_financiamento'] = int(prazo_sel)
+
         idx_tab = 0 if d.get('sistema_amortizacao', "SAC") == "SAC" else 1
         sist_sel = st.selectbox("Sistema de Amortização", ["SAC", "PRICE"], index=idx_tab, key="sist_aprovado_key")
         st.session_state.dados_cliente['sistema_amortizacao'] = sist_sel
+        taxa_padrao = 8.16
+        sac_details = calcular_comparativo_sac_price(f_u, int(prazo_sel), taxa_padrao)["SAC"]
+        price_details = calcular_comparativo_sac_price(f_u, int(prazo_sel), taxa_padrao)["PRICE"]
+        st.markdown(f"""<div style="margin-top: -8px; margin-bottom: 15px; font-size: 0.85rem; color: #64748b;"><b>SAC:</b> R$ {fmt_br(sac_details['primeira'])} a R$ {fmt_br(sac_details['ultima'])} (Juros totais: R$ {fmt_br(sac_details['juros'])}) &nbsp;|&nbsp; <b>PRICE:</b> R$ {fmt_br(price_details['parcela'])} fixas (Juros totais: R$ {fmt_br(price_details['juros'])})</div>""", unsafe_allow_html=True)
+
         st.markdown("---")
         col_f1, col_f2 = st.columns(2)
         with col_f1:
@@ -3170,10 +3179,6 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
             <div style="font-size: 0.9rem; opacity: 0.9;">Financiamento: R$ {fmt_br(f_u_input)} | Subsídio: R$ {fmt_br(fgts_u_input)} | Prazo: {prazo_finan}x | {tab_fin}</div>
         </div>
         """, unsafe_allow_html=True)
-        taxa_padrao = 8.16
-        sac_details = calcular_comparativo_sac_price(f_u_input, prazo_finan, taxa_padrao)["SAC"]
-        price_details = calcular_comparativo_sac_price(f_u_input, prazo_finan, taxa_padrao)["PRICE"]
-        st.markdown(f"""<div style="display: flex; justify-content: space-around; margin-bottom: 20px; font-size: 0.85rem; color: #64748b;"><span><b>SAC:</b> R$ {fmt_br(sac_details['primeira'])} a R$ {fmt_br(sac_details['ultima'])}</span><span><b>PRICE:</b> R$ {fmt_br(price_details['parcela'])} fixas</span></div>""", unsafe_allow_html=True)
 
         if 'ps_usado' not in st.session_state.dados_cliente: st.session_state.dados_cliente['ps_usado'] = 0.0
         if 'ato_final' not in st.session_state.dados_cliente: st.session_state.dados_cliente['ato_final'] = 0.0
