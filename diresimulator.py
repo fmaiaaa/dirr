@@ -1949,12 +1949,7 @@ def dialog_buscar_cliente(df_cadastros, motor):
                     'ranking': ranking,
                     'politica': politica_ps,
                     'social': social,
-                    'cotista': cotista,
-                    
-                    # Carregar histórico de valores usados
-                    'finan_usado_historico': safe_get_float_row(row_cli, 'Financiamento Final'),
-                    'ps_usado_historico': safe_get_float_row(row_cli, 'Pro Soluto Final'),
-                    'fgts_usado_historico': safe_get_float_row(row_cli, 'FGTS + Subsídio Final')
+                    'cotista': cotista
                 })
 
                 # Processar lógica de negócio (enquadramento inicial)
@@ -2085,12 +2080,6 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
                                     'finan_usado': safe_get_float(row, 'Financiamento Final'),
                                     'fgts_sub_usado': safe_get_float(row, 'FGTS + Subsídio Final'),
                                     'ps_usado': safe_get_float(row, 'Pro Soluto Final'),
-                                    
-                                    # Carregar Histórico
-                                    'finan_usado_historico': safe_get_float(row, 'Financiamento Final'),
-                                    'ps_usado_historico': safe_get_float(row, 'Pro Soluto Final'),
-                                    'fgts_usado_historico': safe_get_float(row, 'FGTS + Subsídio Final'),
-                                    
                                     'ps_parcelas': int(float(str(row.get('Número de Parcelas do Pro Soluto', 0)).replace(',','.'))),
                                     'ps_mensal': safe_get_float(row, 'Mensalidade PS'),
                                     'ato_final': safe_get_float(row, 'Ato'),
@@ -2675,95 +2664,82 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
 
     # --- ETAPA 1: INPUT ---
     elif passo == 'input':
-        st.markdown("### Selecione uma Opção")
-        
-        # ESTILO ATUALIZADO PARA PARECER COM "CARDS DE RECOMENDAÇÃO"
-        # Borda no topo: Vermelho para cadastrar, Azul para buscar
-        # Fundo branco, sombra, arredondado
-        st.markdown(f"""
-        <style>
-        /* Estilo base para os botões "Cards" da home */
-        .home-card-btn {{
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            background-color: #ffffff;
-            border: 1px solid #eef2f6; /* Borda sutil como o recommendation-card */
-            border-radius: 16px;
-            padding: 40px 20px;
-            height: 250px !important;
-            width: 100%;
-            cursor: pointer;
-            transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
-            text-align: center;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.05); /* Sombra suave inicial */
-            font-size: 1.2rem;
-            color: {COR_AZUL_ESC};
-            white-space: pre-wrap; 
-            font-weight: 800;
-        }}
-        
-        .home-card-btn:hover {{
-            transform: translateY(-5px);
-            box-shadow: 0 12px 24px rgba(0, 44, 93, 0.15); /* Sombra mais forte no hover */
-            background-color: #fff;
-        }}
-        </style>
-        """, unsafe_allow_html=True)
+        st.markdown("### Dados do Cliente")
 
-        # Aplicando estilos específicos via CSS Injetado para simular o border-top colorido
-        
-        st.markdown(f"""
-        <style>
-        /* Botão da Esquerda (Cadastrar) - Borda Vermelha */
-        div[data-testid="column"]:nth-of-type(1) div[data-testid="stButton"] button {{
-             border-top: 5px solid {COR_VERMELHO} !important;
-             border-radius: 16px !important;
-             height: 250px !important;
-             box-shadow: 0 4px 6px rgba(0,0,0,0.05) !important;
-             background-color: white !important;
-             color: {COR_AZUL_ESC} !important;
-             font-size: 1.2rem !important;
-             font-weight: 800 !important;
-             transition: all 0.3s ease !important;
-        }}
-        div[data-testid="column"]:nth-of-type(1) div[data-testid="stButton"] button:hover {{
-             transform: translateY(-5px);
-             box-shadow: 0 10px 20px rgba(227, 6, 19, 0.15) !important;
-             border-color: {COR_VERMELHO} !important;
-        }}
-
-        /* Botão da Direita (Buscar) - Borda Azul */
-        div[data-testid="column"]:nth-of-type(2) div[data-testid="stButton"] button {{
-             border-top: 5px solid {COR_AZUL_ESC} !important;
-             border-radius: 16px !important;
-             height: 250px !important;
-             box-shadow: 0 4px 6px rgba(0,0,0,0.05) !important;
-             background-color: white !important;
-             color: {COR_AZUL_ESC} !important;
-             font-size: 1.2rem !important;
-             font-weight: 800 !important;
-             transition: all 0.3s ease !important;
-        }}
-        div[data-testid="column"]:nth-of-type(2) div[data-testid="stButton"] button:hover {{
-             transform: translateY(-5px);
-             box-shadow: 0 10px 20px rgba(0, 44, 93, 0.15) !important;
-             border-color: {COR_AZUL_ESC} !important;
-        }}
-        </style>
-        """, unsafe_allow_html=True)
-
-        col_new, col_search = st.columns(2, gap="large")
-
-        with col_new:
-            if st.button("CADASTRAR NOVO CLIENTE\n(Iniciar nova simulação)", key="btn_home_new", use_container_width=True):
-                dialog_novo_cliente(motor)
-
-        with col_search:
-            if st.button("BUSCAR CLIENTE\n(Base Cadastrada)", key="btn_home_search", use_container_width=True):
+        # Botão Buscar cliente - centralizado
+        col_left, col_center, col_right = st.columns([1, 2, 1])
+        with col_center:
+            if st.button("BUSCAR CLIENTE (Base Cadastrada)", type="secondary", use_container_width=True, key="btn_home_search"):
                 dialog_buscar_cliente(df_cadastros, motor)
-        
+
+        st.markdown("---")
+        st.markdown("##### Cadastrar novo cliente")
+        st.caption("Preencha os dados do cliente para iniciar a simulação.")
+
+        curr_nome = st.session_state.dados_cliente.get('nome', "")
+        curr_cpf = st.session_state.dados_cliente.get('cpf', "")
+        if curr_cpf:
+            curr_cpf = aplicar_mascara_cpf(curr_cpf)
+        d_nasc_default = st.session_state.dados_cliente.get('data_nascimento', date(1990, 1, 1))
+        if isinstance(d_nasc_default, str):
+            try: d_nasc_default = datetime.strptime(d_nasc_default, '%Y-%m-%d').date()
+            except:
+                try: d_nasc_default = datetime.strptime(d_nasc_default, '%d/%m/%Y').date()
+                except: d_nasc_default = date(1990, 1, 1)
+        rendas_anteriores = st.session_state.dados_cliente.get('rendas_lista', [])
+
+        with st.form("form_cadastro"):
+            nome = st.text_input("Nome Completo", value=curr_nome, placeholder="Nome Completo", key="in_nome_v28")
+            cpf_val = st.text_input("CPF", value=curr_cpf, placeholder="000.000.000-00", key="in_cpf_v3", max_chars=14)
+            data_nasc = st.date_input("Data de Nascimento", value=d_nasc_default, min_value=date(1900, 1, 1), max_value=datetime.now().date(), format="DD/MM/YYYY", key="in_dt_nasc_v3")
+            st.markdown("---")
+            qtd_part = st.number_input("Participantes na Renda", min_value=1, max_value=4, value=st.session_state.dados_cliente.get('qtd_participantes', 1), step=1, key="qtd_part_v3")
+            cols_renda = st.columns(qtd_part)
+            lista_rendas_input = []
+            def get_val(idx, default):
+                v = float(rendas_anteriores[idx]) if idx < len(rendas_anteriores) else default
+                return None if v == 0.0 else v
+            for i in range(qtd_part):
+                with cols_renda[i]:
+                    def_val = 3500.0 if i == 0 and not rendas_anteriores else 0.0
+                    current_val = get_val(i, def_val)
+                    val_display = None if current_val == 0.0 else current_val
+                    val_r = st.number_input(f"Renda Part. {i+1}", min_value=0.0, value=val_display, step=100.0, key=f"renda_part_{i}_v3", placeholder="0,00", format="%.2f")
+                    lista_rendas_input.append(val_r)
+            rank_opts = ["DIAMANTE", "OURO", "PRATA", "BRONZE", "AÇO"]
+            curr_ranking = st.session_state.dados_cliente.get('ranking', "DIAMANTE")
+            idx_ranking = rank_opts.index(curr_ranking) if curr_ranking in rank_opts else 0
+            ranking = st.selectbox("Ranking do Cliente", options=rank_opts, index=idx_ranking, key="in_rank_v28")
+            politica_ps = st.selectbox("Política de Pro Soluto", ["Direcional", "Emcash"], index=0 if st.session_state.dados_cliente.get('politica') != "Emcash" else 1, key="in_pol_v28")
+            social = st.toggle("Fator Social", value=st.session_state.dados_cliente.get('social', False), key="in_soc_v28")
+            cotista = st.toggle("Cotista FGTS", value=st.session_state.dados_cliente.get('cotista', True), key="in_cot_v28")
+            st.markdown("<br>", unsafe_allow_html=True)
+            submitted = st.form_submit_button("Confirmar e Avançar", type="primary", use_container_width=True)
+
+        if submitted:
+            renda_total_calc = sum([r if r is not None else 0.0 for r in lista_rendas_input])
+            if not nome.strip(): st.error("Por favor, informe o Nome do Cliente.")
+            elif not cpf_val.strip(): st.error("Por favor, informe o CPF do Cliente.")
+            else:
+                cpf_formatado = aplicar_mascara_cpf(cpf_val)
+                if not validar_cpf(cpf_val): st.error("CPF Inválido.")
+                elif renda_total_calc <= 0: st.error("A renda total deve ser maior que zero.")
+                else:
+                    st.session_state.dados_cliente.update({
+                        'nome': nome, 'cpf': limpar_cpf_visual(cpf_formatado), 'data_nascimento': data_nasc,
+                        'renda': renda_total_calc, 'rendas_lista': [r if r is not None else 0.0 for r in lista_rendas_input],
+                        'social': social, 'cotista': cotista, 'ranking': ranking, 'politica': politica_ps,
+                        'qtd_participantes': qtd_part, 'finan_usado_historico': 0.0, 'ps_usado_historico': 0.0, 'fgts_usado_historico': 0.0
+                    })
+                    prazo_ps_max = 66 if politica_ps == "Emcash" else 84
+                    f_faixa_ref, s_faixa_ref, _ = motor.obter_enquadramento(renda_total_calc, social, cotista, valor_avaliacao=240000)
+                    st.session_state.dados_cliente.update({
+                        'prazo_ps_max': prazo_ps_max, 'limit_ps_renda': 0.30,
+                        'finan_f_ref': f_faixa_ref, 'sub_f_ref': s_faixa_ref
+                    })
+                    st.session_state.cliente_ativo = True
+                    st.rerun()
+
         # --- VERIFICAÇÃO DE CLIENTE ATIVO PARA EXIBIR OPÇÕES INFERIORES ---
         # Se um cliente foi selecionado/cadastrado, mostramos as opções de navegação
         cliente_ativo = st.session_state.get('cliente_ativo', False)
@@ -2796,8 +2772,15 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
         d = st.session_state.dados_cliente
         st.markdown("### Valores Aprovados (Fechamento Financeiro)")
         st.caption("Preencha os valores aprovados de financiamento e subsídio. As recomendações usarão esses valores reais.")
+        # Recalcular referência da curva (finan_f_ref, sub_f_ref) a partir do perfil do cliente para exibir valores corretos
+        renda_cli = float(d.get('renda', 0) or 0)
+        social_cli = bool(d.get('social', False))
+        cotista_cli = bool(d.get('cotista', True))
+        f_curva, s_curva, _ = motor.obter_enquadramento(renda_cli, social_cli, cotista_cli, valor_avaliacao=240000)
+        st.session_state.dados_cliente['finan_f_ref'] = f_curva
+        st.session_state.dados_cliente['sub_f_ref'] = s_curva
+        d = st.session_state.dados_cliente
         def val_none_f(v): return None if (v is None or v == 0 or v == 0.0) else v
-        # Inicializar a partir de referência da curva se ainda não preenchidos
         if d.get('finan_usado') is None or (isinstance(d.get('finan_usado'), (int, float)) and d.get('finan_usado') == 0):
             st.session_state.dados_cliente['finan_usado'] = d.get('finan_f_ref', 0.0) or 0.0
         if d.get('fgts_sub_usado') is None or (isinstance(d.get('fgts_sub_usado'), (int, float)) and d.get('fgts_sub_usado') == 0):
@@ -2808,22 +2791,14 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
         if f_u is None: f_u = 0.0
         st.session_state.dados_cliente['finan_usado'] = f_u
         fin_max = d.get("finan_f_ref", 0)
-        fin_hist = d.get("finan_usado_historico", 0)
-        ref_text_fin = f"Financiamento Máximo (curva): R$ {fmt_br(fin_max)}"
-        if fin_hist and fin_hist > 0:
-            ref_text_fin += f" | Financiamento Específico (Anterior): R$ {fmt_br(fin_hist)}"
-        st.markdown(f'<div class="inline-ref" style="background-color: transparent; padding: 0; font-family: inherit; font-size: 0.72rem; color: {COR_AZUL_ESC}; margin-top: -12px; margin-bottom: 15px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; display: block; opacity: 0.9;">{ref_text_fin}</div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="inline-ref" style="background-color: transparent; padding: 0; font-family: inherit; font-size: 0.72rem; color: {COR_AZUL_ESC}; margin-top: -12px; margin-bottom: 15px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; display: block; opacity: 0.9;">Financiamento Máximo (curva): R$ {fmt_br(fin_max)}</div>', unsafe_allow_html=True)
 
         sub_default = val_none_f(d.get('fgts_sub_usado', 0))
         s_u = st.number_input("Subsídio Aprovado / FGTS + Subsídio (R$)", value=sub_default, key="sub_aprovado_key", step=1000.0, format="%.2f", placeholder="0,00")
         if s_u is None: s_u = 0.0
         st.session_state.dados_cliente['fgts_sub_usado'] = s_u
         fgts_max = d.get("sub_f_ref", 0)
-        fgts_hist = d.get("fgts_usado_historico", 0)
-        ref_text_fgts = f"Subsídio Máximo (curva): R$ {fmt_br(fgts_max)}"
-        if fgts_hist and fgts_hist > 0:
-            ref_text_fgts += f" | FGTS+Sub Específico (Anterior): R$ {fmt_br(fgts_hist)}"
-        st.markdown(f'<div class="inline-ref" style="background-color: transparent; padding: 0; font-family: inherit; font-size: 0.72rem; color: {COR_AZUL_ESC}; margin-top: -12px; margin-bottom: 15px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; display: block; opacity: 0.9;">{ref_text_fgts}</div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="inline-ref" style="background-color: transparent; padding: 0; font-family: inherit; font-size: 0.72rem; color: {COR_AZUL_ESC}; margin-top: -12px; margin-bottom: 15px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; display: block; opacity: 0.9;">Subsídio Máximo (curva): R$ {fmt_br(fgts_max)}</div>', unsafe_allow_html=True)
 
         prazo_atual = d.get('prazo_financiamento', 360)
         try: prazo_atual = int(prazo_atual)
@@ -3295,11 +3270,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
             if ps_input_val is None: ps_input_val = 0.0
             st.session_state.dados_cliente['ps_usado'] = ps_input_val
             
-            # Referencia PS
-            ps_hist = d.get("ps_usado_historico", 0)
             ref_text_ps = f"Limite Permitido: R$ {fmt_br(ps_max_real)}"
-            if ps_hist > 0:
-                ref_text_ps += f" | PS Específico (Anterior): R$ {fmt_br(ps_hist)}"
             st.markdown(f'<div class="inline-ref" style="background-color: transparent; padding: 0; font-family: inherit; font-size: 0.72rem; color: {COR_AZUL_ESC}; margin-top: -12px; margin-bottom: 15px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; display: block; opacity: 0.9;">{ref_text_ps}</div>', unsafe_allow_html=True)
             
         with col_ps_parc:
