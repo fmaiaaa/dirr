@@ -1263,6 +1263,7 @@ def configurar_layout():
 def render_stepper(current_step_name):
     steps = [
         {"id": "input", "label": "Dados"},
+        {"id": "fechamento_aprovado", "label": "Fechamento"},
         {"id": "guide", "label": "Análise"},
         {"id": "selection", "label": "Imóvel"},
         {"id": "payment_flow", "label": "Pagamento"},
@@ -2790,19 +2791,56 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
             """, unsafe_allow_html=True)
             
             with c_opt1:
-                if st.button("OBTER RECOMENDAÇÃO DE IMÓVEIS", type="primary", use_container_width=True, key="btn_action_guide"):
-                    st.session_state.passo_simulacao = 'guide'
+                if st.button("PREENCHER VALORES APROVADOS E VER RECOMENDAÇÕES", type="primary", use_container_width=True, key="btn_action_guide"):
+                    st.session_state.passo_simulacao = 'fechamento_aprovado'
                     scroll_to_top()
                     st.rerun()
             
             with c_opt2:
-                if st.button("ESCOLHA DIRETA DE UNIDADE (ESTOQUE)", use_container_width=True, key="btn_action_selection"):
-                    st.session_state.passo_simulacao = 'selection'
+                if st.button("PREENCHER VALORES APROVADOS E ESCOLHER UNIDADE", use_container_width=True, key="btn_action_selection"):
+                    st.session_state.passo_simulacao = 'fechamento_aprovado'
                     scroll_to_top()
                     st.rerun()
 
+    # --- ETAPA 2: VALORES APROVADOS (FECHAMENTO FINANCEIRO) - 2ª ABA ---
+    elif passo == 'fechamento_aprovado':
+        d = st.session_state.dados_cliente
+        st.markdown("### Valores Aprovados (Fechamento Financeiro)")
+        st.caption("Preencha os valores aprovados de financiamento e subsídio. As recomendações usarão esses valores reais.")
+        def val_none_f(v): return None if (v is None or v == 0 or v == 0.0) else v
+        # Inicializar a partir de referência da curva se ainda não preenchidos
+        if d.get('finan_usado') is None or (isinstance(d.get('finan_usado'), (int, float)) and d.get('finan_usado') == 0):
+            st.session_state.dados_cliente['finan_usado'] = d.get('finan_f_ref', 0.0) or 0.0
+        if d.get('fgts_sub_usado') is None or (isinstance(d.get('fgts_sub_usado'), (int, float)) and d.get('fgts_sub_usado') == 0):
+            st.session_state.dados_cliente['fgts_sub_usado'] = d.get('sub_f_ref', 0.0) or 0.0
+        d = st.session_state.dados_cliente
+        fin_default = val_none_f(d.get('finan_usado', 0))
+        f_u = st.number_input("Financiamento Aprovado (R$)", value=fin_default, key="fin_aprovado_key", step=1000.0, format="%.2f", placeholder="0,00")
+        if f_u is None: f_u = 0.0
+        st.session_state.dados_cliente['finan_usado'] = f_u
+        sub_default = val_none_f(d.get('fgts_sub_usado', 0))
+        s_u = st.number_input("Subsídio Aprovado / FGTS + Subsídio (R$)", value=sub_default, key="sub_aprovado_key", step=1000.0, format="%.2f", placeholder="0,00")
+        if s_u is None: s_u = 0.0
+        st.session_state.dados_cliente['fgts_sub_usado'] = s_u
+        opcoes_prazo = [180, 240, 300, 360, 420]
+        prazo_atual = d.get('prazo_financiamento', 360)
+        idx_prazo = opcoes_prazo.index(prazo_atual) if prazo_atual in opcoes_prazo else 3
+        prazo_sel = st.selectbox("Prazo do Financiamento (meses)", opcoes_prazo, index=idx_prazo, key="prazo_aprovado_key")
+        st.session_state.dados_cliente['prazo_financiamento'] = prazo_sel
+        idx_tab = 0 if d.get('sistema_amortizacao', "SAC") == "SAC" else 1
+        sist_sel = st.selectbox("Sistema de Amortização", ["SAC", "PRICE"], index=idx_tab, key="sist_aprovado_key")
+        st.session_state.dados_cliente['sistema_amortizacao'] = sist_sel
+        st.markdown("---")
+        col_f1, col_f2 = st.columns(2)
+        with col_f1:
+            if st.button("Avançar para Recomendação de Imóveis", type="primary", use_container_width=True, key="btn_fech_to_guide"):
+                st.session_state.passo_simulacao = 'guide'; scroll_to_top(); st.rerun()
+        with col_f2:
+            if st.button("Escolha direta de unidade (estoque)", use_container_width=True, key="btn_fech_to_selection"):
+                st.session_state.passo_simulacao = 'selection'; scroll_to_top(); st.rerun()
+        if st.button("Voltar para Dados do Cliente", use_container_width=True, key="btn_fech_voltar"): st.session_state.passo_simulacao = 'input'; scroll_to_top(); st.rerun()
 
-    # --- ETAPA 2: RECOMENDAÇÃO ---
+    # --- ETAPA 3: RECOMENDAÇÃO (usa valores reais do fechamento) ---
     elif passo == 'guide':
         d = st.session_state.dados_cliente
         st.markdown(f"### Recomendação de Imóveis")
@@ -2818,25 +2856,19 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
                 except: v_venda = 0.0
                 try: v_aval = float(v_aval)
                 except: v_aval = v_venda
-
-                fin, sub, fx_n = motor.obter_enquadramento(d.get('renda', 0), d.get('social', False), d.get('cotista', True), v_aval)
-                
+                # Usar valores reais do fechamento (2ª aba), não da curva
+                fin = float(d.get('finan_usado', 0) or 0)
+                sub = float(d.get('fgts_sub_usado', 0) or 0)
                 # SELEÇÃO DO PRO SOLUTO POR COLUNA
                 pol = d.get('politica', 'Direcional')
                 rank = d.get('ranking', 'DIAMANTE')
-                
                 ps_max_val = 0.0
                 if pol == 'Emcash':
                     ps_max_val = row.get('PS_EmCash', 0.0)
                 else:
-                    # Tenta pegar coluna pelo ranking
-                    # Assumindo nomes de coluna 'PS Diamante' -> 'PS_Diamante'
                     col_rank = f"PS_{rank.title()}" if rank else 'PS_Diamante'
-                    # Ajuste para caso Aço (sem cedilha) se necessário, mas mapeamento deve resolver
                     if rank == 'AÇO': col_rank = 'PS_Aco'
-                    
                     ps_max_val = row.get(col_rank, 0.0)
-
                 capacity = ps_max_val + fin + sub + (2 * d.get('renda', 0))
                 cobertura = (capacity / v_venda) * 100 if v_venda > 0 else 0
                 is_viavel = capacity >= v_venda
@@ -3010,7 +3042,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
         st.markdown("---")
         if st.button("Avançar para Escolha de Unidade", type="primary", use_container_width=True, key="btn_goto_selection"): st.session_state.passo_simulacao = 'selection'; scroll_to_top(); st.rerun()
         st.write("");
-        if st.button("Voltar para Dados do Cliente", use_container_width=True, key="btn_pot_v28"): st.session_state.passo_simulacao = 'input'; scroll_to_top(); st.rerun()
+        if st.button("Voltar para Valores Aprovados", use_container_width=True, key="btn_pot_v28"): st.session_state.passo_simulacao = 'fechamento_aprovado'; scroll_to_top(); st.rerun()
 
     elif passo == 'selection':
          d = st.session_state.dados_cliente
@@ -3047,8 +3079,9 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
                 if uni_escolhida_id:
                     u_row = unidades_disp[unidades_disp['Identificador'] == uni_escolhida_id].iloc[0]
                     v_aval = u_row['Valor de Avaliação Bancária']; v_venda = u_row['Valor de Venda']
-                    fin_t, sub_t, _ = motor.obter_enquadramento(d.get('renda', 0), d.get('social', False), d.get('cotista', True), u_row['Valor de Avaliação Bancária'])
-                    
+                    # Usar valores reais do fechamento (2ª aba)
+                    fin_t = float(d.get('finan_usado', 0) or 0)
+                    sub_t = float(d.get('fgts_sub_usado', 0) or 0)
                     # SELEÇÃO DO PRO SOLUTO POR COLUNA
                     pol = d.get('politica', 'Direcional')
                     rank = d.get('ranking', 'DIAMANTE')
@@ -3082,100 +3115,73 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
                             <small>{percentual_cobertura:.1f}% Coberto</small>
                         </div>
                     """, unsafe_allow_html=True)
+                    # Campo Valor Final da Unidade (desconto/alteração) na aba de escolha
+                    st.markdown("#### Valor Final da Unidade")
+                    st.caption("Opcional: preencha se houver desconto ou valor diferente do cadastro. O fechamento será calculado com base neste valor.")
+                    v_final_default = float(u_row['Valor de Venda'])
+                    if d.get('imovel_valor') and d.get('unidade_id') == uni_escolhida_id:
+                        v_final_default = float(d.get('imovel_valor'))
+                    st.number_input("Valor Final de Venda (R$)", value=v_final_default, key="valor_final_unidade_key", step=1000.0, format="%.2f", placeholder="Igual ao valor da unidade se não alterar")
             st.markdown("<br>", unsafe_allow_html=True)
             if st.button("Avançar para Fechamento Financeiro", type="primary", use_container_width=True):
                 if uni_escolhida_id:
                     u_row = unidades_disp[unidades_disp['Identificador'] == uni_escolhida_id].iloc[0]
-                    fin, sub, _ = motor.obter_enquadramento(d.get('renda', 0), d.get('social', False), d.get('cotista', True), u_row['Valor de Avaliação Bancária'])
+                    v_venda_unid = float(u_row['Valor de Venda'])
+                    valor_final = st.session_state.get('valor_final_unidade_key')
+                    if valor_final is not None and valor_final > 0:
+                        imovel_valor_usar = float(valor_final)
+                    else:
+                        imovel_valor_usar = v_venda_unid
                     st.session_state.dados_cliente.update({
-                        'unidade_id': uni_escolhida_id, 'empreendimento_nome': emp_escolhido, 
-                        'imovel_valor': u_row['Valor de Venda'], 'imovel_avaliacao': u_row['Valor de Avaliação Bancária'], 
-                        'finan_estimado': fin, 'fgts_sub': sub,
+                        'unidade_id': uni_escolhida_id, 'empreendimento_nome': emp_escolhido,
+                        'imovel_valor': imovel_valor_usar, 'imovel_avaliacao': u_row['Valor de Avaliação Bancária'],
+                        'finan_estimado': d.get('finan_usado', 0), 'fgts_sub': d.get('fgts_sub_usado', 0),
                         'unid_entrega': u_row.get('Data Entrega', ''),
                         'unid_area': u_row.get('Area', ''),
                         'unid_tipo': u_row.get('Tipologia', ''),
                         'unid_endereco': u_row.get('Endereco', ''),
                         'unid_bairro': u_row.get('Bairro', ''),
-                        'volta_caixa_ref': u_row.get('Volta_Caixa_Ref', 0.0) # Salva a referência na sessão
+                        'volta_caixa_ref': u_row.get('Volta_Caixa_Ref', 0.0)
                     })
                     st.session_state.passo_simulacao = 'payment_flow'; scroll_to_top(); st.rerun()
             if st.button("Voltar para Recomendação de Imóveis", use_container_width=True): st.session_state.passo_simulacao = 'guide'; scroll_to_top(); st.rerun()
 
     elif passo == 'payment_flow':
         d = st.session_state.dados_cliente
-        st.markdown(f"### Fechamento Financeiro")
-        u_valor = d.get('imovel_valor', 0); u_nome = d.get('empreendimento_nome', 'N/A'); u_unid = d.get('unidade_id', 'N/A')
+        st.markdown(f"### Distribuição da Entrada (Fechamento)")
+        # Valores já preenchidos na 2ª aba (Fechamento) e na escolha da unidade
+        u_valor = d.get('imovel_valor', 0)
+        u_nome = d.get('empreendimento_nome', 'N/A')
+        u_unid = d.get('unidade_id', 'N/A')
         u_aval = d.get('imovel_avaliacao', u_valor)
-        
+        f_u_input = float(d.get('finan_usado', 0) or 0)
+        fgts_u_input = float(d.get('fgts_sub_usado', 0) or 0)
+        prazo_finan = int(d.get('prazo_financiamento', 360))
+        tab_fin = d.get('sistema_amortizacao', 'SAC')
+        st.session_state.dados_cliente['finan_usado'] = f_u_input
+        st.session_state.dados_cliente['fgts_sub_usado'] = fgts_u_input
+        st.session_state.dados_cliente['prazo_financiamento'] = prazo_finan
+        st.session_state.dados_cliente['sistema_amortizacao'] = tab_fin
+
         st.markdown(f"""
         <div class="custom-alert" style="flex-direction: column; align-items: flex-start; padding: 20px;">
             <div style="font-size: 1.1rem; margin-bottom: 5px;">{u_nome} - {u_unid}</div>
-            <div style="font-size: 0.9rem; opacity: 0.9;">Valor de Avaliação Bancária: <b>R$ {fmt_br(u_aval)}</b></div>
-            <div style="font-size: 0.9rem; opacity: 0.9;">Valor de Venda: <b>R$ {fmt_br(u_valor)}</b></div>
+            <div style="font-size: 0.9rem; opacity: 0.9;">Valor Final da Unidade: <b>R$ {fmt_br(u_valor)}</b></div>
+            <div style="font-size: 0.9rem; opacity: 0.9;">Financiamento: R$ {fmt_br(f_u_input)} | Subsídio: R$ {fmt_br(fgts_u_input)} | Prazo: {prazo_finan}x | {tab_fin}</div>
         </div>
         """, unsafe_allow_html=True)
-        
-        # Correção do warning: Garantir inicialização e não passar value se key existe
-        if 'finan_usado' not in st.session_state.dados_cliente: st.session_state.dados_cliente['finan_usado'] = d.get('finan_estimado', 0.0)
-        if 'fgts_sub_usado' not in st.session_state.dados_cliente: st.session_state.dados_cliente['fgts_sub_usado'] = d.get('fgts_sub', 0.0)
+        taxa_padrao = 8.16
+        sac_details = calcular_comparativo_sac_price(f_u_input, prazo_finan, taxa_padrao)["SAC"]
+        price_details = calcular_comparativo_sac_price(f_u_input, prazo_finan, taxa_padrao)["PRICE"]
+        st.markdown(f"""<div style="display: flex; justify-content: space-around; margin-bottom: 20px; font-size: 0.85rem; color: #64748b;"><span><b>SAC:</b> R$ {fmt_br(sac_details['primeira'])} a R$ {fmt_br(sac_details['ultima'])}</span><span><b>PRICE:</b> R$ {fmt_br(price_details['parcela'])} fixas</span></div>""", unsafe_allow_html=True)
+
         if 'ps_usado' not in st.session_state.dados_cliente: st.session_state.dados_cliente['ps_usado'] = 0.0
         if 'ato_final' not in st.session_state.dados_cliente: st.session_state.dados_cliente['ato_final'] = 0.0
         if 'ato_30' not in st.session_state.dados_cliente: st.session_state.dados_cliente['ato_30'] = 0.0
         if 'ato_60' not in st.session_state.dados_cliente: st.session_state.dados_cliente['ato_60'] = 0.0
         if 'ato_90' not in st.session_state.dados_cliente: st.session_state.dados_cliente['ato_90'] = 0.0
-        
-        # Helper para value=None se 0.0
         def val_none(v): return None if v == 0.0 else v
 
-        # --- INPUT FINANCIAMENTO ---
-        if 'fin_u_key' not in st.session_state:
-            st.session_state['fin_u_key'] = st.session_state.dados_cliente.get('finan_usado', 0.0)
-        
-        # Use value=None se o valor atual for 0.0 para mostrar placeholder
-        fin_val = val_none(st.session_state['fin_u_key'])
-        
-        f_u_input = st.number_input("Financiamento", value=fin_val, key="fin_u_key", step=1000.0, format="%.2f", placeholder="0,00")
-        if f_u_input is None: f_u_input = 0.0
-        
-        st.session_state.dados_cliente['finan_usado'] = f_u_input
-        
-        # Construir label de referencia com histórico
-        fin_max = d.get("finan_estimado", 0)
-        fin_hist = d.get("finan_usado_historico", 0)
-        ref_text_fin = f"Financiamento Máximo: R$ {fmt_br(fin_max)}"
-        if fin_hist > 0:
-            ref_text_fin += f" | Financiamento Específico (Anterior): R$ {fmt_br(fin_hist)}"
-            
-        st.markdown(f'<div class="inline-ref" style="background-color: transparent; padding: 0; font-family: inherit; font-size: 0.72rem; color: {COR_AZUL_ESC}; margin-top: -12px; margin-bottom: 15px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; display: block; opacity: 0.9;">{ref_text_fin}</div>', unsafe_allow_html=True)
-        
-        idx_prazo = 0 if d.get('prazo_financiamento', 360) == 360 else 1
-        prazo_finan = st.selectbox("Prazo Financiamento (Meses)", [360, 420], index=idx_prazo, key="prazo_v3_closed")
-        st.session_state.dados_cliente['prazo_financiamento'] = prazo_finan
-        idx_tab = 0 if d.get('sistema_amortizacao', "SAC") == "SAC" else 1
-        tab_fin = st.selectbox("Sistema de Amortização", ["SAC", "PRICE"], index=idx_tab, key="tab_fin_v28")
-        st.session_state.dados_cliente['sistema_amortizacao'] = tab_fin
-        taxa_padrao = 8.16; sac_details = calcular_comparativo_sac_price(f_u_input, prazo_finan, taxa_padrao)["SAC"]; price_details = calcular_comparativo_sac_price(f_u_input, prazo_finan, taxa_padrao)["PRICE"]
-        st.markdown(f"""<div style="display: flex; justify-content: space-around; margin-bottom: 20px; font-size: 0.85rem; color: #64748b;"><span><b>SAC:</b> R$ {fmt_br(sac_details['primeira'])} a R$ {fmt_br(sac_details['ultima'])} (Juros: R$ {fmt_br(sac_details['juros'])})</span><span><b>PRICE:</b> R$ {fmt_br(price_details['parcela'])} fixas (Juros: R$ {fmt_br(price_details['juros'])})</span></div>""", unsafe_allow_html=True)
-        
-        # --- INPUT FGTS ---
-        if 'fgts_u_key' not in st.session_state:
-            st.session_state['fgts_u_key'] = st.session_state.dados_cliente.get('fgts_sub_usado', 0.0)
-        
-        fgts_val = val_none(st.session_state['fgts_u_key'])
-        fgts_u_input = st.number_input("FGTS + Subsídio", value=fgts_val, key="fgts_u_key", step=1000.0, format="%.2f", placeholder="0,00")
-        if fgts_u_input is None: fgts_u_input = 0.0
-        
-        st.session_state.dados_cliente['fgts_sub_usado'] = fgts_u_input
-        
-        # Referencia FGTS
-        fgts_max = d.get("fgts_sub", 0)
-        fgts_hist = d.get("fgts_usado_historico", 0)
-        ref_text_fgts = f"Subsídio Máximo: R$ {fmt_br(fgts_max)}"
-        if fgts_hist > 0:
-            ref_text_fgts += f" | FGTS+Sub Específico (Anterior): R$ {fmt_br(fgts_hist)}"
-            
-        st.markdown(f'<div class="inline-ref" style="background-color: transparent; padding: 0; font-family: inherit; font-size: 0.72rem; color: {COR_AZUL_ESC}; margin-top: -12px; margin-bottom: 15px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; display: block; opacity: 0.9;">{ref_text_fgts}</div>', unsafe_allow_html=True)
-        
         st.markdown("<hr style='margin: 10px 0;'>", unsafe_allow_html=True)
         st.markdown("#### Distribuição da Entrada (Saldo a Pagar)")
         
@@ -3199,14 +3205,11 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
         r1 = st.number_input("Ato (Entrada Imediata)", value=v1, key="ato_1_key", step=100.0, format="%.2f", placeholder="0,00", help="Valor pago no ato da assinatura.")
         st.session_state.dados_cliente['ato_final'] = r1 if r1 else 0.0
         
-        # Função para distribuir o restante
+        # Função para distribuir o restante (usa PS atual da session)
         def distribuir_restante(n_parcelas):
-            # Valor já inserido no Ato 1
             a1_atual = st.session_state.get('ato_1_key') or 0.0
-            
-            # Gap total atualizado (quanto falta para fechar a conta dos atos)
-            # Gap = Valor - Finan - FGTS - PS
-            gap_total = max(0.0, u_valor - f_u_input - fgts_u_input - ps_atual)
+            ps_atual_cb = st.session_state.get('ps_u_key') or 0.0
+            gap_total = max(0.0, u_valor - f_u_input - fgts_u_input - ps_atual_cb)
             
             # Restante a distribuir nos outros atos
             restante = max(0.0, gap_total - a1_atual)
