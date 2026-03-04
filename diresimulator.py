@@ -892,7 +892,7 @@ def configurar_layout():
             background-color: #f0f2f6 !important;
         }}
 
-        /* Esconder botões + e - dos number inputs (só digitação; o × fica na coluna ao lado) */
+        /* Esconder botões + e - dos number inputs (apenas digitação) */
         div[data-testid="stNumberInput"] button {{
             display: none !important;
         }}
@@ -903,7 +903,7 @@ def configurar_layout():
             background-color: #f0f2f6 !important;
         }}
 
-        /* --- ALTURA UNIFICADA 48px: campos e botão limpar na mesma altura --- */
+        /* --- ALTURA UNIFICADA 48px --- */
         .stTextInput input, .stNumberInput input, .stDateInput input, div[data-baseweb="select"] > div {{
             height: 48px !important;
             min-height: 48px !important;
@@ -922,39 +922,52 @@ def configurar_layout():
             align-items: center !important;
         }}
 
-        /* Linha integrada: campo + botão limpar = mesmo bloco visual, sem gap, bordas unidas */
+        /* Botão × DENTRO do campo: posicionado à direita, visível só no hover */
+        div[data-testid="stHorizontalBlock"]:has([data-testid="stNumberInput"]):has(button) {{
+            position: relative !important;
+        }}
         div[data-testid="stHorizontalBlock"]:has([data-testid="stNumberInput"]):has(button) > div {{
             align-items: flex-end !important;
-            gap: 0 !important;
         }}
-        /* Campo numérico: sem borda direita e sem arredondamento à direita para encostar no botão */
+        /* Espaço à direita do campo para o botão × (evita texto por baixo do ×) */
         div[data-testid="stHorizontalBlock"]:has([data-testid="stNumberInput"]):has(button) [data-testid="stNumberInput"] div[data-baseweb="input"] {{
-            border-top-right-radius: 0 !important;
-            border-bottom-right-radius: 0 !important;
-            border-right: 1px solid #e2e8f0 !important;
+            padding-right: 48px !important;
         }}
-        /* Botão ×: mesma altura (48px), encostado no campo, bordas à esquerda unidas */
+        div[data-testid="stHorizontalBlock"]:has([data-testid="stNumberInput"]):has(button) [data-testid="stNumberInput"] input {{
+            padding-right: 48px !important;
+        }}
+        /* Coluna do botão ×: sobreposta ao campo, alinhada à direita e à altura do input */
         div[data-testid="stHorizontalBlock"]:has([data-testid="stNumberInput"]):has(button) > div > div:last-child {{
+            position: absolute !important;
+            right: 0 !important;
+            bottom: 0 !important;
+            width: 48px !important;
+            min-width: 48px !important;
+            height: 48px !important;
             display: flex !important;
-            align-items: stretch !important;
+            align-items: center !important;
+            justify-content: center !important;
+            padding: 0 !important;
+            background: transparent !important;
+            border: none !important;
+            box-shadow: none !important;
+            pointer-events: none !important;
+            opacity: 0 !important;
+            transition: opacity 0.2s ease !important;
+        }}
+        div[data-testid="stHorizontalBlock"]:has([data-testid="stNumberInput"]):has(button):hover > div > div:last-child {{
+            opacity: 1 !important;
+            pointer-events: auto !important;
         }}
         div[data-testid="stHorizontalBlock"]:has([data-testid="stNumberInput"]):has(button) > div > div:last-child button {{
             min-height: 48px !important;
             height: 48px !important;
-            border-top-left-radius: 0 !important;
-            border-bottom-left-radius: 0 !important;
-            border-left: none !important;
+            width: 48px !important;
+            border-radius: 0 8px 8px 0 !important;
             display: inline-flex !important;
             align-items: center !important;
             justify-content: center !important;
-        }}
-        /* Fallback para outros botões × fora do bloco integrado */
-        div[data-testid="stHorizontalBlock"] > div > div:last-child button {{
-            min-height: 48px !important;
-            height: 48px !important;
-            display: inline-flex !important;
-            align-items: center !important;
-            justify-content: center !important;
+            pointer-events: auto !important;
         }}
 
         div[data-baseweb="select"] span {{
@@ -975,12 +988,6 @@ def configurar_layout():
         div[data-testid="stDateInput"] div[data-baseweb="input"] {{
             border: none !important;
             background-color: transparent !important;
-        }}
-
-        div[data-testid="stNumberInput"] button {{
-             height: 48px !important;
-             border-color: #e2e8f0 !important;
-             color: {COR_AZUL_ESC} !important;
         }}
 
         .stButton button {{
