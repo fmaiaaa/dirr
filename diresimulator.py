@@ -71,7 +71,7 @@ COR_VERMELHO = "#e30613"
 COR_FUNDO = "#fcfdfe"
 COR_BORDA = "#eef2f6"
 COR_TEXTO_MUTED = "#64748b"
-COR_INPUT_BG = "#ffffff"
+COR_INPUT_BG = "#f0f2f6"
 
 # --- CATALOGO DE PRODUTOS COMPLETO ---
 CATALOGO_PRODUTOS = {
@@ -403,9 +403,10 @@ def calcular_comparativo_sac_price(valor, meses, taxa_anual):
         "PRICE": {"parcela": pmt_price, "juros": juros_price}
     }
 
-def _clear_session_num(key, valor_padrao=0.0):
-    """Callback para botão ×: zera o valor do campo na session_state."""
-    st.session_state[key] = valor_padrao
+def _request_clear(key, valor_padrao=0.0):
+    """Marca pedido de limpeza para o próximo run (Streamlit não permite alterar key de widget no mesmo run)."""
+    st.session_state["_clear_key"] = key
+    st.session_state["_clear_val"] = valor_padrao
 
 def calcular_parcela_financiamento(valor_financiado, meses, taxa_anual_pct, sistema):
     if valor_financiado is None or valor_financiado <= 0 or meses <= 0: return 0.0
@@ -881,24 +882,24 @@ def configurar_layout():
         div[data-baseweb="input"] {{
             border-radius: 8px !important;
             border: 1px solid #e2e8f0 !important;
-            background-color: #ffffff !important;
+            background-color: #f0f2f6 !important;
             transition: all 0.2s ease-in-out !important;
         }}
 
         div[data-baseweb="input"]:focus-within {{
             border-color: {COR_VERMELHO} !important;
             box-shadow: 0 0 0 1px {COR_VERMELHO} !important;
-            background-color: #ffffff !important;
+            background-color: #f0f2f6 !important;
         }}
 
-        /* Esconder botões + e - dos campos numéricos; preenchimento apenas por digitação; fundo branco */
+        /* Esconder botões + e - dos campos numéricos; fundo cinza em todos os campos */
         div[data-testid="stNumberInput"] button {{
             display: none !important;
         }}
-        div[data-testid="stNumberInput"] div[data-baseweb="input"] {{
-            background-color: #ffffff !important;
-        }}
-        div[data-testid="stTextInput"] div[data-baseweb="input"] {{
+        div[data-testid="stNumberInput"] div[data-baseweb="input"],
+        div[data-testid="stTextInput"] div[data-baseweb="input"],
+        div[data-testid="stDateInput"] div[data-baseweb="input"],
+        div[data-baseweb="select"] {{
             background-color: #f0f2f6 !important;
         }}
 
@@ -922,6 +923,15 @@ def configurar_layout():
             align-items: center !important;
         }}
 
+        /* Botão × (limpar) com mesma altura do campo (48px) */
+        div[data-testid="stHorizontalBlock"] > div > div:last-child button {{
+            min-height: 48px !important;
+            height: 48px !important;
+            display: inline-flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+        }}
+
         div[data-baseweb="select"] span {{
             text-align: left !important;
             display: flex !important;
@@ -930,7 +940,7 @@ def configurar_layout():
         }}
 
         div[data-testid="stDateInput"] > div, div[data-baseweb="select"] > div {{
-            background-color: #ffffff !important;
+            background-color: #f0f2f6 !important;
             border: 1px solid #e2e8f0 !important;
             border-radius: 8px !important;
             display: flex;
@@ -2775,8 +2785,15 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
     # --- ETAPA 2: VALORES APROVADOS (FECHAMENTO FINANCEIRO) - 2ª ABA ---
     elif passo == 'fechamento_aprovado':
         d = st.session_state.dados_cliente
+        # Processar pedido de limpeza do botão ×
+        if "_clear_key" in st.session_state and "_clear_val" in st.session_state:
+            k, v = st.session_state["_clear_key"], st.session_state["_clear_val"]
+            st.session_state[k] = v
+            if k == "prazo_aprovado_key": st.session_state.dados_cliente["prazo_financiamento"] = int(v)
+            del st.session_state["_clear_key"]
+            del st.session_state["_clear_val"]
         st.markdown("### Valores Aprovados (Fechamento Financeiro)")
-        st.caption("Preencha os valores aprovados de financiamento e subsídio. As recomendações usarão esses valores reais.")
+        st.markdown("<p style='text-align: center; color: #64748b; font-size: 0.9rem;'>Preencha os valores aprovados de financiamento e subsídio. As recomendações usarão esses valores reais.</p>", unsafe_allow_html=True)
         # Recalcular referência da curva (finan_f_ref, sub_f_ref) a partir do perfil do cliente para exibir valores corretos
         renda_cli = float(d.get('renda', 0) or 0)
         social_cli = bool(d.get('social', False))
@@ -2801,7 +2818,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
             f_u = st.number_input("Financiamento Aprovado (R$)", value=fin_default, key="fin_aprovado_key", step=1000.0, format="%.2f", placeholder="0,00")
         with col_fin_x:
             st.markdown("<div style='margin-top: 28px;'></div>", unsafe_allow_html=True)
-            if st.button("×", key="clear_fin_aprov", help="Limpar"): _clear_session_num("fin_aprovado_key", 0.0); st.rerun()
+            if st.button("×", key="clear_fin_aprov", help="Limpar"): _request_clear("fin_aprovado_key", 0.0); st.rerun()
         if f_u is None: st.session_state['fin_aprovado_key'] = 0.0; f_u = 0.0
         st.session_state.dados_cliente['finan_usado'] = float(f_u) if f_u is not None else 0.0
         fin_max = d.get("finan_f_ref", 0)
@@ -2813,7 +2830,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
             s_u = st.number_input("Subsídio Aprovado / FGTS + Subsídio (R$)", value=sub_default, key="sub_aprovado_key", step=1000.0, format="%.2f", placeholder="0,00")
         with col_sub_x:
             st.markdown("<div style='margin-top: 28px;'></div>", unsafe_allow_html=True)
-            if st.button("×", key="clear_sub_aprov", help="Limpar"): _clear_session_num("sub_aprovado_key", 0.0); st.rerun()
+            if st.button("×", key="clear_sub_aprov", help="Limpar"): _request_clear("sub_aprovado_key", 0.0); st.rerun()
         if s_u is None: st.session_state['sub_aprovado_key'] = 0.0; s_u = 0.0
         st.session_state.dados_cliente['fgts_sub_usado'] = float(s_u) if s_u is not None else 0.0
         fgts_max = d.get("sub_f_ref", 0)
@@ -2827,7 +2844,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
             prazo_sel = st.number_input("Prazo do Financiamento (meses)", value=prazo_atual, key="prazo_aprovado_key", min_value=12, max_value=600, step=1)
         with col_prazo_x:
             st.markdown("<div style='margin-top: 28px;'></div>", unsafe_allow_html=True)
-            if st.button("×", key="clear_prazo_aprov", help="Limpar (volta a 360)"): _clear_session_num("prazo_aprovado_key", 360); st.session_state.dados_cliente['prazo_financiamento'] = 360; st.rerun()
+            if st.button("×", key="clear_prazo_aprov", help="Limpar (volta a 360)"): _request_clear("prazo_aprovado_key", 360); st.rerun()
         if prazo_sel is None: st.session_state['prazo_aprovado_key'] = 360; prazo_sel = 360
         st.session_state.dados_cliente['prazo_financiamento'] = int(prazo_sel)
 
@@ -3163,6 +3180,13 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
 
     elif passo == 'payment_flow':
         d = st.session_state.dados_cliente
+        # Processar pedido de limpeza (feito no run anterior pelo botão ×)
+        if "_clear_key" in st.session_state and "_clear_val" in st.session_state:
+            k, v = st.session_state["_clear_key"], st.session_state["_clear_val"]
+            st.session_state[k] = v
+            if k == "prazo_aprovado_key": st.session_state.dados_cliente["prazo_financiamento"] = int(v)
+            del st.session_state["_clear_key"]
+            del st.session_state["_clear_val"]
         st.markdown("### Distribuição da Entrada (Fechamento)")
         # Valores já preenchidos na 2ª aba (Fechamento) e na escolha da unidade (garantir numérico)
         u_valor = float(d.get('imovel_valor', 0) or 0)
@@ -3221,7 +3245,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
             r1 = st.number_input("Ato (Entrada Imediata)", value=v1, key="ato_1_key", min_value=0.0, step=100.0, format="%.2f", placeholder="0,00", help="Valor pago no ato da assinatura.")
         with col_x1:
             st.markdown("<div style='margin-top: 28px;'></div>", unsafe_allow_html=True)
-            if st.button("×", key="clear_ato_1", help="Limpar"): _clear_session_num("ato_1_key", 0.0); st.rerun()
+            if st.button("×", key="clear_ato_1", help="Limpar"): _request_clear("ato_1_key", 0.0); st.rerun()
         if r1 is None: st.session_state['ato_1_key'] = 0.0
         st.session_state.dados_cliente['ato_final'] = float(r1) if r1 is not None else 0.0
         
@@ -3275,7 +3299,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
                 r2 = st.number_input("Ato 30 Dias", value=_num_val('ato_2_key', 0.0), key="ato_2_key", min_value=0.0, step=100.0, format="%.2f", placeholder="0,00")
             with c2x:
                 st.markdown("<div style='margin-top: 28px;'></div>", unsafe_allow_html=True)
-                if st.button("×", key="clear_ato_2", help="Limpar"): _clear_session_num("ato_2_key", 0.0); st.rerun()
+                if st.button("×", key="clear_ato_2", help="Limpar"): _request_clear("ato_2_key", 0.0); st.rerun()
             if r2 is None: st.session_state['ato_2_key'] = 0.0
             st.session_state.dados_cliente['ato_30'] = float(r2) if r2 is not None else 0.0
             
@@ -3285,7 +3309,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
                 r3 = st.number_input("Ato 60 Dias", value=_num_val('ato_3_key', 0.0), key="ato_3_key", min_value=0.0, step=100.0, format="%.2f", placeholder="0,00")
             with c3x:
                 st.markdown("<div style='margin-top: 28px;'></div>", unsafe_allow_html=True)
-                if st.button("×", key="clear_ato_3", help="Limpar"): _clear_session_num("ato_3_key", 0.0); st.rerun()
+                if st.button("×", key="clear_ato_3", help="Limpar"): _request_clear("ato_3_key", 0.0); st.rerun()
             if r3 is None: st.session_state['ato_3_key'] = 0.0
             st.session_state.dados_cliente['ato_60'] = float(r3) if r3 is not None else 0.0
             
@@ -3295,7 +3319,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
                 r4 = st.number_input("Ato 90 Dias", value=_num_val('ato_4_key', 0.0), key="ato_4_key", min_value=0.0, step=100.0, disabled=is_emcash, format="%.2f", placeholder="0,00")
             with c4x:
                 st.markdown("<div style='margin-top: 28px;'></div>", unsafe_allow_html=True)
-                if st.button("×", key="clear_ato_4", help="Limpar", disabled=is_emcash): _clear_session_num("ato_4_key", 0.0); st.rerun()
+                if st.button("×", key="clear_ato_4", help="Limpar", disabled=is_emcash): _request_clear("ato_4_key", 0.0); st.rerun()
             if r4 is None: st.session_state['ato_4_key'] = 0.0
             st.session_state.dados_cliente['ato_90'] = float(r4) if r4 is not None else 0.0
             
@@ -3325,7 +3349,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
                 ps_input_val = st.number_input("Pro Soluto Direcional", value=_num_val('ps_u_key', 0.0), key="ps_u_key", step=1000.0, format="%.2f", placeholder="0,00")
             with c_ps_x:
                 st.markdown("<div style='margin-top: 28px;'></div>", unsafe_allow_html=True)
-                if st.button("×", key="clear_ps_u", help="Limpar"): _clear_session_num("ps_u_key", 0.0); st.rerun()
+                if st.button("×", key="clear_ps_u", help="Limpar"): _request_clear("ps_u_key", 0.0); st.rerun()
             if ps_input_val is None: st.session_state['ps_u_key'] = 0.0; ps_input_val = 0.0
             st.session_state.dados_cliente['ps_usado'] = float(ps_input_val) if ps_input_val is not None else 0.0
             ref_text_ps = f"Limite Permitido: R$ {fmt_br(ps_max_real)}"
@@ -3352,7 +3376,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
             vc_input_val = st.number_input("Volta ao Caixa", value=_num_val('volta_caixa_key', 0.0), key="volta_caixa_key", step=1000.0, format="%.2f", placeholder="0,00")
         with c_vc_x:
             st.markdown("<div style='margin-top: 28px;'></div>", unsafe_allow_html=True)
-            if st.button("×", key="clear_volta_caixa", help="Limpar"): _clear_session_num("volta_caixa_key", 0.0); st.rerun()
+            if st.button("×", key="clear_volta_caixa", help="Limpar"): _request_clear("volta_caixa_key", 0.0); st.rerun()
         if vc_input_val is None: st.session_state['volta_caixa_key'] = 0.0; vc_input_val = 0.0
         vc_input_val = float(vc_input_val) if vc_input_val is not None else 0.0
         
