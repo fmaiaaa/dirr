@@ -2742,24 +2742,22 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
         nome_cliente = st.session_state.dados_cliente.get('nome', None)
         if cliente_ativo and nome_cliente:
             st.markdown(f"""
-            <div style="border: 1px solid {COR_BORDA}; border-radius: 12px; padding: 24px; margin: 20px auto; max-width: 600px; text-align: center; background: #f8fafc;">
+            <div style="border: 1px solid {COR_BORDA}; border-radius: 12px; padding: 24px; width: 100%; text-align: center; background: #f8fafc;">
                 <p style="font-weight: 700; font-size: 1rem; margin: 0 0 8px 0; color: {COR_AZUL_ESC};">Cliente Ativo</p>
                 <p style="font-size: 1.1rem; margin: 0 0 16px 0; color: {COR_VERMELHO}; font-weight: 700;">{nome_cliente}</p>
                 <p style="font-size: 0.85rem; color: #64748b; margin: 0;">Selecione como deseja prosseguir com este cliente:</p>
             </div>
             """, unsafe_allow_html=True)
-            cx1, cx2, cx3 = st.columns([1, 2, 1])
-            with cx2:
-                if st.button("PREENCHER VALORES APROVADOS", type="primary", use_container_width=True, key="btn_action_fechamento"):
-                    st.session_state.passo_simulacao = 'fechamento_aprovado'
-                    scroll_to_top()
-                    st.rerun()
+            if st.button("PREENCHER VALORES APROVADOS", type="primary", use_container_width=True, key="btn_action_fechamento"):
+                st.session_state.passo_simulacao = 'fechamento_aprovado'
+                scroll_to_top()
+                st.rerun()
 
     # --- ETAPA 2: VALORES APROVADOS (FECHAMENTO FINANCEIRO) - 2ª ABA ---
     elif passo == 'fechamento_aprovado':
         d = st.session_state.dados_cliente
         st.markdown("<p style='text-align: center;'>Valores Aprovados (Fechamento Financeiro)</p>", unsafe_allow_html=True)
-        st.caption("Preencha os valores aprovados de financiamento e subsídio. As recomendações usarão esses valores reais.")
+        st.markdown("<p style='text-align: center; color: #64748b; font-size: 0.9rem;'>Preencha os valores aprovados de financiamento e subsídio. As recomendações usarão esses valores reais.</p>", unsafe_allow_html=True)
         # Recalcular referência da curva (finan_f_ref, sub_f_ref) a partir do perfil do cliente para exibir valores corretos
         renda_cli = float(d.get('renda', 0) or 0)
         social_cli = bool(d.get('social', False))
@@ -3071,13 +3069,19 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
                     st.session_state.dados_cliente['prazo_ps_max'] = prazo_max_ps
 
                     poder_t, _ = motor.calcular_poder_compra(d.get('renda', 0), fin_t, sub_t, ps_max_val)
-                    percentual_cobertura = min(100, max(0, (poder_t / v_venda) * 100))
+                    # Termômetro usa valor final de venda (se preenchido), senão valor da unidade
+                    valor_para_termo = st.session_state.get('valor_final_unidade_key')
+                    if valor_para_termo is None or (isinstance(valor_para_termo, (int, float)) and valor_para_termo <= 0):
+                        valor_para_termo = float(v_venda)
+                    else:
+                        valor_para_termo = float(valor_para_termo)
+                    percentual_cobertura = min(100, max(0, (poder_t / valor_para_termo) * 100)) if valor_para_termo > 0 else 0
                     cor_term = calcular_cor_gradiente(percentual_cobertura)
                     st.markdown(f"""
                         <div style="margin-top: 20px; padding: 15px; border: 1px solid #e2e8f0; border-radius: 10px; background-color: #f8fafc; text-align: center;">
                             <div style="display: flex; justify-content: space-around; margin-bottom: 10px; font-size: 0.9rem;">
                                 <div><b>Valor de Avaliação:</b><br>R$ {fmt_br(v_aval)}</div>
-                                <div><b>Valor de Venda:</b><br>R$ {fmt_br(v_venda)}</div>
+                                <div><b>Valor considerado (Venda):</b><br>R$ {fmt_br(valor_para_termo)}</div>
                             </div>
                             <hr style="margin: 10px 0; border: 0; border-top: 1px solid #e2e8f0;">
                             <p style="margin: 0; font-weight: 700; font-size: 0.9rem; color: #002c5d;">TERMÔMETRO DE VIABILIDADE</p>
@@ -3150,20 +3154,9 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
         if 'ato_90' not in st.session_state.dados_cliente: st.session_state.dados_cliente['ato_90'] = 0.0
         def val_none(v): return None if v == 0.0 else v
 
-        # Valores atuais da sessão para calcular saldo (acima da distribuição)
-        _r1 = st.session_state.get('ato_1_key') or 0.0
-        _r2 = st.session_state.get('ato_2_key') or 0.0
-        _r3 = st.session_state.get('ato_3_key') or 0.0
-        _r4 = st.session_state.get('ato_4_key') or 0.0
-        _ps = st.session_state.get('ps_u_key') or 0.0
-        _vc = st.session_state.get('volta_caixa_key') or 0.0
-        _total_entrada_prev = _r1 + _r2 + _r3 + _r4
-        _gap_prev = u_valor - f_u_input - fgts_u_input - _ps - _total_entrada_prev - _vc
-        _cor_saldo = COR_AZUL_ESC if abs(_gap_prev) <= 1.0 else COR_VERMELHO
         st.markdown(f"""
-        <div style="display: flex; gap: 20px; margin-bottom: 20px;">
-            <div class="fin-box" style="flex: 1; border-top: 6px solid {COR_AZUL_ESC};"><b>VALOR DO IMÓVEL</b><br>R$ {fmt_br(u_valor)}</div>
-            <div class="fin-box" style="flex: 1; border-top: 6px solid {_cor_saldo};"><b>SALDO A COBRIR</b><br>R$ {fmt_br(_gap_prev)}</div>
+        <div style="margin-bottom: 20px;">
+            <div class="fin-box" style="width: 100%; border-top: 6px solid {COR_AZUL_ESC};"><b>VALOR DO IMÓVEL</b><br>R$ {fmt_br(u_valor)}</div>
         </div>
         """, unsafe_allow_html=True)
         st.markdown("<hr style='margin: 10px 0;'>", unsafe_allow_html=True)
