@@ -923,7 +923,10 @@ def configurar_layout():
             align-items: center !important;
         }}
 
-        /* Botão × (limpar) com mesma altura do campo (48px) */
+        /* Botão × (limpar): mesma altura (48px) e mesma posição vertical que o campo */
+        div[data-testid="stHorizontalBlock"]:has([data-testid="stNumberInput"]):has(button) > div {{
+            align-items: flex-end !important;
+        }}
         div[data-testid="stHorizontalBlock"] > div > div:last-child button {{
             min-height: 48px !important;
             height: 48px !important;
@@ -981,6 +984,7 @@ def configurar_layout():
              font-size: 0.9rem !important;
         }}
 
+        /* Botões primários = vermelho direcional */
         .stButton button[kind="primary"] {{
             background: {COR_VERMELHO} !important;
             color: #ffffff !important;
@@ -991,30 +995,39 @@ def configurar_layout():
             box-shadow: 0 8px 20px -5px rgba(227, 6, 19, 0.4) !important;
         }}
 
+        /* Botões secundários (limpar ×, outros) = cinza; Voltar e Sair = azul via .btn-azul-anchor */
         .stButton button:not([kind="primary"]) {{
-            background: #ffffff !important;
+            background: #f0f2f6 !important;
             color: {COR_AZUL_ESC} !important;
             border: 1px solid #e2e8f0 !important;
         }}
-        .stButton button:not([kind="primary"]:hover) {{
-            border-color: #e2e8f0 !important;
-        }}
         .stButton button:not([kind="primary"]):hover {{
-            border-color: {COR_VERMELHO} !important;
-            color: {COR_VERMELHO} !important;
-            background: #ffffff !important;
+            border-color: #cbd5e1 !important;
+            color: {COR_AZUL_ESC} !important;
+            background: #e2e8f0 !important;
         }}
-        
+
+        /* Voltar e Sair do Sistema = azul direcional (marcador data-btn-azul antes do botão) */
+        div[data-testid="stMarkdown"]:has([data-btn-azul]) + div[data-testid="stButton"] button {{
+            background: {COR_AZUL_ESC} !important;
+            color: #ffffff !important;
+            border: none !important;
+        }}
+        div[data-testid="stMarkdown"]:has([data-btn-azul]) + div[data-testid="stButton"] button:hover {{
+            background: #001f3d !important;
+            box-shadow: 0 4px 12px rgba(0, 44, 93, 0.35) !important;
+        }}
+
         .stDownloadButton button {{
-            background: #ffffff !important;
+            background: #f0f2f6 !important;
             color: {COR_AZUL_ESC} !important;
             border: 1px solid #e2e8f0 !important;
             height: 48px !important;
         }}
         .stDownloadButton button:hover {{
-            border-color: {COR_VERMELHO} !important;
-            color: {COR_VERMELHO} !important;
-            background: #ffffff !important;
+            border-color: #cbd5e1 !important;
+            color: {COR_AZUL_ESC} !important;
+            background: #e2e8f0 !important;
         }}
 
         [data-testid="stSidebar"] .stButton button {{
@@ -2665,28 +2678,22 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
         
         st.markdown("<br><br>", unsafe_allow_html=True)
         
-        # --- BOTÃO VOLTAR (FULL WIDTH) ---
+        # --- BOTÃO VOLTAR (FULL WIDTH) - azul direcional ---
         st.markdown(f"""
             <style>
-            div.stButton > button {{
+            div[data-testid="stMarkdown"]:has([data-btn-azul]) + div[data-testid="stButton"] button {{
                 width: 100%;
-                border-radius: 16px; 
+                border-radius: 16px;
                 height: 60px;
                 font-size: 1.1rem;
                 font-weight: bold;
                 text-transform: uppercase;
-                background-color: white;
-                color: {COR_AZUL_ESC};
-                border: 2px solid {COR_BORDA};
-            }}
-            div.stButton > button:hover {{
-                border-color: {COR_VERMELHO};
-                color: {COR_VERMELHO};
             }}
             </style>
         """, unsafe_allow_html=True)
 
-        if st.button("VOLTAR AO SIMULADOR", type="primary", use_container_width=True):
+        st.markdown('<div data-btn-azul style="display:none" aria-hidden="true"></div>', unsafe_allow_html=True)
+        if st.button("VOLTAR AO SIMULADOR", use_container_width=True):
              st.session_state.passo_simulacao = 'input'
              scroll_to_top()
              st.rerun()
@@ -2864,6 +2871,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
         with col_f2:
             if st.button("Escolha direta de unidade (estoque)", use_container_width=True, key="btn_fech_to_selection"):
                 st.session_state.passo_simulacao = 'selection'; scroll_to_top(); st.rerun()
+        st.markdown('<div data-btn-azul style="display:none" aria-hidden="true"></div>', unsafe_allow_html=True)
         if st.button("Voltar para Dados do Cliente", use_container_width=True, key="btn_fech_voltar"): st.session_state.passo_simulacao = 'input'; scroll_to_top(); st.rerun()
 
     # --- ETAPA 3: RECOMENDAÇÃO (usa valores reais do fechamento) ---
@@ -3068,6 +3076,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
         st.markdown("---")
         if st.button("Avançar para Escolha de Unidade", type="primary", use_container_width=True, key="btn_goto_selection"): st.session_state.passo_simulacao = 'selection'; scroll_to_top(); st.rerun()
         st.write("");
+        st.markdown('<div data-btn-azul style="display:none" aria-hidden="true"></div>', unsafe_allow_html=True)
         if st.button("Voltar para Valores Aprovados", use_container_width=True, key="btn_pot_v28"): st.session_state.passo_simulacao = 'fechamento_aprovado'; scroll_to_top(); st.rerun()
 
     elif passo == 'selection':
@@ -3176,6 +3185,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
                         'volta_caixa_ref': u_row.get('Volta_Caixa_Ref', 0.0)
                     })
                     st.session_state.passo_simulacao = 'payment_flow'; scroll_to_top(); st.rerun()
+            st.markdown('<div data-btn-azul style="display:none" aria-hidden="true"></div>', unsafe_allow_html=True)
             if st.button("Voltar para Recomendação de Imóveis", use_container_width=True): st.session_state.passo_simulacao = 'guide'; scroll_to_top(); st.rerun()
 
     elif passo == 'payment_flow':
@@ -3401,6 +3411,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
         if st.button("Avançar para Resumo da Simulação", type="primary", use_container_width=True):
             if abs(gap_final) <= 1.0: st.session_state.passo_simulacao = 'summary'; scroll_to_top(); st.rerun()
             else: st.error(f"Não é possível avançar. Saldo pendente: R$ {fmt_br(gap_final)}")
+        st.markdown('<div data-btn-azul style="display:none" aria-hidden="true"></div>', unsafe_allow_html=True)
         if st.button("Voltar para Escolha de Unidade", use_container_width=True): st.session_state.passo_simulacao = 'selection'; scroll_to_top(); st.rerun()
 
     elif passo == 'summary':
@@ -3480,11 +3491,13 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
                 st.cache_data.clear()
                 st.markdown(f'<div class="custom-alert">Salvo em \'{aba_destino}\'!</div>', unsafe_allow_html=True); time.sleep(2); st.session_state.dados_cliente = {}; st.session_state.passo_simulacao = 'input'; scroll_to_top(); st.rerun()
             except Exception as e: st.error(f"Erro ao salvar: {e}")
+        st.markdown('<div data-btn-azul style="display:none" aria-hidden="true"></div>', unsafe_allow_html=True)
         if st.button("Voltar para Fechamento Financeiro", use_container_width=True): st.session_state.passo_simulacao = 'payment_flow'; scroll_to_top(); st.rerun()
 
     st.markdown("<br><br>", unsafe_allow_html=True)
 
     # Botão Sair fora da coluna para herdar estilo grande
+    st.markdown('<div data-btn-azul style="display:none" aria-hidden="true"></div>', unsafe_allow_html=True)
     if st.button("Sair do Sistema", key="btn_logout_bottom", use_container_width=True):
         st.session_state['logged_in'] = False
         st.rerun()
