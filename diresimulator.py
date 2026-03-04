@@ -892,7 +892,7 @@ def configurar_layout():
             background-color: #f0f2f6 !important;
         }}
 
-        /* Esconder botões + e - dos campos numéricos; fundo cinza em todos os campos */
+        /* Esconder botões + e - dos number inputs (só digitação; o × fica na coluna ao lado) */
         div[data-testid="stNumberInput"] button {{
             display: none !important;
         }}
@@ -903,7 +903,7 @@ def configurar_layout():
             background-color: #f0f2f6 !important;
         }}
 
-        /* --- ALTURA E ALINHAMENTO UNIFICADOS PARA INPUTS --- */
+        /* --- ALTURA UNIFICADA 48px: campos e botão limpar na mesma altura --- */
         .stTextInput input, .stNumberInput input, .stDateInput input, div[data-baseweb="select"] > div {{
             height: 48px !important;
             min-height: 48px !important;
@@ -915,7 +915,6 @@ def configurar_layout():
             display: flex !important;
             align-items: center !important;
         }}
-        
         div[data-testid="stNumberInput"] div[data-baseweb="input"] {{
             height: 48px !important;
             min-height: 48px !important;
@@ -923,10 +922,33 @@ def configurar_layout():
             align-items: center !important;
         }}
 
-        /* Botão × (limpar): mesma altura (48px) e mesma posição vertical que o campo */
+        /* Linha integrada: campo + botão limpar = mesmo bloco visual, sem gap, bordas unidas */
         div[data-testid="stHorizontalBlock"]:has([data-testid="stNumberInput"]):has(button) > div {{
             align-items: flex-end !important;
+            gap: 0 !important;
         }}
+        /* Campo numérico: sem borda direita e sem arredondamento à direita para encostar no botão */
+        div[data-testid="stHorizontalBlock"]:has([data-testid="stNumberInput"]):has(button) [data-testid="stNumberInput"] div[data-baseweb="input"] {{
+            border-top-right-radius: 0 !important;
+            border-bottom-right-radius: 0 !important;
+            border-right: 1px solid #e2e8f0 !important;
+        }}
+        /* Botão ×: mesma altura (48px), encostado no campo, bordas à esquerda unidas */
+        div[data-testid="stHorizontalBlock"]:has([data-testid="stNumberInput"]):has(button) > div > div:last-child {{
+            display: flex !important;
+            align-items: stretch !important;
+        }}
+        div[data-testid="stHorizontalBlock"]:has([data-testid="stNumberInput"]):has(button) > div > div:last-child button {{
+            min-height: 48px !important;
+            height: 48px !important;
+            border-top-left-radius: 0 !important;
+            border-bottom-left-radius: 0 !important;
+            border-left: none !important;
+            display: inline-flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+        }}
+        /* Fallback para outros botões × fora do bloco integrado */
         div[data-testid="stHorizontalBlock"] > div > div:last-child button {{
             min-height: 48px !important;
             height: 48px !important;
@@ -1459,33 +1481,6 @@ def gerar_resumo_pdf(d):
         linha("Ato 30 Dias", f"R$ {fmt_br(d.get('ato_30', 0))}")
         linha("Ato 60 Dias", f"R$ {fmt_br(d.get('ato_60', 0))}")
         linha("Ato 90 Dias", f"R$ {fmt_br(d.get('ato_90', 0))}")
-
-        # ===============================
-        # SEÇÃO ANOTAÇÕES (preenche espaço)
-        # ===============================
-        pdf.ln(4)
-        secao("ANOTAÇÕES")
-
-        y_inicio = pdf.get_y()
-        altura_rodape = 45 # Aumentado para comportar dados do corretor
-        altura_disponivel = pdf.h - pdf.b_margin - y_inicio - altura_rodape
-
-        if altura_disponivel > 10:
-            pdf.set_fill_color(250, 252, 255)
-            pdf.rect(pdf.l_margin, y_inicio, largura_util, altura_disponivel, 'F')
-
-            pdf.set_draw_color(220, 225, 230)
-            linha_y = y_inicio + 6
-            while linha_y < y_inicio + altura_disponivel - 4:
-                pdf.line(
-                    pdf.l_margin + 4,
-                    linha_y,
-                    pdf.l_margin + largura_util - 4,
-                    linha_y
-                )
-                linha_y += 7
-
-            pdf.set_y(y_inicio + altura_disponivel)
 
         # ===============================
         # RODAPÉ (DADOS CORRETOR)
