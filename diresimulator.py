@@ -867,10 +867,17 @@ def configurar_layout():
 
         .block-container {{ max-width: 1400px !important; padding: 4rem 2rem !important; }}
 
+        /* Títulos padronizados */
+        .stMarkdown h1 {{ font-size: 1.75rem !important; text-align: center; margin-bottom: 0.5rem !important; }}
+        .stMarkdown h2 {{ font-size: 1.5rem !important; text-align: center; margin-bottom: 0.5rem !important; }}
+        .stMarkdown h3 {{ font-size: 1.35rem !important; text-align: center; margin-bottom: 0.5rem !important; }}
+        .stMarkdown h4 {{ font-size: 1.1rem !important; margin-bottom: 0.4rem !important; }}
+        .stMarkdown h5 {{ font-size: 1rem !important; margin-bottom: 0.3rem !important; }}
+
         div[data-baseweb="input"] {{
             border-radius: 8px !important;
             border: 1px solid #e2e8f0 !important;
-            background-color: {COR_INPUT_BG} !important;
+            background-color: #ffffff !important;
             transition: all 0.2s ease-in-out !important;
         }}
 
@@ -878,6 +885,17 @@ def configurar_layout():
             border-color: {COR_VERMELHO} !important;
             box-shadow: 0 0 0 1px {COR_VERMELHO} !important;
             background-color: #ffffff !important;
+        }}
+
+        /* Esconder botões + e - dos campos numéricos; preenchimento apenas por digitação; fundo branco */
+        div[data-testid="stNumberInput"] button {{
+            display: none !important;
+        }}
+        div[data-testid="stNumberInput"] div[data-baseweb="input"] {{
+            background-color: #ffffff !important;
+        }}
+        div[data-testid="stTextInput"] div[data-baseweb="input"] {{
+            background-color: #f0f2f6 !important;
         }}
 
         /* --- ALTURA E ALINHAMENTO UNIFICADOS PARA INPUTS --- */
@@ -908,7 +926,7 @@ def configurar_layout():
         }}
 
         div[data-testid="stDateInput"] > div, div[data-baseweb="select"] > div {{
-            background-color: {COR_INPUT_BG} !important;
+            background-color: #ffffff !important;
             border: 1px solid #e2e8f0 !important;
             border-radius: 8px !important;
             display: flex;
@@ -923,11 +941,8 @@ def configurar_layout():
         div[data-testid="stNumberInput"] button {{
              height: 48px !important;
              border-color: #e2e8f0 !important;
-             background-color: {COR_INPUT_BG} !important;
              color: {COR_AZUL_ESC} !important;
         }}
-
-        div[data-testid="stNumberInput"] button:hover {{ background-color: #e2e8f0 !important; }}
 
         .stButton button {{
             font-family: 'Inter', sans-serif;
@@ -963,7 +978,7 @@ def configurar_layout():
         }}
 
         .stButton button:not([kind="primary"]) {{
-            background: {COR_INPUT_BG} !important;
+            background: #ffffff !important;
             color: {COR_AZUL_ESC} !important;
             border: 1px solid #e2e8f0 !important;
         }}
@@ -977,7 +992,7 @@ def configurar_layout():
         }}
         
         .stDownloadButton button {{
-            background: {COR_INPUT_BG} !important;
+            background: #ffffff !important;
             color: {COR_AZUL_ESC} !important;
             border: 1px solid #e2e8f0 !important;
             height: 48px !important;
@@ -2664,7 +2679,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
 
     # --- ETAPA 1: INPUT ---
     elif passo == 'input':
-        st.markdown("<p style='text-align: center; margin-bottom: 0;'>Dados do Cliente</p>", unsafe_allow_html=True)
+        st.markdown("### Dados do Cliente")
 
         # Botão Buscar cliente - largura total da página
         if st.button("BUSCAR CLIENTE (Base Cadastrada)", type="secondary", use_container_width=True, key="btn_home_search"):
@@ -2756,8 +2771,8 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
     # --- ETAPA 2: VALORES APROVADOS (FECHAMENTO FINANCEIRO) - 2ª ABA ---
     elif passo == 'fechamento_aprovado':
         d = st.session_state.dados_cliente
-        st.markdown("<p style='text-align: center;'>Valores Aprovados (Fechamento Financeiro)</p>", unsafe_allow_html=True)
-        st.markdown("<p style='text-align: center; color: #64748b; font-size: 0.9rem;'>Preencha os valores aprovados de financiamento e subsídio. As recomendações usarão esses valores reais.</p>", unsafe_allow_html=True)
+        st.markdown("### Valores Aprovados (Fechamento Financeiro)")
+        st.caption("Preencha os valores aprovados de financiamento e subsídio. As recomendações usarão esses valores reais.")
         # Recalcular referência da curva (finan_f_ref, sub_f_ref) a partir do perfil do cliente para exibir valores corretos
         renda_cli = float(d.get('renda', 0) or 0)
         social_cli = bool(d.get('social', False))
@@ -2813,7 +2828,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
     # --- ETAPA 3: RECOMENDAÇÃO (usa valores reais do fechamento) ---
     elif passo == 'guide':
         d = st.session_state.dados_cliente
-        st.markdown("<p style='text-align: center;'>Recomendação de Imóveis</p>", unsafe_allow_html=True)
+        st.markdown("### Recomendação de Imóveis")
 
         df_disp_total = df_estoque.copy()
 
@@ -3016,7 +3031,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
 
     elif passo == 'selection':
          d = st.session_state.dados_cliente
-         st.markdown("<p style='text-align: center;'>Escolha de Unidade</p>", unsafe_allow_html=True)
+         st.markdown("### Escolha de Unidade")
          
          df_disponiveis = df_estoque.copy()
          if df_disponiveis.empty: st.warning("Sem estoque disponível.")
@@ -3124,7 +3139,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
 
     elif passo == 'payment_flow':
         d = st.session_state.dados_cliente
-        st.markdown("<p style='text-align: center;'>Distribuição da Entrada (Fechamento)</p>", unsafe_allow_html=True)
+        st.markdown("### Distribuição da Entrada (Fechamento)")
         # Valores já preenchidos na 2ª aba (Fechamento) e na escolha da unidade
         u_valor = d.get('imovel_valor', 0)
         u_nome = d.get('empreendimento_nome', 'N/A')
@@ -3306,7 +3321,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros):
 
     elif passo == 'summary':
         d = st.session_state.dados_cliente
-        st.markdown(f"<p style='text-align: center;'>Resumo da Simulação - {d.get('nome', 'Cliente')}</p>", unsafe_allow_html=True)
+        st.markdown(f"### Resumo da Simulação - {d.get('nome', 'Cliente')}")
         st.markdown(f'<div class="summary-header">DADOS DO IMÓVEL</div>', unsafe_allow_html=True)
         st.markdown(f"""
         <div class="summary-body">
