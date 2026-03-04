@@ -3,6 +3,9 @@
 =============================================================================
 SISTEMA DE SIMULAÇÃO IMOBILIÁRIA - DIRE RIO V69 (SINGLE SOURCE - UPDATE)
 =============================================================================
+Alinhado com o app Flask (SimuladorDV): mesmo catálogo (JSON), normalização
+de estoque (Empreendimento, PS_Diamante/PS_Ouro/.../PS_Aco), viabilidade
+(2*renda + finan + sub + PS_rank) e recomendações IDEAL/SEGURO/FACILITADO.
 """
 
 import streamlit as st
@@ -20,6 +23,7 @@ from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from email.mime.application import MIMEApplication
 import os
+import json
 import pytz
 import altair as alt
 import folium
@@ -279,6 +283,26 @@ CATALOGO_PRODUTOS = {
         ]
     }
 }
+
+def _load_catalogo_galeria():
+    """Carrega catálogo de produtos (vídeos, mapa, imagens Drive) de JSON se existir (fonte única com app Flask)."""
+    _base = os.path.dirname(os.path.abspath(__file__))
+    for path in [
+        os.path.join(_base, "static", "img", "galeria", "catalogo_produtos.json"),
+        os.path.join(_base, "catalogo_produtos.json"),
+    ]:
+        if os.path.isfile(path):
+            try:
+                with open(path, "r", encoding="utf-8") as f:
+                    return json.load(f)
+            except Exception:
+                pass
+    return {}
+
+# Se existir JSON do catálogo, usa como fonte (sobrescreve); senão mantém CATALOGO_PRODUTOS in-code
+_catalogo_json = _load_catalogo_galeria()
+if _catalogo_json:
+    CATALOGO_PRODUTOS.update(_catalogo_json)
 
 def fmt_br(valor):
     try:
