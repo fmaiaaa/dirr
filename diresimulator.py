@@ -41,7 +41,7 @@ COR_INPUT_BG = "#f0f2f6"
 # ========================================================================
 
 # -*- coding: utf-8 -*-
-"""Taxas E1/E4 e offset λ (comparador Emcash / Excel)."""
+
 # Mesmo literal do Excel: subtrai 30% do parâmetro de política para obter % líquido de renda.
 OFFSET_LAMBDA: float = 0.30
 
@@ -60,7 +60,6 @@ def excel_e1(tx_emcash_b5: float, e4: float) -> float:
 # ========================================================================
 
 # -*- coding: utf-8 -*-
-"""Linhas de política Pro Soluto (faixa renda, λ, parcelas máx.)."""
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional
 
@@ -186,7 +185,6 @@ def classificacao_efetiva(politica_ui: str, ranking: str) -> str:
 # ========================================================================
 
 # -*- coding: utf-8 -*-
-"""Premissas padrão e leitura a partir de DataFrame/planilha."""
 from typing import Any, Dict, Optional
 
 import pandas as pd
@@ -262,7 +260,6 @@ def premissas_from_dataframe(df: pd.DataFrame | None) -> Dict[str, float]:
 # ========================================================================
 
 # -*- coding: utf-8 -*-
-"""Métricas Pro Soluto e parcela (comparador / políticas)."""
 from typing import Any, Dict, Mapping, Optional
 
 import pandas as pd
@@ -420,7 +417,6 @@ def parcela_ps_para_valor(
 # ========================================================================
 
 # -*- coding: utf-8 -*-
-"""Taxa de financiamento (Direcional vs Emcash) e PS ajustado."""
 from typing import Any, Dict, Mapping, Optional
 
 
@@ -518,7 +514,6 @@ def metricas_comparador_tx(
 # ========================================================================
 
 # -*- coding: utf-8 -*-
-"""Simulador imobiliário DV — UI Streamlit (motor + planilhas)."""
 
 import streamlit as st
 import pandas as pd
@@ -3417,7 +3412,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros, pr
             ref_text_ps = f"Limite máximo de Pro Soluto: R$ {fmt_br(ps_limite_ui)}"
             st.markdown(f'<div class="inline-ref" style="background-color: transparent; padding: 0; font-family: inherit; font-size: 0.72rem; color: {COR_AZUL_ESC}; margin-top: -12px; margin-bottom: 15px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; display: block; opacity: 0.9;">{ref_text_ps}</div>', unsafe_allow_html=True)
             st.caption(
-                f"Parcela máxima (simulador Excel, C43/G14 — λ tier − 30% × renda): "
+                f"Parcela máxima: "
                 f"R$ {fmt_br(mps.get('parcela_max_g14', 0))}"
             )
             
@@ -3426,7 +3421,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros, pr
             parc_val = st.number_input("Parcelas Pro Soluto", min_value=1, max_value=parc_max_ui, key="parc_ps_key")
             parc = int(parc_val) if parc_val is not None and parc_val >= 1 else 1
             st.session_state.dados_cliente['ps_parcelas'] = parc
-            st.markdown(f'<span class="inline-ref">Prazo máx. parcelas: {parc_max_ui} meses (política {pol_prazo} × app {prazo_cap_app})</span>', unsafe_allow_html=True)
+            st.markdown(f'<span class="inline-ref">Prazo máx. parcelas: {parc_max_ui} meses</span>', unsafe_allow_html=True)
         
         v_parc = parcela_ps_para_valor(
             float(ps_input_val or 0),
@@ -3436,8 +3431,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros, pr
         )
         st.session_state.dados_cliente['ps_mensal'] = v_parc
         st.session_state.dados_cliente['ps_mensal_simples'] = (float(ps_input_val or 0) / parc) if parc > 0 else 0.0
-        st.markdown(f'<div style="margin-top: -8px; margin-bottom: 15px; font-size: 0.9rem; font-weight: 600; color: {COR_AZUL_ESC}; text-align: center;">Mensalidade PS (PMT×(1+E1)): R$ {fmt_br(v_parc)} ({parc}x)</div>', unsafe_allow_html=True)
-        st.caption("A mensalidade usa taxa e encargos do comparador (I5), não apenas valor do PS ÷ parcelas.")
+        st.markdown(f'<div style="margin-top: -8px; margin-bottom: 15px; font-size: 0.9rem; font-weight: 600; color: {COR_AZUL_ESC}; text-align: center;">Mensalidade PS: R$ {fmt_br(v_parc)} ({parc}x)</div>', unsafe_allow_html=True)
         
         # --- INPUT VOLTA AO CAIXA (NOVO) ---
         st.markdown("<hr style='margin: 10px 0;'>", unsafe_allow_html=True)
