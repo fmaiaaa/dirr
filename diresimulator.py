@@ -29,6 +29,11 @@ URL_ESTOQUE = f"https://docs.google.com/spreadsheets/d/{ID_GERAL}/edit#gid=0"
 URL_FAVICON_RESERVA = "https://direcional.com.br/wp-content/uploads/2021/04/cropped-favicon-direcional-32x32.png"
 URL_LOGO_DIRECIONAL_BIG = "https://logodownload.org/wp-content/uploads/2021/04/direcional-engenharia-logo.png"
 
+# Mesmos ficheiros da ficha Credenciamento Vendas RJ (pasta deste .py, raiz do repo ou assets/)
+LOGO_TOPO_ARQUIVO = "502.57_LOGO DIRECIONAL_V2F-01.png"
+FAVICON_ARQUIVO = "502.57_LOGO D_COR_V3F.png"
+FUNDO_CADASTRO_ARQUIVO = "fundo_cadastrorh.jpg"
+
 # Paleta alinhada à ficha Credenciamento Vendas RJ (Streamlit)
 COR_AZUL_ESC = "#04428f"
 COR_VERMELHO = "#cb0935"
@@ -1242,26 +1247,38 @@ class MotorRecomendacao:
         return (2 * renda) + finan + fgts_sub + val_ps_limite, val_ps_limite
 
 _DIR_SIM_APP = Path(__file__).resolve().parent
-_FUNDO_CADASTRO_ARQUIVO = "fundo_cadastrorh.jpg"
+
+
+def _resolver_png_raiz(nome: str) -> Path | None:
+    """Procura PNG/JPG pelo nome exato na pasta do app, assets/ ou raiz do repo."""
+    for base in (_DIR_SIM_APP, _DIR_SIM_APP.parent):
+        for sub in ("", "assets"):
+            rel = Path(sub) / nome if sub else Path(nome)
+            p = base / rel
+            if p.is_file():
+                return p
+    return None
 
 
 def _resolver_imagem_fundo_local(nome: str) -> Path | None:
-    """JPG/PNG na pasta do app ou na pasta pai (repo)."""
+    """JPG/PNG: nome exato, stem+ext ou pasta assets/ (app e pai do repo)."""
     for base in (_DIR_SIM_APP, _DIR_SIM_APP.parent):
-        for ext in (".jpg", ".jpeg", ".JPG", ".JPEG", ".png", ".PNG"):
-            stem = Path(nome).stem
-            p = base / f"{stem}{ext}"
+        for sub in ("", "assets"):
+            root = base / sub if sub else base
+            p = root / nome
             if p.is_file():
                 return p
-        p = base / nome
-        if p.is_file():
-            return p
+            stem = Path(nome).stem
+            for ext in (".jpg", ".jpeg", ".JPG", ".JPEG", ".png", ".PNG"):
+                p2 = root / f"{stem}{ext}"
+                if p2.is_file():
+                    return p2
     return None
 
 
 def _css_url_fundo_simulador() -> str:
-    """Data-URL se existir imagem local; senão fallback (mesmo da ficha Vendas RJ)."""
-    p = _resolver_imagem_fundo_local(_FUNDO_CADASTRO_ARQUIVO)
+    """Data-URL com fundo_cadastrorh (ficha Vendas RJ); senão fallback neutro."""
+    p = _resolver_imagem_fundo_local(FUNDO_CADASTRO_ARQUIVO)
     if p and p.is_file():
         try:
             raw = p.read_bytes()
@@ -1277,11 +1294,52 @@ def _css_url_fundo_simulador() -> str:
     )
 
 
-def configurar_layout():
-    favicon = URL_FAVICON_RESERVA
+def _page_icon_streamlit():
+    """Ícone da aba: 502.57_LOGO D_COR_V3F.png (ficha), senão favicon.png legado, senão URL."""
+    p = _resolver_png_raiz(FAVICON_ARQUIVO)
+    if p is not None and Image:
+        try:
+            return Image.open(p)
+        except Exception:
+            return str(p)
+    if p is not None:
+        return str(p)
     if os.path.exists("favicon.png") and Image:
-        try: favicon = Image.open("favicon.png")
-        except: pass
+        try:
+            return Image.open("favicon.png")
+        except Exception:
+            pass
+    return URL_FAVICON_RESERVA
+
+
+def _src_logo_topo_header() -> str:
+    """Logo do cabeçalho: 502.57_LOGO DIRECIONAL_V2F-01.png em data-URL; senão legado; senão URL."""
+    p = _resolver_png_raiz(LOGO_TOPO_ARQUIVO)
+    if p and p.is_file():
+        try:
+            suf = p.suffix.lower()
+            mime = (
+                "image/png"
+                if suf == ".png"
+                else "image/jpeg"
+                if suf in (".jpg", ".jpeg")
+                else "image/png"
+            )
+            b64 = base64.b64encode(p.read_bytes()).decode("ascii")
+            return f"data:{mime};base64,{b64}"
+        except OSError:
+            pass
+    if os.path.exists("favicon.png"):
+        try:
+            with open("favicon.png", "rb") as f:
+                return f"data:image/png;base64,{base64.b64encode(f.read()).decode()}"
+        except OSError:
+            pass
+    return URL_LOGO_DIRECIONAL_BIG
+
+
+def configurar_layout():
+    favicon = _page_icon_streamlit()
     st.set_page_config(
         page_title="Simulador Direcional Elite",
         page_icon=favicon,
@@ -3749,14 +3807,11 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros, pr
 def main():
     configurar_layout()
     df_finan, df_estoque, df_politicas, df_logins, df_cadastros, premissas_dict = carregar_dados_sistema()
-    logo_src = URL_FAVICON_RESERVA
-    if os.path.exists("favicon.png"):
-        try:
-            with open("favicon.png", "rb") as f:
-                encoded = base64.b64encode(f.read()).decode()
-                logo_src = f"data:image/png;base64,{encoded}"
-        except: pass
-    st.markdown(f'''<div class="header-container"><img src="{logo_src}" style="position: absolute; top: 30px; left: 40px; height: 50px;"><div class="header-title">SIMULADOR IMOBILIÁRIO DV</div><div class="header-subtitle">Sistema de Gestão de Vendas e Viabilidade Imobiliária</div></div>''', unsafe_allow_html=True)
+    logo_src = _src_logo_topo_header()
+    st.markdown(
+        f'''<div class="header-container"><img src="{logo_src}" alt="Direcional" style="position: absolute; top: 24px; left: 40px; max-height: 72px; height: auto; width: auto; max-width: min(280px, 40vw); object-fit: contain;"><div class="header-title">SIMULADOR IMOBILIÁRIO DV</div><div class="header-subtitle">Sistema de Gestão de Vendas e Viabilidade Imobiliária</div></div>''',
+        unsafe_allow_html=True,
+    )
 
     if 'logged_in' not in st.session_state: st.session_state['logged_in'] = False
 
