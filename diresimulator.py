@@ -29,12 +29,27 @@ URL_ESTOQUE = f"https://docs.google.com/spreadsheets/d/{ID_GERAL}/edit#gid=0"
 URL_FAVICON_RESERVA = "https://direcional.com.br/wp-content/uploads/2021/04/cropped-favicon-direcional-32x32.png"
 URL_LOGO_DIRECIONAL_BIG = "https://logodownload.org/wp-content/uploads/2021/04/direcional-engenharia-logo.png"
 
-COR_AZUL_ESC = "#002c5d"
-COR_VERMELHO = "#e30613"
-COR_FUNDO = "#fcfdfe"
+# Paleta alinhada à ficha Credenciamento Vendas RJ (Streamlit)
+COR_AZUL_ESC = "#04428f"
+COR_VERMELHO = "#cb0935"
+COR_FUNDO = "#04428f"
 COR_BORDA = "#eef2f6"
 COR_TEXTO_MUTED = "#64748b"
 COR_INPUT_BG = "#f0f2f6"
+COR_TEXTO_LABEL = "#1e293b"
+COR_VERMELHO_ESCURO = "#9e0828"
+
+
+def _hex_rgb_triplet(hex_color: str) -> str:
+    """Converte #RRGGBB em 'r, g, b' para rgba(...) no CSS."""
+    x = (hex_color or "").strip().lstrip("#")
+    if len(x) != 6:
+        return "0, 0, 0"
+    return f"{int(x[0:2], 16)}, {int(x[2:4], 16)}, {int(x[4:6], 16)}"
+
+
+RGB_AZUL_CSS = _hex_rgb_triplet(COR_AZUL_ESC)
+RGB_VERMELHO_CSS = _hex_rgb_triplet(COR_VERMELHO)
 
 # ========================================================================
 # config/taxas_comparador.py
@@ -531,6 +546,7 @@ from email.mime.text import MIMEText
 from email.mime.application import MIMEApplication
 import os
 import json
+from pathlib import Path
 import pytz
 import altair as alt
 import folium
@@ -1225,6 +1241,42 @@ class MotorRecomendacao:
     def calcular_poder_compra(self, renda, finan, fgts_sub, val_ps_limite):
         return (2 * renda) + finan + fgts_sub + val_ps_limite, val_ps_limite
 
+_DIR_SIM_APP = Path(__file__).resolve().parent
+_FUNDO_CADASTRO_ARQUIVO = "fundo_cadastrorh.jpg"
+
+
+def _resolver_imagem_fundo_local(nome: str) -> Path | None:
+    """JPG/PNG na pasta do app ou na pasta pai (repo)."""
+    for base in (_DIR_SIM_APP, _DIR_SIM_APP.parent):
+        for ext in (".jpg", ".jpeg", ".JPG", ".JPEG", ".png", ".PNG"):
+            stem = Path(nome).stem
+            p = base / f"{stem}{ext}"
+            if p.is_file():
+                return p
+        p = base / nome
+        if p.is_file():
+            return p
+    return None
+
+
+def _css_url_fundo_simulador() -> str:
+    """Data-URL se existir imagem local; senão fallback (mesmo da ficha Vendas RJ)."""
+    p = _resolver_imagem_fundo_local(_FUNDO_CADASTRO_ARQUIVO)
+    if p and p.is_file():
+        try:
+            raw = p.read_bytes()
+            suf = p.suffix.lower()
+            mime = "image/jpeg" if suf in (".jpg", ".jpeg") else "image/png"
+            b64 = base64.b64encode(raw).decode("ascii")
+            return f"data:{mime};base64,{b64}"
+        except OSError:
+            pass
+    return (
+        "https://images.unsplash.com/photo-1486406146926-c627a92ad1ab"
+        "?auto=format&fit=crop&w=1920&q=80"
+    )
+
+
 def configurar_layout():
     favicon = URL_FAVICON_RESERVA
     if os.path.exists("favicon.png") and Image:
@@ -1237,20 +1289,96 @@ def configurar_layout():
         initial_sidebar_state="collapsed",
     )
 
+    bg_url = _css_url_fundo_simulador()
     st.markdown(f"""
         <style>
+        @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700;800;900&family=Inter:wght@400;500;600;700&display=swap');
+        @keyframes simFadeIn {{
+            from {{ opacity: 0; transform: translateY(14px); }}
+            to {{ opacity: 1; transform: translateY(0); }}
+        }}
+        html, body, :root, [data-testid="stApp"] {{
+            color-scheme: light !important;
+        }}
         /* Sidebar oculta (navegação/galeria/histórico removidos da UI) */
         section[data-testid="stSidebar"] {{ display: none !important; }}
+        [data-testid="stSidebarCollapsedControl"] {{ display: none !important; }}
         div[data-testid="collapsedControl"] {{ display: none !important; }}
 
-        @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800;900&family=Inter:wght@300;400;500;600;700&display=swap');
-
-        html, body, [data-testid="stAppViewContainer"] {{
+        html, body {{
             font-family: 'Inter', sans-serif;
-            color: {COR_AZUL_ESC};
-            background-color: {COR_FUNDO};
+            color: {COR_TEXTO_LABEL};
+            background: transparent !important;
+            background-color: transparent !important;
         }}
-        
+        .stApp,
+        [data-testid="stApp"] {{
+            background:
+                linear-gradient(135deg, rgba({RGB_AZUL_CSS}, 0.82) 0%, rgba(30, 58, 95, 0.55) 38%, rgba({RGB_VERMELHO_CSS}, 0.22) 72%, rgba(15, 23, 42, 0.45) 100%),
+                url("{bg_url}") center / cover no-repeat !important;
+            background-attachment: scroll !important;
+            background-color: transparent !important;
+        }}
+        [data-testid="stAppViewContainer"] {{
+            background: transparent !important;
+            background-color: transparent !important;
+            font-family: 'Inter', sans-serif;
+            color: {COR_TEXTO_LABEL};
+        }}
+        header[data-testid="stHeader"],
+        [data-testid="stHeader"] {{
+            background: transparent !important;
+            background-color: transparent !important;
+            background-image: none !important;
+            border: none !important;
+            box-shadow: none !important;
+            backdrop-filter: none !important;
+            -webkit-backdrop-filter: none !important;
+        }}
+        [data-testid="stHeader"] > div,
+        [data-testid="stHeader"] header {{
+            background: transparent !important;
+            background-color: transparent !important;
+            box-shadow: none !important;
+        }}
+        [data-testid="stDecoration"] {{
+            background: transparent !important;
+            background-color: transparent !important;
+        }}
+        [data-testid="stToolbar"] {{
+            background: transparent !important;
+            background-color: transparent !important;
+            border: none !important;
+            color: rgba(255, 255, 255, 0.92) !important;
+        }}
+        [data-testid="stToolbar"] button,
+        [data-testid="stToolbar"] a {{
+            color: rgba(255, 255, 255, 0.92) !important;
+            background: transparent !important;
+        }}
+        [data-testid="stToolbar"] svg {{
+            fill: currentColor !important;
+        }}
+        [data-testid="stHeader"] button {{
+            background: transparent !important;
+        }}
+        [data-testid="stToolbar"] button:hover,
+        [data-testid="stToolbar"] a:hover,
+        [data-testid="stHeader"] button:hover {{
+            background: rgba(255, 255, 255, 0.12) !important;
+        }}
+        [data-testid="stMain"] {{
+            padding-left: clamp(14px, 4vw, 48px) !important;
+            padding-right: clamp(14px, 4vw, 48px) !important;
+            padding-top: clamp(12px, 3vh, 32px) !important;
+            padding-bottom: clamp(14px, 4vh, 40px) !important;
+            box-sizing: border-box !important;
+        }}
+        section.main > div {{
+            padding-top: 0.25rem !important;
+            padding-bottom: 0.35rem !important;
+        }}
+
         /* SCROLL HORIZONTAL */
         .scrolling-wrapper {{
             display: flex;
@@ -1381,10 +1509,36 @@ def configurar_layout():
         }}
 
         .stMarkdown p, .stText, label, .stSelectbox label, .stTextInput label, .stNumberInput label {{
-            color: {COR_AZUL_ESC} !important;
+            color: {COR_TEXTO_LABEL} !important;
         }}
+        [data-testid="stWidgetLabel"] label,
+        [data-testid="stWidgetLabel"] p {{
+            color: {COR_TEXTO_LABEL} !important;
+        }}
+        div[data-testid="stMarkdown"] p {{ color: #334155; line-height: 1.55; }}
 
-        .block-container {{ max-width: 1400px !important; padding: 4rem 2rem !important; }}
+        .block-container {{
+            max-width: 1400px !important;
+            margin-left: auto !important;
+            margin-right: auto !important;
+            margin-top: clamp(4px, 1vh, 14px) !important;
+            margin-bottom: clamp(4px, 1vh, 14px) !important;
+            padding: 1.45rem 2rem 1.55rem 2rem !important;
+            background: rgba(255, 255, 255, 0.78) !important;
+            backdrop-filter: blur(18px) saturate(1.12);
+            -webkit-backdrop-filter: blur(18px) saturate(1.12);
+            border-radius: 24px !important;
+            border: 1px solid rgba(255, 255, 255, 0.45) !important;
+            box-shadow:
+                0 4px 6px -1px rgba({RGB_AZUL_CSS}, 0.06),
+                0 24px 48px -12px rgba({RGB_AZUL_CSS}, 0.18),
+                inset 0 1px 0 rgba(255, 255, 255, 0.55) !important;
+            animation: simFadeIn 0.65s cubic-bezier(0.22, 1, 0.36, 1) both;
+        }}
+        [data-testid="stVerticalBlockBorderWrapper"] {{
+            border-radius: 16px !important;
+            background: transparent !important;
+        }}
 
         /* Títulos padronizados */
         .stMarkdown h1 {{ font-size: 1.75rem !important; text-align: center; margin-bottom: 0.5rem !important; }}
@@ -1394,16 +1548,16 @@ def configurar_layout():
         .stMarkdown h5 {{ font-size: 1rem !important; margin-bottom: 0.3rem !important; }}
 
         div[data-baseweb="input"] {{
-            border-radius: 8px !important;
+            border-radius: 10px !important;
             border: 1px solid #e2e8f0 !important;
-            background-color: #f0f2f6 !important;
-            transition: all 0.2s ease-in-out !important;
+            background-color: {COR_INPUT_BG} !important;
+            transition: border-color 0.2s ease, box-shadow 0.2s ease !important;
         }}
 
         div[data-baseweb="input"]:focus-within {{
-            border-color: {COR_VERMELHO} !important;
-            box-shadow: 0 0 0 1px {COR_VERMELHO} !important;
-            background-color: #f0f2f6 !important;
+            border-color: rgba({RGB_AZUL_CSS}, 0.35) !important;
+            box-shadow: 0 0 0 3px rgba({RGB_AZUL_CSS}, 0.08) !important;
+            background-color: {COR_INPUT_BG} !important;
         }}
 
         /* Esconder botões + e - dos number inputs (apenas digitação) */
@@ -1422,7 +1576,7 @@ def configurar_layout():
             height: 48px !important;
             min-height: 48px !important;
             padding: 0 15px !important;
-            color: {COR_AZUL_ESC} !important;
+            color: {COR_TEXTO_LABEL} !important;
             font-size: 1rem !important;
             line-height: 48px !important;
             text-align: left !important;
@@ -1458,7 +1612,7 @@ def configurar_layout():
 
         .stButton button {{
             font-family: 'Inter', sans-serif;
-            border-radius: 8px !important;
+            border-radius: 12px !important;
             padding: 0 20px !important;
             width: 100% !important;
             height: 60px !important;
@@ -1466,9 +1620,12 @@ def configurar_layout():
             text-transform: uppercase;
             letter-spacing: 0.1em;
             font-size: 1rem !important;
-            transition: all 0.2s ease !important;
+            transition: transform 0.2s ease, box-shadow 0.2s ease !important;
         }}
-        
+        .stButton > button:hover {{
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px -6px rgba({RGB_AZUL_CSS}, 0.25) !important;
+        }}
         .stButton button:active {{
             transform: scale(0.98);
         }}
@@ -1479,15 +1636,15 @@ def configurar_layout():
              font-size: 0.9rem !important;
         }}
 
-        /* Botões primários = vermelho direcional */
+        /* Botões primários = gradiente vermelho (ficha Vendas RJ) */
         .stButton button[kind="primary"] {{
-            background: {COR_VERMELHO} !important;
+            background: linear-gradient(180deg, {COR_VERMELHO} 0%, {COR_VERMELHO_ESCURO} 100%) !important;
             color: #ffffff !important;
             border: none !important;
         }}
         .stButton button[kind="primary"]:hover {{
-            background: #c40510 !important;
-            box-shadow: 0 8px 20px -5px rgba(227, 6, 19, 0.4) !important;
+            background: linear-gradient(180deg, {COR_VERMELHO} 0%, {COR_VERMELHO_ESCURO} 100%) !important;
+            box-shadow: 0 8px 22px -5px rgba({RGB_VERMELHO_CSS}, 0.45) !important;
         }}
 
         /* Botões secundários (limpar ×, outros) = cinza; Voltar e Sair = azul via .btn-azul-anchor */
@@ -1509,8 +1666,40 @@ def configurar_layout():
             border: none !important;
         }}
         div[data-testid="stMarkdown"]:has([data-btn-azul]) + div[data-testid="stButton"] button:hover {{
-            background: #001f3d !important;
-            box-shadow: 0 4px 12px rgba(0, 44, 93, 0.35) !important;
+            background: #03346e !important;
+            box-shadow: 0 4px 14px rgba({RGB_AZUL_CSS}, 0.35) !important;
+        }}
+        a[href*="whatsapp.com"],
+        a[href*="wa.me"] {{
+            background-color: #25D366 !important;
+            color: #ffffff !important;
+            border: 1px solid #1ebe57 !important;
+            border-radius: 12px !important;
+            font-weight: 600 !important;
+            text-decoration: none !important;
+            box-shadow: 0 2px 8px rgba(37, 211, 102, 0.35) !important;
+        }}
+        a[href*="whatsapp.com"]:hover,
+        a[href*="wa.me"]:hover {{
+            background-color: #20bd5a !important;
+            border-color: #1aa34a !important;
+            color: #ffffff !important;
+        }}
+        div[data-testid="stAlert"] {{
+            border-radius: 14px !important;
+            border: 2px solid {COR_AZUL_ESC} !important;
+            background: #ffffff !important;
+            box-shadow: 0 2px 12px rgba({RGB_AZUL_CSS}, 0.1) !important;
+        }}
+        div[data-testid="stAlert"] p,
+        div[data-testid="stAlert"] span,
+        div[data-testid="stAlert"] div[data-testid="stMarkdownContainer"],
+        div[data-testid="stAlert"] div[data-testid="stMarkdownContainer"] * {{
+            color: {COR_AZUL_ESC} !important;
+        }}
+        div[data-testid="stAlert"] svg {{
+            fill: {COR_AZUL_ESC} !important;
+            color: {COR_AZUL_ESC} !important;
         }}
 
         .stDownloadButton button {{
@@ -1536,11 +1725,14 @@ def configurar_layout():
         .header-container {{
             text-align: center;
             padding: 70px 0;
-            background: #ffffff;
+            background: rgba(255, 255, 255, 0.92);
+            backdrop-filter: blur(14px) saturate(1.1);
+            -webkit-backdrop-filter: blur(14px) saturate(1.1);
             margin-bottom: 60px;
             border-radius: 0 0 40px 40px;
+            border: 1px solid rgba(255, 255, 255, 0.5);
             border-bottom: 1px solid {COR_BORDA};
-            box-shadow: 0 15px 35px -20px rgba(0,44,93,0.1);
+            box-shadow: 0 15px 40px -18px rgba({RGB_AZUL_CSS}, 0.14);
             position: relative;
         }}
         .header-title {{
@@ -1577,7 +1769,7 @@ def configurar_layout():
         .card:hover, .fin-box:hover, .recommendation-card:hover {{
             transform: translateY(-4px);
             border-color: {COR_VERMELHO};
-            box-shadow: 0 10px 30px -10px rgba(227,6,19,0.1);
+            box-shadow: 0 10px 30px -10px rgba({RGB_VERMELHO_CSS}, 0.14);
         }}
 
         .summary-header {{
@@ -1598,7 +1790,7 @@ def configurar_layout():
             border: 1px solid {COR_BORDA};
             border-radius: 0 0 12px 12px;
             margin-bottom: 40px;
-            color: {COR_AZUL_ESC};
+            color: {COR_TEXTO_LABEL};
         }}
         .custom-alert {{
             background-color: {COR_AZUL_ESC};
@@ -1658,7 +1850,7 @@ def configurar_layout():
         }}
         .hover-card:hover {{
             transform: translateY(-5px);
-            box-shadow: 0 12px 24px rgba(0, 44, 93, 0.15);
+            box-shadow: 0 12px 24px rgba({RGB_AZUL_CSS}, 0.15);
             border-color: {COR_AZUL_ESC};
         }}
 
@@ -1685,7 +1877,7 @@ def configurar_layout():
             font-weight: 700;
             font-size: 1.5rem;
             margin: 0 auto 1rem auto;
-            box-shadow: 0 4px 10px rgba(0, 44, 93, 0.3);
+            box-shadow: 0 4px 10px rgba({RGB_AZUL_CSS}, 0.3);
         }}
 
         .hist-item {{ display: block; width: 100%; text-align: left; padding: 8px; margin-bottom: 4px; border-radius: 8px; background: #fff; border: 1px solid {COR_BORDA}; color: {COR_AZUL_ESC}; font-size: 0.75rem; transition: all 0.2s; }}
@@ -1759,7 +1951,7 @@ def configurar_layout():
             border-color: {COR_AZUL_ESC};
             color: white;
             transform: scale(1.15);
-            box-shadow: 0 0 0 6px rgba(0, 44, 93, 0.15);
+            box-shadow: 0 0 0 6px rgba({RGB_AZUL_CSS}, 0.15);
         }}
         .stepper-step.active .step-label {{
             color: {COR_AZUL_ESC};
@@ -1775,7 +1967,7 @@ def configurar_layout():
             color: #10b981;
         }}
 
-        .footer {{ text-align: center; padding: 80px 0; color: {COR_AZUL_ESC} !important; font-size: 0.8rem; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; opacity: 0.6; }}
+        .footer {{ text-align: center; padding: 2.5rem 0 1rem 0; color: #64748b !important; font-size: 0.82rem; line-height: 1.5; }}
         
         /* Estilização específica dos botões da Home */
         div[data-testid="stButton"] button.home-card-btn {{
@@ -1783,16 +1975,16 @@ def configurar_layout():
              border-radius: 16px !important;
              border: 2px solid #eef2f6 !important;
              background-color: white !important;
-             color: #002c5d !important;
+             color: {COR_AZUL_ESC} !important;
              box-shadow: 0 4px 6px rgba(0,0,0,0.05) !important;
              font-size: 1.2rem !important;
              font-weight: 700 !important;
         }}
         div[data-testid="stButton"] button.home-card-btn:hover {{
-             border-color: #e30613 !important;
-             color: #e30613 !important;
+             border-color: {COR_VERMELHO} !important;
+             color: {COR_VERMELHO} !important;
              transform: translateY(-5px);
-             box-shadow: 0 10px 20px rgba(227, 6, 19, 0.15) !important;
+             box-shadow: 0 10px 20px rgba({RGB_VERMELHO_CSS}, 0.15) !important;
         }}
         </style>
     """, unsafe_allow_html=True)
