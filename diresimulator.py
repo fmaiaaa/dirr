@@ -1174,6 +1174,48 @@ def inject_login_password_manager_fields():
 """
     st.components.v1.html(js, height=0, width=0)
 
+
+def inject_home_banner_lightbox_viewport_portal():
+    """Move o painel do lightbox para document.body do app (viewport real), pois fixed dentro do Streamlit fica preso à coluna."""
+    js = r"""
+<script>
+(function () {
+  var doc = document;
+  try {
+    if (window.parent && window.parent !== window && window.parent.document) {
+      doc = window.parent.document;
+    }
+  } catch (e) {
+    doc = document;
+  }
+  if (!doc || !doc.documentElement) return;
+  if (doc.documentElement.getAttribute("data-dv-banner-lb-portal") === "1") return;
+  doc.documentElement.setAttribute("data-dv-banner-lb-portal", "1");
+  doc.addEventListener(
+    "change",
+    function (ev) {
+      var t = ev.target;
+      if (!t || !t.classList || !t.classList.contains("home-banner-lb-input")) return;
+      var root = t.closest(".home-banner-lb-root");
+      if (!root) return;
+      var panel = root.querySelector(".home-banner-lb-panel");
+      if (!panel) return;
+      if (t.checked) {
+        panel.classList.add("home-banner-lb-panel--open");
+        doc.body.appendChild(panel);
+      } else {
+        panel.classList.remove("home-banner-lb-panel--open");
+        root.appendChild(panel);
+      }
+    },
+    true
+  );
+})();
+</script>
+"""
+    st.components.v1.html(js, height=0, width=0)
+
+
 # =============================================================================
 # 1. CARREGAMENTO DE DADOS
 # =============================================================================
@@ -2448,10 +2490,11 @@ def configurar_layout():
             pointer-events: none;
             transition: opacity 0.2s ease, visibility 0.2s ease;
         }}
-        .home-banner-lb-input:checked ~ .home-banner-lb-panel {{
-            visibility: visible;
-            opacity: 1;
-            pointer-events: auto;
+        .home-banner-lb-input:checked ~ .home-banner-lb-panel,
+        .home-banner-lb-panel.home-banner-lb-panel--open {{
+            visibility: visible !important;
+            opacity: 1 !important;
+            pointer-events: auto !important;
         }}
         .home-banner-lb-backdrop {{
             position: absolute;
@@ -4366,6 +4409,7 @@ def _inject_login_vertical_center_css() -> None:
 def main():
     configurar_layout()
     inject_enter_confirma_campo()
+    inject_home_banner_lightbox_viewport_portal()
     if "logged_in" not in st.session_state:
         st.session_state["logged_in"] = False
 
