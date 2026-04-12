@@ -151,32 +151,113 @@ def _default_rows_list() -> List[PoliticaPSRow]:
     return out
 
 
+def _norm_col_name(s: str) -> str:
+    return (
+        str(s or "")
+        .strip()
+        .upper()
+        .replace("Ç", "C")
+        .replace("Ã", "A")
+        .replace("Õ", "O")
+    )
+
+
+def _find_pol_col(df: pd.DataFrame, *candidates: str) -> Optional[str]:
+    cmap = {_norm_col_name(c): c for c in df.columns}
+    for want in candidates:
+        k = _norm_col_name(want)
+        if k in cmap:
+            return cmap[k]
+    return None
+
+
+def _parse_prosoluto_pct(v: Any) -> float:
+    if v is None or (isinstance(v, float) and pd.isna(v)):
+        return 0.0
+    s = str(v).strip().replace("%", "").replace(" ", "")
+    if s == "" or s.lower() == "nan":
+        return 0.0
+    s = s.replace(",", ".")
+    try:
+        x = float(s)
+    except ValueError:
+        return 0.0
+    if x > 1.0:
+        return x / 100.0
+    return float(x)
+
+
+def _parse_float_cell_pol(v: Any, default: float = 0.0) -> float:
+    if v is None or (isinstance(v, float) and pd.isna(v)):
+        return default
+    s = str(v).strip().replace("%", "").replace(" ", "").replace(",", ".")
+    if s == "" or s.lower() == "nan":
+        return default
+    try:
+        return float(s)
+    except ValueError:
+        return default
+
+
 def politicas_from_dataframe(df: Optional[pd.DataFrame]) -> List[PoliticaPSRow]:
-    """Interpreta aba POLITICAS com colunas A–F (primeiras 6 colunas se sem nome)."""
+    """
+    Interpreta aba POLITICAS: prioriza colunas nomeadas; senão A–F posicionais.
+    Ignora classificações repetidas (mantém a primeira — evita bloco histórico duplicado).
+    """
     if df is None or df.empty:
         return _default_rows_list()
     out: List[PoliticaPSRow] = []
+    seen: set[str] = set()
     df = df.copy()
-    cols = list(df.columns)
+    df.columns = [str(c).strip() for c in df.columns]
+
+    c_cls = _find_pol_col(df, "CLASSIFICAÇÃO", "CLASSIFICACAO", "CLASSIFICACAO")
+    c_ps = _find_pol_col(df, "PROSOLUTO", "PRO SOLUTO", "% PS", "%PS")
+    c_fx = _find_pol_col(df, "FAIXA RENDA", "FAIXA_RENDA")
+    c_f1 = _find_pol_col(df, "FX RENDA 1", "FX_RENDA_1", "FX RENDA1")
+    c_f2 = _find_pol_col(df, "FX RENDA 2", "FX_RENDA_2", "FX RENDA2")
+    c_pc = _find_pol_col(df, "PARCELAS", "PRAZO PS", "PARCELAS MAX")
+
+    use_named = bool(c_cls and c_ps and c_fx and c_f1 and c_f2 and c_pc)
+
     for _, row in df.iterrows():
         try:
-            vals = [row.get(c) for c in cols[:6]]
-            if len(vals) < 6:
-                continue
-            a, b, c, d, e, f = vals[0], vals[1], vals[2], vals[3], vals[4], vals[5]
+            if use_named:
+                a = row.get(c_cls)
+                b = row.get(c_ps)
+                c = row.get(c_fx)
+                d = row.get(c_f1)
+                e = row.get(c_f2)
+                f = row.get(c_pc)
+            else:
+                cols = list(df.columns)
+                vals = [row.get(x) for x in cols[:6]]
+                if len(vals) < 6:
+                    continue
+                a, b, c, d, e, f = vals[0], vals[1], vals[2], vals[3], vals[4], vals[5]
             if a is None or str(a).strip() == "" or str(a).lower() == "nan":
                 continue
             if "CLASSIF" in str(a).upper():
                 continue
+            cls_raw = str(a).strip()
+            key = _norm_key(cls_raw)
+            if key in seen:
+                continue
+            pct = _parse_prosoluto_pct(b)
+            fr = _parse_float_cell_pol(c)
+            f1 = _parse_float_cell_pol(d)
+            f2 = _parse_float_cell_pol(e)
+            pm = _parse_float_cell_pol(f)
             pr = PoliticaPSRow(
-                classificacao=str(a).strip(),
-                prosoluto_pct=float(b) if b is not None and str(b) != "nan" else 0.0,
-                faixa_renda=float(c) if c is not None and str(c) != "nan" else 0.0,
-                fx_renda_1=float(d) if d is not None and str(d) != "nan" else 0.0,
-                fx_renda_2=float(e) if e is not None and str(e) != "nan" else 0.0,
-                parcelas_max=float(f) if f is not None and str(f) != "nan" else 0.0,
+                classificacao=cls_raw,
+                prosoluto_pct=pct,
+                faixa_renda=fr,
+                fx_renda_1=f1,
+                fx_renda_2=f2,
+                parcelas_max=pm,
             )
             if pr.prosoluto_pct > 0 and pr.parcelas_max > 0:
+                seen.add(key)
                 out.append(pr)
         except (TypeError, ValueError, IndexError):
             continue
@@ -299,6 +380,8 @@ from typing import Any, Dict, Mapping, Optional
 
 import pandas as pd
 
+# Comparador TX EMCASH, coluna L (ex. L15): =PV($E$2,$K$2,J15,)*-1*0,96
+PS_PV_FATOR_COLUNA_L: float = 0.96
 
 
 def k3_lambda(renda: float, row: PoliticaPSRow) -> float:
@@ -416,11 +499,12 @@ def metricas_pro_soluto(
     g14 = parcela_max_g14(renda, k3)
     e2_comp = float(p["emcash_fin_m"])
     prazo_k2 = int(min(row.parcelas_max, 120.0))
-    l8 = pv_l8_positivo(e2_comp, prazo_k2, j8)
+    l8_bruto = pv_l8_positivo(e2_comp, prazo_k2, j8)
+    l8 = float(l8_bruto) * PS_PV_FATOR_COLUNA_L
     cap_vu = cap_valor_unidade(valor_unidade, row)
     ps_max_calc = valor_max_ps_g15(l8, cap_vu)
     if ps_cap_estoque is not None and float(ps_cap_estoque) > 0:
-        ps_max_efetivo = min(ps_max_calc, float(ps_cap_estoque))
+        ps_max_efetivo = min(ps_max_calc, float(ps_cap_estoque), cap_vu)
     else:
         ps_max_efetivo = ps_max_calc
 
@@ -729,8 +813,8 @@ def montar_mensagem_whatsapp_resumo(
             item("Pro Soluto (valor)", brs("ps_usado", 0)),
             item("Número de parcelas do Pro Soluto", d.get("ps_parcelas", "-")),
             item("Mensalidade do Pro Soluto", brs("ps_mensal", 0)),
-            item("Total em atos (imediato e parcelados)", brs("entrada_total", 0)),
-            item("Ato imediato", brs("ato_final", 0)),
+            item("Total em atos (ato 0 e parcelados)", brs("entrada_total", 0)),
+            item("Ato 0", brs("ato_final", 0)),
             item("Ato 30", brs("ato_30", 0)),
             item("Ato 60", brs("ato_60", 0)),
         ]
@@ -2465,7 +2549,7 @@ def gerar_resumo_pdf(d):
         _ent_ps = float(d.get('entrada_total', 0) or 0) + float(d.get('ps_usado', 0) or 0)
         linha("Valor total de entrada em atos", f"R$ {fmt_br(d.get('entrada_total', 0))}")
         linha("Entrada total (atos e Pro Soluto)", f"R$ {fmt_br(_ent_ps)}", True)
-        linha("Ato imediato", f"R$ {fmt_br(d.get('ato_final', 0))}")
+        linha("Ato 0", f"R$ {fmt_br(d.get('ato_final', 0))}")
         linha("Ato 30", f"R$ {fmt_br(d.get('ato_30', 0))}")
         linha("Ato 60", f"R$ {fmt_br(d.get('ato_60', 0))}")
         if not _politica_emcash(d.get("politica")):
@@ -2700,7 +2784,7 @@ def enviar_email_smtp(destinatario, nome_cliente, pdf_bytes, dados_cliente, tipo
                                             <td align="right" style="color: #002c5d;"><b>R$ {entrada}</b></td>
                                         </tr>
                                         <tr>
-                                             <td>&nbsp;&nbsp;↳ Ato Imediato</td>
+                                             <td>&nbsp;&nbsp;↳ Ato 0</td>
                                              <td align="right">R$ {a0}</td>
                                         </tr>
                                         <tr>
@@ -3587,8 +3671,8 @@ def aba_simulador_automacao(
             novo = min(gap, teto_b) if teto_b > 0 else gap
             st.session_state["ps_u_key"] = float_para_campo_texto(novo, vazio_se_zero=True)
 
-        # --- Ato 1 (Imediato): só key + session_state (evita conflito value/key) ---
-        st.text_input("Ato de entrada imediata", key="ato_1_key", placeholder="0,00", help="Valor pago no ato da assinatura.")
+        # --- Ato 0: só key + session_state (evita conflito value/key) ---
+        st.text_input("Ato 0", key="ato_1_key", placeholder="0,00", help="Valor pago no ato da assinatura.")
         r1 = max(0.0, texto_moeda_para_float(st.session_state.get("ato_1_key")))
         st.session_state.dados_cliente['ato_final'] = r1
         
@@ -3833,7 +3917,7 @@ def aba_simulador_automacao(
             else f"<br><b>Ato 90:</b> {reais_streamlit_html(fmt_br(d.get('ato_90', 0)))}"
         )
         st.markdown(
-            f"""<div class="summary-body"><b>Pro Soluto (parte da entrada):</b> {reais_streamlit_html(fmt_br(d.get('ps_usado', 0)))} — {d.get('ps_parcelas')} parcelas de {reais_streamlit_html(fmt_br(d.get('ps_mensal', 0)))}<br><hr style="border: 0; border-top: 1px solid #e2e8f0; margin: 10px 0;"><b>Total em atos (imediato e parcelados):</b> {reais_streamlit_html(fmt_br(d.get('entrada_total', 0)))}<br><b>Ato imediato:</b> {reais_streamlit_html(fmt_br(d.get('ato_final', 0)))}<br><b>Ato 30:</b> {reais_streamlit_html(fmt_br(d.get('ato_30', 0)))}<br><b>Ato 60:</b> {reais_streamlit_html(fmt_br(d.get('ato_60', 0)))}{_linha_resumo_ato_90}<br><hr style="border: 0; border-top: 1px solid #e2e8f0; margin: 10px 0;"><b>Entrada total (atos e Pro Soluto):</b> {reais_streamlit_html(fmt_br(_ent_resumo))}</div>""",
+            f"""<div class="summary-body"><b>Pro Soluto (parte da entrada):</b> {reais_streamlit_html(fmt_br(d.get('ps_usado', 0)))} — {d.get('ps_parcelas')} parcelas de {reais_streamlit_html(fmt_br(d.get('ps_mensal', 0)))}<br><hr style="border: 0; border-top: 1px solid #e2e8f0; margin: 10px 0;"><b>Total em atos (ato 0 e parcelados):</b> {reais_streamlit_html(fmt_br(d.get('entrada_total', 0)))}<br><b>Ato 0:</b> {reais_streamlit_html(fmt_br(d.get('ato_final', 0)))}<br><b>Ato 30:</b> {reais_streamlit_html(fmt_br(d.get('ato_30', 0)))}<br><b>Ato 60:</b> {reais_streamlit_html(fmt_br(d.get('ato_60', 0)))}{_linha_resumo_ato_90}<br><hr style="border: 0; border-top: 1px solid #e2e8f0; margin: 10px 0;"><b>Entrada total (atos e Pro Soluto):</b> {reais_streamlit_html(fmt_br(_ent_resumo))}</div>""",
             unsafe_allow_html=True,
         )
         st.markdown("---")
