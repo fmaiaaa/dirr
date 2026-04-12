@@ -1271,8 +1271,8 @@ def configurar_layout():
             background-color: transparent !important;
         }}
         [data-testid="stToolbar"] {{
-            background: #ffffff !important;
-            border-bottom: 1px solid #e2e8f0 !important;
+            background: rgba(226, 238, 252, 0.92) !important;
+            border-bottom: 1px solid rgba(4, 66, 143, 0.15) !important;
         }}
         [data-testid="stToolbar"] button,
         [data-testid="stToolbar"] a {{
@@ -1335,10 +1335,15 @@ def configurar_layout():
             margin-top: 0.5rem !important;
             margin-bottom: 0.5rem !important;
             padding: 1.25rem 1.5rem !important;
-            background: #ffffff !important;
+            background: linear-gradient(
+                180deg,
+                rgba(232, 242, 255, 0.88) 0%,
+                rgba(214, 230, 252, 0.9) 50%,
+                rgba(200, 220, 248, 0.88) 100%
+            ) !important;
             border-radius: 8px !important;
-            border: 1px solid #e2e8f0 !important;
-            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06) !important;
+            border: 1px solid rgba(4, 66, 143, 0.18) !important;
+            box-shadow: 0 2px 12px rgba(4, 66, 143, 0.08) !important;
         }}
         [data-testid="stVerticalBlockBorderWrapper"] {{
             border-radius: 8px !important;
