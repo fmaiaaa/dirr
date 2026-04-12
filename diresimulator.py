@@ -1094,6 +1094,40 @@ class MotorRecomendacao:
         vs = row.get(col_sub, 0.0)
         return float(vf), float(vs), faixa
 
+    def obter_referencias_f2(self, renda, social_cli, cotista_cli):
+        """
+        Tetos da faixa F2 na BD Financiamentos (linha = renda mais próxima), para exibição:
+        - financiamento: c/ e s/ Fator Social (mantém Sim/Nao do cotista escolhido na UI);
+        - subsídio: cotista e não cotista (mantém Sim/Nao do social escolhido na UI).
+        Colunas esperadas: Finan_Social_{Sim|Nao}_Cotista_{Sim|Nao}_F2, Subsidio_*_F2.
+        """
+        out = {
+            "fin_com_social": 0.0,
+            "fin_sem_social": 0.0,
+            "sub_cotista": 0.0,
+            "sub_nao_cotista": 0.0,
+        }
+        if self.df_finan.empty or "Renda" not in self.df_finan.columns:
+            return out
+        renda_col = pd.to_numeric(self.df_finan["Renda"], errors="coerce").fillna(0)
+        idx = (renda_col - float(renda)).abs().idxmin()
+        row = self.df_finan.iloc[idx]
+        c = "Sim" if cotista_cli else "Nao"
+        s = "Sim" if social_cli else "Nao"
+
+        def _cell(col_name):
+            v = row.get(col_name, 0.0)
+            try:
+                return float(v)
+            except (TypeError, ValueError):
+                return 0.0
+
+        out["fin_com_social"] = _cell(f"Finan_Social_Sim_Cotista_{c}_F2")
+        out["fin_sem_social"] = _cell(f"Finan_Social_Nao_Cotista_{c}_F2")
+        out["sub_cotista"] = _cell(f"Subsidio_Social_{s}_Cotista_Sim_F2")
+        out["sub_nao_cotista"] = _cell(f"Subsidio_Social_{s}_Cotista_Nao_F2")
+        return out
+
     def calcular_poder_compra(self, renda, finan, fgts_sub, val_ps_limite):
         return (2 * renda) + finan + fgts_sub + val_ps_limite, val_ps_limite
 
@@ -2539,6 +2573,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, premissas_dict=N
 
         renda_cli = float(d.get('renda', 0) or 0)
         f_curva, s_curva, _ = motor.obter_enquadramento(renda_cli, social_cli, cotista_cli, valor_avaliacao=240000)
+        _ref_f2 = motor.obter_referencias_f2(renda_cli, social_cli, cotista_cli)
         st.session_state.dados_cliente['finan_f_ref'] = f_curva
         st.session_state.dados_cliente['sub_f_ref'] = s_curva
         d = st.session_state.dados_cliente
@@ -2565,6 +2600,15 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, premissas_dict=N
         f_u = clamp_moeda_positiva(texto_moeda_para_float(st.session_state.get("fin_aprovado_key")), fin_max if fin_max > 0 else None)
         st.session_state.dados_cliente['finan_usado'] = f_u
         st.markdown(f'<div class="inline-ref" style="background-color: transparent; padding: 0; font-family: inherit; font-size: 0.72rem; color: {COR_AZUL_ESC}; margin-top: -12px; margin-bottom: 15px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; display: block; opacity: 0.9;">Financiamento Máximo (curva): R$ {fmt_br(fin_max)}</div>', unsafe_allow_html=True)
+        st.markdown(
+            f"""<div style="font-size: 0.82rem; color: #64748b; text-align: center; line-height: 1.55; margin: 0.15rem 0 1rem 0;">
+<b>BD Financiamentos — Faixa 2 (referência)</b><br>
+<span style="color:#334155;">c/ Fator Social:</span> R$ {fmt_br(_ref_f2["fin_com_social"])}
+&nbsp;&nbsp;|&nbsp;&nbsp;
+<span style="color:#334155;">s/ Fator Social:</span> R$ {fmt_br(_ref_f2["fin_sem_social"])}
+</div>""",
+            unsafe_allow_html=True,
+        )
 
         fgts_max = max(0.0, float(d.get("sub_f_ref", 0) or 0))
         sub_default = clamp_moeda_positiva(_num_f('fgts_sub_usado', 0.0), fgts_max if fgts_max > 0 else None)
@@ -2579,6 +2623,15 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, premissas_dict=N
         s_u = clamp_moeda_positiva(texto_moeda_para_float(st.session_state.get("sub_aprovado_key")), fgts_max if fgts_max > 0 else None)
         st.session_state.dados_cliente['fgts_sub_usado'] = s_u
         st.markdown(f'<div class="inline-ref" style="background-color: transparent; padding: 0; font-family: inherit; font-size: 0.72rem; color: {COR_AZUL_ESC}; margin-top: -12px; margin-bottom: 15px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; display: block; opacity: 0.9;">Subsídio Máximo (curva): R$ {fmt_br(fgts_max)}</div>', unsafe_allow_html=True)
+        st.markdown(
+            f"""<div style="font-size: 0.82rem; color: #64748b; text-align: center; line-height: 1.55; margin: 0.15rem 0 1rem 0;">
+<b>BD Financiamentos — Faixa 2 (referência)</b><br>
+<span style="color:#334155;">Subsídio cotista:</span> R$ {fmt_br(_ref_f2["sub_cotista"])}
+&nbsp;&nbsp;|&nbsp;&nbsp;
+<span style="color:#334155;">Subsídio não cotista:</span> R$ {fmt_br(_ref_f2["sub_nao_cotista"])}
+</div>""",
+            unsafe_allow_html=True,
+        )
 
         prazo_atual = d.get('prazo_financiamento', 360)
         try: prazo_atual = int(prazo_atual) if prazo_atual is not None else 360
