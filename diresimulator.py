@@ -1094,39 +1094,41 @@ class MotorRecomendacao:
         vs = row.get(col_sub, 0.0)
         return float(vf), float(vs), faixa
 
-    def obter_referencias_f2(self, renda, social_cli, cotista_cli):
+    def obter_quatro_combinacoes_f2(self, renda):
         """
-        Tetos da faixa F2 na BD Financiamentos (linha = renda mais próxima), para exibição:
-        - financiamento: c/ e s/ Fator Social (mantém Sim/Nao do cotista escolhido na UI);
-        - subsídio: cotista e não cotista (mantém Sim/Nao do social escolhido na UI).
-        Colunas esperadas: Finan_Social_{Sim|Nao}_Cotista_{Sim|Nao}_F2, Subsidio_*_F2.
+        As 4 combinações Social×Cotista na faixa F2 (BD Financiamentos), linha = renda mais próxima.
+        Colunas: Finan_Social_{Sim|Nao}_Cotista_{Sim|Nao}_F2 e Subsidio_*_F2.
         """
-        out = {
-            "fin_com_social": 0.0,
-            "fin_sem_social": 0.0,
-            "sub_cotista": 0.0,
-            "sub_nao_cotista": 0.0,
-        }
-        if self.df_finan.empty or "Renda" not in self.df_finan.columns:
-            return out
-        renda_col = pd.to_numeric(self.df_finan["Renda"], errors="coerce").fillna(0)
-        idx = (renda_col - float(renda)).abs().idxmin()
-        row = self.df_finan.iloc[idx]
-        c = "Sim" if cotista_cli else "Nao"
-        s = "Sim" if social_cli else "Nao"
+        linhas = []
+        meta = [
+            (False, False, "Social não · Não cotista"),
+            (True, False, "Social sim · Não cotista"),
+            (False, True, "Social não · Cotista"),
+            (True, True, "Social sim · Cotista"),
+        ]
 
-        def _cell(col_name):
+        def _cell(row, col_name):
             v = row.get(col_name, 0.0)
             try:
                 return float(v)
             except (TypeError, ValueError):
                 return 0.0
 
-        out["fin_com_social"] = _cell(f"Finan_Social_Sim_Cotista_{c}_F2")
-        out["fin_sem_social"] = _cell(f"Finan_Social_Nao_Cotista_{c}_F2")
-        out["sub_cotista"] = _cell(f"Subsidio_Social_{s}_Cotista_Sim_F2")
-        out["sub_nao_cotista"] = _cell(f"Subsidio_Social_{s}_Cotista_Nao_F2")
-        return out
+        if self.df_finan.empty or "Renda" not in self.df_finan.columns:
+            for social, cotista, rotulo in meta:
+                linhas.append({"social": social, "cotista": cotista, "rotulo": rotulo, "fin": 0.0, "sub": 0.0})
+            return linhas
+
+        renda_col = pd.to_numeric(self.df_finan["Renda"], errors="coerce").fillna(0)
+        idx = (renda_col - float(renda)).abs().idxmin()
+        row = self.df_finan.iloc[idx]
+        for social, cotista, rotulo in meta:
+            s = "Sim" if social else "Nao"
+            c = "Sim" if cotista else "Nao"
+            fin = _cell(row, f"Finan_Social_{s}_Cotista_{c}_F2")
+            sub = _cell(row, f"Subsidio_Social_{s}_Cotista_{c}_F2")
+            linhas.append({"social": social, "cotista": cotista, "rotulo": rotulo, "fin": fin, "sub": sub})
+        return linhas
 
     def calcular_poder_compra(self, renda, finan, fgts_sub, val_ps_limite):
         return (2 * renda) + finan + fgts_sub + val_ps_limite, val_ps_limite
@@ -2547,33 +2549,46 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, premissas_dict=N
         st.markdown("### Valores Aprovados (Fechamento Financeiro)")
         st.markdown("<p style='text-align: center; color: #64748b; font-size: 0.9rem;'>Preencha os valores aprovados de financiamento e subsídio. As recomendações usarão esses valores reais.</p>", unsafe_allow_html=True)
 
-        _opts_fin_ref = ("Financiamento c/ Fator Social", "Financiamento s/ Fator Social")
-        _opts_sub_ref = ("Subsídio cotista", "Subsídio não cotista")
-        _ix_fin = 0 if bool(d.get("social", False)) else 1
-        _ix_sub = 0 if bool(d.get("cotista", True)) else 1
-        rf1, rf2 = st.columns(2)
-        with rf1:
-            _fin_lbl = st.radio(
-                "Referência financiamento (BD Financiamentos)",
-                _opts_fin_ref,
-                index=_ix_fin,
-                key="ref_curva_fin_social_v1",
-            )
-        with rf2:
-            _sub_lbl = st.radio(
-                "Referência subsídio (BD Financiamentos)",
-                _opts_sub_ref,
-                index=_ix_sub,
-                key="ref_curva_sub_cotista_v1",
-            )
-        social_cli = _fin_lbl == _opts_fin_ref[0]
-        cotista_cli = _sub_lbl == _opts_sub_ref[0]
+        renda_cli = float(d.get("renda", 0) or 0)
+        _quatro_f2 = motor.obter_quatro_combinacoes_f2(renda_cli)
+        _rotulos_cen = [x["rotulo"] for x in _quatro_f2]
+        _ix_cen = 2
+        for i, rowq in enumerate(_quatro_f2):
+            if rowq["social"] == bool(d.get("social", False)) and rowq["cotista"] == bool(d.get("cotista", True)):
+                _ix_cen = i
+                break
+        _tbl_rows = "".join(
+            f"<tr><td style='padding:8px 12px;text-align:left;border-bottom:1px solid #e2e8f0;color:#334155;'>{html_std.escape(it['rotulo'])}</td>"
+            f"<td style='padding:8px 12px;text-align:right;border-bottom:1px solid #e2e8f0;color:#0f172a;'>R$ {fmt_br(it['fin'])}</td>"
+            f"<td style='padding:8px 12px;text-align:right;border-bottom:1px solid #e2e8f0;color:#0f172a;'>R$ {fmt_br(it['sub'])}</td></tr>"
+            for it in _quatro_f2
+        )
+        st.markdown(
+            f"""<div style="max-width: 640px; margin: 0.5rem auto 1rem; overflow-x: auto;">
+<table style="width:100%; border-collapse: collapse; font-size: 0.82rem; color: #64748b;">
+<caption style="caption-side: top; padding-bottom: 8px; font-weight: 700; color: {COR_AZUL_ESC}; text-align: center;">BD Financiamentos — Faixa 2 (todas as combinações)</caption>
+<thead><tr>
+<th style="text-align:left;padding:8px 12px;border-bottom:2px solid #cbd5e1;">Combinação</th>
+<th style="text-align:right;padding:8px 12px;border-bottom:2px solid #cbd5e1;">Financiamento</th>
+<th style="text-align:right;padding:8px 12px;border-bottom:2px solid #cbd5e1;">Subsídio</th>
+</tr></thead>
+<tbody>{_tbl_rows}</tbody>
+</table></div>""",
+            unsafe_allow_html=True,
+        )
+        _cen_esc = st.selectbox(
+            "Cenário para teto da curva (F2/F3/F4 na BD)",
+            options=_rotulos_cen,
+            index=_ix_cen,
+            key="cenario_soc_cotista_curva_v1",
+        )
+        _m = next((x for x in _quatro_f2 if x["rotulo"] == _cen_esc), _quatro_f2[2])
+        social_cli = _m["social"]
+        cotista_cli = _m["cotista"]
         st.session_state.dados_cliente["social"] = social_cli
         st.session_state.dados_cliente["cotista"] = cotista_cli
 
-        renda_cli = float(d.get('renda', 0) or 0)
         f_curva, s_curva, _ = motor.obter_enquadramento(renda_cli, social_cli, cotista_cli, valor_avaliacao=240000)
-        _ref_f2 = motor.obter_referencias_f2(renda_cli, social_cli, cotista_cli)
         st.session_state.dados_cliente['finan_f_ref'] = f_curva
         st.session_state.dados_cliente['sub_f_ref'] = s_curva
         d = st.session_state.dados_cliente
@@ -2600,15 +2615,6 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, premissas_dict=N
         f_u = clamp_moeda_positiva(texto_moeda_para_float(st.session_state.get("fin_aprovado_key")), fin_max if fin_max > 0 else None)
         st.session_state.dados_cliente['finan_usado'] = f_u
         st.markdown(f'<div class="inline-ref" style="background-color: transparent; padding: 0; font-family: inherit; font-size: 0.72rem; color: {COR_AZUL_ESC}; margin-top: -12px; margin-bottom: 15px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; display: block; opacity: 0.9;">Financiamento Máximo (curva): R$ {fmt_br(fin_max)}</div>', unsafe_allow_html=True)
-        st.markdown(
-            f"""<div style="font-size: 0.82rem; color: #64748b; text-align: center; line-height: 1.55; margin: 0.15rem 0 1rem 0;">
-<b>BD Financiamentos — Faixa 2 (referência)</b><br>
-<span style="color:#334155;">c/ Fator Social:</span> R$ {fmt_br(_ref_f2["fin_com_social"])}
-&nbsp;&nbsp;|&nbsp;&nbsp;
-<span style="color:#334155;">s/ Fator Social:</span> R$ {fmt_br(_ref_f2["fin_sem_social"])}
-</div>""",
-            unsafe_allow_html=True,
-        )
 
         fgts_max = max(0.0, float(d.get("sub_f_ref", 0) or 0))
         sub_default = clamp_moeda_positiva(_num_f('fgts_sub_usado', 0.0), fgts_max if fgts_max > 0 else None)
@@ -2623,15 +2629,6 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, premissas_dict=N
         s_u = clamp_moeda_positiva(texto_moeda_para_float(st.session_state.get("sub_aprovado_key")), fgts_max if fgts_max > 0 else None)
         st.session_state.dados_cliente['fgts_sub_usado'] = s_u
         st.markdown(f'<div class="inline-ref" style="background-color: transparent; padding: 0; font-family: inherit; font-size: 0.72rem; color: {COR_AZUL_ESC}; margin-top: -12px; margin-bottom: 15px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; display: block; opacity: 0.9;">Subsídio Máximo (curva): R$ {fmt_br(fgts_max)}</div>', unsafe_allow_html=True)
-        st.markdown(
-            f"""<div style="font-size: 0.82rem; color: #64748b; text-align: center; line-height: 1.55; margin: 0.15rem 0 1rem 0;">
-<b>BD Financiamentos — Faixa 2 (referência)</b><br>
-<span style="color:#334155;">Subsídio cotista:</span> R$ {fmt_br(_ref_f2["sub_cotista"])}
-&nbsp;&nbsp;|&nbsp;&nbsp;
-<span style="color:#334155;">Subsídio não cotista:</span> R$ {fmt_br(_ref_f2["sub_nao_cotista"])}
-</div>""",
-            unsafe_allow_html=True,
-        )
 
         prazo_atual = d.get('prazo_financiamento', 360)
         try: prazo_atual = int(prazo_atual) if prazo_atual is not None else 360
