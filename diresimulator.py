@@ -2245,15 +2245,53 @@ def configurar_layout():
             background: #03346e !important;
             box-shadow: 0 4px 14px rgba({RGB_AZUL_CSS}, 0.35) !important;
         }}
-        a[href*="whatsapp.com"],
-        a[href*="wa.me"] {{
+        /* Links WhatsApp em markdown (não são o botão link_button) */
+        a[href*="whatsapp.com"]:not([data-testid="stLinkButton"]),
+        a[href*="wa.me"]:not([data-testid="stLinkButton"]) {{
             color: #128c7e !important;
             font-weight: 600 !important;
             text-decoration: underline !important;
         }}
-        a[href*="whatsapp.com"]:hover,
-        a[href*="wa.me"]:hover {{
+        a[href*="whatsapp.com"]:not([data-testid="stLinkButton"]):hover,
+        a[href*="wa.me"]:not([data-testid="stLinkButton"]):hover {{
             color: #075e54 !important;
+        }}
+        /* Botão WhatsApp (link_button para api.whatsapp.com): verde oficial, texto branco */
+        a[data-testid="stLinkButton"][href*="api.whatsapp.com"],
+        a[data-testid="stLinkButton"][href*="whatsapp.com"] {{
+            display: flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+            width: 100% !important;
+            box-sizing: border-box !important;
+            min-height: 48px !important;
+            padding: 0.65rem 1.15rem !important;
+            border-radius: 8px !important;
+            background: #25d366 !important;
+            background-color: #25d366 !important;
+            color: #ffffff !important;
+            font-weight: 700 !important;
+            text-decoration: none !important;
+            border: none !important;
+            box-shadow: 0 2px 8px rgba(37, 211, 102, 0.35) !important;
+        }}
+        a[data-testid="stLinkButton"][href*="api.whatsapp.com"] *,
+        a[data-testid="stLinkButton"][href*="whatsapp.com"] * {{
+            color: #ffffff !important;
+        }}
+        a[data-testid="stLinkButton"][href*="api.whatsapp.com"]:hover,
+        a[data-testid="stLinkButton"][href*="whatsapp.com"]:hover {{
+            background: #20bd5a !important;
+            background-color: #20bd5a !important;
+            color: #ffffff !important;
+            box-shadow: 0 4px 14px rgba(37, 211, 102, 0.45) !important;
+        }}
+        /* Popup de PDF/e-mail/WhatsApp: mais largura (reforço além de width="large") */
+        div[data-testid="stDialog"]:has(#dv-export-resumo-modal-marker),
+        section[data-testid="stDialog"]:has(#dv-export-resumo-modal-marker) {{
+            width: min(920px, 96vw) !important;
+            max-width: min(920px, 96vw) !important;
+            min-width: min(560px, 92vw) !important;
         }}
         div[data-testid="stAlert"] {{
             border-radius: 8px !important;
@@ -3119,8 +3157,19 @@ def tela_login(df_logins: pd.DataFrame) -> None:
         inject_login_password_manager_fields()
 
 
-@st.dialog("Resumo: PDF, e-mail e WhatsApp")
+try:
+    _dialog_export_deco = st.dialog("Resumo: PDF, e-mail e WhatsApp", width="large")
+except TypeError:
+    _dialog_export_deco = st.dialog("Resumo: PDF, e-mail e WhatsApp")
+
+
+@_dialog_export_deco
 def show_export_dialog(d):
+    st.markdown(
+        '<span id="dv-export-resumo-modal-marker" aria-hidden="true" '
+        'style="position:absolute;width:0;height:0;overflow:hidden;clip:rect(0,0,0,0)"></span>',
+        unsafe_allow_html=True,
+    )
     st.markdown(f"<h3 style='text-align: center; color: {COR_AZUL_ESC}; margin: 0;'>Resumo da Simulação</h3>", unsafe_allow_html=True)
     st.caption("Baixe o PDF, envie o relatório por e-mail ao cliente ou abra o WhatsApp com o texto do resumo.")
 
@@ -3163,8 +3212,8 @@ def show_export_dialog(d):
             st.error("E-mail inválido")
 
     st.markdown("---")
-    st.markdown("**3. Texto por WhatsApp**")
-    st.caption("Abre o WhatsApp (Web ou app) com a mensagem pronta; escolha o contato e envie.")
+    st.markdown("**3. WhatsApp**")
+    st.caption("Abre o WhatsApp (Web ou app) com a mensagem pronta. Negrito (*texto*) e tópicos funcionam ao colar.")
     _wa_msg = montar_mensagem_whatsapp_resumo(
         d,
         volta_caixa_val=_vc_dialog,
@@ -3175,7 +3224,7 @@ def show_export_dialog(d):
     _wa_link_max = 6000
     if len(_wa_link) <= _wa_link_max:
         st.link_button(
-            "Abrir WhatsApp com o texto do resumo",
+            "Enviar resumo por WhatsApp",
             _wa_link,
             use_container_width=True,
             type="secondary",
@@ -3184,9 +3233,13 @@ def show_export_dialog(d):
         st.info(
             "O link automático ficou grande demais para o navegador. Copie o texto abaixo e cole no WhatsApp."
         )
-    with st.expander("Ver ou copiar texto do WhatsApp"):
-        st.caption("Negrito (*texto*) e tópicos funcionam ao colar no WhatsApp.")
-        st.text_area("Texto da mensagem", value=_wa_msg, height=240, label_visibility="collapsed", key="export_dialog_wa_text")
+    st.text_area(
+        "Texto da mensagem",
+        value=_wa_msg,
+        height=260,
+        key="export_dialog_wa_text",
+        help="Selecione e copie se preferir enviar manualmente.",
+    )
 
 # =============================================================================
 # APLICAÇÃO PRINCIPAL
@@ -4298,30 +4351,6 @@ def aba_simulador_automacao(
             f"Simulação em {d.get('data_simulacao', date.today().strftime('%d/%m/%Y'))}</p>",
             unsafe_allow_html=True,
         )
-        st.markdown("---")
-        _wa_msg = montar_mensagem_whatsapp_resumo(
-            d,
-            volta_caixa_val=_vc_sum,
-            nome_consultor=st.session_state.get("user_name", "") or "",
-            canal_imobiliaria=st.session_state.get("user_imobiliaria", "") or "",
-        )
-        _wa_link = _url_whatsapp_enviar_texto(_wa_msg)
-        _wa_link_max = 6000
-        if len(_wa_link) <= _wa_link_max:
-            st.link_button(
-                "Enviar resumo por WhatsApp",
-                _wa_link,
-                use_container_width=True,
-                type="secondary",
-                help="Abre o WhatsApp (Web ou aplicativo) com o texto do resumo já preenchido; escolha o contato e envie.",
-            )
-        else:
-            st.info(
-                "O link automático ficou grande demais para o navegador. Copie o texto abaixo e cole no WhatsApp."
-            )
-        with st.expander("Ver ou copiar texto do WhatsApp"):
-            st.caption("Negrito (*texto*) e tópicos funcionam ao colar no WhatsApp.")
-            st.text_area("Texto da mensagem", value=_wa_msg, height=280, label_visibility="collapsed")
         st.markdown("---")
         if st.button("Opções de resumo (PDF, e-mail e WhatsApp)", use_container_width=True):
             show_export_dialog(d)
