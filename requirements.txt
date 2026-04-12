@@ -12,6 +12,7 @@ google-auth
 openpyxl
 requests
 python-dotenv
+fpdf
 pyjwt
 cryptography
 pytz
