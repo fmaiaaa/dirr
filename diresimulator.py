@@ -1820,7 +1820,13 @@ def configurar_layout():
             padding-bottom: 0.35rem !important;
         }}
 
-        /* SCROLL HORIZONTAL */
+        /* Cards de recomendação: grupo centralizado; scroll horizontal só quando não cabem */
+        .recommendation-cards-outer {{
+            display: flex;
+            justify-content: center;
+            width: 100%;
+            box-sizing: border-box;
+        }}
         .scrolling-wrapper {{
             display: flex;
             flex-wrap: nowrap;
@@ -1829,7 +1835,9 @@ def configurar_layout():
             gap: 20px;
             padding-bottom: 20px;
             margin-bottom: 20px;
-            width: 100%;
+            width: max-content;
+            max-width: 100%;
+            box-sizing: border-box;
         }}
         
         .scrolling-wrapper .card-item {{
@@ -2882,35 +2890,68 @@ def tela_login(df_logins: pd.DataFrame) -> None:
         inject_login_password_manager_fields()
 
 
-@st.dialog("Opções de Exportação")
+@st.dialog("Resumo: PDF, e-mail e WhatsApp")
 def show_export_dialog(d):
-    # Alterado para text-align: center para alinhar com o tema
     st.markdown(f"<h3 style='text-align: center; color: {COR_AZUL_ESC}; margin: 0;'>Resumo da Simulação</h3>", unsafe_allow_html=True)
-    st.markdown("Escolha como deseja exportar o documento.")
-    
-    # Injetar dados do corretor no dicionário para o PDF
-    d['corretor_nome'] = st.session_state.get('user_name', '')
-    d['corretor_email'] = st.session_state.get('user_email', '')
-    d['corretor_telefone'] = st.session_state.get('user_phone', '')
-    
+    st.caption("Baixe o PDF, envie o relatório por e-mail ao cliente ou abra o WhatsApp com o texto do resumo.")
+
+    d["corretor_nome"] = st.session_state.get("user_name", "")
+    d["corretor_email"] = st.session_state.get("user_email", "")
+    d["corretor_telefone"] = st.session_state.get("user_phone", "")
+
     pdf_data = gerar_resumo_pdf(d)
 
+    st.markdown("**1. Documento PDF**")
     if pdf_data:
-        st.download_button(label="Baixar documento PDF", data=pdf_data, file_name=f"Resumo_Direcional_{d.get('nome', 'Cliente')}.pdf", mime="application/pdf", use_container_width=True)
+        st.download_button(
+            label="Baixar documento PDF",
+            data=pdf_data,
+            file_name=f"Resumo_Direcional_{d.get('nome', 'Cliente')}.pdf",
+            mime="application/pdf",
+            use_container_width=True,
+        )
     else:
         st.warning("Geração do documento PDF indisponível.")
 
     st.markdown("---")
-    st.markdown("**Enviar por E-mail (Cliente)**")
-    email = st.text_input("Endereço de e-mail do cliente", placeholder="cliente@exemplo.com")
-    if st.button("Enviar e-mail para o cliente", use_container_width=True):
+    st.markdown("**2. Enviar por e-mail (cliente)**")
+    email = st.text_input("Endereço de e-mail do cliente", placeholder="cliente@exemplo.com", key="export_dialog_email_cliente")
+    if st.button("Enviar e-mail para o cliente", use_container_width=True, key="export_dialog_btn_email"):
         if email and "@" in email:
-            # Passando DADOS COMPLETOS para o email HTML e tipo CLIENTE
-            sucesso, msg = enviar_email_smtp(email, d.get('nome', 'Cliente'), pdf_data, d, tipo='cliente')
-            if sucesso: st.success(msg)
-            else: st.error(msg)
+            sucesso, msg = enviar_email_smtp(email, d.get("nome", "Cliente"), pdf_data, d, tipo="cliente")
+            if sucesso:
+                st.success(msg)
+            else:
+                st.error(msg)
         else:
             st.error("E-mail inválido")
+
+    st.markdown("---")
+    st.markdown("**3. Texto por WhatsApp**")
+    st.caption("Abre o WhatsApp (Web ou app) com a mensagem pronta; escolha o contato e envie.")
+    _vc_wa = texto_moeda_para_float(st.session_state.get("volta_caixa_key"))
+    _wa_msg = montar_mensagem_whatsapp_resumo(
+        d,
+        volta_caixa_val=_vc_wa,
+        nome_consultor=st.session_state.get("user_name", "") or "",
+        canal_imobiliaria=st.session_state.get("user_imobiliaria", "") or "",
+    )
+    _wa_link = _url_whatsapp_enviar_texto(_wa_msg)
+    _wa_link_max = 6000
+    if len(_wa_link) <= _wa_link_max:
+        st.link_button(
+            "Abrir WhatsApp com o texto do resumo",
+            _wa_link,
+            use_container_width=True,
+            type="secondary",
+        )
+    else:
+        st.info(
+            "O link automático ficou grande demais para o navegador. Copie o texto abaixo e cole no WhatsApp."
+        )
+    with st.expander("Ver ou copiar texto do WhatsApp"):
+        st.caption("Negrito (*texto*) e tópicos funcionam ao colar no WhatsApp.")
+        st.text_area("Texto da mensagem", value=_wa_msg, height=240, label_visibility="collapsed", key="export_dialog_wa_text")
 
 # =============================================================================
 # APLICAÇÃO PRINCIPAL
@@ -3396,7 +3437,7 @@ def aba_simulador_automacao(
                 if not final_cards:
                     st.info("Ajuste o filtro de empreendimento ou os valores aprovados para ver sugestões de unidades.")
                 else:
-                    cards_html = f"""<div class="scrolling-wrapper">"""
+                    cards_html = """<div class="recommendation-cards-outer"><div class="scrolling-wrapper">"""
                     
                     for card in final_cards:
                          row = card['row']
@@ -3424,7 +3465,7 @@ def aba_simulador_automacao(
                                 </div>
                             </div>
                          </div>"""
-                    cards_html += "</div>"
+                    cards_html += "</div></div>"
                     st.markdown(cards_html, unsafe_allow_html=True)
 
         st.markdown("---")
@@ -3946,7 +3987,8 @@ def aba_simulador_automacao(
             st.caption("Negrito (*texto*) e tópicos funcionam ao colar no WhatsApp.")
             st.text_area("Texto da mensagem", value=_wa_msg, height=280, label_visibility="collapsed")
         st.markdown("---")
-        if st.button("Opções de resumo (documento PDF e e-mail)", use_container_width=True): show_export_dialog(d)
+        if st.button("Opções de resumo (PDF, e-mail e WhatsApp)", use_container_width=True):
+            show_export_dialog(d)
         st.markdown("---")
         if st.button("Concluir e salvar simulação", type="primary", use_container_width=True):
             broker_email = st.session_state.get('user_email')
