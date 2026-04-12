@@ -1967,8 +1967,11 @@ def configurar_layout():
             70% {{ background-position: center center, 52% 78%; }}
             100% {{ background-position: center center, 12% 42%; }}
         }}
-        html, body, :root, [data-testid="stApp"] {{
-            color-scheme: light !important;
+        html {{
+            color-scheme: light only !important;
+        }}
+        html, body, :root, [data-testid="stApp"], [data-testid="stAppViewContainer"] {{
+            color-scheme: light only !important;
         }}
         /* Indicador "Running…" + nome da função no topo (Streamlit stStatusWidget) */
         [data-testid="stStatusWidget"] {{
@@ -2019,6 +2022,102 @@ def configurar_layout():
                 animation: none !important;
                 background-size: 100% 100%, cover !important;
                 background-position: center center, center center !important;
+            }}
+        }}
+        /* SO em dark: mantém UI clara (inputs, texto, popovers Base Web) */
+        @media (prefers-color-scheme: dark) {{
+            html, body, :root, [data-testid="stApp"], [data-testid="stAppViewContainer"] {{
+                color-scheme: light only !important;
+            }}
+            [data-testid="stAppViewContainer"],
+            section.main,
+            [data-testid="stMain"] {{
+                color: {COR_TEXTO_LABEL} !important;
+            }}
+            p, span, label, li,
+            [data-testid="stWidgetLabel"] label,
+            [data-testid="stWidgetLabel"] p,
+            div[data-testid="stMarkdownContainer"],
+            div[data-testid="stMarkdownContainer"] * {{
+                color: inherit;
+            }}
+            div[data-testid="stMarkdown"] p {{
+                color: #334155 !important;
+                -webkit-text-fill-color: #334155 !important;
+            }}
+            .stTextInput input, .stNumberInput input, .stDateInput input, textarea,
+            div[data-baseweb="input"] input {{
+                background-color: {COR_INPUT_BG} !important;
+                color: {COR_TEXTO_LABEL} !important;
+                -webkit-text-fill-color: {COR_TEXTO_LABEL} !important;
+            }}
+            div[data-baseweb="select"] > div,
+            div[data-testid="stDateInput"] > div {{
+                background-color: #f0f2f6 !important;
+                color: {COR_TEXTO_LABEL} !important;
+            }}
+            ul[role="listbox"], div[data-baseweb="popover"] {{
+                background: #ffffff !important;
+                color: #1e293b !important;
+            }}
+            [data-testid="stExpander"] details {{
+                background: rgba(255, 255, 255, 0.96) !important;
+            }}
+        }}
+        /* Mobile: fundo fixo custa desempenho; colunas empilham */
+        @media (max-width: 768px) {{
+            .stApp,
+            [data-testid="stApp"] {{
+                background-attachment: scroll !important;
+            }}
+            [data-testid="stMain"] {{
+                padding-left: max(8px, env(safe-area-inset-left, 0px)) !important;
+                padding-right: max(8px, env(safe-area-inset-right, 0px)) !important;
+                padding-top: max(10px, env(safe-area-inset-top, 0px)) !important;
+            }}
+            .block-container {{
+                max-width: 100% !important;
+                width: 100% !important;
+                padding: 0.85rem clamp(0.65rem, 3.5vw, 1rem) !important;
+                margin-left: 0 !important;
+                margin-right: 0 !important;
+                border-radius: 6px !important;
+            }}
+            .header-brand-bar-wrap {{
+                width: 100%;
+                left: auto;
+                transform: none;
+                margin-left: 0;
+                margin-right: 0;
+            }}
+            [data-testid="stHorizontalBlock"] {{
+                flex-direction: column !important;
+                align-items: stretch !important;
+                gap: 0.65rem !important;
+            }}
+            [data-testid="stHorizontalBlock"] > div[data-testid="column"] {{
+                width: 100% !important;
+                min-width: 0 !important;
+                flex: 1 1 auto !important;
+            }}
+            .scrolling-wrapper .card-item {{
+                width: min(300px, 88vw);
+            }}
+            .summary-body {{
+                padding: 1.25rem clamp(0.75rem, 4vw, 1.25rem) !important;
+            }}
+            .stButton button {{
+                min-height: 48px !important;
+                padding: 0.65rem 14px !important;
+                touch-action: manipulation;
+            }}
+        }}
+        @media (max-width: 420px) {{
+            .block-container {{
+                padding: 0.7rem 0.5rem !important;
+            }}
+            .header-logo-wrap img {{
+                max-height: 58px;
             }}
         }}
         [data-testid="stAppViewContainer"] {{
