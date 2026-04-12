@@ -1625,29 +1625,13 @@ def configurar_layout():
         }}
         .header-title {{
             font-family: 'Montserrat', 'Inter', sans-serif;
-            font-size: clamp(1.5rem, 3.5vw, 2.15rem);
+            font-size: clamp(1.95rem, 5vw, 2.95rem);
             font-weight: 800;
-            line-height: 1.25;
-            margin: 0 0 0.35rem 0;
+            line-height: 1.2;
+            margin: 0.15rem 0 0.5rem 0;
             color: {COR_AZUL_ESC};
             text-align: center;
-            letter-spacing: -0.02em;
-        }}
-        .header-subtitle {{
-            font-family: 'Inter', system-ui, sans-serif;
-            color: #475569;
-            font-size: 0.95rem;
-            font-weight: 400;
-            margin: 0.35rem auto 0 auto;
-            line-height: 1.45;
-            max-width: 36rem;
-            width: 100%;
-            display: block;
-            text-align: center !important;
-        }}
-        .header-subtitle strong {{
-            color: {COR_AZUL_ESC};
-            font-weight: 600;
+            letter-spacing: -0.025em;
         }}
         /* Cabeçalho injetado: wrapper do Streamlit às vezes força alinhamento à esquerda */
         div[data-testid="stMarkdown"] .header-container {{
@@ -1655,8 +1639,7 @@ def configurar_layout():
             width: 100%;
             max-width: 100%;
         }}
-        div[data-testid="stMarkdown"] .header-container .header-title,
-        div[data-testid="stMarkdown"] .header-container .header-subtitle {{
+        div[data-testid="stMarkdown"] .header-container .header-title {{
             text-align: center !important;
         }}
 
@@ -3213,7 +3196,6 @@ def main():
 <img src="{logo_src}" alt="Direcional Engenharia" class="header-logo-img" decoding="async" loading="eager" />
 </div>
 <h1 class="header-title">Simulador imobiliário DV</h1>
-<p class="header-subtitle">Gestão de <strong>vendas</strong> e <strong>viabilidade</strong> imobiliária</p>
 </header>''',
         unsafe_allow_html=True,
     )
