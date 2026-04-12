@@ -65,6 +65,19 @@ RGB_VERMELHO_CSS = _hex_rgb_triplet(COR_VERMELHO)
 # Mesmo literal do Excel: subtrai 30% do parâmetro de política para obter % líquido de renda.
 OFFSET_LAMBDA: float = 0.30
 
+# Regra comercial (planilha / curva): subsídios abaixo deste valor não entram na simulação.
+SUBSIDIO_MINIMO_CURVA: float = 1999.99
+
+
+def subsidio_curva_efetivo(valor) -> float:
+    try:
+        v = float(valor or 0.0)
+    except (TypeError, ValueError):
+        return 0.0
+    if v < SUBSIDIO_MINIMO_CURVA:
+        return 0.0
+    return v
+
 
 def excel_e4_mensal(ipca_aa: float) -> float:
     """E4 = (1+E3)^(1/12)-1 com E3 = IPCA anual em decimal."""
@@ -739,14 +752,6 @@ def clamp_moeda_positiva(v, maximo=None):
     return x
 
 
-def calcular_cor_gradiente(valor):
-    valor = max(0, min(100, valor))
-    f = valor / 100.0
-    r = int(227 + (0 - 227) * f)
-    g = int(6 + (44 - 6) * f)
-    b = int(19 + (93 - 19) * f)
-    return f"rgb({r},{g},{b})"
-
 def calcular_comparativo_sac_price(valor, meses, taxa_anual):
     if valor is None or valor <= 0 or meses <= 0:
         return {"SAC": {"primeira": 0, "ultima": 0, "juros": 0}, "PRICE": {"parcela": 0, "juros": 0}}
@@ -910,16 +915,154 @@ def inject_enter_confirma_campo():
 # 1. CARREGAMENTO DE DADOS
 # =============================================================================
 
+_COLS_HOME_BANNERS = ("Ordem", "URL_Imagem", "Titulo", "Ativo")
+
+
+def normalizar_df_home_banners(df: pd.DataFrame | None) -> pd.DataFrame:
+    """Planilha BD Home Banners: Ordem, URL_Imagem, Titulo, Ativo."""
+    if df is None or df.empty:
+        return pd.DataFrame(columns=list(_COLS_HOME_BANNERS))
+    out = df.copy()
+    out.columns = [str(c).strip() for c in out.columns]
+    ren = {
+        "ordem": "Ordem",
+        "URL Imagem": "URL_Imagem",
+        "url_imagem": "URL_Imagem",
+        "Título": "Titulo",
+        "titulo": "Titulo",
+        "ativo": "Ativo",
+    }
+    for a, b in list(ren.items()):
+        if a in out.columns and a != b:
+            out = out.rename(columns={a: b})
+    for c in _COLS_HOME_BANNERS:
+        if c not in out.columns:
+            out[c] = None if c == "Ordem" else ""
+    return out[list(_COLS_HOME_BANNERS)].copy()
+
+
+def banner_ativo_sim(val) -> bool:
+    if val is None or (isinstance(val, float) and pd.isna(val)):
+        return False
+    s = str(val).strip().upper()
+    return s in ("SIM", "S", "TRUE", "1", "YES", "Y", "ATIVO", "VERDADEIRO")
+
+
+def login_row_is_adm(row: pd.Series) -> bool:
+    v = row.get("Adm")
+    if v is None or (isinstance(v, float) and pd.isna(v)):
+        return False
+    return str(v).strip().upper() == "SIM"
+
+
+def _img_url_seguro_https(url: str) -> str | None:
+    u = (url or "").strip()
+    if not u.startswith("https://"):
+        return None
+    try:
+        p = urllib.parse.urlparse(u)
+        if p.scheme != "https" or not p.netloc:
+            return None
+    except Exception:
+        return None
+    return html_std.escape(u, quote=True)
+
+
+def render_faixa_home_banners(df_banners: pd.DataFrame) -> None:
+    df = normalizar_df_home_banners(df_banners)
+    if df.empty:
+        return
+    df = df[df["Ativo"].apply(banner_ativo_sim)]
+    if df.empty:
+        return
+    df = df.copy()
+    df["_sort"] = pd.to_numeric(df["Ordem"], errors="coerce")
+    df = df.sort_values("_sort", na_position="last")
+    cards: list[str] = []
+    for _, row in df.iterrows():
+        src = _img_url_seguro_https(str(row.get("URL_Imagem", "") or ""))
+        if not src:
+            continue
+        tit = str(row.get("Titulo", "") or "").strip()
+        tit_esc = html_std.escape(tit)
+        cards.append(
+            f'<div class="home-banner-card">'
+            f'<img src="{src}" alt="{tit_esc}" loading="lazy" decoding="async" />'
+            f'<div class="home-banner-title">{tit_esc}</div></div>'
+        )
+    if not cards:
+        return
+    st.markdown(
+        '<div class="home-banners-wrap"><div class="home-banners-strip" role="region" aria-label="Destaques">'
+        + "".join(cards)
+        + "</div></div>",
+        unsafe_allow_html=True,
+    )
+
+
+def gravar_nova_linha_home_banner(ordem: int, url_imagem: str, titulo: str, ativo_sim: bool) -> tuple[bool, str]:
+    try:
+        conn = st.connection("gsheets", type=GSheetsConnection)
+        df_raw = conn.read(spreadsheet=ID_GERAL, worksheet="BD Home Banners")
+        df_ex = normalizar_df_home_banners(df_raw)
+        ativo_txt = "SIM" if ativo_sim else "NÃO"
+        nova = pd.DataFrame(
+            [
+                {
+                    "Ordem": int(ordem),
+                    "URL_Imagem": url_imagem.strip(),
+                    "Titulo": titulo.strip(),
+                    "Ativo": ativo_txt,
+                }
+            ]
+        )
+        df_final = pd.concat([df_ex, nova], ignore_index=True)
+        conn.update(spreadsheet=ID_GERAL, worksheet="BD Home Banners", data=df_final)
+        return True, ""
+    except Exception as e:
+        return False, str(e)
+
+
 @st.cache_data(ttl=300, show_spinner=False)
 def carregar_dados_sistema():
     try:
         if "connections" not in st.secrets:
-            return pd.DataFrame(), pd.DataFrame(), pd.DataFrame(), pd.DataFrame(), pd.DataFrame(), dict(DEFAULT_PREMISSAS)
+            return (
+                pd.DataFrame(),
+                pd.DataFrame(),
+                pd.DataFrame(),
+                pd.DataFrame(),
+                pd.DataFrame(),
+                pd.DataFrame(),
+                dict(DEFAULT_PREMISSAS),
+            )
         conn = st.connection("gsheets", type=GSheetsConnection)
         def limpar_moeda(val): return safe_float_convert(val)
 
-        # Login removido — não lê mais BD Logins (compat.: 4.º retorno permanece DataFrame vazio)
-        df_logins = pd.DataFrame(columns=['Email', 'Senha', 'Nome', 'Cargo', 'Imobiliaria', 'Telefone'])
+        try:
+            df_logins = conn.read(spreadsheet=ID_GERAL, worksheet="BD Logins")
+            df_logins.columns = [str(c).strip() for c in df_logins.columns]
+            mapa_logins = {
+                "Imobiliária/Canal IMOB": "Imobiliaria",
+                "Cargo": "Cargo",
+                "Nome": "Nome",
+                "Email": "Email",
+                "E-mail": "Email",
+                "Escolha uma senha para o simulador": "Senha",
+                "Senha": "Senha",
+                "Número de telefone": "Telefone",
+                "Telefone": "Telefone",
+                "ADM?": "Adm",
+            }
+            df_logins = df_logins.rename(columns=mapa_logins)
+            if "Email" in df_logins.columns:
+                df_logins["Email"] = df_logins["Email"].astype(str).str.strip().str.lower()
+            if "Senha" in df_logins.columns:
+                df_logins["Senha"] = df_logins["Senha"].astype(str).str.strip()
+        except Exception:
+            df_logins = pd.DataFrame(
+                columns=["Email", "Senha", "Nome", "Cargo", "Imobiliaria", "Telefone", "Adm"]
+            )
 
         # Histórico em BD Simulações não é mais carregado na UI (gravação no resumo mantida)
         df_cadastros = pd.DataFrame()
@@ -1059,10 +1202,24 @@ def carregar_dados_sistema():
             except Exception:
                 continue
 
-        return df_finan, df_estoque, df_politicas, df_logins, df_cadastros, premissas_dict
+        try:
+            df_hb_raw = conn.read(spreadsheet=ID_GERAL, worksheet="BD Home Banners")
+            df_home_banners = normalizar_df_home_banners(df_hb_raw)
+        except Exception:
+            df_home_banners = pd.DataFrame(columns=list(_COLS_HOME_BANNERS))
+
+        return df_finan, df_estoque, df_politicas, df_logins, df_cadastros, df_home_banners, premissas_dict
     except Exception as e:
         st.error(f"Erro dados: {e}")
-        return pd.DataFrame(), pd.DataFrame(), pd.DataFrame(), pd.DataFrame(), pd.DataFrame(), dict(DEFAULT_PREMISSAS)
+        return (
+            pd.DataFrame(),
+            pd.DataFrame(),
+            pd.DataFrame(),
+            pd.DataFrame(),
+            pd.DataFrame(),
+            pd.DataFrame(),
+            dict(DEFAULT_PREMISSAS),
+        )
 
 # =============================================================================
 # 2. MOTOR E FUNÇÕES
@@ -1092,12 +1249,12 @@ class MotorRecomendacao:
         col_sub = f"Subsidio_Social_{s}_Cotista_{c}_{faixa}"
         vf = row.get(col_fin, 0.0)
         vs = row.get(col_sub, 0.0)
-        return float(vf), float(vs), faixa
+        return float(vf), subsidio_curva_efetivo(vs), faixa
 
-    def obter_quatro_combinacoes_f2(self, renda):
+    def obter_quatro_combinacoes_f2_f3_f4(self, renda):
         """
-        As 4 combinações Social×Cotista na faixa F2 (BD Financiamentos), linha = renda mais próxima.
-        Colunas: Finan_Social_{Sim|Nao}_Cotista_{Sim|Nao}_F2 e Subsidio_*_F2.
+        As 4 combinações Social×Cotista nas faixas F2, F3 e F4 (BD Financiamentos), linha = renda mais próxima.
+        Colunas: Finan_Social_{Sim|Nao}_Cotista_{Sim|Nao}_{F2|F3|F4} e Subsidio_*.
         """
         linhas = []
         meta = [
@@ -1106,6 +1263,7 @@ class MotorRecomendacao:
             (False, True, "Social não · Cotista"),
             (True, True, "Social sim · Cotista"),
         ]
+        faixas = ("F2", "F3", "F4")
 
         def _cell(row, col_name):
             v = row.get(col_name, 0.0)
@@ -1116,7 +1274,11 @@ class MotorRecomendacao:
 
         if self.df_finan.empty or "Renda" not in self.df_finan.columns:
             for social, cotista, rotulo in meta:
-                linhas.append({"social": social, "cotista": cotista, "rotulo": rotulo, "fin": 0.0, "sub": 0.0})
+                z = {"social": social, "cotista": cotista, "rotulo": rotulo}
+                for fz in faixas:
+                    z[f"fin_{fz}"] = 0.0
+                    z[f"sub_{fz}"] = 0.0
+                linhas.append(z)
             return linhas
 
         renda_col = pd.to_numeric(self.df_finan["Renda"], errors="coerce").fillna(0)
@@ -1125,9 +1287,13 @@ class MotorRecomendacao:
         for social, cotista, rotulo in meta:
             s = "Sim" if social else "Nao"
             c = "Sim" if cotista else "Nao"
-            fin = _cell(row, f"Finan_Social_{s}_Cotista_{c}_F2")
-            sub = _cell(row, f"Subsidio_Social_{s}_Cotista_{c}_F2")
-            linhas.append({"social": social, "cotista": cotista, "rotulo": rotulo, "fin": fin, "sub": sub})
+            entry = {"social": social, "cotista": cotista, "rotulo": rotulo}
+            for fz in faixas:
+                entry[f"fin_{fz}"] = _cell(row, f"Finan_Social_{s}_Cotista_{c}_{fz}")
+                entry[f"sub_{fz}"] = subsidio_curva_efetivo(
+                    _cell(row, f"Subsidio_Social_{s}_Cotista_{c}_{fz}")
+                )
+            linhas.append(entry)
         return linhas
 
     def calcular_poder_compra(self, renda, finan, fgts_sub, val_ps_limite):
@@ -1249,11 +1415,6 @@ def configurar_layout():
             70% {{ background-position: center center, 52% 78%; }}
             100% {{ background-position: center center, 12% 42%; }}
         }}
-        @keyframes simAppBgBreathe {{
-            0% {{ background-size: 100% 100%, 118% 118%; }}
-            50% {{ background-size: 100% 100%, 132% 132%; }}
-            100% {{ background-size: 100% 100%, 118% 118%; }}
-        }}
         html, body, :root, [data-testid="stApp"] {{
             color-scheme: light !important;
         }}
@@ -1292,18 +1453,18 @@ def configurar_layout():
                 rgba(4, 66, 143, 0.32) 45%,
                 rgba(2, 42, 92, 0.36) 100%
             ), url("{bg_url}") !important;
-            background-size: 100% 100%, 125% 125% !important;
-            background-position: center center, 50% 50% !important;
+            /* Gradiente em tela cheia; foto com cover = mantém proporção (sem esticar). */
+            background-size: 100% 100%, cover !important;
+            background-position: center center, center center !important;
             background-attachment: fixed !important;
             background-repeat: no-repeat !important;
-            animation: simAppBgDrift 28s ease-in-out infinite,
-                       simAppBgBreathe 22s ease-in-out infinite !important;
+            animation: simAppBgDrift 28s ease-in-out infinite !important;
         }}
         @media (prefers-reduced-motion: reduce) {{
             .stApp,
             [data-testid="stApp"] {{
                 animation: none !important;
-                background-size: cover, cover !important;
+                background-size: 100% 100%, cover !important;
                 background-position: center center, center center !important;
             }}
         }}
@@ -1649,6 +1810,54 @@ def configurar_layout():
             background-size: 200% 100%;
             animation: brandBarFlow 5s ease-in-out infinite;
         }}
+        .home-banners-wrap {{
+            width: 100vw;
+            max-width: 100%;
+            position: relative;
+            left: 50%;
+            transform: translateX(-50%);
+            margin: 0 0 1.25rem 0;
+            padding: 0 0.75rem;
+            box-sizing: border-box;
+        }}
+        .home-banners-strip {{
+            display: flex;
+            flex-direction: row;
+            flex-wrap: nowrap;
+            gap: 1rem;
+            overflow-x: auto;
+            overflow-y: hidden;
+            padding: 0.35rem 0.25rem 0.75rem;
+            scroll-snap-type: x proximity;
+            -webkit-overflow-scrolling: touch;
+        }}
+        .home-banner-card {{
+            flex: 0 0 auto;
+            width: min(200px, 72vw);
+            scroll-snap-align: start;
+            text-align: center;
+            background: rgba(255, 255, 255, 0.94);
+            border-radius: 12px;
+            padding: 10px 10px 12px;
+            box-shadow: 0 2px 12px rgba(15, 23, 42, 0.08);
+            border: 1px solid rgba(226, 232, 240, 0.95);
+        }}
+        .home-banner-card img {{
+            display: block;
+            width: 100%;
+            height: auto;
+            max-height: 110px;
+            object-fit: contain;
+            border-radius: 8px;
+            margin: 0 auto;
+        }}
+        .home-banner-title {{
+            margin-top: 8px;
+            font-size: 0.72rem;
+            font-weight: 600;
+            color: {COR_TEXTO_LABEL};
+            line-height: 1.25;
+        }}
         .header-logo-wrap {{
             display: flex;
             justify-content: center;
@@ -1906,13 +2115,15 @@ def gerar_resumo_pdf(d):
         linha("Sistema de Amortização", f"{d.get('sistema_amortizacao', 'SAC')} - {prazo}x")
         linha("Parcela Estimada do Financiamento", f"R$ {fmt_br(d.get('parcela_financiamento', 0))}")
         linha("Subsídio + FGTS Utilizado", f"R$ {fmt_br(d.get('fgts_sub_usado', 0))}")
-        linha("Pro Soluto Direcional", f"R$ {fmt_br(d.get('ps_usado', 0))}")
-        linha("Mensalidade do Pro Soluto", f"{d.get('ps_parcelas')}x de R$ {fmt_br(d.get('ps_mensal', 0))}")
 
         pdf.ln(4)
 
-        secao("FLUXO DE ENTRADA (ATO)")
-        linha("Valor Total de Entrada", f"R$ {fmt_br(d.get('entrada_total', 0))}", True)
+        secao("FLUXO DE ENTRADA (ATO E PRO SOLUTO)")
+        linha("Pro Soluto (parte da entrada)", f"R$ {fmt_br(d.get('ps_usado', 0))}")
+        linha("Mensalidade do Pro Soluto", f"{d.get('ps_parcelas')}x de R$ {fmt_br(d.get('ps_mensal', 0))}")
+        _ent_ps = float(d.get('entrada_total', 0) or 0) + float(d.get('ps_usado', 0) or 0)
+        linha("Valor Total de Entrada (atos)", f"R$ {fmt_br(d.get('entrada_total', 0))}")
+        linha("Entrada total (atos + Pro Soluto)", f"R$ {fmt_br(_ent_ps)}", True)
         linha("Ato (Imediato)", f"R$ {fmt_br(d.get('ato_final', 0))}")
         linha("Ato 30 Dias", f"R$ {fmt_br(d.get('ato_30', 0))}")
         linha("Ato 60 Dias", f"R$ {fmt_br(d.get('ato_60', 0))}")
@@ -2176,6 +2387,45 @@ def enviar_email_smtp(destinatario, nome_cliente, pdf_bytes, dados_cliente, tipo
         return False, "Erro de Autenticacao (535). Verifique Senha de App."
     except Exception as e: return False, f"Erro envio: {e}"
 
+
+def tela_login(df_logins: pd.DataFrame) -> None:
+    c1, c2, c3 = st.columns([1, 1.5, 1])
+    with c2:
+        st.markdown("<br><br><h3 style='text-align:center;'>Acesso ao simulador</h3>", unsafe_allow_html=True)
+        st.caption("Utilize o e-mail e a senha cadastrados na planilha BD Logins.")
+        with st.form("login_form"):
+            email = st.text_input("E-mail", key="login_email")
+            senha = st.text_input("Senha", type="password", key="login_pass")
+            st.markdown("<br>", unsafe_allow_html=True)
+            submitted = st.form_submit_button("Entrar", type="primary", use_container_width=True)
+
+        if submitted:
+            if df_logins.empty:
+                st.error("Base de usuários vazia ou indisponível. Verifique a conexão com a planilha.")
+            else:
+                em = email.strip().lower()
+                user = df_logins[
+                    (df_logins["Email"] == em) & (df_logins["Senha"] == senha.strip())
+                ]
+                if not user.empty:
+                    data = user.iloc[0]
+                    st.session_state.update(
+                        {
+                            "logged_in": True,
+                            "user_email": em,
+                            "user_name": str(data.get("Nome", "")).strip(),
+                            "user_imobiliaria": str(data.get("Imobiliaria", "Geral")).strip(),
+                            "user_cargo": str(data.get("Cargo", "")).strip(),
+                            "user_phone": str(data.get("Telefone", "")).strip(),
+                            "user_is_adm": login_row_is_adm(data),
+                        }
+                    )
+                    st.success("Login realizado.")
+                    st.rerun()
+                else:
+                    st.error("Credenciais inválidas.")
+
+
 @st.dialog("Opções de Exportação")
 def show_export_dialog(d):
     # Alterado para text-align: center para alinhar com o tema
@@ -2210,7 +2460,13 @@ def show_export_dialog(d):
 # APLICAÇÃO PRINCIPAL
 # =============================================================================
 
-def aba_simulador_automacao(df_finan, df_estoque, df_politicas, premissas_dict=None):
+def aba_simulador_automacao(
+    df_finan,
+    df_estoque,
+    df_politicas,
+    premissas_dict=None,
+    df_home_banners: pd.DataFrame | None = None,
+):
     if st.session_state.get("passo_simulacao") in (
         "input",
         "fechamento_aprovado",
@@ -2237,7 +2493,46 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, premissas_dict=N
             '<div class="header-brand-bar-wrap"><div class="header-brand-bar" aria-hidden="true"></div></div>',
             unsafe_allow_html=True,
         )
-        
+        render_faixa_home_banners(df_home_banners if df_home_banners is not None else pd.DataFrame())
+        if st.session_state.get("user_is_adm"):
+            with st.expander("Banners da home (administrador — BD Home Banners)", expanded=False):
+                st.caption(
+                    "Inclua o link **https** da imagem (ex.: Postimages). "
+                    "A planilha usa as colunas: Ordem, URL_Imagem, Titulo, Ativo (SIM/NÃO)."
+                )
+                with st.form("form_novo_home_banner"):
+                    c1, c2 = st.columns(2)
+                    with c1:
+                        bn_ordem = st.number_input("Ordem", min_value=1, max_value=999, value=1, step=1)
+                    with c2:
+                        bn_ativo = st.selectbox("Ativo", ["SIM", "NÃO"], index=0)
+                    bn_url = st.text_input(
+                        "URL_Imagem",
+                        placeholder="https://i.postimg.cc/...",
+                    )
+                    bn_titulo = st.text_input("Titulo", placeholder="Texto abaixo da imagem")
+                    enviar_bn = st.form_submit_button("Gravar nova linha na BD Home Banners", type="primary")
+                if enviar_bn:
+                    url_t = (bn_url or "").strip()
+                    ativo_sim = str(bn_ativo or "").strip().upper() == "SIM"
+                    if not url_t.startswith("https://"):
+                        st.error("A URL da imagem deve começar com https:// (use o link direto do Postimages).")
+                    elif not (bn_titulo or "").strip():
+                        st.error("Informe o título (legenda).")
+                    else:
+                        ok, err = gravar_nova_linha_home_banner(
+                            int(bn_ordem),
+                            url_t,
+                            bn_titulo.strip(),
+                            ativo_sim,
+                        )
+                        if ok:
+                            st.cache_data.clear()
+                            st.success("Banner gravado na planilha. Recarregando…")
+                            st.rerun()
+                        else:
+                            st.error(f"Não foi possível gravar: {err}")
+
     # --- ABA ANALYTICS (SECURE TAB - ALTAIR) ---
     if passo == 'client_analytics':
         d = st.session_state.dados_cliente
@@ -2550,31 +2845,59 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, premissas_dict=N
         st.markdown("<p style='text-align: center; color: #64748b; font-size: 0.9rem;'>Preencha os valores aprovados de financiamento e subsídio. As recomendações usarão esses valores reais.</p>", unsafe_allow_html=True)
 
         renda_cli = float(d.get("renda", 0) or 0)
-        _quatro_f2 = motor.obter_quatro_combinacoes_f2(renda_cli)
-        _rotulos_cen = [x["rotulo"] for x in _quatro_f2]
+        _matriz_bd = motor.obter_quatro_combinacoes_f2_f3_f4(renda_cli)
+        _rotulos_cen = [x["rotulo"] for x in _matriz_bd]
         _ix_cen = 2
-        for i, rowq in enumerate(_quatro_f2):
+        for i, rowq in enumerate(_matriz_bd):
             if rowq["social"] == bool(d.get("social", False)) and rowq["cotista"] == bool(d.get("cotista", True)):
                 _ix_cen = i
                 break
+        def _sim_nao(v):
+            return "Sim" if v else "Não"
+
         _tbl_rows = "".join(
-            f"<tr><td style='padding:8px 12px;text-align:left;border-bottom:1px solid #e2e8f0;color:#334155;'>{html_std.escape(it['rotulo'])}</td>"
-            f"<td style='padding:8px 12px;text-align:right;border-bottom:1px solid #e2e8f0;color:#0f172a;'>R$ {fmt_br(it['fin'])}</td>"
-            f"<td style='padding:8px 12px;text-align:right;border-bottom:1px solid #e2e8f0;color:#0f172a;'>R$ {fmt_br(it['sub'])}</td></tr>"
-            for it in _quatro_f2
+            f"<tr>"
+            f"<td style='padding:8px 10px;text-align:left;border-bottom:1px solid #e2e8f0;color:#334155;white-space:nowrap;'>{html_std.escape(it['rotulo'])}</td>"
+            f"<td style='padding:8px 10px;text-align:center;border-bottom:1px solid #e2e8f0;color:#334155;font-weight:600;'>{_sim_nao(it['social'])}</td>"
+            f"<td style='padding:8px 10px;text-align:center;border-bottom:1px solid #e2e8f0;color:#334155;font-weight:600;'>{_sim_nao(it['cotista'])}</td>"
+            f"<td style='padding:8px 8px;text-align:right;border-bottom:1px solid #e2e8f0;color:#0f172a;'>R$ {fmt_br(it['fin_F2'])}</td>"
+            f"<td style='padding:8px 8px;text-align:right;border-bottom:1px solid #e2e8f0;color:#0f172a;'>R$ {fmt_br(it['sub_F2'])}</td>"
+            f"<td style='padding:8px 8px;text-align:right;border-bottom:1px solid #e2e8f0;color:#0f172a;'>R$ {fmt_br(it['fin_F3'])}</td>"
+            f"<td style='padding:8px 8px;text-align:right;border-bottom:1px solid #e2e8f0;color:#0f172a;'>R$ {fmt_br(it['sub_F3'])}</td>"
+            f"<td style='padding:8px 8px;text-align:right;border-bottom:1px solid #e2e8f0;color:#0f172a;'>R$ {fmt_br(it['fin_F4'])}</td>"
+            f"<td style='padding:8px 8px;text-align:right;border-bottom:1px solid #e2e8f0;color:#0f172a;'>R$ {fmt_br(it['sub_F4'])}</td>"
+            f"</tr>"
+            for it in _matriz_bd
         )
         st.markdown(
-            f"""<div style="max-width: 640px; margin: 0.5rem auto 1rem; overflow-x: auto;">
-<table style="width:100%; border-collapse: collapse; font-size: 0.82rem; color: #64748b;">
-<caption style="caption-side: top; padding-bottom: 8px; font-weight: 700; color: {COR_AZUL_ESC}; text-align: center;">BD Financiamentos — Faixa 2 (todas as combinações)</caption>
-<thead><tr>
-<th style="text-align:left;padding:8px 12px;border-bottom:2px solid #cbd5e1;">Combinação</th>
-<th style="text-align:right;padding:8px 12px;border-bottom:2px solid #cbd5e1;">Financiamento</th>
-<th style="text-align:right;padding:8px 12px;border-bottom:2px solid #cbd5e1;">Subsídio</th>
-</tr></thead>
+            f"""<div style="max-width: min(1180px, 100%); margin: 0.5rem auto 1rem; overflow-x: auto;">
+<table style="width:100%; border-collapse: collapse; font-size: 0.78rem; color: #64748b;">
+<caption style="caption-side: top; padding-bottom: 8px; font-weight: 700; color: {COR_AZUL_ESC}; text-align: center;">BD Financiamentos — Faixas 2, 3 e 4 (todas as combinações)</caption>
+<thead>
+<tr>
+<th rowspan="2" style="text-align:left;vertical-align:middle;padding:8px 10px;border-bottom:2px solid #cbd5e1;">Combinação</th>
+<th rowspan="2" style="text-align:center;vertical-align:middle;padding:8px 10px;border-bottom:2px solid #cbd5e1;">Fator Social</th>
+<th rowspan="2" style="text-align:center;vertical-align:middle;padding:8px 10px;border-bottom:2px solid #cbd5e1;">Cotista FGTS</th>
+<th colspan="2" style="text-align:center;padding:6px 8px;border-bottom:1px solid #cbd5e1;">Faixa 2</th>
+<th colspan="2" style="text-align:center;padding:6px 8px;border-bottom:1px solid #cbd5e1;">Faixa 3</th>
+<th colspan="2" style="text-align:center;padding:6px 8px;border-bottom:1px solid #cbd5e1;">Faixa 4</th>
+</tr>
+<tr>
+<th style="text-align:right;padding:6px 8px;border-bottom:2px solid #cbd5e1;">Fin.</th>
+<th style="text-align:right;padding:6px 8px;border-bottom:2px solid #cbd5e1;">Sub.</th>
+<th style="text-align:right;padding:6px 8px;border-bottom:2px solid #cbd5e1;">Fin.</th>
+<th style="text-align:right;padding:6px 8px;border-bottom:2px solid #cbd5e1;">Sub.</th>
+<th style="text-align:right;padding:6px 8px;border-bottom:2px solid #cbd5e1;">Fin.</th>
+<th style="text-align:right;padding:6px 8px;border-bottom:2px solid #cbd5e1;">Sub.</th>
+</tr>
+</thead>
 <tbody>{_tbl_rows}</tbody>
 </table></div>""",
             unsafe_allow_html=True,
+        )
+        st.caption(
+            f"Subsídios da curva inferiores a R$ {fmt_br(SUBSIDIO_MINIMO_CURVA)} são desconsiderados "
+            "(tratados como R$ 0,00), alinhado à regra da planilha comercial."
         )
         _cen_esc = st.selectbox(
             "Cenário para teto da curva (F2/F3/F4 na BD)",
@@ -2582,7 +2905,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, premissas_dict=N
             index=_ix_cen,
             key="cenario_soc_cotista_curva_v1",
         )
-        _m = next((x for x in _quatro_f2 if x["rotulo"] == _cen_esc), _quatro_f2[2])
+        _m = next((x for x in _matriz_bd if x["rotulo"] == _cen_esc), _matriz_bd[2])
         social_cli = _m["social"]
         cotista_cli = _m["cotista"]
         st.session_state.dados_cliente["social"] = social_cli
@@ -2614,7 +2937,6 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, premissas_dict=N
         st.text_input("Financiamento Aprovado (R$)", key="fin_aprovado_key", placeholder="Ex.: 250000 ou 250.000,00")
         f_u = clamp_moeda_positiva(texto_moeda_para_float(st.session_state.get("fin_aprovado_key")), fin_max if fin_max > 0 else None)
         st.session_state.dados_cliente['finan_usado'] = f_u
-        st.markdown(f'<div class="inline-ref" style="background-color: transparent; padding: 0; font-family: inherit; font-size: 0.72rem; color: {COR_AZUL_ESC}; margin-top: -12px; margin-bottom: 15px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; display: block; opacity: 0.9;">Financiamento Máximo (curva): R$ {fmt_br(fin_max)}</div>', unsafe_allow_html=True)
 
         fgts_max = max(0.0, float(d.get("sub_f_ref", 0) or 0))
         sub_default = clamp_moeda_positiva(_num_f('fgts_sub_usado', 0.0), fgts_max if fgts_max > 0 else None)
@@ -2628,7 +2950,6 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, premissas_dict=N
         st.text_input("Subsídio Aprovado / FGTS + Subsídio (R$)", key="sub_aprovado_key", placeholder="Ex.: 50000 ou 50.000,00")
         s_u = clamp_moeda_positiva(texto_moeda_para_float(st.session_state.get("sub_aprovado_key")), fgts_max if fgts_max > 0 else None)
         st.session_state.dados_cliente['fgts_sub_usado'] = s_u
-        st.markdown(f'<div class="inline-ref" style="background-color: transparent; padding: 0; font-family: inherit; font-size: 0.72rem; color: {COR_AZUL_ESC}; margin-top: -12px; margin-bottom: 15px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; display: block; opacity: 0.9;">Subsídio Máximo (curva): R$ {fmt_br(fgts_max)}</div>', unsafe_allow_html=True)
 
         prazo_atual = d.get('prazo_financiamento', 360)
         try: prazo_atual = int(prazo_atual) if prazo_atual is not None else 360
@@ -2833,40 +3154,16 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, premissas_dict=N
                         'unid_bairro': u_row.get('Bairro', ''),
                         'volta_caixa_ref': u_row.get('Volta_Caixa_Ref', 0.0),
                     })
-                    # Usar valores reais do fechamento (2ª aba)
-                    fin_t = float(d.get('finan_usado', 0) or 0)
-                    sub_t = float(d.get('fgts_sub_usado', 0) or 0)
-                    # SELEÇÃO DO PRO SOLUTO POR COLUNA
                     pol = d.get('politica', 'Direcional')
-                    rank = d.get('ranking', 'DIAMANTE')
-                    
-                    ps_max_val = 0.0
-                    if pol == 'Emcash':
-                        ps_max_val = u_row.get('PS_EmCash', 0.0)
-                    else:
-                        col_rank = f"PS_{rank.title()}" if rank else 'PS_Diamante'
-                        if rank == 'AÇO': col_rank = 'PS_Aco'
-                        ps_max_val = u_row.get(col_rank, 0.0)
-
-                    # Definir limite de parcelas
                     prazo_max_ps = 66 if pol == 'Emcash' else 84
                     st.session_state.dados_cliente['prazo_ps_max'] = prazo_max_ps
 
-                    poder_t, _ = motor.calcular_poder_compra(d.get('renda', 0), fin_t, sub_t, ps_max_val)
-                    valor_para_termo = v_venda_unid
-                    percentual_cobertura = min(100, max(0, (poder_t / valor_para_termo) * 100)) if valor_para_termo > 0 else 0
                     st.markdown(f"""
                         <div style="margin-top: 20px; padding: 15px; border: 1px solid #e2e8f0; border-radius: 10px; background-color: #f8fafc; text-align: center;">
-                            <div style="display: flex; justify-content: space-around; margin-bottom: 10px; font-size: 0.9rem;">
+                            <div style="display: flex; justify-content: space-around; font-size: 0.9rem;">
                                 <div><b>Valor de Avaliação:</b><br>R$ {fmt_br(v_aval)}</div>
-                                <div><b>Valor de venda (unidade):</b><br>R$ {fmt_br(valor_para_termo)}</div>
+                                <div><b>Valor de venda (unidade):</b><br>R$ {fmt_br(v_venda_unid)}</div>
                             </div>
-                            <hr style="margin: 10px 0; border: 0; border-top: 1px solid #e2e8f0;">
-                            <p style="margin: 0; font-weight: 700; font-size: 0.9rem; color: #002c5d;">TERMÔMETRO DE VIABILIDADE</p>
-                            <div style="width: 100%; background-color: #e2e8f0; border-radius: 5px; height: 10px; margin: 10px 0;">
-                                <div style="width: {percentual_cobertura}%; background: linear-gradient(90deg, #e30613 0%, #002c5d 100%); height: 100%; border-radius: 5px; transition: width 0.5s;"></div>
-                            </div>
-                            <small>{percentual_cobertura:.1f}% Coberto</small>
                         </div>
                     """, unsafe_allow_html=True)
 
@@ -3024,6 +3321,32 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, premissas_dict=N
             st.session_state['ato_3_key'] = float_para_campo_texto(r3s, vazio_se_zero=True)
             st.session_state['ato_4_key'] = float_para_campo_texto(r4s, vazio_se_zero=True) if not is_emcash else ""
 
+        _opts_ps_btn = []
+        if ps_limite_ui > 0:
+            _opts_ps_btn.append(ps_limite_ui)
+        if u_valor > 0:
+            _opts_ps_btn.append(max(0.0, u_valor - f_u_input - fgts_u_input))
+        _teto_ps_btn = min(_opts_ps_btn) if _opts_ps_btn else 0.0
+        st.session_state["_ps_teto_para_botao"] = float(_teto_ps_btn or 0)
+
+        def _preencher_ps_restante() -> None:
+            du = st.session_state.dados_cliente
+            uv = float(du.get("imovel_valor", 0) or 0)
+            fi = float(du.get("finan_usado", 0) or 0)
+            su = float(du.get("fgts_sub_usado", 0) or 0)
+            em = du.get("politica") == "Emcash"
+            a1 = max(0.0, texto_moeda_para_float(st.session_state.get("ato_1_key")))
+            a2 = max(0.0, texto_moeda_para_float(st.session_state.get("ato_2_key")))
+            a3 = max(0.0, texto_moeda_para_float(st.session_state.get("ato_3_key")))
+            a4 = 0.0 if em else max(0.0, texto_moeda_para_float(st.session_state.get("ato_4_key")))
+            vc_ref_b = float(du.get("volta_caixa_ref", 0) or 0)
+            vcr_b = texto_moeda_para_float(st.session_state.get("volta_caixa_key"))
+            vc_use_b = max(0.0, min(vcr_b, vc_ref_b)) if vc_ref_b > 0 else max(0.0, vcr_b)
+            gap = max(0.0, uv - fi - su - a1 - a2 - a3 - a4 - vc_use_b)
+            teto_b = float(st.session_state.get("_ps_teto_para_botao", 0) or 0)
+            novo = min(gap, teto_b) if teto_b > 0 else gap
+            st.session_state["ps_u_key"] = float_para_campo_texto(novo, vazio_se_zero=True)
+
         st.markdown("#### Distribuição da Entrada (Saldo a Pagar)")
 
         # --- Ato 1 (Imediato): só key + session_state (evita conflito value/key) ---
@@ -3106,18 +3429,29 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, premissas_dict=N
             st.session_state.dados_cliente['ps_usado'] = ps_input_val
             ref_text_ps = f"Limite máximo de Pro Soluto: R$ {fmt_br(ps_limite_ui)}"
             st.markdown(f'<div class="inline-ref" style="background-color: transparent; padding: 0; font-family: inherit; font-size: 0.72rem; color: {COR_AZUL_ESC}; margin-top: -12px; margin-bottom: 15px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; display: block; opacity: 0.9;">{ref_text_ps}</div>', unsafe_allow_html=True)
+            _lim_renda = float(d.get("limit_ps_renda", 0.30) or 0.30)
             st.caption(
-                f"Parcela máxima: "
-                f"R$ {fmt_br(mps.get('parcela_max_g14', 0))}"
+                f"Parcela máxima (comparador J8 — comprometimento da renda após fator λ −{int(OFFSET_LAMBDA * 100)}%): "
+                f"R$ {fmt_br(mps.get('parcela_max_j8', 0))}. "
+                f"Referência de linha (G14): R$ {fmt_br(mps.get('parcela_max_g14', 0))}. "
+                f"Teto de política em relação à renda: até ~{_lim_renda * 100:.0f}% (parâmetro K3 da classificação)."
             )
-            
+
         with col_ps_parc:
             st.text_input("Parcelas Pro Soluto", key="parc_ps_key", placeholder=f"1 a {parc_max_ui}")
             _parc_i = texto_inteiro(st.session_state.get("parc_ps_key"), default=1, min_v=1, max_v=parc_max_ui)
             parc = _parc_i if _parc_i is not None else 1
             st.session_state.dados_cliente['ps_parcelas'] = parc
             st.markdown(f'<span class="inline-ref">Prazo máx. parcelas: {parc_max_ui} meses</span>', unsafe_allow_html=True)
-        
+
+        st.button(
+            "Preencher valor restante no Pro Soluto",
+            key="btn_ps_preencher_restante",
+            use_container_width=True,
+            on_click=_preencher_ps_restante,
+            help="Usa o saldo ainda não coberto (valor da unidade − financiamento − FGTS/subsídio − atos − volta ao caixa), limitado ao teto de Pro Soluto.",
+        )
+
         v_parc = parcela_ps_para_valor(
             float(ps_input_val or 0),
             parc,
@@ -3198,9 +3532,10 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, premissas_dict=N
         st.markdown(f'<div class="summary-header">PLANO DE FINANCIAMENTO</div>', unsafe_allow_html=True)
         prazo_txt = d.get('prazo_financiamento', 360)
         parcela_texto = f"Parcela Estimada ({d.get('sistema_amortizacao', 'SAC')} - {prazo_txt}x): R$ {fmt_br(d.get('parcela_financiamento', 0))}"
-        st.markdown(f"""<div class="summary-body"><b>Financiamento Bancário:</b> R$ {fmt_br(d.get('finan_usado', 0))}<br><b>{parcela_texto}</b><br><b>FGTS + Subsídio:</b> R$ {fmt_br(d.get('fgts_sub_usado', 0))}<br><b>Pro Soluto Total:</b> R$ {fmt_br(d.get('ps_usado', 0))} ({d.get('ps_parcelas')}x de R$ {fmt_br(d.get('ps_mensal', 0))})</div>""", unsafe_allow_html=True)
-        st.markdown(f'<div class="summary-header">FLUXO DE ENTRADA (ATO)</div>', unsafe_allow_html=True)
-        st.markdown(f"""<div class="summary-body"><b>Total de Entrada:</b> R$ {fmt_br(d.get('entrada_total', 0))}<br><hr style="border: 0; border-top: 1px solid #e2e8f0; margin: 10px 0;"><b>Ato:</b> R$ {fmt_br(d.get('ato_final', 0))}<br><b>Ato 30 Dias:</b> R$ {fmt_br(d.get('ato_30', 0))}<br><b>Ato 60 Dias:</b> R$ {fmt_br(d.get('ato_60', 0))}<br><b>Ato 90 Dias:</b> R$ {fmt_br(d.get('ato_90', 0))}</div>""", unsafe_allow_html=True)
+        st.markdown(f"""<div class="summary-body"><b>Financiamento Bancário:</b> R$ {fmt_br(d.get('finan_usado', 0))}<br><b>{parcela_texto}</b><br><b>FGTS + Subsídio:</b> R$ {fmt_br(d.get('fgts_sub_usado', 0))}</div>""", unsafe_allow_html=True)
+        _ent_resumo = float(d.get('entrada_total', 0) or 0) + float(d.get('ps_usado', 0) or 0)
+        st.markdown(f'<div class="summary-header">FLUXO DE ENTRADA (ATO E PRO SOLUTO)</div>', unsafe_allow_html=True)
+        st.markdown(f"""<div class="summary-body"><b>Pro Soluto (parte da entrada):</b> R$ {fmt_br(d.get('ps_usado', 0))} — {d.get('ps_parcelas')}× de R$ {fmt_br(d.get('ps_mensal', 0))}<br><hr style="border: 0; border-top: 1px solid #e2e8f0; margin: 10px 0;"><b>Total em atos (imediato + parcelados):</b> R$ {fmt_br(d.get('entrada_total', 0))}<br><b>Ato imediato:</b> R$ {fmt_br(d.get('ato_final', 0))}<br><b>Ato 30 Dias:</b> R$ {fmt_br(d.get('ato_30', 0))}<br><b>Ato 60 Dias:</b> R$ {fmt_br(d.get('ato_60', 0))}<br><b>Ato 90 Dias:</b> R$ {fmt_br(d.get('ato_90', 0))}<br><hr style="border: 0; border-top: 1px solid #e2e8f0; margin: 10px 0;"><b>Entrada total (atos + Pro Soluto):</b> R$ {fmt_br(_ent_resumo)}</div>""", unsafe_allow_html=True)
         st.markdown("---")
         if st.button("Opções de Resumo (PDF / E-mail)", use_container_width=True): show_export_dialog(d)
         st.markdown("---")
@@ -3255,10 +3590,22 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, premissas_dict=N
             scroll_to_top()
             st.rerun()
 
+    st.markdown("<br><br>", unsafe_allow_html=True)
+    st.markdown('<div data-btn-azul style="display:none" aria-hidden="true"></div>', unsafe_allow_html=True)
+    if st.button("Sair do sistema", key="btn_logout_bottom", use_container_width=True):
+        st.session_state["logged_in"] = False
+        st.session_state["user_is_adm"] = False
+        st.rerun()
+
 def main():
     configurar_layout()
     inject_enter_confirma_campo()
-    df_finan, df_estoque, df_politicas, _df_logins, _df_cad_hist, premissas_dict = carregar_dados_sistema()
+    df_finan, df_estoque, df_politicas, df_logins, _df_cad_hist, df_home_banners, premissas_dict = (
+        carregar_dados_sistema()
+    )
+    if "logged_in" not in st.session_state:
+        st.session_state["logged_in"] = False
+
     logo_src = html_std.escape(_src_logo_topo_header(), quote=True)
     st.markdown(
         f'''<header class="header-container" role="banner">
@@ -3270,7 +3617,12 @@ def main():
         unsafe_allow_html=True,
     )
 
-    aba_simulador_automacao(df_finan, df_estoque, df_politicas, premissas_dict)
+    if not st.session_state["logged_in"]:
+        tela_login(df_logins)
+    else:
+        aba_simulador_automacao(
+            df_finan, df_estoque, df_politicas, premissas_dict, df_home_banners=df_home_banners
+        )
 
     st.markdown(f'<div class="footer">Direcional Engenharia - Rio de Janeiro | Developed by Lucas Maia</div>', unsafe_allow_html=True)
 
