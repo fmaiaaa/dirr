@@ -2286,6 +2286,41 @@ def configurar_layout():
             color: #ffffff !important;
             box-shadow: 0 4px 14px rgba(37, 211, 102, 0.45) !important;
         }}
+        /* Reforço no st.dialog: Streamlit às vezes aplica cores invertidas no link_button */
+        div[data-baseweb="modal"]:has([data-testid="stDialog"]) a[data-testid="stLinkButton"][href*="api.whatsapp.com"],
+        div[data-baseweb="modal"]:has([data-testid="stDialog"]) a[data-testid="stLinkButton"][href*="whatsapp.com"] {{
+            display: flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+            width: 100% !important;
+            box-sizing: border-box !important;
+            min-height: 48px !important;
+            padding: 0.65rem 1.15rem !important;
+            border-radius: 8px !important;
+            background: #25d366 !important;
+            background-color: #25d366 !important;
+            background-image: none !important;
+            color: #ffffff !important;
+            -webkit-text-fill-color: #ffffff !important;
+            font-weight: 700 !important;
+            text-decoration: none !important;
+            border: none !important;
+            box-shadow: 0 2px 8px rgba(37, 211, 102, 0.35) !important;
+        }}
+        div[data-baseweb="modal"]:has([data-testid="stDialog"]) a[data-testid="stLinkButton"][href*="api.whatsapp.com"] *,
+        div[data-baseweb="modal"]:has([data-testid="stDialog"]) a[data-testid="stLinkButton"][href*="whatsapp.com"] * {{
+            color: #ffffff !important;
+            -webkit-text-fill-color: #ffffff !important;
+        }}
+        div[data-baseweb="modal"]:has([data-testid="stDialog"]) a[data-testid="stLinkButton"][href*="api.whatsapp.com"]:hover,
+        div[data-baseweb="modal"]:has([data-testid="stDialog"]) a[data-testid="stLinkButton"][href*="whatsapp.com"]:hover {{
+            background: #20bd5a !important;
+            background-color: #20bd5a !important;
+            background-image: none !important;
+            color: #ffffff !important;
+            -webkit-text-fill-color: #ffffff !important;
+            box-shadow: 0 4px 14px rgba(37, 211, 102, 0.45) !important;
+        }}
         /* st.dialog (Base Web): fundo escuro semitransparente em TODA a viewport, não só atrás da caixa */
         div[data-baseweb="modal"]:has([data-testid="stDialog"]) {{
             position: fixed !important;
@@ -3217,7 +3252,7 @@ def show_export_dialog(d):
         unsafe_allow_html=True,
     )
     st.markdown(f"<h3 style='text-align: center; color: {COR_AZUL_ESC}; margin: 0;'>Resumo da Simulação</h3>", unsafe_allow_html=True)
-    st.caption("Baixe o PDF, envie o relatório por e-mail ao cliente ou abra o WhatsApp com o texto do resumo.")
+    st.caption("Baixe o PDF, envie o relatório por e-mail ao cliente ou abra o WhatsApp.")
 
     d["corretor_nome"] = st.session_state.get("user_name", "")
     d["corretor_email"] = st.session_state.get("user_email", "")
@@ -3258,18 +3293,12 @@ def show_export_dialog(d):
             st.error("E-mail inválido")
 
     st.markdown("---")
-    st.markdown("**3. WhatsApp**")
-    st.caption(
-        "Texto padrão gerado pelo simulador. Negrito (*texto*) e tópicos funcionam ao colar no WhatsApp."
-    )
     _wa_msg = montar_mensagem_whatsapp_resumo(
         d,
         volta_caixa_val=_vc_dialog,
         nome_consultor=st.session_state.get("user_name", "") or "",
         canal_imobiliaria=st.session_state.get("user_imobiliaria", "") or "",
     )
-    st.markdown("**Texto da mensagem**")
-    st.text(_wa_msg)
     _wa_link = _url_whatsapp_enviar_texto(_wa_msg)
     _wa_link_max = 6000
     if len(_wa_link) <= _wa_link_max:
@@ -3280,8 +3309,9 @@ def show_export_dialog(d):
             type="secondary",
         )
     else:
-        st.info(
-            "O link automático ficou grande demais para o navegador. Copie o texto na caixa acima e cole no WhatsApp."
+        st.warning(
+            "A mensagem ficou grande demais para abrir pelo link automático do WhatsApp. "
+            "Use o envio por e-mail ou o PDF neste mesmo painel."
         )
 
 # =============================================================================
