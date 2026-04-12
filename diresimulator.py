@@ -207,12 +207,6 @@ def resolve_politica_row(
         return fb
     return rows[0]
 
-
-def classificacao_efetiva(politica_ui: str, ranking: str) -> str:
-    if str(politica_ui or "").strip().lower() == "emcash":
-        return "EMCASH"
-    return _norm_key(ranking or "DIAMANTE")
-
 # ========================================================================
 # data/premissas.py
 # ========================================================================
@@ -450,19 +444,7 @@ def parcela_ps_para_valor(
 # ========================================================================
 
 # -*- coding: utf-8 -*-
-from typing import Any, Dict, Mapping, Optional
-
-
-
-def valor_ps_ajustado_comparador(ps_total: float) -> float:
-    """
-    COMPARADOR TX EMCASH!B3:
-    IF(B41=0,0.99, B41 + B41*((1+0.5%)^4-1))
-    """
-    if ps_total is None or float(ps_total) == 0.0:
-        return 0.99
-    b41 = float(ps_total)
-    return b41 + b41 * ((1.005) ** 4 - 1.0)
+from typing import Any, Mapping, Optional
 
 
 def _politica_emcash(politica: Any) -> bool:
@@ -497,50 +479,12 @@ def resolver_taxa_financiamento_anual_pct(
     dados_cliente: Mapping[str, Any],
     premissas: Optional[Mapping[str, float]] = None,
 ) -> float:
-    """
-    Taxa anual em % compatível com calcular_parcela_financiamento /
-    calcular_fluxo_pagamento_detalhado / calcular_comparativo_sac_price.
-    """
+    """Taxa anual em % compatível com calcular_parcela_financiamento e calcular_comparativo_sac_price."""
     i_m = taxa_mensal_financiamento_imobiliario(
         dados_cliente.get("politica", ""),
         premissas,
     )
     return taxa_anual_pct_equivalente(i_m)
-
-
-def parcela_ps_emcash_pmt(
-    valor_ps: float,
-    prazo_meses: int,
-    premissas: Optional[Mapping[str, float]] = None,
-) -> float:
-    """
-    Espelha COMPARADOR!I5: (PMT(E2, CF2, B41)*-1)*(1+E1)
-    Delega a pro_soluto_comparador.parcela_ps_pmt (Emcash).
-    """
-
-    return parcela_ps_pmt(valor_ps, prazo_meses, premissas, "Emcash")
-
-
-def metricas_comparador_tx(
-    dados_cliente: Mapping[str, Any],
-    premissas: Optional[Mapping[str, float]] = None,
-) -> Dict[str, float]:
-    """Resumo para debug / UI: taxas e ajustes usados no ramo Emcash."""
-    p = dict(DEFAULT_PREMISSAS)
-    if premissas:
-        p.update({k: float(v) for k, v in premissas.items() if v is not None})
-    e4 = excel_e4_mensal(p["ipca_aa"])
-    e1 = excel_e1(p["tx_emcash_b5"], e4)
-    i_m = taxa_mensal_financiamento_imobiliario(
-        dados_cliente.get("politica", ""), p
-    )
-    return {
-        "taxa_mensal_fin_imv": i_m,
-        "taxa_anual_fin_imv_pct": taxa_anual_pct_equivalente(i_m),
-        "e1_comparador": e1,
-        "e4_ipca_mensal": e4,
-        "emcash_fin_mensal": float(p["emcash_fin_m"]),
-    }
 
 # ========================================================================
 # app.py
@@ -550,10 +494,8 @@ def metricas_comparador_tx(
 
 import streamlit as st
 import pandas as pd
-import numpy as np
 import re
 from streamlit_gsheets import GSheetsConnection
-import streamlit.components.v1 as components
 import base64
 from datetime import datetime, date
 import time
@@ -563,14 +505,9 @@ from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from email.mime.application import MIMEApplication
 import os
-import json
 from pathlib import Path
 import pytz
 import altair as alt
-import folium
-from streamlit_folium import st_folium
-import math
-import json
 import urllib.parse
 import html as html_std
 
@@ -597,7 +534,7 @@ except:
         pass
 
 # =============================================================================
-# 0. UTILITÁRIOS (catálogo/galeria de empreendimentos removidos)
+# 0. UTILITÁRIOS
 # =============================================================================
 
 
@@ -607,49 +544,6 @@ def fmt_br(valor):
     except:
         return "0,00"
 
-def limpar_cpf_visual(valor):
-    if pd.isnull(valor) or valor == "": return ""
-    v_str = str(valor).strip()
-    # Remove decimal se existir
-    if v_str.endswith('.0'): v_str = v_str[:-2]
-    v_nums = re.sub(r'\D', '', v_str)
-    # Garante 11 digitos preenchendo zeros a esquerda
-    if v_nums: return v_nums.zfill(11)
-    return ""
-
-def formatar_cpf_saida(valor):
-    v = limpar_cpf_visual(valor)
-    if len(v) == 11:
-        return f"{v[:3]}.{v[3:6]}.{v[6:9]}-{v[9:]}"
-    return v
-
-def validar_cpf(cpf):
-    cpf = re.sub(r'\D', '', str(cpf))
-    if len(cpf) != 11 or len(set(cpf)) == 1: return False
-    soma = sum(int(cpf[i]) * (10 - i) for i in range(9))
-    resto = (soma * 10) % 11
-    if resto == 10: resto = 0
-    if resto != int(cpf[9]): return False
-    soma = sum(int(cpf[i]) * (11 - i) for i in range(10))
-    resto = (soma * 10) % 11
-    if resto == 10: resto = 0
-    if resto != int(cpf[10]): return False
-    return True
-
-# Função para máscara automática de CPF
-def aplicar_mascara_cpf(valor):
-    # Remove tudo que não é dígito
-    v = re.sub(r'\D', '', str(valor))
-    # Limita a 11 dígitos
-    v = v[:11]
-    # Aplica máscara progressiva
-    if len(v) > 9:
-        return f"{v[:3]}.{v[3:6]}.{v[6:9]}-{v[9:]}"
-    elif len(v) > 6:
-        return f"{v[:3]}.{v[3:6]}.{v[6:]}"
-    elif len(v) > 3:
-        return f"{v[:3]}.{v[3:]}"
-    return v
 
 def _normalizar_separador_decimal_duas_casas(s: str) -> str:
     """`,` ou `.` como decimal na antepenúltima posição com 2 dígitos finais (ex.: 1.234,56; 1,234.56). Evita 2.000 → mil."""
@@ -667,8 +561,12 @@ def _normalizar_separador_decimal_duas_casas(s: str) -> str:
 
 
 def safe_float_convert(val):
-    if pd.isnull(val) or val == "": return 0.0
-    if isinstance(val, (int, float, np.number)): return float(val)
+    if pd.isnull(val) or val == "":
+        return 0.0
+    if isinstance(val, bool):
+        return 0.0
+    if isinstance(val, (int, float)):
+        return float(val)
     s = str(val).replace("R$", "").replace("\u00a0", " ").strip()
     s_compact = re.sub(r"\s+", "", s)
     s_try = _normalizar_separador_decimal_duas_casas(s_compact)
@@ -697,7 +595,9 @@ def texto_moeda_para_float(s, default=0.0):
     """Converte texto livre (BR/US) em float; vazio → default. Vírgula ou ponto antes de 2 casas finais = decimal."""
     if s is None:
         return default
-    if isinstance(s, (int, float, np.number)):
+    if isinstance(s, bool):
+        return default
+    if isinstance(s, (int, float)):
         return float(s)
     t = str(s).strip()
     if t == "":
@@ -788,92 +688,6 @@ def calcular_parcela_financiamento(valor_financiado, meses, taxa_anual_pct, sist
         amortizacao = valor_financiado / meses
         juros = valor_financiado * i_mensal
         return amortizacao + juros
-
-# Função Auxiliar para Projeção de Fluxo COMPLETA e CORRIGIDA
-def calcular_fluxo_pagamento_detalhado(valor_fin, meses_fin, taxa_anual, sistema, ps_mensal, meses_ps, atos_dict):
-    i_mensal = (1 + taxa_anual/100)**(1/12) - 1
-    fluxo = []
-    saldo_devedor = valor_fin
-    amortizacao_sac = valor_fin / meses_fin if meses_fin > 0 else 0
-    
-    pmt_price = 0
-    if sistema == 'PRICE' and meses_fin > 0:
-        pmt_price = valor_fin * (i_mensal * (1 + i_mensal)**meses_fin) / ((1 + i_mensal)**meses_fin - 1)
-
-    # Gera fluxo até o final do financiamento
-    # LÓGICA SOLICITADA:
-    # Mês 1: Parcela Fin + Parcela PS + Ato 0 (Imediato)
-    # Mês 2: Parcela Fin + Parcela PS + Ato 30
-    # Mês 3: Parcela Fin + Parcela PS + Ato 60
-    # Mês 4: Parcela Fin + Parcela PS + Ato 90
-    # Mês 5+: Parcela Fin + Parcela PS (até fim do PS)
-    # Pós PS: Apenas Parcela Fin
-
-    # Mapa de ordem de empilhamento: Financiamento (base) -> Pro Soluto -> Ato (topo)
-    order_map = {'Financiamento': 1, 'Pro Soluto': 2, 'Entrada/Ato': 3}
-
-    for m in range(1, meses_fin + 1):
-        if sistema == 'SAC':
-            juros = saldo_devedor * i_mensal
-            parc_fin = amortizacao_sac + juros
-            saldo_devedor -= amortizacao_sac
-        else: # PRICE
-            parc_fin = pmt_price
-            juros = saldo_devedor * i_mensal
-            amort = pmt_price - juros
-            saldo_devedor -= amort
-        
-        # Parcela Pro Soluto
-        parc_ps = ps_mensal if m <= meses_ps else 0
-        
-        # Atos - Mapeamento direto por mês
-        val_ato = 0.0
-        label_ato = ""
-
-        if m == 1:
-            val_ato = atos_dict.get('ato_final', 0.0) # Ato Imediato
-            if val_ato > 0: label_ato = "Ato"
-        elif m == 2:
-            val_ato = atos_dict.get('ato_30', 0.0)
-            if val_ato > 0: label_ato = "Ato 30"
-        elif m == 3:
-            val_ato = atos_dict.get('ato_60', 0.0)
-            if val_ato > 0: label_ato = "Ato 60"
-        elif m == 4:
-            val_ato = atos_dict.get('ato_90', 0.0)
-            if val_ato > 0: label_ato = "Ato 90"
-        
-        # Adicionar componentes separados para o gráfico empilhado
-        # Financiamento
-        fluxo.append({
-            'Mês': int(m),
-            'Valor': float(parc_fin),
-            'Tipo': 'Financiamento',
-            'Ordem_Tipo': order_map['Financiamento'],
-            'Total': float(parc_fin + parc_ps + val_ato)
-        })
-        
-        # Pro Soluto (se houver)
-        if parc_ps > 0:
-            fluxo.append({
-                'Mês': int(m),
-                'Valor': float(parc_ps),
-                'Tipo': 'Pro Soluto',
-                'Ordem_Tipo': order_map['Pro Soluto'],
-                'Total': float(parc_fin + parc_ps + val_ato)
-            })
-            
-        # Atos (se houver)
-        if val_ato > 0:
-            fluxo.append({
-                'Mês': int(m),
-                'Valor': float(val_ato),
-                'Tipo': 'Entrada/Ato',
-                'Ordem_Tipo': order_map['Entrada/Ato'],
-                'Total': float(parc_fin + parc_ps + val_ato)
-            })
-    
-    return pd.DataFrame(fluxo)
 
 def scroll_to_top():
     js = """<script>var body = window.parent.document.querySelector(".main"); if (body) { body.scrollTop = 0; } window.scrollTo(0, 0);</script>"""
@@ -1023,6 +837,46 @@ def gravar_nova_linha_home_banner(ordem: int, url_imagem: str, titulo: str, ativ
         return False, str(e)
 
 
+_COLS_LOGINS = ["Email", "Senha", "Nome", "Cargo", "Imobiliaria", "Telefone", "Adm"]
+
+_MAPA_LOGINS = {
+    "Imobiliária/Canal IMOB": "Imobiliaria",
+    "Cargo": "Cargo",
+    "Nome": "Nome",
+    "Email": "Email",
+    "E-mail": "Email",
+    "Escolha uma senha para o simulador": "Senha",
+    "Senha": "Senha",
+    "Número de telefone": "Telefone",
+    "Telefone": "Telefone",
+    "ADM?": "Adm",
+}
+
+
+def _normalizar_df_logins_raw(df_logins: pd.DataFrame) -> pd.DataFrame:
+    df_logins = df_logins.copy()
+    df_logins.columns = [str(c).strip() for c in df_logins.columns]
+    df_logins = df_logins.rename(columns=_MAPA_LOGINS)
+    if "Email" in df_logins.columns:
+        df_logins["Email"] = df_logins["Email"].astype(str).str.strip().str.lower()
+    if "Senha" in df_logins.columns:
+        df_logins["Senha"] = df_logins["Senha"].astype(str).str.strip()
+    return df_logins
+
+
+@st.cache_data(ttl=300, show_spinner=False)
+def carregar_apenas_logins() -> pd.DataFrame:
+    """Só BD Logins — tela de login sem carregar estoque/financiamentos (mais rápido)."""
+    try:
+        if "connections" not in st.secrets:
+            return pd.DataFrame(columns=_COLS_LOGINS)
+        conn = st.connection("gsheets", type=GSheetsConnection)
+        df_logins = conn.read(spreadsheet=ID_GERAL, worksheet="BD Logins")
+        return _normalizar_df_logins_raw(df_logins)
+    except Exception:
+        return pd.DataFrame(columns=_COLS_LOGINS)
+
+
 @st.cache_data(ttl=300, show_spinner=False)
 def carregar_dados_sistema():
     try:
@@ -1033,36 +887,10 @@ def carregar_dados_sistema():
                 pd.DataFrame(),
                 pd.DataFrame(),
                 pd.DataFrame(),
-                pd.DataFrame(),
                 dict(DEFAULT_PREMISSAS),
             )
         conn = st.connection("gsheets", type=GSheetsConnection)
         def limpar_moeda(val): return safe_float_convert(val)
-
-        try:
-            df_logins = conn.read(spreadsheet=ID_GERAL, worksheet="BD Logins")
-            df_logins.columns = [str(c).strip() for c in df_logins.columns]
-            mapa_logins = {
-                "Imobiliária/Canal IMOB": "Imobiliaria",
-                "Cargo": "Cargo",
-                "Nome": "Nome",
-                "Email": "Email",
-                "E-mail": "Email",
-                "Escolha uma senha para o simulador": "Senha",
-                "Senha": "Senha",
-                "Número de telefone": "Telefone",
-                "Telefone": "Telefone",
-                "ADM?": "Adm",
-            }
-            df_logins = df_logins.rename(columns=mapa_logins)
-            if "Email" in df_logins.columns:
-                df_logins["Email"] = df_logins["Email"].astype(str).str.strip().str.lower()
-            if "Senha" in df_logins.columns:
-                df_logins["Senha"] = df_logins["Senha"].astype(str).str.strip()
-        except Exception:
-            df_logins = pd.DataFrame(
-                columns=["Email", "Senha", "Nome", "Cargo", "Imobiliaria", "Telefone", "Adm"]
-            )
 
         # Histórico em BD Simulações não é mais carregado na UI (gravação no resumo mantida)
         df_cadastros = pd.DataFrame()
@@ -1208,11 +1036,10 @@ def carregar_dados_sistema():
         except Exception:
             df_home_banners = pd.DataFrame(columns=list(_COLS_HOME_BANNERS))
 
-        return df_finan, df_estoque, df_politicas, df_logins, df_cadastros, df_home_banners, premissas_dict
+        return df_finan, df_estoque, df_politicas, df_cadastros, df_home_banners, premissas_dict
     except Exception as e:
         st.error(f"Erro dados: {e}")
         return (
-            pd.DataFrame(),
             pd.DataFrame(),
             pd.DataFrame(),
             pd.DataFrame(),
@@ -1974,20 +1801,7 @@ def configurar_layout():
             letter-spacing: 0.05em;
         }}
         
-        .hover-card {{
-            background-color: #ffffff;
-            border-radius: 8px;
-            padding: 16px;
-            border: 1px solid #e2e8f0;
-            height: 100%;
-        }}
-
         [data-testid="stSidebar"] {{ background-color: #fff; border-right: 1px solid {COR_BORDA}; }}
-
-        div[data-baseweb="tab-list"] {{ justify-content: center !important; gap: 24px; margin-bottom: 24px; }}
-        button[data-baseweb="tab"] p {{ color: {COR_AZUL_ESC} !important; opacity: 0.6; font-weight: 700 !important; font-family: 'Montserrat', sans-serif !important; font-size: 0.9rem !important; text-transform: uppercase; letter-spacing: 0.1em; }}
-        button[data-baseweb="tab"][aria-selected="true"] p {{ color: {COR_AZUL_ESC} !important; opacity: 1; }}
-        div[data-baseweb="tab-highlight"] {{ background-color: {COR_VERMELHO} !important; height: 3px !important; }}
 
         .footer {{
             text-align: center;
@@ -2476,7 +2290,7 @@ def aba_simulador_automacao(
     ):
         st.session_state.passo_simulacao = "sim"
     passo = st.session_state.get("passo_simulacao", "sim")
-    if passo == "gallery":
+    if passo in ("gallery", "client_analytics"):
         st.session_state.passo_simulacao = "sim"
         st.rerun()
     motor = MotorRecomendacao(df_finan, df_estoque, df_politicas)
@@ -2488,308 +2302,52 @@ def aba_simulador_automacao(
         return resolver_taxa_financiamento_anual_pct(d_cli or {}, _prem)
     if 'dados_cliente' not in st.session_state: st.session_state.dados_cliente = {}
 
-    if passo != "client_analytics":
-        st.markdown(
-            '<div class="header-brand-bar-wrap"><div class="header-brand-bar" aria-hidden="true"></div></div>',
-            unsafe_allow_html=True,
-        )
-        render_faixa_home_banners(df_home_banners if df_home_banners is not None else pd.DataFrame())
-        if st.session_state.get("user_is_adm"):
-            with st.expander("Banners da home (administrador — BD Home Banners)", expanded=False):
-                st.caption(
-                    "Inclua o link **https** da imagem (ex.: Postimages). "
-                    "A planilha usa as colunas: Ordem, URL_Imagem, Titulo, Ativo (SIM/NÃO)."
-                )
-                with st.form("form_novo_home_banner"):
-                    c1, c2 = st.columns(2)
-                    with c1:
-                        bn_ordem = st.number_input("Ordem", min_value=1, max_value=999, value=1, step=1)
-                    with c2:
-                        bn_ativo = st.selectbox("Ativo", ["SIM", "NÃO"], index=0)
-                    bn_url = st.text_input(
-                        "URL_Imagem",
-                        placeholder="https://i.postimg.cc/...",
-                    )
-                    bn_titulo = st.text_input("Titulo", placeholder="Texto abaixo da imagem")
-                    enviar_bn = st.form_submit_button("Gravar nova linha na BD Home Banners", type="primary")
-                if enviar_bn:
-                    url_t = (bn_url or "").strip()
-                    ativo_sim = str(bn_ativo or "").strip().upper() == "SIM"
-                    if not url_t.startswith("https://"):
-                        st.error("A URL da imagem deve começar com https:// (use o link direto do Postimages).")
-                    elif not (bn_titulo or "").strip():
-                        st.error("Informe o título (legenda).")
-                    else:
-                        ok, err = gravar_nova_linha_home_banner(
-                            int(bn_ordem),
-                            url_t,
-                            bn_titulo.strip(),
-                            ativo_sim,
-                        )
-                        if ok:
-                            st.cache_data.clear()
-                            st.success("Banner gravado na planilha. Recarregando…")
-                            st.rerun()
-                        else:
-                            st.error(f"Não foi possível gravar: {err}")
-
-    # --- ABA ANALYTICS (SECURE TAB - ALTAIR) ---
-    if passo == 'client_analytics':
-        d = st.session_state.dados_cliente
-        
-        st.markdown(f"### Painel da simulação: {d.get('nome', 'Simulação')}")
-
-        # --- SEÇÃO 1: PERFIL USADO NA SIMULAÇÃO ---
-        with st.container():
-            col1, col2, col3 = st.columns(3)
-
-            with col1:
-                st.markdown(f"""
-                <div class="hover-card" style="border-left: 5px solid {COR_AZUL_ESC};">
-                    <p style="font-weight: bold; margin-bottom: 10px; color: {COR_AZUL_ESC};">Perfil de crédito</p>
-                    <p style="font-size: 0.9rem; margin: 0;">Ranking: {d.get('ranking')}</p>
-                    <p style="font-size: 0.9rem; margin: 0;">Política PS: {d.get('politica', '—')}</p>
-                </div>""", unsafe_allow_html=True)
-            with col2:
-                st.markdown(f"""
-                <div class="hover-card" style="border-left: 5px solid {COR_AZUL_ESC};">
-                    <p style="font-weight: bold; margin-bottom: 10px; color: {COR_AZUL_ESC};">Renda & Perfil</p>
-                    <p style="font-size: 0.9rem; margin: 0;">Renda Familiar: R$ {fmt_br(d.get('renda', 0))}</p>
-                    <p style="font-size: 0.9rem; margin: 0;">Participantes: {d.get('qtd_participantes')}</p>
-                    <p style="font-size: 0.9rem; margin: 0;">FGTS: {'Sim' if d.get('cotista') else 'Não'} | Social: {'Sim' if d.get('social') else 'Não'}</p>
-                </div>""", unsafe_allow_html=True)
-            with col3:
-                st.markdown(f"""
-                <div class="hover-card" style="border-left: 5px solid {COR_AZUL_ESC};">
-                    <p style="font-weight: bold; margin-bottom: 10px; color: {COR_AZUL_ESC};">Imóvel Salvo</p>
-                    <p style="font-size: 0.9rem; margin: 0;">{d.get('empreendimento_nome')}</p>
-                    <p style="font-size: 0.9rem; margin: 0;">Unidade: {d.get('unidade_id')}</p>
-                    <p style="font-size: 0.9rem; margin: 0;">Valor: <span style='color:{COR_VERMELHO}; font-weight:bold;'>R$ {fmt_br(d.get('imovel_valor', 0))}</span></p>
-                </div>""", unsafe_allow_html=True)
-
-        st.markdown("---")
-
-        # --- SEÇÃO 2: GRÁFICOS DE PIZZA (COMPOSIÇÃO) ---
-        g_col1, g_col2 = st.columns(2)
-        
-        # Gráfico 1: Composição da Compra
-        with g_col1:
-            st.markdown("##### Composição da Compra")
-            labels = ['Ato', '30 Dias', '60 Dias', '90 Dias', 'Pro Soluto', 'Financiamento', 'FGTS/Subsídio']
-            values = [
-                d.get('ato_final', 0), d.get('ato_30', 0), d.get('ato_60', 0), d.get('ato_90', 0),
-                d.get('ps_usado', 0), d.get('finan_usado', 0), d.get('fgts_sub_usado', 0)
-            ]
-            
-            # Filter zeros for cleaner chart
-            clean_data = [(l, v) for l, v in zip(labels, values) if v > 0]
-            if clean_data:
-                df_pie = pd.DataFrame(clean_data, columns=['Tipo', 'Valor'])
-                
-                # Define cores personalizadas para cada tipo de pagamento
-                color_scale = alt.Scale(domain=['Ato', '30 Dias', '60 Dias', '90 Dias', 'Pro Soluto', 'Financiamento', 'FGTS/Subsídio'],
-                                                                  range=['#e30613', '#c0392b', '#94a3b8', '#64748b', '#f59e0b', '#002c5d', '#10b981'])
-
-                # Selection for interactivity
-                hover = alt.selection_point(on='mouseover', empty=False, fields=['Tipo'])
-
-                base = alt.Chart(df_pie).encode(theta=alt.Theta("Valor", stack=True))
-                pie = base.mark_arc(innerRadius=60, outerRadius=120).encode(
-                    color=alt.Color("Tipo", scale=color_scale, legend=None),
-                    order=alt.Order("Valor", sort="descending"),
-                    tooltip=[alt.Tooltip("Tipo"), alt.Tooltip("Valor", format=",.2f")],
-                    opacity=alt.condition(hover, alt.value(1), alt.value(0.7)),
-                    stroke=alt.condition(hover, alt.value('white'), alt.value(None)),
-                    strokeWidth=alt.condition(hover, alt.value(2), alt.value(0))
-                ).add_params(hover)
-                
-                text = base.mark_text(radius=140).encode(
-                    text=alt.Text("Valor", format=",.2f"),
-                    order=alt.Order("Valor", sort="descending"),
-                    color=alt.value(COR_AZUL_ESC)  
-                )
-                
-                final_pie = pie.encode(color=alt.Color("Tipo", scale=color_scale, legend=alt.Legend(orient="bottom", columns=2, title=None))).configure_view(strokeWidth=0).configure_axis(grid=False, domain=False)
-                st.altair_chart(final_pie, use_container_width=True)
-            else:
-                st.info("Sem dados financeiros suficientes.")
-
-        # Gráfico 2: Composição de Renda
-        with g_col2:
-            st.markdown("##### Composição de Renda")
-            rendas = d.get('rendas_lista', [])
-            pie_renda = [(f"Part. {i+1}", r) for i, r in enumerate(rendas) if r > 0]
-            if pie_renda:
-                df_renda = pd.DataFrame(pie_renda, columns=['Participante', 'Renda'])
-                
-                color_scale_renda = alt.Scale(domain=[f"Part. {i+1}" for i in range(len(pie_renda))],
-                                                                  range=['#002c5d', '#e30613', '#f59e0b', '#10b981'])
-
-                hover_renda = alt.selection_point(on='mouseover', empty=False, fields=['Participante'])
-
-                base = alt.Chart(df_renda).encode(theta=alt.Theta("Renda", stack=True))
-                pie = base.mark_arc(innerRadius=60, outerRadius=120).encode(
-                    color=alt.Color("Participante", scale=color_scale_renda, legend=alt.Legend(orient="bottom", title=None)),
-                    order=alt.Order("Renda", sort="descending"),
-                    tooltip=[alt.Tooltip("Participante"), alt.Tooltip("Renda", format=",.2f")],
-                    opacity=alt.condition(hover_renda, alt.value(1), alt.value(0.7)),
-                    stroke=alt.condition(hover_renda, alt.value('white'), alt.value(None)),
-                    strokeWidth=alt.condition(hover_renda, alt.value(2), alt.value(0))
-                ).add_params(hover_renda)
-
-                st.altair_chart(pie.configure_view(strokeWidth=0), use_container_width=True)
-            else:
-                st.caption("Renda única ou não informada.")
-
-        # --- SEÇÃO 3: PROJEÇÃO DE FLUXO DE PAGAMENTOS (BAR CHART + ZOOM) ---
-        st.markdown("---")
-        st.markdown("##### Projeção da Parcela Mensal (Financiamento + Pro Soluto + Atos)")
-        
-        # Recuperar dados para projeção
-        v_fin = d.get('finan_usado', 0)
-        p_fin = d.get('prazo_financiamento', 360)
-        p_ps = d.get('ps_parcelas', 0)
-        v_ps_mensal = d.get('ps_mensal', 0)
-        sist = d.get('sistema_amortizacao', 'SAC')
-        
-        # Recuperar dados de ATOS para o cálculo correto do fluxo inicial
-        atos_dict_calc = {
-            'ato_final': d.get('ato_final', 0),
-            'ato_30': d.get('ato_30', 0),
-            'ato_60': d.get('ato_60', 0),
-            'ato_90': d.get('ato_90', 0)
-        }
-        
-        if v_fin > 0 and p_fin > 0:
-            df_fluxo = calcular_fluxo_pagamento_detalhado(v_fin, p_fin, taxa_fin_vigente(d), sist, v_ps_mensal, p_ps, atos_dict_calc)
-            
-            # Projeção completa solicitada
-            df_view = df_fluxo.copy() 
-            
-            # CORREÇÃO ALTAIR: Conversão explícita de tipos para evitar SchemaValidationError
-            df_view['Mês'] = df_view['Mês'].astype(int)
-            df_view['Valor'] = df_view['Valor'].astype(float)
-            df_view['Total'] = df_view['Total'].astype(float)
-            
-            # Definir pontos para as linhas tracejadas
-            # 1. Fim dos Atos: Onde termina o último ato (mês 1, 2, 3 ou 4)
-            mes_fim_atos = 1
-            if d.get('ato_90', 0) > 0: mes_fim_atos = 4
-            elif d.get('ato_60', 0) > 0: mes_fim_atos = 3
-            elif d.get('ato_30', 0) > 0: mes_fim_atos = 2
-            
-            # 2. Fim do Pro Soluto: Mês da última parcela
-            mes_fim_ps = d.get('ps_parcelas', 0)
-
-            # Cores para cada tipo
-            domain_tipo = ['Financiamento', 'Pro Soluto', 'Entrada/Ato']
-            range_tipo = [COR_AZUL_ESC, '#f59e0b', COR_VERMELHO] 
-
-            zoom = alt.selection_interval(bind='scales')
-
-            # Base chart with Ordinal x-axis for spacing
-            base = alt.Chart(df_view).encode(
-                x=alt.X('Mês:O', title='Mês do Financiamento', axis=alt.Axis(labelAngle=0)) # Ordinal para separar
+    st.markdown(
+        '<div class="header-brand-bar-wrap"><div class="header-brand-bar" aria-hidden="true"></div></div>',
+        unsafe_allow_html=True,
+    )
+    render_faixa_home_banners(df_home_banners if df_home_banners is not None else pd.DataFrame())
+    if st.session_state.get("user_is_adm"):
+        with st.expander("Banners da home (administrador — BD Home Banners)", expanded=False):
+            st.caption(
+                "Inclua o link **https** da imagem (ex.: Postimages). "
+                "A planilha usa as colunas: Ordem, URL_Imagem, Titulo, Ativo (SIM/NÃO)."
             )
-
-            # Barras Empilhadas
-            bars = base.mark_bar().encode(
-                y=alt.Y('Valor', title='Valor (R$)', stack='zero'),
-                color=alt.Color('Tipo', scale=alt.Scale(domain=domain_tipo, range=range_tipo), legend=alt.Legend(title="Composição")),
-                order=alt.Order('Ordem_Tipo', sort='ascending'), # Define a ordem de empilhamento usando a coluna auxiliar
-                tooltip=['Mês', 'Tipo', alt.Tooltip('Valor', format=",.2f"), alt.Tooltip('Total', format=",.2f")]
-            )
-
-            # Linha Fim Atos
-            charts = [bars]
-            if mes_fim_atos > 0:
-                # Conversão explícita para int e usar mesma coluna 'Mês'
-                rule_atos = alt.Chart(pd.DataFrame({'Mês': [int(mes_fim_atos)]})).mark_rule(color='red', strokeDash=[5, 5]).encode(x='Mês:O')
-                charts.append(rule_atos)
-                
-            if mes_fim_ps > 0:
-                # Conversão explícita para int e usar mesma coluna 'Mês'
-                rule_ps = alt.Chart(pd.DataFrame({'Mês': [int(mes_fim_ps)]})).mark_rule(color='orange', strokeDash=[5, 5]).encode(x='Mês:O')
-                charts.append(rule_ps)
-
-            final_chart = alt.layer(*charts).add_params(zoom).properties(height=400)
-
-            st.altair_chart(final_chart, use_container_width=True)
-            st.caption("Linha Vermelha Tracejada: Fim dos Atos | Linha Laranja Tracejada: Fim do Pro Soluto")
-
-        # --- SEÇÃO 4: OPORTUNIDADES SEMELHANTES ---
-        st.markdown("---")
-        st.markdown("##### Oportunidades Semelhantes (Faixa de Preço)")
-        
-        target_price = d.get('imovel_valor', 0)
-        
-        try:
-            if 'Valor de Venda' in df_estoque.columns and target_price > 0:
-                min_p = target_price - 2500
-                max_p = target_price + 2500
-                
-                similares = df_estoque[
-                    (df_estoque['Valor de Venda'] >= min_p) & 
-                    (df_estoque['Valor de Venda'] <= max_p) &
-                    (df_estoque['Empreendimento'] != d.get('empreendimento_nome')) 
-                ].sort_values('Valor de Venda').head(10)
-                
-                if not similares.empty:
-                    cards_html = f"""<div class="scrolling-wrapper">"""
-                    
-                    for idx, row in similares.iterrows():
-                         emp_name = row['Empreendimento']
-                         unid_name = row['Identificador']
-                         val_fmt = fmt_br(row['Valor de Venda'])
-                         
-                         # Avaliação também
-                         aval_fmt = fmt_br(row['Valor de Avaliação Bancária'])
-                         
-                         cards_html += f"""<div class="card-item">
-                            <div class="recommendation-card" style="border-top: 4px solid {COR_AZUL_ESC}; height: 100%; justify-content: flex-start;">
-                                <b style="color:{COR_AZUL_ESC}; font-size:1.1rem;">{emp_name}</b><br>
-                                <div style="font-size:0.85rem; color:{COR_TEXTO_MUTED}; text-align:center; border-top:1px solid #eee; padding-top:10px; width:100%;"><b>Unidade: {unid_name}</b></div>
-                                <div style="margin-top:10px; width:100%;">
-                                    <div style="font-size:0.8rem; color:#64748b;">Avaliação</div>
-                                    <div style="font-weight:bold; color:{COR_AZUL_ESC};">R$ {aval_fmt}</div>
-                                    <div style="font-size:0.8rem; color:#64748b; margin-top:5px;">Venda</div>
-                                    <div class="price-tag" style="font-size:1.3rem; margin-top:0;">R$ {val_fmt}</div>
-                                </div>
-                            </div>
-                         </div>"""
-                    cards_html += "</div>"
-                    st.markdown(cards_html, unsafe_allow_html=True)
+            with st.form("form_novo_home_banner"):
+                c1, c2 = st.columns(2)
+                with c1:
+                    bn_ordem = st.number_input("Ordem", min_value=1, max_value=999, value=1, step=1)
+                with c2:
+                    bn_ativo = st.selectbox("Ativo", ["SIM", "NÃO"], index=0)
+                bn_url = st.text_input(
+                    "URL_Imagem",
+                    placeholder="https://i.postimg.cc/...",
+                )
+                bn_titulo = st.text_input("Titulo", placeholder="Texto abaixo da imagem")
+                enviar_bn = st.form_submit_button("Gravar nova linha na BD Home Banners", type="primary")
+            if enviar_bn:
+                url_t = (bn_url or "").strip()
+                ativo_sim = str(bn_ativo or "").strip().upper() == "SIM"
+                if not url_t.startswith("https://"):
+                    st.error("A URL da imagem deve começar com https:// (use o link direto do Postimages).")
+                elif not (bn_titulo or "").strip():
+                    st.error("Informe o título (legenda).")
                 else:
-                    st.info("Nenhuma outra unidade encontrada nessa faixa de preço (+/- 2500).")
-            else:
-                st.info("Dados de estoque indisponíveis para comparação.")
-        except Exception:
-             st.info("Não foi possível carregar oportunidades semelhantes.")
-        
-        st.markdown("<br><br>", unsafe_allow_html=True)
-        
-        # --- BOTÃO VOLTAR (FULL WIDTH) - azul direcional ---
-        st.markdown(f"""
-            <style>
-            div[data-testid="stMarkdown"]:has([data-btn-azul]) + div[data-testid="stButton"] button {{
-                width: 100%;
-                border-radius: 16px;
-                height: 60px;
-                font-size: 1.1rem;
-                font-weight: bold;
-                text-transform: uppercase;
-            }}
-            </style>
-        """, unsafe_allow_html=True)
-
-        st.markdown('<div data-btn-azul style="display:none" aria-hidden="true"></div>', unsafe_allow_html=True)
-        if st.button("VOLTAR AO SIMULADOR", use_container_width=True):
-             st.session_state.passo_simulacao = 'sim'
-             scroll_to_top()
-             st.rerun()
+                    ok, err = gravar_nova_linha_home_banner(
+                        int(bn_ordem),
+                        url_t,
+                        bn_titulo.strip(),
+                        ativo_sim,
+                    )
+                    if ok:
+                        st.cache_data.clear()
+                        st.success("Banner gravado na planilha. Recarregando…")
+                        st.rerun()
+                    else:
+                        st.error(f"Não foi possível gravar: {err}")
 
     # --- PÁGINA ÚNICA: perfil → valores → recomendações → unidade → distribuição (ordem fixa) ---
-    elif passo == 'sim':
+    if passo == 'sim':
         st.markdown("### Perfil da simulação")
         st.caption("Informe renda e perfil de crédito. Os blocos abaixo atualizam automaticamente ao alterar estes campos.")
 
@@ -3600,9 +3158,6 @@ def aba_simulador_automacao(
 def main():
     configurar_layout()
     inject_enter_confirma_campo()
-    df_finan, df_estoque, df_politicas, df_logins, _df_cad_hist, df_home_banners, premissas_dict = (
-        carregar_dados_sistema()
-    )
     if "logged_in" not in st.session_state:
         st.session_state["logged_in"] = False
 
@@ -3618,8 +3173,11 @@ def main():
     )
 
     if not st.session_state["logged_in"]:
-        tela_login(df_logins)
+        tela_login(carregar_apenas_logins())
     else:
+        df_finan, df_estoque, df_politicas, _df_cad_hist, df_home_banners, premissas_dict = (
+            carregar_dados_sistema()
+        )
         aba_simulador_automacao(
             df_finan, df_estoque, df_politicas, premissas_dict, df_home_banners=df_home_banners
         )
