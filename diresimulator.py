@@ -1075,14 +1075,19 @@ class MotorRecomendacao:
         self.df_politicas = df_politicas # Mantido apenas para compatibilidade, não usado logicamente
 
     def obter_enquadramento(self, renda, social, cotista, valor_avaliacao=250000):
-        if self.df_finan.empty: return 0.0, 0.0, "N/A"
-        if valor_avaliacao <= 275000: faixa = "F2"
-        elif valor_avaliacao <= 350000: faixa = "F3"
-        else: faixa = "F4"
-        renda_col = pd.to_numeric(self.df_finan['Renda'], errors='coerce').fillna(0)
+        """Lê a planilha BD Financiamentos: linha pela renda mais próxima; colunas Finan_* e Subsidio_*."""
+        if self.df_finan.empty:
+            return 0.0, 0.0, "N/A"
+        if valor_avaliacao <= 275000:
+            faixa = "F2"
+        elif valor_avaliacao <= 350000:
+            faixa = "F3"
+        else:
+            faixa = "F4"
+        renda_col = pd.to_numeric(self.df_finan["Renda"], errors="coerce").fillna(0)
         idx = (renda_col - float(renda)).abs().idxmin()
         row = self.df_finan.iloc[idx]
-        s, c = ('Sim' if social else 'Nao'), ('Sim' if cotista else 'Nao')
+        s, c = ("Sim" if social else "Nao"), ("Sim" if cotista else "Nao")
         col_fin = f"Finan_Social_{s}_Cotista_{c}_{faixa}"
         col_sub = f"Subsidio_Social_{s}_Cotista_{c}_{faixa}"
         vf = row.get(col_fin, 0.0)
@@ -2479,24 +2484,19 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, premissas_dict=N
         curr_ranking = st.session_state.dados_cliente.get('ranking', "DIAMANTE")
         idx_ranking = rank_opts.index(curr_ranking) if curr_ranking in rank_opts else 0
         ranking = st.selectbox("Ranking do Cliente", options=rank_opts, index=idx_ranking, key="in_rank_v28")
-        politica_ps = st.selectbox("Política de Pro Soluto", ["Direcional", "Emcash"], index=0 if st.session_state.dados_cliente.get('politica') != "Emcash" else 1, key="in_pol_v28")
-        social = st.toggle("Fator Social", value=st.session_state.dados_cliente.get('social', False), key="in_soc_v28")
-        cotista = st.toggle("Cotista FGTS", value=st.session_state.dados_cliente.get('cotista', True), key="in_cot_v28")
+        _pol_saved = st.session_state.dados_cliente.get("politica")
+        _pol_idx = 0 if _pol_saved == "Direcional" else 1
+        politica_ps = st.selectbox("Política de Pro Soluto", ["Direcional", "Emcash"], index=_pol_idx, key="in_pol_v28")
 
         lista_rendas_input = [texto_moeda_para_float(st.session_state.get(f"renda_part_{j}_v3")) for j in range(qtd_part)]
         renda_total_calc = sum(lista_rendas_input)
         prazo_ps_max = 66 if politica_ps == "Emcash" else 84
-        f_faixa_ref, s_faixa_ref, _ = motor.obter_enquadramento(
-            max(0.0, renda_total_calc), social, cotista, valor_avaliacao=240000
-        )
         st.session_state.dados_cliente.update({
             'nome': 'Simulação',
             'cpf': '',
             'data_nascimento': None,
             'renda': renda_total_calc,
             'rendas_lista': lista_rendas_input,
-            'social': social,
-            'cotista': cotista,
             'ranking': ranking,
             'politica': politica_ps,
             'qtd_participantes': qtd_part,
@@ -2505,8 +2505,6 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, premissas_dict=N
             'fgts_usado_historico': 0.0,
             'prazo_ps_max': prazo_ps_max,
             'limit_ps_renda': 0.30,
-            'finan_f_ref': f_faixa_ref,
-            'sub_f_ref': s_faixa_ref,
         })
 
         st.markdown("---")
@@ -2514,10 +2512,32 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, premissas_dict=N
         d = st.session_state.dados_cliente
         st.markdown("### Valores Aprovados (Fechamento Financeiro)")
         st.markdown("<p style='text-align: center; color: #64748b; font-size: 0.9rem;'>Preencha os valores aprovados de financiamento e subsídio. As recomendações usarão esses valores reais.</p>", unsafe_allow_html=True)
-        # Recalcular referência da curva (finan_f_ref, sub_f_ref) a partir do perfil do cliente para exibir valores corretos
+
+        _opts_fin_ref = ("Financiamento c/ Fator Social", "Financiamento s/ Fator Social")
+        _opts_sub_ref = ("Subsídio cotista", "Subsídio não cotista")
+        _ix_fin = 0 if bool(d.get("social", False)) else 1
+        _ix_sub = 0 if bool(d.get("cotista", True)) else 1
+        rf1, rf2 = st.columns(2)
+        with rf1:
+            _fin_lbl = st.radio(
+                "Referência financiamento (BD Financiamentos)",
+                _opts_fin_ref,
+                index=_ix_fin,
+                key="ref_curva_fin_social_v1",
+            )
+        with rf2:
+            _sub_lbl = st.radio(
+                "Referência subsídio (BD Financiamentos)",
+                _opts_sub_ref,
+                index=_ix_sub,
+                key="ref_curva_sub_cotista_v1",
+            )
+        social_cli = _fin_lbl == _opts_fin_ref[0]
+        cotista_cli = _sub_lbl == _opts_sub_ref[0]
+        st.session_state.dados_cliente["social"] = social_cli
+        st.session_state.dados_cliente["cotista"] = cotista_cli
+
         renda_cli = float(d.get('renda', 0) or 0)
-        social_cli = bool(d.get('social', False))
-        cotista_cli = bool(d.get('cotista', True))
         f_curva, s_curva, _ = motor.obter_enquadramento(renda_cli, social_cli, cotista_cli, valor_avaliacao=240000)
         st.session_state.dados_cliente['finan_f_ref'] = f_curva
         st.session_state.dados_cliente['sub_f_ref'] = s_curva
