@@ -1364,7 +1364,12 @@ def configurar_layout():
         [data-testid="stWidgetLabel"] p {{
             color: {COR_TEXTO_LABEL} !important;
         }}
-        div[data-testid="stMarkdown"] p {{ color: #334155; line-height: 1.55; }}
+        /* Parágrafos do markdown = textos de apoio / subtítulos — centralizados */
+        div[data-testid="stMarkdown"] p {{
+            color: #334155;
+            line-height: 1.55;
+            text-align: center !important;
+        }}
 
         .block-container {{
             max-width: min(1680px, 97vw) !important;
@@ -1633,16 +1638,26 @@ def configurar_layout():
             color: #475569;
             font-size: 0.95rem;
             font-weight: 400;
-            margin: 0.35rem 0 0 0;
+            margin: 0.35rem auto 0 auto;
             line-height: 1.45;
-            max-width: 32rem;
-            margin-left: auto;
-            margin-right: auto;
-            text-align: center;
+            max-width: 36rem;
+            width: 100%;
+            display: block;
+            text-align: center !important;
         }}
         .header-subtitle strong {{
             color: {COR_AZUL_ESC};
             font-weight: 600;
+        }}
+        /* Cabeçalho injetado: wrapper do Streamlit às vezes força alinhamento à esquerda */
+        div[data-testid="stMarkdown"] .header-container {{
+            text-align: center !important;
+            width: 100%;
+            max-width: 100%;
+        }}
+        div[data-testid="stMarkdown"] .header-container .header-title,
+        div[data-testid="stMarkdown"] .header-container .header-subtitle {{
+            text-align: center !important;
         }}
 
         .card, .fin-box, .recommendation-card, .login-card {{
@@ -1676,6 +1691,7 @@ def configurar_layout():
             border-radius: 0 0 12px 12px;
             margin-bottom: 40px;
             color: {COR_TEXTO_LABEL};
+            text-align: center !important;
         }}
         .custom-alert {{
             background-color: {COR_AZUL_ESC};
@@ -1705,6 +1721,8 @@ def configurar_layout():
             text-transform: uppercase;
             letter-spacing: 0.05em;
             display: block;
+            width: 100%;
+            text-align: center !important;
             opacity: 0.9;
         }}
 
@@ -2575,7 +2593,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, premissas_dict=N
         taxa_padrao = taxa_fin_vigente(d)
         sac_details = calcular_comparativo_sac_price(f_u, int(prazo_sel), taxa_padrao)["SAC"]
         price_details = calcular_comparativo_sac_price(f_u, int(prazo_sel), taxa_padrao)["PRICE"]
-        st.markdown(f"""<div style="margin-top: -8px; margin-bottom: 15px; font-size: 0.85rem; color: #64748b;"><b>SAC:</b> R$ {fmt_br(sac_details['primeira'])} a R$ {fmt_br(sac_details['ultima'])} (Juros totais: R$ {fmt_br(sac_details['juros'])}) &nbsp;|&nbsp; <b>PRICE:</b> R$ {fmt_br(price_details['parcela'])} fixas (Juros totais: R$ {fmt_br(price_details['juros'])})</div>""", unsafe_allow_html=True)
+        st.markdown(f"""<div style="margin-top: -8px; margin-bottom: 15px; font-size: 0.85rem; color: #64748b; text-align: center;"><b>SAC:</b> R$ {fmt_br(sac_details['primeira'])} a R$ {fmt_br(sac_details['ultima'])} (Juros totais: R$ {fmt_br(sac_details['juros'])}) &nbsp;|&nbsp; <b>PRICE:</b> R$ {fmt_br(price_details['parcela'])} fixas (Juros totais: R$ {fmt_br(price_details['juros'])})</div>""", unsafe_allow_html=True)
 
         st.markdown("---")
         # --- ETAPA 3: RECOMENDAÇÃO (filtro empreendimento + cards; sem abas) ---
@@ -2998,7 +3016,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, premissas_dict=N
             st.session_state.dados_cliente['ato_60'] = max(0.0, texto_moeda_para_float(st.session_state['ato_3_key']))
             st.session_state.dados_cliente['ato_90'] = max(0.0, texto_moeda_para_float(st.session_state['ato_4_key']))
 
-        st.markdown('<label style="font-size: 0.8rem; font-weight: 600;">Opções de Redistribuição do Saldo Restante:</label>', unsafe_allow_html=True)
+        st.markdown('<label style="font-size: 0.8rem; font-weight: 600; display: block; width: 100%; text-align: center;">Opções de Redistribuição do Saldo Restante:</label>', unsafe_allow_html=True)
         col_dist_a, col_dist_b = st.columns(2)
         
         # Botões de distribuição do restante
