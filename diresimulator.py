@@ -1149,63 +1149,6 @@ def inject_login_password_manager_fields():
     st.components.v1.html(js, height=0, width=0)
 
 
-def inject_home_banner_lightbox_viewport_portal():
-    """Move o painel do lightbox para document.body do mesmo documento do clique (iframe do Streamlit). Abre com :target; fecha com href='#'."""
-    js = r"""
-<script>
-(function () {
-  var doc0 = document;
-  if (!doc0 || !doc0.documentElement) return;
-  if (doc0.documentElement.getAttribute("data-dv-banner-lb-portal") === "1") return;
-  doc0.documentElement.setAttribute("data-dv-banner-lb-portal", "1");
-
-  function rootForPanel(panel) {
-    var d = panel.ownerDocument || document;
-    var id = panel.id;
-    if (!id) return null;
-    var thumb = d.querySelector('a.home-banner-card--thumb[href="#' + id + '"]');
-    return thumb ? thumb.closest(".home-banner-lb-root") : null;
-  }
-
-  doc0.addEventListener(
-    "click",
-    function (ev) {
-      var t = ev.target;
-      if (!t || !t.closest) return;
-      var doc = t.ownerDocument || document;
-      var thumb = t.closest("a.home-banner-card--thumb");
-      if (
-        thumb &&
-        thumb.getAttribute("href") &&
-        thumb.getAttribute("href").charAt(0) === "#" &&
-        thumb.getAttribute("href").length > 1
-      ) {
-        var hid = thumb.getAttribute("href").slice(1);
-        var panelOpen = doc.getElementById(hid);
-        if (panelOpen && panelOpen.classList.contains("home-banner-lb-panel")) {
-          setTimeout(function () {
-            if (panelOpen.parentNode !== doc.body) doc.body.appendChild(panelOpen);
-          }, 0);
-        }
-        return;
-      }
-      var closer = t.closest("a.home-banner-lb-backdrop, a.home-banner-lb-close");
-      if (!closer) return;
-      var panel = closer.closest(".home-banner-lb-panel");
-      if (!panel || !panel.id) return;
-      var root = rootForPanel(panel);
-      setTimeout(function () {
-        if (root && panel.parentNode === doc.body) root.appendChild(panel);
-      }, 0);
-    },
-    true
-  );
-})();
-</script>
-"""
-    st.components.v1.html(js, height=0, width=0)
-
-
 # =============================================================================
 # 1. CARREGAMENTO DE DADOS
 # =============================================================================
@@ -4440,7 +4383,6 @@ def _inject_login_vertical_center_css() -> None:
 def main():
     configurar_layout()
     inject_enter_confirma_campo()
-    inject_home_banner_lightbox_viewport_portal()
     if "logged_in" not in st.session_state:
         st.session_state["logged_in"] = False
 
