@@ -633,6 +633,150 @@ def reais_streamlit_html(valor_formatado: str) -> str:
     return f"R&#36; {valor_formatado}"
 
 
+_WHATSAPP_TEXTO_MAX = 3600
+
+
+def _wa_escape_texto(valor) -> str:
+    """Evita * _ ~ ` nos valores, para não quebrar negrito/itálico no WhatsApp."""
+    if valor is None:
+        return "-"
+    t = str(valor).replace("*", "·").replace("_", " ").replace("~", " ").replace("`", "'")
+    t = re.sub(r"\s+", " ", t).strip()
+    return t if t else "-"
+
+
+def montar_mensagem_whatsapp_resumo(
+    d: dict,
+    *,
+    volta_caixa_val: float = 0.0,
+    nome_consultor: str = "",
+    canal_imobiliaria: str = "",
+) -> str:
+    """
+    Texto para colar ou enviar via api.whatsapp.com/send.
+    Formatação: *negrito* em títulos e rótulos; linhas com • e *rótulo:* valor.
+    """
+    def item(label: str, valor) -> str:
+        return f"• *{_wa_escape_texto(label)}:* {_wa_escape_texto(valor)}"
+
+    def brs(key, default=0):
+        return f"R$ {fmt_br(d.get(key, default))}"
+
+    soc = "Sim" if d.get("social") else "Não"
+    cot = "Sim" if d.get("cotista") else "Não"
+    pol = d.get("politica", "") or "-"
+    rank = d.get("ranking", "") or "-"
+    amort = nome_sistema_amortizacao_completo(str(d.get("sistema_amortizacao", "SAC")))
+    prazo = d.get("prazo_financiamento", 360)
+    rendas = list(d.get("rendas_lista") or [])
+
+    linhas = [
+        "*Resumo da simulação — Direcional*",
+        "",
+        "*Dados do cliente*",
+        item("Nome", d.get("nome", "Cliente")),
+        item("CPF", d.get("cpf", "-")),
+        item("Data de nascimento", d.get("data_nascimento", "-")),
+        item("Renda familiar total", brs("renda", 0)),
+    ]
+    for i, rv in enumerate(rendas[:4], start=1):
+        try:
+            rvf = float(rv or 0)
+        except (TypeError, ValueError):
+            rvf = 0.0
+        if rvf > 0:
+            linhas.append(item(f"Renda participante {i}", f"R$ {fmt_br(rvf)}"))
+
+    linhas.extend(
+        [
+            "",
+            "*Perfil e crédito*",
+            item("Política de Pro Soluto", pol),
+            item("Ranking", rank),
+            item("Fator social", soc),
+            item("Cotista FGTS", cot),
+            item("Financiamento de referência (curva)", brs("finan_f_ref", 0)),
+            item("Subsídio de referência (curva)", brs("sub_f_ref", 0)),
+            "",
+            "*Dados do imóvel*",
+            item("Empreendimento", d.get("empreendimento_nome", "-")),
+            item("Unidade", d.get("unidade_id", "-")),
+            item("Valor comercial de venda", brs("imovel_valor", 0)),
+            item("Avaliação bancária", brs("imovel_avaliacao", 0)),
+        ]
+    )
+    if d.get("unid_entrega"):
+        linhas.append(item("Previsão de entrega", d.get("unid_entrega")))
+    if d.get("unid_area"):
+        linhas.append(item("Área privativa", f"{d.get('unid_area')} m²"))
+    if d.get("unid_tipo"):
+        linhas.append(item("Tipologia", d.get("unid_tipo")))
+    if d.get("unid_endereco") and d.get("unid_bairro"):
+        linhas.append(
+            item("Localização", f"{d.get('unid_endereco')} - {d.get('unid_bairro')}")
+        )
+
+    linhas.extend(
+        [
+            "",
+            "*Financiamento*",
+            item("Financiamento utilizado", brs("finan_usado", 0)),
+            item("Sistema de amortização e prazo", f"{amort} — {prazo} meses"),
+            item("Parcela estimada do financiamento", brs("parcela_financiamento", 0)),
+            item("Fundo de Garantia do Tempo de Serviço e subsídio", brs("fgts_sub_usado", 0)),
+            "",
+            "*Entrada e Pro Soluto*",
+            item("Pro Soluto (valor)", brs("ps_usado", 0)),
+            item("Número de parcelas do Pro Soluto", d.get("ps_parcelas", "-")),
+            item("Mensalidade do Pro Soluto", brs("ps_mensal", 0)),
+            item("Total em atos (imediato e parcelados)", brs("entrada_total", 0)),
+            item("Ato imediato", brs("ato_final", 0)),
+            item("Ato 30", brs("ato_30", 0)),
+            item("Ato 60", brs("ato_60", 0)),
+        ]
+    )
+    if not _politica_emcash(d.get("politica")):
+        linhas.append(item("Ato 90", brs("ato_90", 0)))
+    _ent_tot = float(d.get("entrada_total", 0) or 0) + float(d.get("ps_usado", 0) or 0)
+    linhas.append(item("Entrada total (atos e Pro Soluto)", f"R$ {fmt_br(_ent_tot)}"))
+
+    linhas.append(item("Volta ao caixa", f"R$ {fmt_br(volta_caixa_val)}"))
+    try:
+        vref = float(d.get("volta_caixa_ref", 0) or 0)
+    except (TypeError, ValueError):
+        vref = 0.0
+    if vref > 0:
+        linhas.append(item("Referência folga volta ao caixa", brs("volta_caixa_ref", 0)))
+
+    nc = (nome_consultor or "").strip()
+    ci = (canal_imobiliaria or "").strip()
+    if nc or ci:
+        linhas.extend(["", "*Consultor*"])
+        if nc:
+            linhas.append(item("Nome", nc))
+        if ci:
+            linhas.append(item("Canal ou imobiliária", ci))
+
+    linhas.extend(
+        [
+            "",
+            f"_Simulação em {d.get('data_simulacao', date.today().strftime('%d/%m/%Y'))}_",
+        ]
+    )
+
+    msg = "\n".join(linhas)
+    if len(msg) > _WHATSAPP_TEXTO_MAX:
+        msg = (
+            msg[: _WHATSAPP_TEXTO_MAX - 80].rstrip()
+            + "\n\n_(Mensagem encurtada; use o PDF para o detalhe completo.)_"
+        )
+    return msg
+
+
+def _url_whatsapp_enviar_texto(texto: str) -> str:
+    return f"https://api.whatsapp.com/send?text={urllib.parse.quote(texto)}"
+
+
 def _normalizar_separador_decimal_duas_casas(s: str) -> str:
     """`,` ou `.` como decimal na antepenúltima posição com 2 dígitos finais (por exemplo, 1.234,56 no padrão brasileiro ou 1,234.56 no padrão internacional). Evita 2.000 ser lido como mil."""
     s = str(s).strip()
@@ -2867,14 +3011,6 @@ def aba_simulador_automacao(
         # --- ETAPA 2: VALORES APROVADOS (FECHAMENTO FINANCEIRO) ---
         d = st.session_state.dados_cliente
         st.markdown("### Valores Aprovados (Fechamento Financeiro)")
-        st.markdown(
-            "<p style='text-align: center; color: #64748b; font-size: 0.9rem;'>"
-            "Preencha os valores aprovados de financiamento e subsídio. Os campos iniciam com a curva "
-            "<strong>fator social sim</strong> e <strong>cotista sim</strong> (última linha da tabela); "
-            "pode alterar para qualquer valor. As recomendações usarão os valores que estiverem nos campos."
-            "</p>",
-            unsafe_allow_html=True,
-        )
 
         renda_cli = float(d.get("renda", 0) or 0)
         _matriz_bd = motor.obter_quatro_combinacoes_f2_f3_f4(renda_cli)
@@ -3040,14 +3176,6 @@ def aba_simulador_automacao(
         # --- ETAPA 3: RECOMENDAÇÃO (filtro empreendimento + cards; sem abas) ---
         d = st.session_state.dados_cliente
         st.markdown("### Recomendação de Imóveis")
-        st.markdown(
-            "<p style=\"font-size:0.8rem;color:#111111;margin:0 0 0.75rem 0;\">"
-            "Poder de compra (por unidade): o dobro da renda + financiamento e subsídio <strong>informados nos campos</strong> "
-            "+ Pro Soluto máximo efetivo (teto do comparador nas células J8 e L8, limite percentual da política sobre o valor de venda "
-            "e teto da coluna Pro Soluto da unidade no estoque, como no Excel). "
-            "<strong>Unidades ideais:</strong> valor de venda até 100% desse poder. <strong>Unidades seguras:</strong> valor de venda até 90%.</p>",
-            unsafe_allow_html=True,
-        )
 
         df_disp_total = df_estoque.copy()
 
@@ -3127,7 +3255,7 @@ def aba_simulador_automacao(
                 lim_seg = 0.9 * pc
                 mask_ideal = (vv > 0) & (vv <= pc)
                 ideal_sub = df_pool[mask_ideal]
-                label_ideal = "Unidade(s) ideal (100%)"
+                label_ideal = "IDEAL"
                 if not ideal_sub.empty:
                     max_p_i = pd.to_numeric(ideal_sub["Valor de Venda"], errors="coerce").max()
                     cand_ideal = ideal_sub[pd.to_numeric(ideal_sub["Valor de Venda"], errors="coerce") == max_p_i]
@@ -3140,11 +3268,11 @@ def aba_simulador_automacao(
                         cand_ideal = pool_pos[
                             pd.to_numeric(pool_pos["Valor de Venda"], errors="coerce") == min_v_i
                         ]
-                        label_ideal = "Menor preço no filtro (sem unidade dentro de 100% do poder)"
+                        label_ideal = "MENOR PREÇO"
 
                 mask_seg = (vv > 0) & (vv <= lim_seg)
                 seg_sub = df_pool[mask_seg]
-                label_seguro = "Unidade(s) seguras (90%)"
+                label_seguro = "SEGURO"
                 if not seg_sub.empty:
                     max_p_s = pd.to_numeric(seg_sub["Valor de Venda"], errors="coerce").max()
                     cand_seguro = seg_sub[pd.to_numeric(seg_sub["Valor de Venda"], errors="coerce") == max_p_s]
@@ -3157,7 +3285,7 @@ def aba_simulador_automacao(
                         cand_seguro = stretch[
                             pd.to_numeric(stretch["Valor de Venda"], errors="coerce") == min_v_s
                         ]
-                        label_seguro = "Menor preço no filtro (sem unidade dentro de 90% do poder)"
+                        label_seguro = "MENOR PREÇO"
 
                 if not cand_ideal.empty and not cand_seguro.empty:
                     _k_ideal = set(
@@ -3580,7 +3708,6 @@ def aba_simulador_automacao(
         )
         st.write("")
         col_ps_val, col_ps_parc = st.columns(2)
-        _lim_renda_ps = float(d.get("limit_ps_renda", 0.30) or 0.30)
 
         with col_ps_val:
             st.text_input("Valor do Pro Soluto", key="ps_u_key", placeholder="0,00")
@@ -3604,15 +3731,6 @@ def aba_simulador_automacao(
             parc = _parc_i if _parc_i is not None else 1
             st.session_state.dados_cliente['ps_parcelas'] = parc
             st.markdown(f'<span class="inline-ref">Prazo máximo de parcelas do Pro Soluto: {parc_max_ui} meses</span>', unsafe_allow_html=True)
-
-        st.markdown(
-            f'<p style="text-align:center;color:#111111;font-size:0.8rem;line-height:1.45;margin:10px auto 14px auto;max-width:52rem;">'
-            f"Parcela máxima (comparador J8 — comprometimento da renda após fator λ menos {int(OFFSET_LAMBDA * 100)} por cento): "
-            f"{reais_streamlit_html(fmt_br(mps.get('parcela_max_j8', 0)))}. "
-            f"Referência de linha (G14): {reais_streamlit_html(fmt_br(mps.get('parcela_max_g14', 0)))}. "
-            f"Teto de política em relação à renda: até cerca de {_lim_renda_ps * 100:.0f} por cento (parâmetro K3 da classificação).</p>",
-            unsafe_allow_html=True,
-        )
 
         v_parc = parcela_ps_para_valor(
             float(ps_input_val or 0),
@@ -3718,6 +3836,31 @@ def aba_simulador_automacao(
             f"""<div class="summary-body"><b>Pro Soluto (parte da entrada):</b> {reais_streamlit_html(fmt_br(d.get('ps_usado', 0)))} — {d.get('ps_parcelas')} parcelas de {reais_streamlit_html(fmt_br(d.get('ps_mensal', 0)))}<br><hr style="border: 0; border-top: 1px solid #e2e8f0; margin: 10px 0;"><b>Total em atos (imediato e parcelados):</b> {reais_streamlit_html(fmt_br(d.get('entrada_total', 0)))}<br><b>Ato imediato:</b> {reais_streamlit_html(fmt_br(d.get('ato_final', 0)))}<br><b>Ato 30:</b> {reais_streamlit_html(fmt_br(d.get('ato_30', 0)))}<br><b>Ato 60:</b> {reais_streamlit_html(fmt_br(d.get('ato_60', 0)))}{_linha_resumo_ato_90}<br><hr style="border: 0; border-top: 1px solid #e2e8f0; margin: 10px 0;"><b>Entrada total (atos e Pro Soluto):</b> {reais_streamlit_html(fmt_br(_ent_resumo))}</div>""",
             unsafe_allow_html=True,
         )
+        st.markdown("---")
+        _vc_wa = texto_moeda_para_float(st.session_state.get("volta_caixa_key"))
+        _wa_msg = montar_mensagem_whatsapp_resumo(
+            d,
+            volta_caixa_val=_vc_wa,
+            nome_consultor=st.session_state.get("user_name", "") or "",
+            canal_imobiliaria=st.session_state.get("user_imobiliaria", "") or "",
+        )
+        _wa_link = _url_whatsapp_enviar_texto(_wa_msg)
+        _wa_link_max = 6000
+        if len(_wa_link) <= _wa_link_max:
+            st.link_button(
+                "Enviar resumo por WhatsApp",
+                _wa_link,
+                use_container_width=True,
+                type="secondary",
+                help="Abre o WhatsApp (Web ou aplicativo) com o texto do resumo já preenchido; escolha o contato e envie.",
+            )
+        else:
+            st.info(
+                "O link automático ficou grande demais para o navegador. Copie o texto abaixo e cole no WhatsApp."
+            )
+        with st.expander("Ver ou copiar texto do WhatsApp"):
+            st.caption("Negrito (*texto*) e tópicos funcionam ao colar no WhatsApp.")
+            st.text_area("Texto da mensagem", value=_wa_msg, height=280, label_visibility="collapsed")
         st.markdown("---")
         if st.button("Opções de resumo (documento PDF e e-mail)", use_container_width=True): show_export_dialog(d)
         st.markdown("---")
