@@ -1268,11 +1268,10 @@ def _html_campanhas_texto_bloco(df_texto: pd.DataFrame) -> str:
             continue
         tit_esc = html_std.escape(tit)
         body_esc = html_std.escape(body)
-        label = '<span class="home-campanhas-copy-titulo">Título:</span> '
         if tit_esc and body_esc:
-            inner = f"{label}<span class=\"home-campanhas-copy-nome\">{tit_esc}</span> {body_esc}"
+            inner = f'<span class="home-campanhas-copy-titulo">{tit_esc}</span> {body_esc}'
         elif tit_esc:
-            inner = f"{label}<span class=\"home-campanhas-copy-nome\">{tit_esc}</span>"
+            inner = f'<span class="home-campanhas-copy-titulo">{tit_esc}</span>'
         else:
             inner = body_esc
         items.append(f"<li>{inner}</li>")
@@ -1317,8 +1316,9 @@ def render_secao_campanhas_comerciais(
                 f'<label for="{cid}" class="home-banner-lb-backdrop" aria-label="Fechar"></label>'
                 f'<div class="home-banner-lb-inner" role="dialog" aria-label="Imagem ampliada">'
                 f'<img class="home-banner-lb-img" src="{src}" alt="" loading="lazy" decoding="async" />'
+                f"</div>"
                 f'<label for="{cid}" class="home-banner-lb-close" aria-label="Fechar" title="Fechar">×</label>'
-                f"</div></div></div>"
+                f"</div></div>"
             )
     if not cards and not copy_html:
         return
@@ -2304,30 +2304,28 @@ def configurar_layout():
         }}
         .home-campanhas-copy {{
             width: 100%;
-            max-width: min(720px, 100%);
+            max-width: min(920px, calc(100vw - clamp(1.5rem, 8vw, 4rem)));
             margin: 0.5rem auto 0;
-            padding: 0 0.35rem 0.35rem;
+            padding: 0 clamp(1.25rem, 6vw, 3.25rem) 0.5rem;
             box-sizing: border-box;
             text-align: left;
+            order: 2;
         }}
         .home-campanhas-copy-list {{
             margin: 0;
-            padding: 0 0 0 1.15rem;
+            padding: 0 clamp(0.5rem, 2vw, 1.25rem) 0 clamp(1.35rem, 3.5vw, 2rem);
             list-style: disc;
             color: {COR_TEXTO_LABEL};
             font-size: 0.9rem;
             line-height: 1.5;
         }}
         .home-campanhas-copy-list li {{
-            margin: 0.35rem 0;
+            margin: 0.4rem 0;
+            padding-right: clamp(0.25rem, 1.5vw, 0.75rem);
         }}
         .home-campanhas-copy-titulo {{
             font-weight: 700;
             color: {COR_AZUL_ESC};
-        }}
-        .home-campanhas-copy-nome {{
-            font-weight: 600;
-            color: {COR_TEXTO_LABEL};
         }}
         .home-banners-strip-outer {{
             display: flex;
@@ -2418,13 +2416,12 @@ def configurar_layout():
             bottom: 0 !important;
             width: 100vw !important;
             height: 100vh !important;
+            min-height: -webkit-fill-available !important;
             max-width: 100vw !important;
             max-height: 100vh !important;
             margin: 0 !important;
             z-index: 2147483646 !important;
-            display: flex;
-            align-items: center;
-            justify-content: center;
+            display: block;
             padding: 0;
             box-sizing: border-box;
             visibility: hidden;
@@ -2444,33 +2441,35 @@ def configurar_layout():
             cursor: pointer;
         }}
         .home-banner-lb-inner {{
-            position: relative;
+            position: absolute;
+            inset: 0;
             z-index: 2;
             width: 100%;
             height: 100%;
-            max-width: 100vw;
-            max-height: 100vh;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            gap: 0;
-            padding: 3rem 1rem 1.5rem;
+            margin: 0;
+            display: grid;
+            place-items: center;
+            place-content: center;
+            padding: 0;
             box-sizing: border-box;
         }}
         .home-banner-lb-img {{
-            max-width: calc(100vw - 2rem);
-            max-height: calc(100vh - 5rem);
+            display: block;
+            margin: 0;
+            max-width: min(100vw, 100%);
+            max-height: min(100vh, 100%);
             width: auto;
             height: auto;
             object-fit: contain;
+            object-position: center center;
             border-radius: 10px;
             box-shadow: 0 10px 48px rgba(0, 0, 0, 0.4);
         }}
         .home-banner-lb-close {{
-            position: absolute;
-            top: 0.25rem;
-            right: 0.25rem;
+            position: fixed !important;
+            top: max(0.5rem, env(safe-area-inset-top, 0px)) !important;
+            right: max(0.5rem, env(safe-area-inset-right, 0px)) !important;
+            z-index: 2147483647 !important;
             width: 2.35rem;
             height: 2.35rem;
             display: flex;
@@ -3249,7 +3248,7 @@ def aba_simulador_automacao(
         with st.expander("Textos — campanhas comerciais (administrador)", expanded=False):
             st.caption(
                 f"Aba **{_WS_CAMPANHAS_TEXTO}** (Titulo, Texto; colunas Ordem e Ativo são preenchidas automaticamente como SIM). "
-                "Na página, cada item aparece como marcador com **Título:** em negrito, o texto do campo título e, em seguida, o campo Texto."
+                "Na página, os textos ficam **abaixo das miniaturas**; cada item é um marcador com o **campo Título** em negrito/azul (mesmo estilo de antes) e, na sequência, o **Texto**."
             )
             with st.form("form_novo_campanha_texto"):
                 ct_titulo = st.text_input(
