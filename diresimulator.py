@@ -1515,17 +1515,75 @@ def _normalizar_df_logins_raw(df_logins: pd.DataFrame) -> pd.DataFrame:
     return df_logins
 
 
+def _candidatos_planilha_logins() -> list:
+    """Prioriza `spreadsheet` em secrets; depois `ID_GERAL` do código."""
+    out: list = []
+    try:
+        sp = str(st.secrets["connections"]["gsheets"].get("spreadsheet", "") or "").strip()
+        if sp:
+            out.append(sp)
+    except Exception:
+        pass
+    if ID_GERAL and ID_GERAL not in out:
+        out.append(ID_GERAL)
+    return out
+
+
+def _candidatos_aba_logins() -> list:
+    names: list = []
+    env_ws = (os.environ.get("SIMULADOR_LOGINS_WORKSHEET") or "").strip()
+    if env_ws:
+        names.append(env_ws)
+    for w in ("BD Logins", "Logins"):
+        if w not in names:
+            names.append(w)
+    return names
+
+
+def _diagnostico_secrets_gsheets() -> str | None:
+    """Mensagem curta se secrets do Google Sheets estão incompletos (ex.: type vazio)."""
+    try:
+        g = dict(st.secrets["connections"]["gsheets"])
+    except Exception:
+        return None
+    t = str(g.get("type", "") or "").strip()
+    if t != "service_account":
+        return (
+            'No `secrets.toml`, em `[connections.gsheets]`, defina **type = "service_account"** '
+            "(valor literal do JSON da Google — não deixe vazio)."
+        )
+    pk = str(g.get("private_key", "") or "").strip()
+    if not pk or "BEGIN PRIVATE KEY" not in pk:
+        return (
+            "Preencha **private_key** com o bloco PEM completo do JSON da conta de serviço "
+            '(entre """ ... """ como no exemplo).'
+        )
+    ce = str(g.get("client_email", "") or "").strip()
+    if not ce:
+        return "Preencha **client_email** do JSON e partilhe a planilha com esse e-mail (leitor ou editor)."
+    return None
+
+
 @st.cache_data(ttl=300, show_spinner=False)
 def carregar_apenas_logins() -> pd.DataFrame:
     """Só BD Logins — tela de login sem carregar estoque/financiamentos (mais rápido)."""
+    empty = pd.DataFrame(columns=_COLS_LOGINS)
     try:
         if "connections" not in st.secrets:
-            return pd.DataFrame(columns=_COLS_LOGINS)
+            return empty
         conn = st.connection("gsheets", type=GSheetsConnection)
-        df_logins = conn.read(spreadsheet=ID_GERAL, worksheet="BD Logins")
-        return _normalizar_df_logins_raw(df_logins)
+        for spread in _candidatos_planilha_logins():
+            for ws in _candidatos_aba_logins():
+                try:
+                    df_raw = conn.read(spreadsheet=spread, worksheet=ws, ttl=120)
+                    df_logins = _normalizar_df_logins_raw(df_raw)
+                    if not df_logins.empty or len(df_logins.columns) > 0:
+                        return df_logins
+                except Exception:
+                    continue
+        return empty
     except Exception:
-        return pd.DataFrame(columns=_COLS_LOGINS)
+        return empty
 
 
 @st.cache_data(ttl=300, show_spinner=False)
@@ -3224,6 +3282,22 @@ def tela_login(df_logins: pd.DataFrame) -> None:
         if submitted:
             if df_logins.empty:
                 st.error("Base de usuários vazia ou indisponível. Verifique a conexão com a planilha.")
+                tip = _diagnostico_secrets_gsheets()
+                if tip:
+                    st.warning(tip)
+                elif "connections" not in st.secrets:
+                    st.info(
+                        "Falta a secção `[connections.gsheets]` no `.streamlit/secrets.toml`. "
+                        "Copie `secrets.toml.example` e preencha com o JSON da conta de serviço."
+                    )
+                else:
+                    with st.expander("Checklist da planilha"):
+                        st.markdown(
+                            "- Opcional mas recomendado: **spreadsheet** = URL da planilha (como no exemplo).\n"
+                            "- Partilhe o ficheiro Google Sheets com o **client_email** da conta de serviço.\n"
+                            "- Aba de utilizadores: **BD Logins** (ou env `SIMULADOR_LOGINS_WORKSHEET`).\n"
+                            "- Depois de corrigir: menu Streamlit → **Clear cache** ou reinicie."
+                        )
             else:
                 em = email.strip().lower()
                 user = df_logins[
