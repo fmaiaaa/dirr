@@ -1235,21 +1235,6 @@ def normalizar_df_home_banners(df: pd.DataFrame | None) -> pd.DataFrame:
     return out[list(_COLS_HOME_BANNERS)].copy()
 
 
-def banner_ativo_sim(val) -> bool:
-    if val is None or (isinstance(val, float) and pd.isna(val)):
-        return False
-    s = str(val).strip().upper()
-    return s in ("SIM", "S", "TRUE", "1", "YES", "Y", "ATIVO", "VERDADEIRO")
-
-
-def banner_tela_cheia_sim(val) -> bool:
-    """SIM na coluna Tela_Cheia habilita clique para ver o banner em tela cheia (com descrição opcional)."""
-    if val is None or (isinstance(val, float) and pd.isna(val)):
-        return False
-    s = str(val).strip().upper()
-    return s in ("SIM", "S", "TRUE", "1", "YES", "Y")
-
-
 def login_row_is_adm(row: pd.Series) -> bool:
     v = row.get("Adm")
     if v is None or (isinstance(v, float) and pd.isna(v)):
@@ -1270,23 +1255,11 @@ def _img_url_seguro_https(url: str) -> str | None:
     return html_std.escape(u, quote=True)
 
 
-def _banner_descricao_html_segura(texto: str) -> str:
-    t = str(texto or "").strip()
-    if not t:
-        return ""
-    return html_std.escape(t)
-
-
 def _html_campanhas_texto_bloco(df_texto: pd.DataFrame) -> str:
     df = normalizar_df_campanhas_texto(df_texto)
     if df.empty:
         return ""
-    df = df[df["Ativo"].apply(banner_ativo_sim)]
-    if df.empty:
-        return ""
-    df = df.copy()
-    df["_sort"] = pd.to_numeric(df["Ordem"], errors="coerce")
-    df = df.sort_values("_sort", na_position="last")
+    df = df.reset_index(drop=True)
     items: list[str] = []
     for _, row in df.iterrows():
         tit = str(row.get("Titulo", "") or "").strip()
@@ -1295,10 +1268,11 @@ def _html_campanhas_texto_bloco(df_texto: pd.DataFrame) -> str:
             continue
         tit_esc = html_std.escape(tit)
         body_esc = html_std.escape(body)
+        label = '<span class="home-campanhas-copy-titulo">Título:</span> '
         if tit_esc and body_esc:
-            inner = f'<span class="home-campanhas-copy-titulo">{tit_esc}</span> {body_esc}'
+            inner = f"{label}<span class=\"home-campanhas-copy-nome\">{tit_esc}</span> {body_esc}"
         elif tit_esc:
-            inner = f'<span class="home-campanhas-copy-titulo">{tit_esc}</span>'
+            inner = f"{label}<span class=\"home-campanhas-copy-nome\">{tit_esc}</span>"
         else:
             inner = body_esc
         items.append(f"<li>{inner}</li>")
@@ -1316,20 +1290,15 @@ def render_secao_campanhas_comerciais(
     df_banners: pd.DataFrame,
     df_texto_campanhas: pd.DataFrame | None = None,
 ) -> None:
-    """Faixa de miniaturas quadradas (clique = tela cheia, só imagem) + texto em lista abaixo."""
-    df_bn = normalizar_df_home_banners(df_banners)
-    if not df_bn.empty:
-        df_bn = df_bn[df_bn["Ativo"].apply(banner_ativo_sim)]
+    """Faixa de miniaturas fixas (clique = imagem em tela cheia na viewport) + texto em lista abaixo."""
+    df_bn = normalizar_df_home_banners(df_banners).reset_index(drop=True)
     copy_html = _html_campanhas_texto_bloco(
         df_texto_campanhas if df_texto_campanhas is not None else pd.DataFrame()
     )
     cards: list[str] = []
     if not df_bn.empty:
-        df_s = df_bn.copy()
-        df_s["_sort"] = pd.to_numeric(df_s["Ordem"], errors="coerce")
-        df_s = df_s.sort_values("_sort", na_position="last")
         lb_idx = 0
-        for _, row in df_s.iterrows():
+        for _, row in df_bn.iterrows():
             src = _img_url_seguro_https(str(row.get("URL_Imagem", "") or ""))
             if not src:
                 continue
@@ -1371,29 +1340,23 @@ def render_secao_campanhas_comerciais(
     )
 
 
-def gravar_nova_linha_home_banner(
-    ordem: int,
-    url_imagem: str,
-    titulo: str,
-    ativo_sim: bool,
-    tela_cheia_sim: bool = False,
-    descricao: str = "",
-) -> tuple[bool, str]:
+def gravar_nova_linha_home_banner(url_imagem: str) -> tuple[bool, str]:
+    """Anexa linha na aba BD Home Banners: ordem automática, sempre ativo/tela cheia na planilha (legado)."""
     try:
         conn = st.connection("gsheets", type=GSheetsConnection)
         df_raw = conn.read(spreadsheet=ID_GERAL, worksheet="BD Home Banners")
         df_ex = normalizar_df_home_banners(df_raw)
-        ativo_txt = "SIM" if ativo_sim else "NÃO"
-        tc_txt = "SIM" if tela_cheia_sim else "NÃO"
+        ordens = pd.to_numeric(df_ex["Ordem"], errors="coerce")
+        prox = int(ordens.max()) + 1 if len(df_ex) and ordens.notna().any() else len(df_ex) + 1
         nova = pd.DataFrame(
             [
                 {
-                    "Ordem": int(ordem),
+                    "Ordem": prox,
                     "URL_Imagem": url_imagem.strip(),
-                    "Titulo": titulo.strip(),
-                    "Ativo": ativo_txt,
-                    "Tela_Cheia": tc_txt,
-                    "Descricao": (descricao or "").strip(),
+                    "Titulo": "",
+                    "Ativo": "SIM",
+                    "Tela_Cheia": "SIM",
+                    "Descricao": "",
                 }
             ]
         )
@@ -1404,24 +1367,20 @@ def gravar_nova_linha_home_banner(
         return False, str(e)
 
 
-def gravar_nova_linha_campanha_texto(
-    ordem: int,
-    titulo: str,
-    texto: str,
-    ativo_sim: bool,
-) -> tuple[bool, str]:
+def gravar_nova_linha_campanha_texto(titulo: str, texto: str) -> tuple[bool, str]:
     try:
         conn = st.connection("gsheets", type=GSheetsConnection)
         df_raw = conn.read(spreadsheet=ID_GERAL, worksheet=_WS_CAMPANHAS_TEXTO)
         df_ex = normalizar_df_campanhas_texto(df_raw)
-        ativo_txt = "SIM" if ativo_sim else "NÃO"
+        ordens = pd.to_numeric(df_ex["Ordem"], errors="coerce")
+        prox = int(ordens.max()) + 1 if len(df_ex) and ordens.notna().any() else len(df_ex) + 1
         nova = pd.DataFrame(
             [
                 {
-                    "Ordem": int(ordem),
+                    "Ordem": prox,
                     "Titulo": (titulo or "").strip(),
                     "Texto": (texto or "").strip(),
-                    "Ativo": ativo_txt,
+                    "Ativo": "SIM",
                 }
             ]
         )
@@ -1471,27 +1430,18 @@ def excluir_linha_home_banner(indice_linha: int) -> tuple[bool, str]:
 
 def _rotulo_opcao_excluir_banner(df_bn: pd.DataFrame, i: int) -> str:
     r = df_bn.iloc[i]
-    ordem = r.get("Ordem", "")
-    tit = str(r.get("Titulo", "") or "").strip()
-    tit = (tit[:42] + "…") if len(tit) > 43 else tit
     url = str(r.get("URL_Imagem", "") or "").strip()
-    host = ""
-    try:
-        host = urllib.parse.urlparse(url).netloc[:28] if url else ""
-    except Exception:
-        host = ""
-    sufixo = f" — {host}" if host else ""
-    return f"Linha {i + 1} · Ordem {ordem} · {tit or '(imagem)'}{sufixo}"
+    snip = (url[:56] + "…") if len(url) > 57 else url
+    return f"Linha {i + 1} · {snip or '(sem URL)'}"
 
 
 def _rotulo_opcao_excluir_campanha_texto(df_ct: pd.DataFrame, i: int) -> str:
     r = df_ct.iloc[i]
-    ordem = r.get("Ordem", "")
     tit = str(r.get("Titulo", "") or "").strip()
     tit = (tit[:48] + "…") if len(tit) > 49 else tit
     snip = str(r.get("Texto", "") or "").strip().replace("\n", " ")
     snip = (snip[:36] + "…") if len(snip) > 37 else snip
-    return f"Linha {i + 1} · Ordem {ordem} · {tit or '(sem título)'}{' — ' + snip if snip else ''}"
+    return f"Linha {i + 1} · {tit or '(sem título)'}{' — ' + snip if snip else ''}"
 
 
 _COLS_LOGINS = ["Email", "Senha", "Nome", "Cargo", "Imobiliaria", "Telefone", "Adm"]
@@ -2331,12 +2281,10 @@ def configurar_layout():
             display: flex;
             flex-direction: column;
             align-items: center;
-            width: 100vw;
-            max-width: 100%;
+            width: 100%;
+            max-width: 100vw;
             position: relative;
-            left: 50%;
-            transform: translateX(-50%);
-            margin: 0 0 1.25rem 0;
+            margin: 0 auto 1.25rem;
             padding: 0 0.75rem;
             box-sizing: border-box;
             text-align: center;
@@ -2377,6 +2325,10 @@ def configurar_layout():
             font-weight: 700;
             color: {COR_AZUL_ESC};
         }}
+        .home-campanhas-copy-nome {{
+            font-weight: 600;
+            color: {COR_TEXTO_LABEL};
+        }}
         .home-banners-strip-outer {{
             display: flex;
             justify-content: center;
@@ -2410,13 +2362,19 @@ def configurar_layout():
             border: 1px solid rgba(226, 232, 240, 0.95);
         }}
         .home-banner-card.home-banner-card--thumb {{
-            width: min(92px, 22vw);
-            padding: 5px;
+            width: 96px;
+            height: 96px;
+            padding: 4px;
+            box-sizing: border-box;
+            display: flex;
+            align-items: center;
+            justify-content: center;
         }}
         .home-banner-thumb-frame {{
             display: block;
-            width: 100%;
-            aspect-ratio: 1 / 1;
+            width: 88px;
+            height: 88px;
+            flex-shrink: 0;
             border-radius: 10px;
             overflow: hidden;
             background: rgba(248, 250, 252, 0.95);
@@ -2424,8 +2382,8 @@ def configurar_layout():
         }}
         .home-banner-card.home-banner-card--thumb img {{
             display: block;
-            width: 100%;
-            height: 100%;
+            width: 88px;
+            height: 88px;
             object-fit: cover;
             object-position: center;
             border-radius: 0;
@@ -2453,13 +2411,21 @@ def configurar_layout():
             outline-offset: 3px;
         }}
         .home-banner-lb-panel {{
-            position: fixed;
-            inset: 0;
-            z-index: 100050;
+            position: fixed !important;
+            top: 0 !important;
+            left: 0 !important;
+            right: 0 !important;
+            bottom: 0 !important;
+            width: 100vw !important;
+            height: 100vh !important;
+            max-width: 100vw !important;
+            max-height: 100vh !important;
+            margin: 0 !important;
+            z-index: 2147483646 !important;
             display: flex;
             align-items: center;
             justify-content: center;
-            padding: clamp(0.75rem, 3vw, 1.5rem);
+            padding: 0;
             box-sizing: border-box;
             visibility: hidden;
             opacity: 0;
@@ -2480,18 +2446,21 @@ def configurar_layout():
         .home-banner-lb-inner {{
             position: relative;
             z-index: 2;
-            max-width: min(96vw, 1200px);
-            max-height: 92vh;
+            width: 100%;
+            height: 100%;
+            max-width: 100vw;
+            max-height: 100vh;
             display: flex;
             flex-direction: column;
             align-items: center;
+            justify-content: center;
             gap: 0;
-            padding: 2.35rem 1.1rem 1.25rem;
+            padding: 3rem 1rem 1.5rem;
             box-sizing: border-box;
         }}
         .home-banner-lb-img {{
-            max-width: 100%;
-            max-height: min(72vh, 860px);
+            max-width: calc(100vw - 2rem);
+            max-height: calc(100vh - 5rem);
             width: auto;
             height: auto;
             object-fit: contain;
@@ -3222,68 +3191,41 @@ def aba_simulador_automacao(
         df_campanhas_texto if df_campanhas_texto is not None else pd.DataFrame(),
     )
     if st.session_state.get("user_is_adm"):
-        with st.expander("Campanhas comerciais (administrador — planilha)", expanded=False):
+        with st.expander("Miniaturas — campanhas comerciais (administrador)", expanded=False):
             st.caption(
-                "**Imagens:** aba **BD Home Banners** — URL **https** (ex.: Postimages). Na home aparecem só **miniaturas quadradas**; ao clicar, **só a imagem** em tela cheia (sem título nem descrição na interface). "
-                "Colunas: Ordem, URL_Imagem, Titulo (opcional, só para organização na planilha), Ativo, Tela_Cheia, Descricao (legado; não é mais exibido). "
-                "**Texto abaixo da faixa:** crie a aba **BD Campanhas Texto** com colunas **Ordem**, **Titulo**, **Texto**, **Ativo** (SIM/NÃO); cada linha vira um item de lista com título + texto."
+                "Aba **BD Home Banners** na planilha geral. Informe só a **URL https** da imagem; a ordem na galeria segue a ordem das linhas na planilha (último lançamento = última miniatura). "
+                "Ao clicar, a imagem abre em **tela cheia no navegador**, mantendo a proporção original."
             )
             with st.form("form_novo_home_banner"):
-                c1, c2, c3 = st.columns(3)
-                with c1:
-                    bn_ordem = st.number_input("Ordem", min_value=1, max_value=999, value=1, step=1)
-                with c2:
-                    bn_ativo = st.selectbox("Ativo", ["SIM", "NÃO"], index=0)
-                with c3:
-                    bn_tela_cheia = st.selectbox(
-                        "Tela cheia (planilha — legado)",
-                        ["NÃO", "SIM"],
-                        index=0,
-                        help="Valor gravado na planilha; não altera o comportamento na interface.",
-                    )
                 bn_url = st.text_input(
                     "Endereço da imagem (URL)",
                     placeholder="https://i.postimg.cc/...",
                 )
-                bn_titulo = st.text_input(
-                    "Título (planilha — opcional)",
-                    placeholder="Só para identificar a linha na planilha / exclusão",
-                )
-                enviar_bn = st.form_submit_button("Gravar nova linha na aba Banners da home", type="primary")
+                enviar_bn = st.form_submit_button("Gravar nova imagem na aba Banners da home", type="primary")
             if enviar_bn:
                 url_t = (bn_url or "").strip()
-                ativo_sim = str(bn_ativo or "").strip().upper() == "SIM"
-                tc_sim = str(bn_tela_cheia or "").strip().upper() == "SIM"
                 if not url_t.startswith("https://"):
                     st.error("A URL da imagem deve começar com https:// (use o link direto do Postimages).")
                 else:
-                    ok, err = gravar_nova_linha_home_banner(
-                        int(bn_ordem),
-                        url_t,
-                        (bn_titulo or "").strip(),
-                        ativo_sim,
-                        tela_cheia_sim=tc_sim,
-                        descricao="",
-                    )
+                    ok, err = gravar_nova_linha_home_banner(url_t)
                     if ok:
                         st.cache_data.clear()
-                        st.success("Banner gravado na planilha. Recarregando…")
+                        st.success("Imagem gravada na planilha. Recarregando…")
                         st.rerun()
                     else:
                         st.error(f"Não foi possível gravar: {err}")
 
-            st.markdown("---")
-            st.markdown("**Remover banner**")
+            st.markdown("**Remover miniatura**")
             _df_bn_adm = normalizar_df_home_banners(
                 df_home_banners if df_home_banners is not None else pd.DataFrame()
             )
             _df_bn_adm = _df_bn_adm.reset_index(drop=True)
             if _df_bn_adm.empty:
-                st.caption("Não há linhas para excluir na aba Banners da home da base de dados.")
+                st.caption("Não há linhas na aba Banners da home.")
             else:
                 _opts_idx = list(range(len(_df_bn_adm)))
                 _ix_del = st.selectbox(
-                    "Banner a excluir (ordem igual à da planilha ao carregar)",
+                    "Linha a excluir (mesma ordem da planilha ao carregar)",
                     options=_opts_idx,
                     format_func=lambda j: _rotulo_opcao_excluir_banner(_df_bn_adm, int(j)),
                     key="home_banner_excluir_select",
@@ -3292,52 +3234,43 @@ def aba_simulador_automacao(
                     "Confirmo que quero remover permanentemente esta linha da planilha",
                     key="home_banner_excluir_confirma",
                 )
-                if st.button("Excluir banner selecionado", type="secondary", key="home_banner_excluir_btn"):
+                if st.button("Excluir linha selecionada", type="secondary", key="home_banner_excluir_btn"):
                     if not _conf_del:
                         st.warning("Marque a confirmação para excluir.")
                     else:
                         ok_del, err_del = excluir_linha_home_banner(int(_ix_del))
                         if ok_del:
                             st.cache_data.clear()
-                            st.success("Banner removido da planilha. Recarregando…")
+                            st.success("Linha removida. Recarregando…")
                             st.rerun()
                         else:
                             st.error(f"Não foi possível excluir: {err_del}")
 
-            st.markdown("---")
-            st.markdown("**Texto das campanhas (lista abaixo das imagens)**")
+        with st.expander("Textos — campanhas comerciais (administrador)", expanded=False):
             st.caption(
-                f"Aba **{_WS_CAMPANHAS_TEXTO}**: colunas Ordem, Titulo, Texto, Ativo. "
-                "Crie a aba na mesma planilha da base geral se ainda não existir."
+                f"Aba **{_WS_CAMPANHAS_TEXTO}** (Titulo, Texto; colunas Ordem e Ativo são preenchidas automaticamente como SIM). "
+                "Na página, cada item aparece como marcador com **Título:** em negrito, o texto do campo título e, em seguida, o campo Texto."
             )
             with st.form("form_novo_campanha_texto"):
-                ct1, ct2 = st.columns(2)
-                with ct1:
-                    ct_ordem = st.number_input("Ordem (texto)", min_value=1, max_value=999, value=1, step=1)
-                with ct2:
-                    ct_ativo = st.selectbox("Ativo (texto)", ["SIM", "NÃO"], index=0, key="ct_ativo_sel")
                 ct_titulo = st.text_input(
-                    "Título da campanha (aparece em destaque no item)",
-                    placeholder="Ex.: Campanha de Carnaval:",
+                    "Título",
+                    placeholder='Ex.: "Campanha de Carnaval"',
                 )
                 ct_texto = st.text_area(
-                    "Texto do item",
-                    placeholder="Ex.: Venda 3 vezes e ganhe 1 TV. Regras X e Y.",
-                    height=88,
+                    "Texto",
+                    placeholder="Ex.: Campanha x e y válida entre xc e yc.",
+                    height=100,
                 )
                 enviar_ct = st.form_submit_button(
                     f"Gravar nova linha em {_WS_CAMPANHAS_TEXTO}", type="primary"
                 )
             if enviar_ct:
-                ct_a = str(ct_ativo or "").strip().upper() == "SIM"
                 if not (ct_titulo or "").strip() and not (ct_texto or "").strip():
                     st.error("Preencha pelo menos o título ou o texto.")
                 else:
                     ok_ct, err_ct = gravar_nova_linha_campanha_texto(
-                        int(ct_ordem),
                         (ct_titulo or "").strip(),
                         (ct_texto or "").strip(),
-                        ct_a,
                     )
                     if ok_ct:
                         st.cache_data.clear()
