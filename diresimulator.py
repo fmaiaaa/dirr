@@ -729,11 +729,11 @@ def inject_enter_confirma_campo():
 # 1. CARREGAMENTO DE DADOS
 # =============================================================================
 
-_COLS_HOME_BANNERS = ("Ordem", "URL_Imagem", "Titulo", "Ativo")
+_COLS_HOME_BANNERS = ("Ordem", "URL_Imagem", "Titulo", "Ativo", "Tela_Cheia", "Descricao")
 
 
 def normalizar_df_home_banners(df: pd.DataFrame | None) -> pd.DataFrame:
-    """Planilha BD Home Banners: Ordem, URL_Imagem, Titulo, Ativo."""
+    """Planilha BD Home Banners: Ordem, URL_Imagem, Titulo, Ativo, Tela_Cheia, Descricao."""
     if df is None or df.empty:
         return pd.DataFrame(columns=list(_COLS_HOME_BANNERS))
     out = df.copy()
@@ -745,6 +745,12 @@ def normalizar_df_home_banners(df: pd.DataFrame | None) -> pd.DataFrame:
         "Título": "Titulo",
         "titulo": "Titulo",
         "ativo": "Ativo",
+        "tela cheia": "Tela_Cheia",
+        "Tela cheia": "Tela_Cheia",
+        "tela_cheia": "Tela_Cheia",
+        "Descrição": "Descricao",
+        "descricao": "Descricao",
+        "desc": "Descricao",
     }
     for a, b in list(ren.items()):
         if a in out.columns and a != b:
@@ -760,6 +766,14 @@ def banner_ativo_sim(val) -> bool:
         return False
     s = str(val).strip().upper()
     return s in ("SIM", "S", "TRUE", "1", "YES", "Y", "ATIVO", "VERDADEIRO")
+
+
+def banner_tela_cheia_sim(val) -> bool:
+    """SIM na coluna Tela_Cheia habilita clique para ver o banner em tela cheia (com descrição opcional)."""
+    if val is None or (isinstance(val, float) and pd.isna(val)):
+        return False
+    s = str(val).strip().upper()
+    return s in ("SIM", "S", "TRUE", "1", "YES", "Y")
 
 
 def login_row_is_adm(row: pd.Series) -> bool:
@@ -782,6 +796,13 @@ def _img_url_seguro_https(url: str) -> str | None:
     return html_std.escape(u, quote=True)
 
 
+def _banner_descricao_html_segura(texto: str) -> str:
+    t = str(texto or "").strip()
+    if not t:
+        return ""
+    return html_std.escape(t)
+
+
 def render_faixa_home_banners(df_banners: pd.DataFrame) -> None:
     df = normalizar_df_home_banners(df_banners)
     if df.empty:
@@ -793,33 +814,73 @@ def render_faixa_home_banners(df_banners: pd.DataFrame) -> None:
     df["_sort"] = pd.to_numeric(df["Ordem"], errors="coerce")
     df = df.sort_values("_sort", na_position="last")
     cards: list[str] = []
+    lb_idx = 0
     for _, row in df.iterrows():
         src = _img_url_seguro_https(str(row.get("URL_Imagem", "") or ""))
         if not src:
             continue
         tit = str(row.get("Titulo", "") or "").strip()
         tit_esc = html_std.escape(tit)
-        cards.append(
-            f'<div class="home-banner-card">'
-            f'<img src="{src}" alt="{tit_esc}" loading="lazy" decoding="async" />'
-            f'<div class="home-banner-title">{tit_esc}</div></div>'
-        )
+        fs = banner_tela_cheia_sim(row.get("Tela_Cheia"))
+        desc_raw = str(row.get("Descricao", "") or "").strip()
+        desc_esc = _banner_descricao_html_segura(desc_raw)
+        desc_block = ""
+        if desc_esc:
+            desc_block = (
+                f'<div class="home-banner-lb-desc" style="white-space:pre-wrap;">{desc_esc}</div>'
+            )
+        if fs:
+            cid = f"home-banner-lb-{lb_idx}"
+            lb_idx += 1
+            cards.append(
+                f'<div class="home-banner-lb-root">'
+                f'<input type="checkbox" id="{cid}" class="home-banner-lb-input" autocomplete="off" '
+                f'aria-hidden="true" tabindex="-1" />'
+                f'<label for="{cid}" class="home-banner-card home-banner-card--fs" title="Ver em tela cheia">'
+                f'<img src="{src}" alt="{tit_esc}" loading="lazy" decoding="async" />'
+                f'<div class="home-banner-title">{tit_esc}</div>'
+                f'<span class="home-banner-fs-hint">Clique para tela cheia</span></label>'
+                f'<div class="home-banner-lb-panel" role="presentation">'
+                f'<label for="{cid}" class="home-banner-lb-backdrop" aria-label="Fechar"></label>'
+                f'<div class="home-banner-lb-inner" role="dialog" aria-label="{tit_esc}">'
+                f'<img class="home-banner-lb-img" src="{src}" alt="{tit_esc}" loading="lazy" decoding="async" />'
+                f"{desc_block}"
+                f'<label for="{cid}" class="home-banner-lb-close" aria-label="Fechar" title="Fechar">×</label>'
+                f"</div></div></div>"
+            )
+        else:
+            cards.append(
+                f'<div class="home-banner-card">'
+                f'<img src="{src}" alt="{tit_esc}" loading="lazy" decoding="async" />'
+                f'<div class="home-banner-title">{tit_esc}</div></div>'
+            )
     if not cards:
         return
     st.markdown(
-        '<div class="home-banners-wrap"><div class="home-banners-strip" role="region" aria-label="Destaques">'
+        '<div class="home-banners-wrap">'
+        '<h2 class="home-banners-section-title">Campanhas comerciais</h2>'
+        '<div class="home-banners-strip-outer">'
+        '<div class="home-banners-strip" role="region" aria-label="Campanhas comerciais">'
         + "".join(cards)
-        + "</div></div>",
+        + "</div></div></div>",
         unsafe_allow_html=True,
     )
 
 
-def gravar_nova_linha_home_banner(ordem: int, url_imagem: str, titulo: str, ativo_sim: bool) -> tuple[bool, str]:
+def gravar_nova_linha_home_banner(
+    ordem: int,
+    url_imagem: str,
+    titulo: str,
+    ativo_sim: bool,
+    tela_cheia_sim: bool = False,
+    descricao: str = "",
+) -> tuple[bool, str]:
     try:
         conn = st.connection("gsheets", type=GSheetsConnection)
         df_raw = conn.read(spreadsheet=ID_GERAL, worksheet="BD Home Banners")
         df_ex = normalizar_df_home_banners(df_raw)
         ativo_txt = "SIM" if ativo_sim else "NÃO"
+        tc_txt = "SIM" if tela_cheia_sim else "NÃO"
         nova = pd.DataFrame(
             [
                 {
@@ -827,6 +888,8 @@ def gravar_nova_linha_home_banner(ordem: int, url_imagem: str, titulo: str, ativ
                     "URL_Imagem": url_imagem.strip(),
                     "Titulo": titulo.strip(),
                     "Ativo": ativo_txt,
+                    "Tela_Cheia": tc_txt,
+                    "Descricao": (descricao or "").strip(),
                 }
             ]
         )
@@ -835,6 +898,40 @@ def gravar_nova_linha_home_banner(ordem: int, url_imagem: str, titulo: str, ativ
         return True, ""
     except Exception as e:
         return False, str(e)
+
+
+def excluir_linha_home_banner(indice_linha: int) -> tuple[bool, str]:
+    """Remove uma linha da aba BD Home Banners pelo índice (0 = primeira linha de dados na leitura normalizada)."""
+    try:
+        conn = st.connection("gsheets", type=GSheetsConnection)
+        df_raw = conn.read(spreadsheet=ID_GERAL, worksheet="BD Home Banners")
+        df_ex = normalizar_df_home_banners(df_raw)
+        df_ex = df_ex.reset_index(drop=True)
+        n = len(df_ex)
+        if n == 0:
+            return False, "A planilha de banners está vazia."
+        if indice_linha < 0 or indice_linha >= n:
+            return False, "Linha inválida."
+        df_new = df_ex.drop(index=indice_linha).reset_index(drop=True)
+        conn.update(spreadsheet=ID_GERAL, worksheet="BD Home Banners", data=df_new)
+        return True, ""
+    except Exception as e:
+        return False, str(e)
+
+
+def _rotulo_opcao_excluir_banner(df_bn: pd.DataFrame, i: int) -> str:
+    r = df_bn.iloc[i]
+    ordem = r.get("Ordem", "")
+    tit = str(r.get("Titulo", "") or "").strip()
+    tit = (tit[:42] + "…") if len(tit) > 43 else tit
+    url = str(r.get("URL_Imagem", "") or "").strip()
+    host = ""
+    try:
+        host = urllib.parse.urlparse(url).netloc[:28] if url else ""
+    except Exception:
+        host = ""
+    sufixo = f" — {host}" if host else ""
+    return f"Linha {i + 1} · Ordem {ordem} · {tit or '(sem título)'}{sufixo}"
 
 
 _COLS_LOGINS = ["Email", "Senha", "Nome", "Cargo", "Imobiliaria", "Telefone", "Adm"]
@@ -1273,12 +1370,13 @@ def configurar_layout():
         }}
         .stApp,
         [data-testid="stApp"] {{
-            background-color: rgba(4, 66, 143, 0.35) !important;
+            /* Azul mais presente que antes, sem cobrir totalmente a foto */
+            background-color: rgba(4, 66, 143, 0.52) !important;
             background-image: linear-gradient(
                 180deg,
-                rgba(4, 66, 143, 0.38) 0%,
-                rgba(4, 66, 143, 0.32) 45%,
-                rgba(2, 42, 92, 0.36) 100%
+                rgba(4, 66, 143, 0.58) 0%,
+                rgba(4, 66, 143, 0.48) 45%,
+                rgba(2, 42, 92, 0.54) 100%
             ), url("{bg_url}") !important;
             /* Gradiente em tela cheia; foto com cover = mantém proporção (sem esticar). */
             background-size: 100% 100%, cover !important;
@@ -1407,10 +1505,13 @@ def configurar_layout():
             margin-top: 0.5rem !important;
             margin-bottom: 0.5rem !important;
             padding: 1.25rem clamp(1rem, 2vw, 2rem) !important;
-            background: #ffffff !important;
+            /* Branco quase sólido com transparência mínima + leve vidro */
+            background: rgba(255, 255, 255, 0.93) !important;
+            backdrop-filter: saturate(1.08) blur(10px) !important;
+            -webkit-backdrop-filter: saturate(1.08) blur(10px) !important;
             border-radius: 8px !important;
-            border: 1px solid #e2e8f0 !important;
-            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06) !important;
+            border: 1px solid rgba(226, 232, 240, 0.92) !important;
+            box-shadow: 0 4px 24px rgba(4, 66, 143, 0.08), 0 1px 3px rgba(15, 23, 42, 0.06) !important;
         }}
         [data-testid="stVerticalBlockBorderWrapper"] {{
             border-radius: 8px !important;
@@ -1419,6 +1520,11 @@ def configurar_layout():
 
         /* Títulos de conteúdo — hierarquia clara, só Montserrat + Inter herdada */
         .stMarkdown h1 {{ font-size: clamp(1.5rem, 2.5vw, 1.85rem) !important; text-align: center !important; margin-bottom: 0.45rem !important; font-weight: 800 !important; }}
+        .stMarkdown h1.header-title {{
+            font-size: clamp(2.35rem, 6.2vw, 3.55rem) !important;
+            margin-bottom: 0.55rem !important;
+            line-height: 1.18 !important;
+        }}
         .stMarkdown h2 {{ font-size: clamp(1.28rem, 2vw, 1.5rem) !important; text-align: center !important; margin-bottom: 0.45rem !important; font-weight: 700 !important; color: {COR_AZUL_ESC} !important; }}
         .stMarkdown h3 {{ font-size: clamp(1.12rem, 1.8vw, 1.28rem) !important; text-align: center !important; margin-bottom: 0.4rem !important; font-weight: 700 !important; }}
         .stMarkdown h4 {{ font-size: 1.05rem !important; text-align: center !important; margin-bottom: 0.35rem !important; font-weight: 700 !important; }}
@@ -1609,9 +1715,9 @@ def configurar_layout():
 
         .header-container {{
             text-align: center;
-            padding: 0.75rem 1rem 1rem;
+            padding: 0.85rem 1rem 1.1rem;
             margin: 0 auto 1rem;
-            max-width: 960px;
+            max-width: 1100px;
             position: relative;
         }}
         /* Barra animada — topo do conteúdo (substitui o antigo stepper) */
@@ -1646,17 +1752,39 @@ def configurar_layout():
             margin: 0 0 1.25rem 0;
             padding: 0 0.75rem;
             box-sizing: border-box;
+            text-align: center;
+        }}
+        .home-banners-section-title {{
+            font-family: 'Montserrat', 'Inter', sans-serif !important;
+            font-size: clamp(1.12rem, 2.2vw, 1.42rem) !important;
+            font-weight: 700 !important;
+            color: {COR_AZUL_ESC} !important;
+            text-align: center !important;
+            margin: 0 0 0.7rem 0 !important;
+            padding: 0 0.25rem !important;
+            letter-spacing: -0.02em !important;
+            line-height: 1.25 !important;
+        }}
+        .home-banners-strip-outer {{
+            display: flex;
+            justify-content: center;
+            width: 100%;
+            max-width: 100%;
+            overflow-x: auto;
+            overflow-y: hidden;
+            padding: 0 0.15rem;
+            box-sizing: border-box;
+            -webkit-overflow-scrolling: touch;
         }}
         .home-banners-strip {{
             display: flex;
             flex-direction: row;
             flex-wrap: nowrap;
             gap: 1rem;
-            overflow-x: auto;
-            overflow-y: hidden;
             padding: 0.35rem 0.25rem 0.75rem;
             scroll-snap-type: x proximity;
-            -webkit-overflow-scrolling: touch;
+            margin-left: auto;
+            margin-right: auto;
         }}
         .home-banner-card {{
             flex: 0 0 auto;
@@ -1685,30 +1813,133 @@ def configurar_layout():
             color: {COR_TEXTO_LABEL};
             line-height: 1.25;
         }}
+        .home-banner-lb-root {{
+            flex: 0 0 auto;
+        }}
+        .home-banner-lb-input {{
+            position: absolute !important;
+            width: 1px !important;
+            height: 1px !important;
+            padding: 0 !important;
+            margin: -1px !important;
+            overflow: hidden !important;
+            clip: rect(0, 0, 0, 0) !important;
+            white-space: nowrap !important;
+            border: 0 !important;
+        }}
+        .home-banner-card--fs {{
+            cursor: pointer;
+        }}
+        .home-banner-card--fs:focus-visible {{
+            outline: 2px solid {COR_AZUL_ESC};
+            outline-offset: 3px;
+        }}
+        .home-banner-fs-hint {{
+            display: block;
+            margin-top: 4px;
+            font-size: 0.62rem;
+            font-weight: 500;
+            color: {COR_TEXTO_MUTED};
+            letter-spacing: 0.02em;
+        }}
+        .home-banner-lb-panel {{
+            position: fixed;
+            inset: 0;
+            z-index: 100050;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: clamp(0.75rem, 3vw, 1.5rem);
+            box-sizing: border-box;
+            visibility: hidden;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.2s ease, visibility 0.2s ease;
+        }}
+        .home-banner-lb-input:checked ~ .home-banner-lb-panel {{
+            visibility: visible;
+            opacity: 1;
+            pointer-events: auto;
+        }}
+        .home-banner-lb-backdrop {{
+            position: absolute;
+            inset: 0;
+            background: rgba(15, 23, 42, 0.9);
+            cursor: pointer;
+        }}
+        .home-banner-lb-inner {{
+            position: relative;
+            z-index: 2;
+            max-width: min(96vw, 1200px);
+            max-height: 92vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 1rem;
+            padding: 2.35rem 1.1rem 1.25rem;
+            box-sizing: border-box;
+        }}
+        .home-banner-lb-img {{
+            max-width: 100%;
+            max-height: min(72vh, 860px);
+            width: auto;
+            height: auto;
+            object-fit: contain;
+            border-radius: 10px;
+            box-shadow: 0 10px 48px rgba(0, 0, 0, 0.4);
+        }}
+        .home-banner-lb-desc {{
+            color: #f1f5f9;
+            max-width: 40rem;
+            text-align: center;
+            font-size: 0.95rem;
+            line-height: 1.55;
+            margin: 0;
+        }}
+        .home-banner-lb-close {{
+            position: absolute;
+            top: 0.25rem;
+            right: 0.25rem;
+            width: 2.35rem;
+            height: 2.35rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.45rem;
+            line-height: 1;
+            color: #f8fafc;
+            cursor: pointer;
+            border-radius: 10px;
+            background: rgba(255, 255, 255, 0.14);
+            border: 1px solid rgba(255, 255, 255, 0.28);
+        }}
+        .home-banner-lb-close:hover {{
+            background: rgba(255, 255, 255, 0.22);
+        }}
         .header-logo-wrap {{
             display: flex;
             justify-content: center;
             align-items: center;
-            margin: 0 auto 0.75rem;
+            margin: 0 auto 0.85rem;
         }}
         .header-logo-wrap img {{
             display: block;
             margin: 0 auto;
-            max-height: 64px;
+            max-height: 96px;
             width: auto;
-            max-width: min(280px, 85vw);
+            max-width: min(400px, 92vw);
             height: auto;
             object-fit: contain;
         }}
         .header-title {{
             font-family: 'Montserrat', 'Inter', sans-serif;
-            font-size: clamp(1.95rem, 5vw, 2.95rem);
+            font-size: clamp(2.35rem, 6.2vw, 3.55rem);
             font-weight: 800;
-            line-height: 1.2;
-            margin: 0.15rem 0 0.5rem 0;
+            line-height: 1.18;
+            margin: 0.2rem 0 0.55rem 0;
             color: {COR_AZUL_ESC};
             text-align: center;
-            letter-spacing: -0.025em;
+            letter-spacing: -0.03em;
         }}
         /* Cabeçalho injetado: wrapper do Streamlit às vezes força alinhamento à esquerda */
         div[data-testid="stMarkdown"] .header-container {{
@@ -1718,6 +1949,9 @@ def configurar_layout():
         }}
         div[data-testid="stMarkdown"] .header-container .header-title {{
             text-align: center !important;
+            font-size: clamp(2.35rem, 6.2vw, 3.55rem) !important;
+            font-weight: 800 !important;
+            line-height: 1.18 !important;
         }}
 
         .card, .fin-box, .recommendation-card, .login-card {{
@@ -2205,12 +2439,14 @@ def enviar_email_smtp(destinatario, nome_cliente, pdf_bytes, dados_cliente, tipo
 def tela_login(df_logins: pd.DataFrame) -> None:
     c1, c2, c3 = st.columns([1, 1.5, 1])
     with c2:
-        st.markdown("<br><br><h3 style='text-align:center;'>Acesso ao simulador</h3>", unsafe_allow_html=True)
+        st.markdown(
+            "<h3 style='text-align:center;margin:0 0 0.35rem 0;'>Acesso ao simulador</h3>",
+            unsafe_allow_html=True,
+        )
         st.caption("Utilize o e-mail e a senha cadastrados na planilha BD Logins.")
         with st.form("login_form"):
             email = st.text_input("E-mail", key="login_email")
             senha = st.text_input("Senha", type="password", key="login_pass")
-            st.markdown("<br>", unsafe_allow_html=True)
             submitted = st.form_submit_button("Entrar", type="primary", use_container_width=True)
 
         if submitted:
@@ -2310,24 +2546,39 @@ def aba_simulador_automacao(
     if st.session_state.get("user_is_adm"):
         with st.expander("Banners da home (administrador — BD Home Banners)", expanded=False):
             st.caption(
-                "Inclua o link **https** da imagem (ex.: Postimages). "
-                "A planilha usa as colunas: Ordem, URL_Imagem, Titulo, Ativo (SIM/NÃO)."
+                "Inclua o link **https** da imagem (ex.: Postimages). Colunas na planilha: "
+                "Ordem, URL_Imagem, Titulo, Ativo, **Tela_Cheia** (SIM/NÃO), **Descricao** "
+                "(texto longo; aparece só na visualização em tela cheia). "
+                "Adicione as duas últimas colunas na aba **BD Home Banners** se ainda não existirem."
             )
             with st.form("form_novo_home_banner"):
-                c1, c2 = st.columns(2)
+                c1, c2, c3 = st.columns(3)
                 with c1:
                     bn_ordem = st.number_input("Ordem", min_value=1, max_value=999, value=1, step=1)
                 with c2:
                     bn_ativo = st.selectbox("Ativo", ["SIM", "NÃO"], index=0)
+                with c3:
+                    bn_tela_cheia = st.selectbox(
+                        "Tela cheia",
+                        ["NÃO", "SIM"],
+                        index=0,
+                        help="SIM: abre a imagem em tela cheia; a descrição (se houver) aparece nessa vista.",
+                    )
                 bn_url = st.text_input(
                     "URL_Imagem",
                     placeholder="https://i.postimg.cc/...",
                 )
                 bn_titulo = st.text_input("Titulo", placeholder="Texto abaixo da imagem")
+                bn_descricao = st.text_area(
+                    "Descrição (tela cheia)",
+                    placeholder="Opcional. Só é mostrada ao abrir o banner em tela cheia.",
+                    height=100,
+                )
                 enviar_bn = st.form_submit_button("Gravar nova linha na BD Home Banners", type="primary")
             if enviar_bn:
                 url_t = (bn_url or "").strip()
                 ativo_sim = str(bn_ativo or "").strip().upper() == "SIM"
+                tc_sim = str(bn_tela_cheia or "").strip().upper() == "SIM"
                 if not url_t.startswith("https://"):
                     st.error("A URL da imagem deve começar com https:// (use o link direto do Postimages).")
                 elif not (bn_titulo or "").strip():
@@ -2338,6 +2589,8 @@ def aba_simulador_automacao(
                         url_t,
                         bn_titulo.strip(),
                         ativo_sim,
+                        tela_cheia_sim=tc_sim,
+                        descricao=(bn_descricao or "").strip(),
                     )
                     if ok:
                         st.cache_data.clear()
@@ -2345,6 +2598,38 @@ def aba_simulador_automacao(
                         st.rerun()
                     else:
                         st.error(f"Não foi possível gravar: {err}")
+
+            st.markdown("---")
+            st.markdown("**Remover banner**")
+            _df_bn_adm = normalizar_df_home_banners(
+                df_home_banners if df_home_banners is not None else pd.DataFrame()
+            )
+            _df_bn_adm = _df_bn_adm.reset_index(drop=True)
+            if _df_bn_adm.empty:
+                st.caption("Não há linhas para excluir na BD Home Banners.")
+            else:
+                _opts_idx = list(range(len(_df_bn_adm)))
+                _ix_del = st.selectbox(
+                    "Banner a excluir (ordem igual à da planilha ao carregar)",
+                    options=_opts_idx,
+                    format_func=lambda j: _rotulo_opcao_excluir_banner(_df_bn_adm, int(j)),
+                    key="home_banner_excluir_select",
+                )
+                _conf_del = st.checkbox(
+                    "Confirmo que quero remover permanentemente esta linha da planilha",
+                    key="home_banner_excluir_confirma",
+                )
+                if st.button("Excluir banner selecionado", type="secondary", key="home_banner_excluir_btn"):
+                    if not _conf_del:
+                        st.warning("Marque a confirmação para excluir.")
+                    else:
+                        ok_del, err_del = excluir_linha_home_banner(int(_ix_del))
+                        if ok_del:
+                            st.cache_data.clear()
+                            st.success("Banner removido da planilha. Recarregando…")
+                            st.rerun()
+                        else:
+                            st.error(f"Não foi possível excluir: {err_del}")
 
     # --- PÁGINA ÚNICA: perfil → valores → recomendações → unidade → distribuição (ordem fixa) ---
     if passo == 'sim':
@@ -3155,11 +3440,41 @@ def aba_simulador_automacao(
         st.session_state["user_is_adm"] = False
         st.rerun()
 
+def _inject_login_vertical_center_css() -> None:
+    """Centraliza o bloco principal na altura da viewport (login). Só quando não autenticado."""
+    st.markdown(
+        """
+        <style id="diresim-login-vert-center">
+        html body [data-testid="stAppViewContainer"] {
+            min-height: 100dvh !important;
+            display: flex !important;
+            flex-direction: column !important;
+        }
+        html body [data-testid="stAppViewContainer"] > section[data-testid="stMain"],
+        html body section[data-testid="stMain"] {
+            flex: 1 1 auto !important;
+            min-height: calc(100dvh - 5.5rem) !important;
+            display: flex !important;
+            flex-direction: column !important;
+            justify-content: center !important;
+            padding-top: clamp(6px, 1.5vh, 14px) !important;
+            padding-bottom: clamp(10px, 2.5vh, 28px) !important;
+            box-sizing: border-box !important;
+        }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
 def main():
     configurar_layout()
     inject_enter_confirma_campo()
     if "logged_in" not in st.session_state:
         st.session_state["logged_in"] = False
+
+    if not st.session_state["logged_in"]:
+        _inject_login_vertical_center_css()
 
     logo_src = html_std.escape(_src_logo_topo_header(), quote=True)
     st.markdown(
