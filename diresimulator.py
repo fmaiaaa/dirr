@@ -1201,6 +1201,18 @@ def configurar_layout():
             0% {{ background-position: 0% 50%; }}
             100% {{ background-position: 200% 50%; }}
         }}
+        /* Movimento suave no fundo (imagem + overlay) */
+        @keyframes simAppBgDrift {{
+            0% {{ background-position: center center, 12% 42%; }}
+            35% {{ background-position: center center, 88% 38%; }}
+            70% {{ background-position: center center, 52% 78%; }}
+            100% {{ background-position: center center, 12% 42%; }}
+        }}
+        @keyframes simAppBgBreathe {{
+            0% {{ background-size: 100% 100%, 118% 118%; }}
+            50% {{ background-size: 100% 100%, 132% 132%; }}
+            100% {{ background-size: 100% 100%, 118% 118%; }}
+        }}
         html, body, :root, [data-testid="stApp"] {{
             color-scheme: light !important;
         }}
@@ -1232,17 +1244,27 @@ def configurar_layout():
         }}
         .stApp,
         [data-testid="stApp"] {{
-            background-color: {COR_AZUL_ESC} !important;
+            background-color: rgba(4, 66, 143, 0.35) !important;
             background-image: linear-gradient(
                 180deg,
-                rgba(4, 66, 143, 0.82) 0%,
-                {COR_AZUL_ESC} 35%,
-                rgba(2, 42, 92, 0.96) 100%
+                rgba(4, 66, 143, 0.38) 0%,
+                rgba(4, 66, 143, 0.32) 45%,
+                rgba(2, 42, 92, 0.36) 100%
             ), url("{bg_url}") !important;
-            background-size: cover !important;
-            background-position: center !important;
+            background-size: 100% 100%, 125% 125% !important;
+            background-position: center center, 50% 50% !important;
             background-attachment: fixed !important;
             background-repeat: no-repeat !important;
+            animation: simAppBgDrift 28s ease-in-out infinite,
+                       simAppBgBreathe 22s ease-in-out infinite !important;
+        }}
+        @media (prefers-reduced-motion: reduce) {{
+            .stApp,
+            [data-testid="stApp"] {{
+                animation: none !important;
+                background-size: cover, cover !important;
+                background-position: center center, center center !important;
+            }}
         }}
         [data-testid="stAppViewContainer"] {{
             background: transparent !important;
@@ -1256,6 +1278,7 @@ def configurar_layout():
             background-color: transparent !important;
             background-image: none !important;
             border: none !important;
+            border-top: none !important;
             box-shadow: none !important;
             backdrop-filter: none !important;
             -webkit-backdrop-filter: none !important;
@@ -1271,19 +1294,29 @@ def configurar_layout():
             background-color: transparent !important;
         }}
         [data-testid="stToolbar"] {{
-            background: #ffffff !important;
-            border-bottom: 1px solid rgba(255, 255, 255, 0.2) !important;
+            background: transparent !important;
+            background-color: transparent !important;
+            border: none !important;
+            border-bottom: none !important;
+            box-shadow: none !important;
         }}
         [data-testid="stToolbar"] button,
-        [data-testid="stToolbar"] a {{
-            color: #334155 !important;
+        [data-testid="stToolbar"] a,
+        [data-testid="stToolbar"] [data-testid] {{
+            color: rgba(255, 255, 255, 0.95) !important;
         }}
-        [data-testid="stHeader"] button {{
-            color: #334155 !important;
+        [data-testid="stHeader"] button,
+        [data-testid="stHeader"] a {{
+            color: rgba(255, 255, 255, 0.95) !important;
+        }}
+        [data-testid="stToolbar"] svg,
+        [data-testid="stHeader"] svg {{
+            fill: rgba(255, 255, 255, 0.95) !important;
+            color: rgba(255, 255, 255, 0.95) !important;
         }}
         [data-testid="stMain"] {{
-            padding-left: clamp(14px, 4vw, 48px) !important;
-            padding-right: clamp(14px, 4vw, 48px) !important;
+            padding-left: clamp(10px, 2.2vw, 28px) !important;
+            padding-right: clamp(10px, 2.2vw, 28px) !important;
             padding-top: clamp(12px, 3vh, 32px) !important;
             padding-bottom: clamp(14px, 4vh, 40px) !important;
             box-sizing: border-box !important;
@@ -1334,12 +1367,12 @@ def configurar_layout():
         div[data-testid="stMarkdown"] p {{ color: #334155; line-height: 1.55; }}
 
         .block-container {{
-            max-width: 1200px !important;
+            max-width: min(1680px, 97vw) !important;
             margin-left: auto !important;
             margin-right: auto !important;
             margin-top: 0.5rem !important;
             margin-bottom: 0.5rem !important;
-            padding: 1.25rem 1.5rem !important;
+            padding: 1.25rem clamp(1rem, 2vw, 2rem) !important;
             background: #ffffff !important;
             border-radius: 8px !important;
             border: 1px solid #e2e8f0 !important;
