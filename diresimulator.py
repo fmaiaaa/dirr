@@ -2287,8 +2287,8 @@ def configurar_layout():
             box-shadow: 0 4px 14px rgba(37, 211, 102, 0.45) !important;
         }}
         /* Reforço no st.dialog: Streamlit às vezes aplica cores invertidas no link_button */
-        div[data-baseweb="modal"]:has([data-testid="stDialog"]) a[data-testid="stLinkButton"][href*="api.whatsapp.com"],
-        div[data-baseweb="modal"]:has([data-testid="stDialog"]) a[data-testid="stLinkButton"][href*="whatsapp.com"] {{
+        [data-testid="stDialog"] a[data-testid="stLinkButton"][href*="api.whatsapp.com"],
+        [data-testid="stDialog"] a[data-testid="stLinkButton"][href*="whatsapp.com"] {{
             display: flex !important;
             align-items: center !important;
             justify-content: center !important;
@@ -2307,13 +2307,13 @@ def configurar_layout():
             border: none !important;
             box-shadow: 0 2px 8px rgba(37, 211, 102, 0.35) !important;
         }}
-        div[data-baseweb="modal"]:has([data-testid="stDialog"]) a[data-testid="stLinkButton"][href*="api.whatsapp.com"] *,
-        div[data-baseweb="modal"]:has([data-testid="stDialog"]) a[data-testid="stLinkButton"][href*="whatsapp.com"] * {{
+        [data-testid="stDialog"] a[data-testid="stLinkButton"][href*="api.whatsapp.com"] *,
+        [data-testid="stDialog"] a[data-testid="stLinkButton"][href*="whatsapp.com"] * {{
             color: #ffffff !important;
             -webkit-text-fill-color: #ffffff !important;
         }}
-        div[data-baseweb="modal"]:has([data-testid="stDialog"]) a[data-testid="stLinkButton"][href*="api.whatsapp.com"]:hover,
-        div[data-baseweb="modal"]:has([data-testid="stDialog"]) a[data-testid="stLinkButton"][href*="whatsapp.com"]:hover {{
+        [data-testid="stDialog"] a[data-testid="stLinkButton"][href*="api.whatsapp.com"]:hover,
+        [data-testid="stDialog"] a[data-testid="stLinkButton"][href*="whatsapp.com"]:hover {{
             background: #20bd5a !important;
             background-color: #20bd5a !important;
             background-image: none !important;
@@ -2321,8 +2321,8 @@ def configurar_layout():
             -webkit-text-fill-color: #ffffff !important;
             box-shadow: 0 4px 14px rgba(37, 211, 102, 0.45) !important;
         }}
-        /* st.dialog (Base Web): fundo escuro semitransparente em TODA a viewport, não só atrás da caixa */
-        div[data-baseweb="modal"]:has([data-testid="stDialog"]) {{
+        /* st.dialog: data-testid="stDialog" fica no ROOT do modal (full screen), não num filho — :has() no baseweb nunca casava */
+        [data-testid="stDialog"] {{
             position: fixed !important;
             inset: 0 !important;
             top: 0 !important;
@@ -2330,10 +2330,13 @@ def configurar_layout():
             right: 0 !important;
             bottom: 0 !important;
             width: 100vw !important;
+            min-width: 100% !important;
             max-width: none !important;
             min-height: 100vh !important;
             min-height: 100dvh !important;
-            height: auto !important;
+            height: 100vh !important;
+            height: 100dvh !important;
+            max-height: none !important;
             margin: 0 !important;
             padding: clamp(10px, 3vh, 24px) clamp(8px, 2.5vw, 16px) !important;
             box-sizing: border-box !important;
@@ -2343,29 +2346,31 @@ def configurar_layout():
             background: rgba(15, 23, 42, 0.82) !important;
             z-index: 2147483000 !important;
         }}
-        div[data-baseweb="modal"]:has([data-testid="stDialog"]) > div {{
-            margin: auto !important;
-            max-height: calc(100dvh - 24px) !important;
-            overflow-y: auto !important;
+        [data-testid="stDialog"] > div {{
+            width: 100% !important;
+            max-width: none !important;
+            margin: 0 !important;
+            max-height: none !important;
+            overflow-y: visible !important;
+            display: flex !important;
+            align-items: center !important;
+            justify-content: center !important;
         }}
-        div[data-testid="stDialog"]:has(#dv-export-resumo-modal-marker),
-        section[data-testid="stDialog"]:has(#dv-export-resumo-modal-marker) {{
-            width: min(920px, 96vw) !important;
+        /* Painel do popup de exportação: largura confortável (o Root continua em tela cheia) */
+        [data-testid="stDialog"]:has(#dv-export-resumo-modal-marker) > div > div {{
             max-width: min(920px, 96vw) !important;
-            min-width: min(560px, 92vw) !important;
-            margin-left: auto !important;
-            margin-right: auto !important;
+            width: 100% !important;
         }}
         /* X do fechar (st.dialog): só o ícone gira */
         div[data-testid="stDialog"] button[aria-label="Close"] svg,
-        div[data-baseweb="modal"]:has([data-testid="stDialog"]) button[aria-label="Close"] svg {{
+        [data-testid="stDialog"] button[aria-label="Close"] svg {{
             transition: transform 0.3s ease !important;
             transform: rotate(0deg);
         }}
         div[data-testid="stDialog"] button[aria-label="Close"]:hover svg,
         div[data-testid="stDialog"] button[aria-label="Close"]:focus-visible svg,
-        div[data-baseweb="modal"]:has([data-testid="stDialog"]) button[aria-label="Close"]:hover svg,
-        div[data-baseweb="modal"]:has([data-testid="stDialog"]) button[aria-label="Close"]:focus-visible svg {{
+        [data-testid="stDialog"] button[aria-label="Close"]:hover svg,
+        [data-testid="stDialog"] button[aria-label="Close"]:focus-visible svg {{
             transform: rotate(90deg) !important;
         }}
         div[data-testid="stAlert"] {{
@@ -2781,6 +2786,12 @@ def configurar_layout():
             color: #64748b !important;
             font-size: 0.8rem;
             line-height: 1.5;
+        }}
+        .footer em {{
+            display: block;
+            margin-top: 0.35rem;
+            font-style: italic !important;
+            font-weight: normal;
         }}
         </style>
     """, unsafe_allow_html=True)
@@ -4562,7 +4573,10 @@ def main():
             df_campanhas_texto=df_campanhas_texto,
         )
 
-    st.markdown(f'<div class="footer">Direcional Engenharia — Rio de Janeiro | Desenvolvido por Lucas Maia</div>', unsafe_allow_html=True)
+    st.markdown(
+        '<div class="footer">Direcional Engenharia — Rio de Janeiro<br><em>developed by Lucas Maia</em></div>',
+        unsafe_allow_html=True,
+    )
 
 if __name__ == "__main__":
     main()
