@@ -1284,11 +1284,12 @@ def login_row_is_adm(row: pd.Series) -> bool:
     return str(v).strip().upper() == "SIM"
 
 
-# Ícone “sair de tela cheia” no popup da campanha (Material-style fullscreen_exit)
+# Botão fechar do popup: X preto em SVG (fundo branco no CSS)
 _SVG_LB_FECHAR = (
-    '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" '
-    'viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" focusable="false">'
-    '<path d="M5 16h3v3h2v-5H5v2zm3-8H5v2h5V5H8v3zm6 11h2v-3h3v-2h-5v5zm2-11V5h-2v5h5V8h-3z"/>'
+    '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 14 14" '
+    'class="home-banner-lb-close-icon" aria-hidden="true" focusable="false">'
+    '<line x1="2" y1="2" x2="12" y2="12" stroke="#0f172a" stroke-width="2" stroke-linecap="round"/>'
+    '<line x1="12" y1="2" x2="2" y2="12" stroke="#0f172a" stroke-width="2" stroke-linecap="round"/>'
     "</svg>"
 )
 
@@ -2548,17 +2549,23 @@ def configurar_layout():
             align-items: center;
             justify-content: center;
             line-height: 0;
-            color: #f8fafc;
             cursor: pointer;
-            border-radius: 8px;
-            background: rgba(15, 23, 42, 0.82);
-            border: 1px solid rgba(255, 255, 255, 0.22);
-            box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
+            border-radius: 4px;
+            background: #ffffff !important;
+            border: 1px solid rgba(15, 23, 42, 0.18);
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+            transition: transform 0.3s ease;
+            transform: rotate(0deg);
         }}
-        .home-banner-lb-close:hover {{
-            background: rgba(30, 41, 59, 0.92);
+        .home-banner-lb-close:hover,
+        .home-banner-lb-close:focus-visible {{
+            transform: rotate(90deg);
         }}
-        .home-banner-lb-close svg {{
+        .home-banner-lb-close:focus-visible {{
+            outline: 2px solid {COR_AZUL_ESC};
+            outline-offset: 2px;
+        }}
+        .home-banner-lb-close-icon {{
             display: block;
             flex-shrink: 0;
         }}
