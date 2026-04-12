@@ -2454,7 +2454,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, premissas_dict=N
     # --- PÁGINA ÚNICA: perfil → valores → recomendações → unidade → distribuição (ordem fixa) ---
     elif passo == 'sim':
         st.markdown("### Perfil da simulação")
-        st.caption("Informe renda e perfil de crédito. **Aplicar perfil** atualiza os blocos abaixo na mesma página.")
+        st.caption("Informe renda e perfil de crédito. Os blocos abaixo atualizam automaticamente ao alterar estes campos.")
 
         rendas_anteriores = st.session_state.dados_cliente.get('rendas_lista', [])
         _dc_in = st.session_state.dados_cliente
@@ -2481,39 +2481,32 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, premissas_dict=N
         politica_ps = st.selectbox("Política de Pro Soluto", ["Direcional", "Emcash"], index=0 if st.session_state.dados_cliente.get('politica') != "Emcash" else 1, key="in_pol_v28")
         social = st.toggle("Fator Social", value=st.session_state.dados_cliente.get('social', False), key="in_soc_v28")
         cotista = st.toggle("Cotista FGTS", value=st.session_state.dados_cliente.get('cotista', True), key="in_cot_v28")
-        st.markdown("<br>", unsafe_allow_html=True)
-        if st.button("Aplicar perfil", type="primary", use_container_width=True, key="btn_conf_perfil"):
-            _qp_sub = texto_inteiro(st.session_state.get("qtd_part_v3"), default=1, min_v=1, max_v=4)
-            qtd_part = _qp_sub if _qp_sub is not None else 1
-            lista_rendas_input = [texto_moeda_para_float(st.session_state.get(f"renda_part_{j}_v3")) for j in range(qtd_part)]
-            renda_total_calc = sum(lista_rendas_input)
-            if renda_total_calc <= 0:
-                st.error("A renda total deve ser maior que zero.")
-            else:
-                st.session_state.dados_cliente.update({
-                    'nome': 'Simulação',
-                    'cpf': '',
-                    'data_nascimento': None,
-                    'renda': renda_total_calc,
-                    'rendas_lista': lista_rendas_input,
-                    'social': social,
-                    'cotista': cotista,
-                    'ranking': ranking,
-                    'politica': politica_ps,
-                    'qtd_participantes': qtd_part,
-                    'finan_usado_historico': 0.0,
-                    'ps_usado_historico': 0.0,
-                    'fgts_usado_historico': 0.0,
-                })
-                prazo_ps_max = 66 if politica_ps == "Emcash" else 84
-                f_faixa_ref, s_faixa_ref, _ = motor.obter_enquadramento(renda_total_calc, social, cotista, valor_avaliacao=240000)
-                st.session_state.dados_cliente.update({
-                    'prazo_ps_max': prazo_ps_max,
-                    'limit_ps_renda': 0.30,
-                    'finan_f_ref': f_faixa_ref,
-                    'sub_f_ref': s_faixa_ref,
-                })
-                st.rerun()
+
+        lista_rendas_input = [texto_moeda_para_float(st.session_state.get(f"renda_part_{j}_v3")) for j in range(qtd_part)]
+        renda_total_calc = sum(lista_rendas_input)
+        prazo_ps_max = 66 if politica_ps == "Emcash" else 84
+        f_faixa_ref, s_faixa_ref, _ = motor.obter_enquadramento(
+            max(0.0, renda_total_calc), social, cotista, valor_avaliacao=240000
+        )
+        st.session_state.dados_cliente.update({
+            'nome': 'Simulação',
+            'cpf': '',
+            'data_nascimento': None,
+            'renda': renda_total_calc,
+            'rendas_lista': lista_rendas_input,
+            'social': social,
+            'cotista': cotista,
+            'ranking': ranking,
+            'politica': politica_ps,
+            'qtd_participantes': qtd_part,
+            'finan_usado_historico': 0.0,
+            'ps_usado_historico': 0.0,
+            'fgts_usado_historico': 0.0,
+            'prazo_ps_max': prazo_ps_max,
+            'limit_ps_renda': 0.30,
+            'finan_f_ref': f_faixa_ref,
+            'sub_f_ref': s_faixa_ref,
+        })
 
         st.markdown("---")
         # --- ETAPA 2: VALORES APROVADOS (FECHAMENTO FINANCEIRO) ---
@@ -2751,10 +2744,24 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, premissas_dict=N
                     format_func=label_uni,
                     key="sel_uni_new_v3",
                 )
-                st.session_state.dados_cliente['unidade_id'] = uni_escolhida_id
                 if uni_escolhida_id:
                     u_row = unidades_disp[unidades_disp['Identificador'] == uni_escolhida_id].iloc[0]
                     v_aval = u_row['Valor de Avaliação Bancária']; v_venda = u_row['Valor de Venda']
+                    v_venda_unid = float(v_venda)
+                    st.session_state.dados_cliente.update({
+                        'unidade_id': uni_escolhida_id,
+                        'empreendimento_nome': emp_escolhido,
+                        'imovel_valor': v_venda_unid,
+                        'imovel_avaliacao': u_row['Valor de Avaliação Bancária'],
+                        'finan_estimado': d.get('finan_usado', 0),
+                        'fgts_sub': d.get('fgts_sub_usado', 0),
+                        'unid_entrega': u_row.get('Data Entrega', ''),
+                        'unid_area': u_row.get('Area', ''),
+                        'unid_tipo': u_row.get('Tipologia', ''),
+                        'unid_endereco': u_row.get('Endereco', ''),
+                        'unid_bairro': u_row.get('Bairro', ''),
+                        'volta_caixa_ref': u_row.get('Volta_Caixa_Ref', 0.0),
+                    })
                     # Usar valores reais do fechamento (2ª aba)
                     fin_t = float(d.get('finan_usado', 0) or 0)
                     sub_t = float(d.get('fgts_sub_usado', 0) or 0)
@@ -2775,20 +2782,13 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, premissas_dict=N
                     st.session_state.dados_cliente['prazo_ps_max'] = prazo_max_ps
 
                     poder_t, _ = motor.calcular_poder_compra(d.get('renda', 0), fin_t, sub_t, ps_max_val)
-                    # Termômetro usa valor final de venda (se preenchido), senão valor da unidade
-                    _vf_raw = st.session_state.get("valor_final_unidade_key")
-                    _vf_num = texto_moeda_para_float(_vf_raw)
-                    if _vf_num <= 0:
-                        valor_para_termo = float(v_venda)
-                    else:
-                        valor_para_termo = _vf_num
+                    valor_para_termo = v_venda_unid
                     percentual_cobertura = min(100, max(0, (poder_t / valor_para_termo) * 100)) if valor_para_termo > 0 else 0
-                    cor_term = calcular_cor_gradiente(percentual_cobertura)
                     st.markdown(f"""
                         <div style="margin-top: 20px; padding: 15px; border: 1px solid #e2e8f0; border-radius: 10px; background-color: #f8fafc; text-align: center;">
                             <div style="display: flex; justify-content: space-around; margin-bottom: 10px; font-size: 0.9rem;">
                                 <div><b>Valor de Avaliação:</b><br>R$ {fmt_br(v_aval)}</div>
-                                <div><b>Valor considerado (Venda):</b><br>R$ {fmt_br(valor_para_termo)}</div>
+                                <div><b>Valor de venda (unidade):</b><br>R$ {fmt_br(valor_para_termo)}</div>
                             </div>
                             <hr style="margin: 10px 0; border: 0; border-top: 1px solid #e2e8f0;">
                             <p style="margin: 0; font-weight: 700; font-size: 0.9rem; color: #002c5d;">TERMÔMETRO DE VIABILIDADE</p>
@@ -2798,46 +2798,14 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, premissas_dict=N
                             <small>{percentual_cobertura:.1f}% Coberto</small>
                         </div>
                     """, unsafe_allow_html=True)
-                    # Campo Valor Final da Unidade (desconto/alteração) na aba de escolha
-                    st.markdown("#### Valor Final da Unidade")
-                    v_final_default = float(u_row['Valor de Venda'])
-                    if d.get('imovel_valor') and d.get('unidade_id') == uni_escolhida_id:
-                        v_final_default = float(d.get('imovel_valor'))
-                    if "valor_final_unidade_key" not in st.session_state:
-                        st.session_state["valor_final_unidade_key"] = float_para_campo_texto(v_final_default, vazio_se_zero=False)
-                    st.text_input("Valor Final de Venda (R$)", key="valor_final_unidade_key", placeholder="Igual ao valor da unidade se não alterar")
-                    st.caption("Opcional: preencha se houver desconto ou valor diferente do cadastro. O fechamento será calculado com base neste valor.")
-            st.markdown("<br>", unsafe_allow_html=True)
-            if st.button("Confirmar unidade para distribuição", type="primary", use_container_width=True):
-                if uni_escolhida_id:
-                    u_row = unidades_disp[unidades_disp['Identificador'] == uni_escolhida_id].iloc[0]
-                    v_venda_unid = float(u_row['Valor de Venda'])
-                    valor_final = texto_moeda_para_float(st.session_state.get("valor_final_unidade_key"))
-                    if valor_final > 0:
-                        imovel_valor_usar = float(valor_final)
-                    else:
-                        imovel_valor_usar = v_venda_unid
-                    st.session_state.dados_cliente.update({
-                        'unidade_id': uni_escolhida_id, 'empreendimento_nome': emp_escolhido,
-                        'imovel_valor': imovel_valor_usar, 'imovel_avaliacao': u_row['Valor de Avaliação Bancária'],
-                        'finan_estimado': d.get('finan_usado', 0), 'fgts_sub': d.get('fgts_sub_usado', 0),
-                        'unid_entrega': u_row.get('Data Entrega', ''),
-                        'unid_area': u_row.get('Area', ''),
-                        'unid_tipo': u_row.get('Tipologia', ''),
-                        'unid_endereco': u_row.get('Endereco', ''),
-                        'unid_bairro': u_row.get('Bairro', ''),
-                        'volta_caixa_ref': u_row.get('Volta_Caixa_Ref', 0.0)
-                    })
-                    scroll_to_top()
-                    st.rerun()
 
         st.markdown("---")
         # --- ETAPA 5: DISTRIBUIÇÃO DA ENTRADA (FECHAMENTO) ---
         d = st.session_state.dados_cliente
         st.markdown("### Distribuição da Entrada (Fechamento)")
         if float(d.get('imovel_valor', 0) or 0) <= 0 or not d.get('unidade_id'):
-            st.caption("Use **Confirmar unidade para distribuição** na seção acima para fixar imóvel e valor antes de fechar os valores de entrada.")
-        # Valores já preenchidos nos blocos anteriores (fechamento aprovado + confirmação da unidade)
+            st.caption("Selecione **empreendimento** e **unidade** na seção acima para calcular a distribuição da entrada.")
+        # Valores da unidade vêm do cadastro (Valor de Venda); demais valores do fluxo anterior
         u_valor = float(d.get('imovel_valor', 0) or 0)
         u_nome = d.get('empreendimento_nome', 'N/A')
         u_unid = d.get('unidade_id', 'N/A')
@@ -2859,7 +2827,7 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, premissas_dict=N
         st.markdown(f"""
         <div class="custom-alert" style="flex-direction: column; align-items: center; text-align: center; padding: 20px;">
             <div style="font-size: 1.1rem; margin-bottom: 5px;">{u_nome} - {u_unid}</div>
-            <div style="font-size: 0.9rem; opacity: 0.9;">Valor Final da Unidade: <b>R$ {fmt_br(u_valor)}</b></div>
+            <div style="font-size: 0.9rem; opacity: 0.9;">Valor de venda da unidade: <b>R$ {fmt_br(u_valor)}</b></div>
             <div style="font-size: 0.9rem; opacity: 0.9;">Financiamento: R$ {fmt_br(f_u_input)} | Subsídio: R$ {fmt_br(fgts_u_input)} | Prazo: {prazo_finan}x | {tab_fin}</div>
         </div>
         """, unsafe_allow_html=True)
