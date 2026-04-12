@@ -822,55 +822,42 @@ def montar_mensagem_whatsapp_resumo(
     Texto para colar ou enviar via api.whatsapp.com/send.
     Formatação: *negrito* em títulos e rótulos; linhas com • e *rótulo:* valor.
     """
+    _ = canal_imobiliaria  # reservado para extensões futuras; não entra no texto padrão
     def item(label: str, valor) -> str:
         return f"• *{_wa_escape_texto(label)}:* {_wa_escape_texto(valor)}"
 
     def brs(key, default=0):
         return f"R$ {fmt_br(d.get(key, default))}"
 
-    soc = "Sim" if d.get("social") else "Não"
-    cot = "Sim" if d.get("cotista") else "Não"
-    pol = d.get("politica", "") or "-"
-    rank = d.get("ranking", "") or "-"
     amort = nome_sistema_amortizacao_completo(str(d.get("sistema_amortizacao", "SAC")))
     prazo = d.get("prazo_financiamento", 360)
     rendas = list(d.get("rendas_lista") or [])
+    while len(rendas) < 4:
+        rendas.append(0.0)
+
+    try:
+        vc_apl = max(0.0, float(volta_caixa_val or 0))
+    except (TypeError, ValueError):
+        vc_apl = 0.0
+    v_emp = max(0.0, float(d.get("imovel_valor", 0) or 0) - vc_apl)
 
     linhas = [
         "*Resumo da simulação — Direcional*",
         "",
-        "*Dados do cliente*",
-        item("Nome", d.get("nome", "Cliente")),
-        item("CPF", d.get("cpf", "-")),
-        item("Data de nascimento", d.get("data_nascimento", "-")),
+        "*Renda*",
         item("Renda familiar total", brs("renda", 0)),
     ]
-    for i, rv in enumerate(rendas[:4], start=1):
+    for i in range(4):
         try:
-            rvf = float(rv or 0)
+            rvf = float(rendas[i] or 0)
         except (TypeError, ValueError):
             rvf = 0.0
-        if rvf > 0:
-            linhas.append(item(f"Renda participante {i}", f"R$ {fmt_br(rvf)}"))
+        linhas.append(item(f"Renda participante {i + 1}", f"R$ {fmt_br(rvf)}"))
 
-    linhas.extend(
-        [
-            "",
-            "*Perfil e crédito*",
-            item("Política de Pro Soluto", pol),
-            item("Ranking", rank),
-            item("Fator social", soc),
-            item("Cotista FGTS", cot),
-            item("Financiamento de referência (curva)", brs("finan_f_ref", 0)),
-            item("Subsídio de referência (curva)", brs("sub_f_ref", 0)),
-            "",
-            "*Dados do imóvel*",
-            item("Empreendimento", d.get("empreendimento_nome", "-")),
-            item("Unidade", d.get("unidade_id", "-")),
-            item("Valor comercial de venda", brs("imovel_valor", 0)),
-            item("Avaliação bancária", brs("imovel_avaliacao", 0)),
-        ]
-    )
+    linhas.extend(["", "*Dados do imóvel*"])
+    linhas.append(item("Empreendimento", d.get("empreendimento_nome", "-")))
+    linhas.append(item("Unidade", d.get("unidade_id", "-")))
+    linhas.append(item("Valor do empreendimento", f"R$ {fmt_br(v_emp)}"))
     if d.get("unid_entrega"):
         linhas.append(item("Previsão de entrega", d.get("unid_entrega")))
     if d.get("unid_area"):
@@ -889,7 +876,7 @@ def montar_mensagem_whatsapp_resumo(
             item("Financiamento utilizado", brs("finan_usado", 0)),
             item("Sistema de amortização e prazo", f"{amort} — {prazo} meses"),
             item("Parcela estimada do financiamento", brs("parcela_financiamento", 0)),
-            item("Fundo de Garantia do Tempo de Serviço e subsídio", brs("fgts_sub_usado", 0)),
+            item("FGTS + subsídio", brs("fgts_sub_usado", 0)),
             "",
             "*Entrada e Pro Soluto*",
             item("Pro Soluto (valor)", brs("ps_usado", 0)),
@@ -906,22 +893,9 @@ def montar_mensagem_whatsapp_resumo(
     _ent_tot = float(d.get("entrada_total", 0) or 0) + float(d.get("ps_usado", 0) or 0)
     linhas.append(item("Entrada total (atos e Pro Soluto)", f"R$ {fmt_br(_ent_tot)}"))
 
-    linhas.append(item("Volta ao caixa", f"R$ {fmt_br(volta_caixa_val)}"))
-    try:
-        vref = float(d.get("volta_caixa_ref", 0) or 0)
-    except (TypeError, ValueError):
-        vref = 0.0
-    if vref > 0:
-        linhas.append(item("Referência folga volta ao caixa", brs("volta_caixa_ref", 0)))
-
     nc = (nome_consultor or "").strip()
-    ci = (canal_imobiliaria or "").strip()
-    if nc or ci:
-        linhas.extend(["", "*Consultor*"])
-        if nc:
-            linhas.append(item("Nome", nc))
-        if ci:
-            linhas.append(item("Canal ou imobiliária", ci))
+    if nc:
+        linhas.extend(["", f"*Consultor:* {_wa_escape_texto(nc)}"])
 
     linhas.extend(
         [
@@ -1176,37 +1150,53 @@ def inject_login_password_manager_fields():
 
 
 def inject_home_banner_lightbox_viewport_portal():
-    """Move o painel do lightbox para document.body do app (viewport real), pois fixed dentro do Streamlit fica preso à coluna."""
+    """Move o painel do lightbox para document.body do mesmo documento do clique (iframe do Streamlit). Abre com :target; fecha com href='#'."""
     js = r"""
 <script>
 (function () {
-  var doc = document;
-  try {
-    if (window.parent && window.parent !== window && window.parent.document) {
-      doc = window.parent.document;
-    }
-  } catch (e) {
-    doc = document;
+  var doc0 = document;
+  if (!doc0 || !doc0.documentElement) return;
+  if (doc0.documentElement.getAttribute("data-dv-banner-lb-portal") === "1") return;
+  doc0.documentElement.setAttribute("data-dv-banner-lb-portal", "1");
+
+  function rootForPanel(panel) {
+    var d = panel.ownerDocument || document;
+    var id = panel.id;
+    if (!id) return null;
+    var thumb = d.querySelector('a.home-banner-card--thumb[href="#' + id + '"]');
+    return thumb ? thumb.closest(".home-banner-lb-root") : null;
   }
-  if (!doc || !doc.documentElement) return;
-  if (doc.documentElement.getAttribute("data-dv-banner-lb-portal") === "1") return;
-  doc.documentElement.setAttribute("data-dv-banner-lb-portal", "1");
-  doc.addEventListener(
-    "change",
+
+  doc0.addEventListener(
+    "click",
     function (ev) {
       var t = ev.target;
-      if (!t || !t.classList || !t.classList.contains("home-banner-lb-input")) return;
-      var root = t.closest(".home-banner-lb-root");
-      if (!root) return;
-      var panel = root.querySelector(".home-banner-lb-panel");
-      if (!panel) return;
-      if (t.checked) {
-        panel.classList.add("home-banner-lb-panel--open");
-        doc.body.appendChild(panel);
-      } else {
-        panel.classList.remove("home-banner-lb-panel--open");
-        root.appendChild(panel);
+      if (!t || !t.closest) return;
+      var doc = t.ownerDocument || document;
+      var thumb = t.closest("a.home-banner-card--thumb");
+      if (
+        thumb &&
+        thumb.getAttribute("href") &&
+        thumb.getAttribute("href").charAt(0) === "#" &&
+        thumb.getAttribute("href").length > 1
+      ) {
+        var hid = thumb.getAttribute("href").slice(1);
+        var panelOpen = doc.getElementById(hid);
+        if (panelOpen && panelOpen.classList.contains("home-banner-lb-panel")) {
+          setTimeout(function () {
+            if (panelOpen.parentNode !== doc.body) doc.body.appendChild(panelOpen);
+          }, 0);
+        }
+        return;
       }
+      var closer = t.closest("a.home-banner-lb-backdrop, a.home-banner-lb-close");
+      if (!closer) return;
+      var panel = closer.closest(".home-banner-lb-panel");
+      if (!panel || !panel.id) return;
+      var root = rootForPanel(panel);
+      setTimeout(function () {
+        if (root && panel.parentNode === doc.body) root.appendChild(panel);
+      }, 0);
     },
     true
   );
@@ -1366,20 +1356,18 @@ def render_secao_campanhas_comerciais(
             lb_idx += 1
             cards.append(
                 f'<div class="home-banner-lb-root">'
-                f'<input type="checkbox" id="{cid}" class="home-banner-lb-input" autocomplete="off" '
-                f'aria-hidden="true" tabindex="-1" />'
-                f'<label for="{cid}" class="home-banner-card home-banner-card--fs home-banner-card--thumb" '
+                f'<a href="#{cid}" class="home-banner-card home-banner-card--fs home-banner-card--thumb" '
                 f'title="Ampliar em tela cheia" aria-label="Ampliar imagem da campanha em tela cheia">'
                 f'<span class="home-banner-thumb-frame">'
                 f'<img src="{src}" alt="" loading="lazy" decoding="async" />'
-                f"</span></label>"
-                f'<div class="home-banner-lb-panel" role="presentation">'
-                f'<label for="{cid}" class="home-banner-lb-backdrop" aria-label="Fechar"></label>'
+                f"</span></a>"
+                f'<div id="{cid}" class="home-banner-lb-panel" role="dialog" aria-modal="true" aria-label="Imagem ampliada">'
+                f'<a href="#" class="home-banner-lb-backdrop" aria-label="Fechar"></a>'
                 f'<div class="home-banner-lb-inner">'
-                f'<div class="home-banner-lb-popup" role="dialog" aria-label="Imagem ampliada">'
+                f'<div class="home-banner-lb-popup">'
                 f'<img class="home-banner-lb-img" src="{src}" alt="" loading="lazy" decoding="async" />'
-                f'<label for="{cid}" class="home-banner-lb-close" aria-label="Fechar" title="Fechar">'
-                f"{_SVG_LB_FECHAR}</label>"
+                f'<a href="#" class="home-banner-lb-close" aria-label="Fechar" title="Fechar">'
+                f"{_SVG_LB_FECHAR}</a>"
                 f"</div></div></div></div>"
             )
     if not cards and not copy_html:
@@ -2452,19 +2440,12 @@ def configurar_layout():
         .home-banner-lb-root {{
             flex: 0 0 auto;
         }}
-        .home-banner-lb-input {{
-            position: absolute !important;
-            width: 1px !important;
-            height: 1px !important;
-            padding: 0 !important;
-            margin: -1px !important;
-            overflow: hidden !important;
-            clip: rect(0, 0, 0, 0) !important;
-            white-space: nowrap !important;
-            border: 0 !important;
-        }}
         .home-banner-card--fs {{
             cursor: pointer;
+        }}
+        a.home-banner-card--thumb {{
+            text-decoration: none;
+            color: inherit;
         }}
         .home-banner-card--fs:focus-visible {{
             outline: 2px solid {COR_AZUL_ESC};
@@ -2491,8 +2472,7 @@ def configurar_layout():
             pointer-events: none;
             transition: opacity 0.2s ease, visibility 0.2s ease;
         }}
-        .home-banner-lb-input:checked ~ .home-banner-lb-panel,
-        .home-banner-lb-panel.home-banner-lb-panel--open {{
+        .home-banner-lb-panel:target {{
             visibility: visible !important;
             opacity: 1 !important;
             pointer-events: auto !important;
@@ -2500,8 +2480,10 @@ def configurar_layout():
         .home-banner-lb-backdrop {{
             position: absolute;
             inset: 0;
+            display: block;
             background: rgba(15, 23, 42, 0.9);
             cursor: pointer;
+            text-decoration: none;
         }}
         .home-banner-lb-inner {{
             position: absolute;
@@ -2554,12 +2536,9 @@ def configurar_layout():
             background: #ffffff !important;
             border: 1px solid rgba(15, 23, 42, 0.18);
             box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
-            transition: transform 0.3s ease;
-            transform: rotate(0deg);
-        }}
-        .home-banner-lb-close:hover,
-        .home-banner-lb-close:focus-visible {{
-            transform: rotate(90deg);
+            text-decoration: none;
+            color: inherit;
+            box-sizing: border-box;
         }}
         .home-banner-lb-close:focus-visible {{
             outline: 2px solid {COR_AZUL_ESC};
@@ -2568,6 +2547,12 @@ def configurar_layout():
         .home-banner-lb-close-icon {{
             display: block;
             flex-shrink: 0;
+            transition: transform 0.3s ease;
+            transform: rotate(0deg);
+        }}
+        .home-banner-lb-close:hover .home-banner-lb-close-icon,
+        .home-banner-lb-close:focus-visible .home-banner-lb-close-icon {{
+            transform: rotate(90deg);
         }}
         .header-logo-wrap {{
             display: flex;
@@ -2700,11 +2685,20 @@ def configurar_layout():
         </style>
     """, unsafe_allow_html=True)
 
-def gerar_resumo_pdf(d):
+def gerar_resumo_pdf(d, volta_caixa_val: float = 0.0):
     if not PDF_ENABLED:
         return None
 
     try:
+        try:
+            vc_apl = max(0.0, float(volta_caixa_val or 0))
+        except (TypeError, ValueError):
+            vc_apl = 0.0
+        v_emp = max(0.0, float(d.get("imovel_valor", 0) or 0) - vc_apl)
+        rendas_pdf = list(d.get("rendas_lista") or [])
+        while len(rendas_pdf) < 4:
+            rendas_pdf.append(0.0)
+
         pdf = FPDF()
         pdf.add_page()
 
@@ -2734,25 +2728,10 @@ def gerar_resumo_pdf(d):
         pdf.ln(8)
         pdf.set_text_color(*AZUL)
         pdf.set_font("Helvetica", 'B', 20)
-        pdf.cell(0, 10, _pdf_text_seguro("Relatório de viabilidade"), ln=True, align='C')
+        pdf.cell(0, 10, _pdf_text_seguro("Resumo da simulação — Direcional"), ln=True, align='C')
 
         pdf.set_font("Helvetica", '', 9)
-        pdf.cell(0, 5, _pdf_text_seguro("Simulador imobiliário Direcional - documento executivo"), ln=True, align='C')
-        pdf.ln(6)
-
-        # Bloco cliente
-        y = pdf.get_y()
-        pdf.set_fill_color(*FUNDO_SECAO)
-        pdf.rect(pdf.l_margin, y, largura_util, 16, 'F')
-
-        pdf.set_xy(pdf.l_margin + 4, y + 4)
-        pdf.set_font("Helvetica", 'B', 12)
-        pdf.cell(0, 5, _pdf_text_seguro(f"Cliente: {d.get('nome', 'Não informado')}"), ln=True)
-
-        pdf.set_x(pdf.l_margin + 4)
-        pdf.set_font("Helvetica", '', 10)
-        pdf.cell(0, 5, _pdf_text_seguro(f"Renda familiar: R$ {fmt_br(d.get('renda', 0))}"), ln=True)
-
+        pdf.cell(0, 5, _pdf_text_seguro("Simulador imobiliário Direcional"), ln=True, align='C')
         pdf.ln(6)
 
         # Helpers
@@ -2781,87 +2760,73 @@ def gerar_resumo_pdf(d):
             pdf.line(pdf.l_margin, pdf.get_y(), pdf.l_margin + largura_util, pdf.get_y())
 
         # ===============================
-        # CONTEÚDO
+        # CONTEÚDO (alinhado ao texto WhatsApp / resumo na tela)
         # ===============================
+        secao("Renda")
+        linha("Renda familiar total", f"R$ {fmt_br(d.get('renda', 0))}")
+        for i in range(4):
+            try:
+                rvf = float(rendas_pdf[i] or 0)
+            except (TypeError, ValueError):
+                rvf = 0.0
+            linha(f"Renda participante {i + 1}", f"R$ {fmt_br(rvf)}")
+
+        pdf.ln(2)
         secao("Dados do imóvel")
         linha("Empreendimento", _pdf_text_seguro(d.get("empreendimento_nome")))
-        linha("Unidade selecionada", _pdf_text_seguro(d.get("unidade_id")))
-        
-        # Valor de Venda no Sistema = Valor Comercial Mínimo
-        v_comercial = d.get('imovel_valor', 0)
-        v_avaliacao = d.get('imovel_avaliacao', 0)
-        
-        # No PDF para o cliente, mostramos Avaliação e o "Desconto" para chegar no valor de venda
-        linha("Valor de tabela ou avaliação", f"R$ {fmt_br(v_avaliacao)}", True)
-        
+        linha("Unidade", _pdf_text_seguro(d.get("unidade_id")))
+        linha("Valor do empreendimento", f"R$ {fmt_br(v_emp)}", True)
         if d.get("unid_entrega"):
-            linha("Previsão de Entrega", _pdf_text_seguro(d.get("unid_entrega")))
+            linha("Previsão de entrega", _pdf_text_seguro(d.get("unid_entrega")))
         if d.get("unid_area"):
-            linha("Área privativa", _pdf_text_seguro(f"{d.get('unid_area')} metros quadrados"))
+            linha("Área privativa", _pdf_text_seguro(f"{d.get('unid_area')} m²"))
         if d.get("unid_tipo"):
             linha("Tipologia", _pdf_text_seguro(d.get("unid_tipo")))
         if d.get("unid_endereco") and d.get("unid_bairro"):
             linha(
-                "Endereço",
+                "Localização",
                 _pdf_text_seguro(f"{d.get('unid_endereco')} - {d.get('unid_bairro')}"),
             )
 
-        pdf.ln(4)
-        
-        # SEÇÃO DE NEGOCIAÇÃO (NOVO)
-        secao("Condição comercial")
-        # Calculamos a diferença como "Desconto"
-        desconto = max(0, v_avaliacao - v_comercial)
-        linha("Desconto ou condição especial", f"R$ {fmt_br(desconto)}")
-        linha("Valor final de venda", f"R$ {fmt_br(v_comercial)}", True)
-        
-        pdf.ln(4)
-
-        secao("Engenharia financeira")
-        linha("Financiamento bancário estimado", f"R$ {fmt_br(d.get('finan_usado', 0))}")
+        pdf.ln(2)
+        secao("Financiamento")
+        linha("Financiamento utilizado", f"R$ {fmt_br(d.get('finan_usado', 0))}")
         prazo = d.get('prazo_financiamento', 360)
         linha(
-            "Sistema de amortização do financiamento",
+            "Sistema de amortização e prazo",
             f"{nome_sistema_amortizacao_completo(str(d.get('sistema_amortizacao', 'SAC')))} - {prazo} meses",
         )
         linha("Parcela estimada do financiamento", f"R$ {fmt_br(d.get('parcela_financiamento', 0))}")
-        linha("Subsídio e Fundo de Garantia do Tempo de Serviço utilizados", f"R$ {fmt_br(d.get('fgts_sub_usado', 0))}")
+        linha("FGTS + subsídio", f"R$ {fmt_br(d.get('fgts_sub_usado', 0))}")
 
-        pdf.ln(4)
-
-        secao("Fluxo de entrada (atos e Pro Soluto)")
-        linha("Pro Soluto (parte da entrada)", f"R$ {fmt_br(d.get('ps_usado', 0))}")
-        linha("Mensalidade do Pro Soluto", f"{d.get('ps_parcelas')} parcelas de R$ {fmt_br(d.get('ps_mensal', 0))}")
-        _ent_ps = float(d.get('entrada_total', 0) or 0) + float(d.get('ps_usado', 0) or 0)
-        linha("Valor total de entrada em atos", f"R$ {fmt_br(d.get('entrada_total', 0))}")
-        linha("Entrada total (atos e Pro Soluto)", f"R$ {fmt_br(_ent_ps)}", True)
+        pdf.ln(2)
+        secao("Entrada e Pro Soluto")
+        linha("Pro Soluto (valor)", f"R$ {fmt_br(d.get('ps_usado', 0))}")
+        linha("Número de parcelas do Pro Soluto", _pdf_text_seguro(d.get("ps_parcelas")))
+        linha("Mensalidade do Pro Soluto", f"R$ {fmt_br(d.get('ps_mensal', 0))}")
+        linha("Total em atos (ato 0 e parcelados)", f"R$ {fmt_br(d.get('entrada_total', 0))}")
         linha("Ato 0", f"R$ {fmt_br(d.get('ato_final', 0))}")
         linha("Ato 30", f"R$ {fmt_br(d.get('ato_30', 0))}")
         linha("Ato 60", f"R$ {fmt_br(d.get('ato_60', 0))}")
         if not _politica_emcash(d.get("politica")):
             linha("Ato 90", f"R$ {fmt_br(d.get('ato_90', 0))}")
+        _ent_ps = float(d.get('entrada_total', 0) or 0) + float(d.get('ps_usado', 0) or 0)
+        linha("Entrada total (atos e Pro Soluto)", f"R$ {fmt_br(_ent_ps)}", True)
 
         # ===============================
         # RODAPÉ (DADOS CORRETOR)
         # ===============================
         pdf.ln(4)
-        
-        # Dados do Corretor
-        pdf.set_font("Helvetica", 'B', 9)
-        pdf.set_text_color(*AZUL)
-        pdf.cell(0, 5, _pdf_text_seguro("Consultor responsável"), ln=True, align='L')
-        pdf.set_font("Helvetica", '', 9)
-        pdf.cell(0, 5, _pdf_text_seguro(f"{d.get('corretor_nome', 'Não informado')}"), ln=True)
-        pdf.cell(
-            0,
-            5,
-            _pdf_text_seguro(
-                f"Contato: {d.get('corretor_telefone', '')} | E-mail: {d.get('corretor_email', '')}"
-            ),
-            ln=True,
-        )
 
-        pdf.ln(4)
+        cn = (d.get("corretor_nome") or "").strip()
+        if cn:
+            pdf.set_font("Helvetica", 'B', 9)
+            pdf.set_text_color(*AZUL)
+            pdf.cell(0, 5, _pdf_text_seguro("Consultor"), ln=True, align='L')
+            pdf.set_font("Helvetica", 'B', 10)
+            pdf.cell(0, 6, _pdf_text_seguro(cn), ln=True)
+
+        pdf.ln(2)
 
         # Aviso Legal e Data
         pdf.set_font("Helvetica", 'I', 7)
@@ -2870,7 +2835,7 @@ def gerar_resumo_pdf(d):
             0,
             4,
             _pdf_text_seguro(
-                f"Simulação realizada em {d.get('data_simulacao', date.today().strftime('%d/%m/%Y'))}. "
+                f"Simulação em {d.get('data_simulacao', date.today().strftime('%d/%m/%Y'))}. "
                 "Sujeito a análise de crédito e alteração de tabela sem aviso prévio."
             ),
             ln=True,
@@ -2905,7 +2870,12 @@ def enviar_email_smtp(destinatario, nome_cliente, pdf_bytes, dados_cliente, tipo
     # Extrair dados para o email
     emp = dados_cliente.get('empreendimento_nome', 'Seu Imóvel')
     unid = dados_cliente.get('unidade_id', '')
-    val_venda = fmt_br(dados_cliente.get('imovel_valor', 0))
+    try:
+        _vc_mail = max(0.0, float(dados_cliente.get("volta_caixa_aplicado", 0) or 0))
+    except (TypeError, ValueError):
+        _vc_mail = 0.0
+    _v_raw = float(dados_cliente.get("imovel_valor", 0) or 0)
+    val_venda = fmt_br(max(0.0, _v_raw - _vc_mail))
     val_aval = fmt_br(dados_cliente.get('imovel_avaliacao', 0))
     entrada = fmt_br(dados_cliente.get('entrada_total', 0))
     finan = fmt_br(dados_cliente.get('finan_usado', 0))
@@ -3177,7 +3147,8 @@ def show_export_dialog(d):
     d["corretor_email"] = st.session_state.get("user_email", "")
     d["corretor_telefone"] = st.session_state.get("user_phone", "")
 
-    pdf_data = gerar_resumo_pdf(d)
+    _vc_dialog = texto_moeda_para_float(st.session_state.get("volta_caixa_key"))
+    pdf_data = gerar_resumo_pdf(d, volta_caixa_val=_vc_dialog)
 
     st.markdown("**1. Documento PDF**")
     if pdf_data:
@@ -3196,7 +3167,13 @@ def show_export_dialog(d):
     email = st.text_input("Endereço de e-mail do cliente", placeholder="cliente@exemplo.com", key="export_dialog_email_cliente")
     if st.button("Enviar e-mail para o cliente", use_container_width=True, key="export_dialog_btn_email"):
         if email and "@" in email:
-            sucesso, msg = enviar_email_smtp(email, d.get("nome", "Cliente"), pdf_data, d, tipo="cliente")
+            sucesso, msg = enviar_email_smtp(
+                email,
+                d.get("nome", "Cliente"),
+                pdf_data,
+                {**d, "volta_caixa_aplicado": _vc_dialog},
+                tipo="cliente",
+            )
             if sucesso:
                 st.success(msg)
             else:
@@ -3207,10 +3184,9 @@ def show_export_dialog(d):
     st.markdown("---")
     st.markdown("**3. Texto por WhatsApp**")
     st.caption("Abre o WhatsApp (Web ou app) com a mensagem pronta; escolha o contato e envie.")
-    _vc_wa = texto_moeda_para_float(st.session_state.get("volta_caixa_key"))
     _wa_msg = montar_mensagem_whatsapp_resumo(
         d,
-        volta_caixa_val=_vc_wa,
+        volta_caixa_val=_vc_dialog,
         nome_consultor=st.session_state.get("user_name", "") or "",
         canal_imobiliaria=st.session_state.get("user_imobiliaria", "") or "",
     )
@@ -3828,7 +3804,7 @@ def aba_simulador_automacao(
                         v_vc = 0.0
                     v_vc_fmt = fmt_br(v_vc)
                     return (
-                        f"{uid} | Avaliação: R$ {v_aval} | Venda: R$ {v_venda} | Volta ao Caixa: R$ {v_vc_fmt}"
+                        f"{uid} | Avaliação: R$ {v_aval} | Venda: R$ {v_venda} | Desconto Volta ao Caixa: R$ {v_vc_fmt}"
                     )
 
                 uni_escolhida_id = st.selectbox(
@@ -4212,7 +4188,7 @@ def aba_simulador_automacao(
         # --- INPUT VOLTA AO CAIXA (NOVO) ---
         st.markdown("<hr style='margin: 10px 0;'>", unsafe_allow_html=True)
         vc_ref = d.get('volta_caixa_ref', 0.0)
-        st.text_input("Volta ao Caixa", key="volta_caixa_key", placeholder="0,00")
+        st.text_input("Desconto Volta ao Caixa", key="volta_caixa_key", placeholder="0,00")
         _vc_in = texto_moeda_para_float(st.session_state.get("volta_caixa_key"))
         vc_input_val = max(0.0, min(_vc_in, float(vc_ref or 0))) if float(vc_ref or 0) > 0 else max(0.0, _vc_in)
 
@@ -4262,48 +4238,89 @@ def aba_simulador_automacao(
         st.markdown('<div data-btn-azul style="display:none" aria-hidden="true"></div>', unsafe_allow_html=True)
     elif passo == 'summary':
         d = st.session_state.dados_cliente
+        _vc_sum = texto_moeda_para_float(st.session_state.get("volta_caixa_key"))
+        v_emp_sum = max(0.0, float(d.get("imovel_valor", 0) or 0) - max(0.0, _vc_sum))
+        rendas_sum = list(d.get("rendas_lista") or [])
+        while len(rendas_sum) < 4:
+            rendas_sum.append(0.0)
+
         st.markdown(f"### Resumo da Simulação - {d.get('nome', 'Cliente')}")
-        st.markdown(f'<div class="summary-header">Dados do imóvel</div>', unsafe_allow_html=True)
-        st.markdown(f"""
-        <div class="summary-body">
-            <b>Empreendimento:</b> {d.get('empreendimento_nome')}<br>
-            <b>Unidade:</b> {d.get('unidade_id')}<br>
-            <b>Valor comercial de venda:</b> <span style="color: #111111; font-weight: 700;">{reais_streamlit_html(fmt_br(d.get('imovel_valor', 0)))}</span><br>
-            <b>Avaliação bancária:</b> <span style="color: #111111;">{reais_streamlit_html(fmt_br(d.get('imovel_avaliacao', 0)))}</span>
-        </div>""", unsafe_allow_html=True)
-        
-        # --- NOVO: EXIBIR DETALHES ADICIONAIS ---
-        st.markdown(f'<div class="summary-header">Detalhes da unidade</div>', unsafe_allow_html=True)
-        detalhes_html = f"""<div class="summary-body">"""
-        if d.get('unid_entrega'): detalhes_html += f"<b>Previsão de Entrega:</b> {d.get('unid_entrega')}<br>"
-        if d.get('unid_area'): detalhes_html += f"<b>Área privativa total:</b> {d.get('unid_area')} metros quadrados<br>"
-        if d.get('unid_tipo'): detalhes_html += f"<b>Tipo de planta ou área:</b> {d.get('unid_tipo')}<br>"
-        if d.get('unid_endereco') and d.get('unid_bairro'): 
-            detalhes_html += f"<b>Localização:</b> {d.get('unid_endereco')} - {d.get('unid_bairro')}"
-        detalhes_html += "</div>"
-        st.markdown(detalhes_html, unsafe_allow_html=True)
-        
-        st.markdown(f'<div class="summary-header">Plano de financiamento</div>', unsafe_allow_html=True)
-        prazo_txt = d.get('prazo_financiamento', 360)
+        st.markdown('<div class="summary-header">Renda</div>', unsafe_allow_html=True)
+        _ren_html = (
+            f"<b>Renda familiar total:</b> {reais_streamlit_html(fmt_br(d.get('renda', 0)))}<br>"
+        )
+        for _i in range(4):
+            try:
+                _rv = float(rendas_sum[_i] or 0)
+            except (TypeError, ValueError):
+                _rv = 0.0
+            _ren_html += f"<b>Renda participante {_i + 1}:</b> {reais_streamlit_html(fmt_br(_rv))}<br>"
+        st.markdown(f'<div class="summary-body">{_ren_html}</div>', unsafe_allow_html=True)
+
+        st.markdown('<div class="summary-header">Dados do imóvel</div>', unsafe_allow_html=True)
+        _dim = (
+            f"<div class=\"summary-body\"><b>Empreendimento:</b> {d.get('empreendimento_nome')}<br>"
+            f"<b>Unidade:</b> {d.get('unidade_id')}<br>"
+            f"<b>Valor do empreendimento:</b> <span style=\"color: #111111; font-weight: 700;\">"
+            f"{reais_streamlit_html(fmt_br(v_emp_sum))}</span><br>"
+        )
+        if d.get("unid_entrega"):
+            _dim += f"<b>Previsão de entrega:</b> {d.get('unid_entrega')}<br>"
+        if d.get("unid_area"):
+            _dim += f"<b>Área privativa:</b> {d.get('unid_area')} m²<br>"
+        if d.get("unid_tipo"):
+            _dim += f"<b>Tipologia:</b> {d.get('unid_tipo')}<br>"
+        if d.get("unid_endereco") and d.get("unid_bairro"):
+            _dim += f"<b>Localização:</b> {d.get('unid_endereco')} - {d.get('unid_bairro')}"
+        _dim += "</div>"
+        st.markdown(_dim, unsafe_allow_html=True)
+
+        st.markdown('<div class="summary-header">Financiamento</div>', unsafe_allow_html=True)
+        prazo_txt = d.get("prazo_financiamento", 360)
         _amort_res = nome_sistema_amortizacao_completo(str(d.get("sistema_amortizacao", "SAC")))
-        parcela_texto = f"Parcela estimada ({_amort_res} — {prazo_txt} meses): {reais_streamlit_html(fmt_br(d.get('parcela_financiamento', 0)))}"
-        st.markdown(f"""<div class="summary-body"><b>Financiamento bancário:</b> {reais_streamlit_html(fmt_br(d.get('finan_usado', 0)))}<br><b>{parcela_texto}</b><br><b>Fundo de Garantia do Tempo de Serviço e subsídio:</b> {reais_streamlit_html(fmt_br(d.get('fgts_sub_usado', 0)))}</div>""", unsafe_allow_html=True)
-        _ent_resumo = float(d.get('entrada_total', 0) or 0) + float(d.get('ps_usado', 0) or 0)
-        st.markdown(f'<div class="summary-header">Fluxo de entrada (atos e Pro Soluto)</div>', unsafe_allow_html=True)
+        st.markdown(
+            f"""<div class="summary-body"><b>Financiamento utilizado:</b> {reais_streamlit_html(fmt_br(d.get('finan_usado', 0)))}<br>"""
+            f"""<b>Sistema de amortização e prazo:</b> {_amort_res} — {prazo_txt} meses<br>"""
+            f"""<b>Parcela estimada do financiamento:</b> {reais_streamlit_html(fmt_br(d.get('parcela_financiamento', 0)))}<br>"""
+            f"""<b>FGTS + subsídio:</b> {reais_streamlit_html(fmt_br(d.get('fgts_sub_usado', 0)))}</div>""",
+            unsafe_allow_html=True,
+        )
+        _ent_resumo = float(d.get("entrada_total", 0) or 0) + float(d.get("ps_usado", 0) or 0)
+        st.markdown('<div class="summary-header">Entrada e Pro Soluto</div>', unsafe_allow_html=True)
         _linha_resumo_ato_90 = (
             ""
             if _politica_emcash(d.get("politica"))
             else f"<br><b>Ato 90:</b> {reais_streamlit_html(fmt_br(d.get('ato_90', 0)))}"
         )
         st.markdown(
-            f"""<div class="summary-body"><b>Pro Soluto (parte da entrada):</b> {reais_streamlit_html(fmt_br(d.get('ps_usado', 0)))} — {d.get('ps_parcelas')} parcelas de {reais_streamlit_html(fmt_br(d.get('ps_mensal', 0)))}<br><hr style="border: 0; border-top: 1px solid #e2e8f0; margin: 10px 0;"><b>Total em atos (ato 0 e parcelados):</b> {reais_streamlit_html(fmt_br(d.get('entrada_total', 0)))}<br><b>Ato 0:</b> {reais_streamlit_html(fmt_br(d.get('ato_final', 0)))}<br><b>Ato 30:</b> {reais_streamlit_html(fmt_br(d.get('ato_30', 0)))}<br><b>Ato 60:</b> {reais_streamlit_html(fmt_br(d.get('ato_60', 0)))}{_linha_resumo_ato_90}<br><hr style="border: 0; border-top: 1px solid #e2e8f0; margin: 10px 0;"><b>Entrada total (atos e Pro Soluto):</b> {reais_streamlit_html(fmt_br(_ent_resumo))}</div>""",
+            f"""<div class="summary-body"><b>Pro Soluto (valor):</b> {reais_streamlit_html(fmt_br(d.get('ps_usado', 0)))}<br>"""
+            f"""<b>Número de parcelas do Pro Soluto:</b> {d.get('ps_parcelas')}<br>"""
+            f"""<b>Mensalidade do Pro Soluto:</b> {reais_streamlit_html(fmt_br(d.get('ps_mensal', 0)))}<br>"""
+            f"""<hr style="border: 0; border-top: 1px solid #e2e8f0; margin: 10px 0;">"""
+            f"""<b>Total em atos (ato 0 e parcelados):</b> {reais_streamlit_html(fmt_br(d.get('entrada_total', 0)))}<br>"""
+            f"""<b>Ato 0:</b> {reais_streamlit_html(fmt_br(d.get('ato_final', 0)))}<br>"""
+            f"""<b>Ato 30:</b> {reais_streamlit_html(fmt_br(d.get('ato_30', 0)))}<br>"""
+            f"""<b>Ato 60:</b> {reais_streamlit_html(fmt_br(d.get('ato_60', 0)))}{_linha_resumo_ato_90}<br>"""
+            f"""<hr style="border: 0; border-top: 1px solid #e2e8f0; margin: 10px 0;">"""
+            f"""<b>Entrada total (atos e Pro Soluto):</b> {reais_streamlit_html(fmt_br(_ent_resumo))}</div>""",
+            unsafe_allow_html=True,
+        )
+        _cn_sum = (st.session_state.get("user_name", "") or "").strip()
+        if _cn_sum:
+            st.markdown(
+                f'<p style="text-align:center;margin:1rem 0 0.5rem 0;font-weight:600;color:{COR_AZUL_ESC};">'
+                f"Consultor: {html_std.escape(_cn_sum)}</p>",
+                unsafe_allow_html=True,
+            )
+        st.markdown(
+            f'<p style="text-align:center;margin:0;font-size:0.9rem;color:#64748b;font-style:italic;">'
+            f"Simulação em {d.get('data_simulacao', date.today().strftime('%d/%m/%Y'))}</p>",
             unsafe_allow_html=True,
         )
         st.markdown("---")
-        _vc_wa = texto_moeda_para_float(st.session_state.get("volta_caixa_key"))
         _wa_msg = montar_mensagem_whatsapp_resumo(
             d,
-            volta_caixa_val=_vc_wa,
+            volta_caixa_val=_vc_sum,
             nome_consultor=st.session_state.get("user_name", "") or "",
             canal_imobiliaria=st.session_state.get("user_imobiliaria", "") or "",
         )
@@ -4332,9 +4349,16 @@ def aba_simulador_automacao(
             broker_email = st.session_state.get('user_email')
             if broker_email:
                 with st.spinner("Gerando documento PDF e enviando para o seu e-mail..."):
-                    pdf_bytes_auto = gerar_resumo_pdf(d)
+                    _vc_save = texto_moeda_para_float(st.session_state.get("volta_caixa_key"))
+                    pdf_bytes_auto = gerar_resumo_pdf(d, volta_caixa_val=_vc_save)
                     if pdf_bytes_auto:
-                        sucesso_email, msg_email = enviar_email_smtp(broker_email, d.get('nome', 'Cliente'), pdf_bytes_auto, d, tipo='corretor')
+                        sucesso_email, msg_email = enviar_email_smtp(
+                            broker_email,
+                            d.get("nome", "Cliente"),
+                            pdf_bytes_auto,
+                            {**d, "volta_caixa_aplicado": _vc_save},
+                            tipo="corretor",
+                        )
                         if sucesso_email: st.toast("Documento PDF enviado para o seu e-mail com sucesso.", icon="📧")
                         else: st.toast(f"Falha no envio automático: {msg_email}", icon="⚠️")
             try:
