@@ -1179,6 +1179,31 @@ def inject_login_password_manager_fields():
 # =============================================================================
 
 _COLS_HOME_BANNERS = ("Ordem", "URL_Imagem", "Titulo", "Ativo", "Tela_Cheia", "Descricao")
+_WS_CAMPANHAS_TEXTO = "BD Campanhas Texto"
+_COLS_CAMPANHAS_TEXTO = ("Ordem", "Titulo", "Texto", "Ativo")
+
+
+def normalizar_df_campanhas_texto(df: pd.DataFrame | None) -> pd.DataFrame:
+    """Planilha BD Campanhas Texto: Ordem, Titulo, Texto, Ativo (SIM/NÃO)."""
+    if df is None or df.empty:
+        return pd.DataFrame(columns=list(_COLS_CAMPANHAS_TEXTO))
+    out = df.copy()
+    out.columns = [str(c).strip() for c in out.columns]
+    ren = {
+        "ordem": "Ordem",
+        "título": "Titulo",
+        "Título": "Titulo",
+        "titulo": "Titulo",
+        "texto": "Texto",
+        "ativo": "Ativo",
+    }
+    for a, b in list(ren.items()):
+        if a in out.columns and a != b:
+            out = out.rename(columns={a: b})
+    for c in _COLS_CAMPANHAS_TEXTO:
+        if c not in out.columns:
+            out[c] = None if c == "Ordem" else ""
+    return out[list(_COLS_CAMPANHAS_TEXTO)].copy()
 
 
 def normalizar_df_home_banners(df: pd.DataFrame | None) -> pd.DataFrame:
@@ -1252,58 +1277,96 @@ def _banner_descricao_html_segura(texto: str) -> str:
     return html_std.escape(t)
 
 
-def render_faixa_home_banners(df_banners: pd.DataFrame) -> None:
-    df = normalizar_df_home_banners(df_banners)
+def _html_campanhas_texto_bloco(df_texto: pd.DataFrame) -> str:
+    df = normalizar_df_campanhas_texto(df_texto)
     if df.empty:
-        return
+        return ""
     df = df[df["Ativo"].apply(banner_ativo_sim)]
     if df.empty:
-        return
+        return ""
     df = df.copy()
     df["_sort"] = pd.to_numeric(df["Ordem"], errors="coerce")
     df = df.sort_values("_sort", na_position="last")
-    cards: list[str] = []
-    lb_idx = 0
+    items: list[str] = []
     for _, row in df.iterrows():
-        src = _img_url_seguro_https(str(row.get("URL_Imagem", "") or ""))
-        if not src:
-            continue
         tit = str(row.get("Titulo", "") or "").strip()
+        body = str(row.get("Texto", "") or "").strip()
+        if not tit and not body:
+            continue
         tit_esc = html_std.escape(tit)
-        desc_raw = str(row.get("Descricao", "") or "").strip()
-        desc_esc = _banner_descricao_html_segura(desc_raw)
-        desc_block = ""
-        if desc_esc:
-            desc_block = (
-                f'<div class="home-banner-lb-desc" style="white-space:pre-wrap;">{desc_esc}</div>'
+        body_esc = html_std.escape(body)
+        if tit_esc and body_esc:
+            inner = f'<span class="home-campanhas-copy-titulo">{tit_esc}</span> {body_esc}'
+        elif tit_esc:
+            inner = f'<span class="home-campanhas-copy-titulo">{tit_esc}</span>'
+        else:
+            inner = body_esc
+        items.append(f"<li>{inner}</li>")
+    if not items:
+        return ""
+    return (
+        '<div class="home-campanhas-copy" role="region" aria-label="Detalhes das campanhas">'
+        '<ul class="home-campanhas-copy-list">'
+        + "".join(items)
+        + "</ul></div>"
+    )
+
+
+def render_secao_campanhas_comerciais(
+    df_banners: pd.DataFrame,
+    df_texto_campanhas: pd.DataFrame | None = None,
+) -> None:
+    """Faixa de miniaturas quadradas (clique = tela cheia, só imagem) + texto em lista abaixo."""
+    df_bn = normalizar_df_home_banners(df_banners)
+    if not df_bn.empty:
+        df_bn = df_bn[df_bn["Ativo"].apply(banner_ativo_sim)]
+    copy_html = _html_campanhas_texto_bloco(
+        df_texto_campanhas if df_texto_campanhas is not None else pd.DataFrame()
+    )
+    cards: list[str] = []
+    if not df_bn.empty:
+        df_s = df_bn.copy()
+        df_s["_sort"] = pd.to_numeric(df_s["Ordem"], errors="coerce")
+        df_s = df_s.sort_values("_sort", na_position="last")
+        lb_idx = 0
+        for _, row in df_s.iterrows():
+            src = _img_url_seguro_https(str(row.get("URL_Imagem", "") or ""))
+            if not src:
+                continue
+            cid = f"home-banner-lb-{lb_idx}"
+            lb_idx += 1
+            cards.append(
+                f'<div class="home-banner-lb-root">'
+                f'<input type="checkbox" id="{cid}" class="home-banner-lb-input" autocomplete="off" '
+                f'aria-hidden="true" tabindex="-1" />'
+                f'<label for="{cid}" class="home-banner-card home-banner-card--fs home-banner-card--thumb" '
+                f'title="Ampliar em tela cheia" aria-label="Ampliar imagem da campanha em tela cheia">'
+                f'<span class="home-banner-thumb-frame">'
+                f'<img src="{src}" alt="" loading="lazy" decoding="async" />'
+                f"</span></label>"
+                f'<div class="home-banner-lb-panel" role="presentation">'
+                f'<label for="{cid}" class="home-banner-lb-backdrop" aria-label="Fechar"></label>'
+                f'<div class="home-banner-lb-inner" role="dialog" aria-label="Imagem ampliada">'
+                f'<img class="home-banner-lb-img" src="{src}" alt="" loading="lazy" decoding="async" />'
+                f'<label for="{cid}" class="home-banner-lb-close" aria-label="Fechar" title="Fechar">×</label>'
+                f"</div></div></div>"
             )
-        cid = f"home-banner-lb-{lb_idx}"
-        lb_idx += 1
-        cards.append(
-            f'<div class="home-banner-lb-root">'
-            f'<input type="checkbox" id="{cid}" class="home-banner-lb-input" autocomplete="off" '
-            f'aria-hidden="true" tabindex="-1" />'
-            f'<label for="{cid}" class="home-banner-card home-banner-card--fs" title="Ampliar imagem">'
-            f'<img src="{src}" alt="{tit_esc}" loading="lazy" decoding="async" />'
-            f'<div class="home-banner-title">{tit_esc}</div>'
-            f'<span class="home-banner-fs-hint">Clique para ampliar</span></label>'
-            f'<div class="home-banner-lb-panel" role="presentation">'
-            f'<label for="{cid}" class="home-banner-lb-backdrop" aria-label="Fechar"></label>'
-            f'<div class="home-banner-lb-inner" role="dialog" aria-label="{tit_esc}">'
-            f'<img class="home-banner-lb-img" src="{src}" alt="{tit_esc}" loading="lazy" decoding="async" />'
-            f"{desc_block}"
-            f'<label for="{cid}" class="home-banner-lb-close" aria-label="Fechar" title="Fechar">×</label>'
-            f"</div></div></div>"
-        )
-    if not cards:
+    if not cards and not copy_html:
         return
+    strip_html = ""
+    if cards:
+        strip_html = (
+            '<div class="home-banners-strip-outer">'
+            '<div class="home-banners-strip" role="group" aria-label="Miniaturas de campanhas">'
+            + "".join(cards)
+            + "</div></div>"
+        )
     st.markdown(
         '<div class="home-banners-wrap" role="region" aria-label="Campanhas comerciais">'
         '<h2 class="home-banners-section-title">Campanhas comerciais</h2>'
-        '<div class="home-banners-strip-outer">'
-        '<div class="home-banners-strip" role="group" aria-label="Miniaturas de campanhas">'
-        + "".join(cards)
-        + "</div></div></div>",
+        + strip_html
+        + copy_html
+        + "</div>",
         unsafe_allow_html=True,
     )
 
@@ -1341,6 +1404,52 @@ def gravar_nova_linha_home_banner(
         return False, str(e)
 
 
+def gravar_nova_linha_campanha_texto(
+    ordem: int,
+    titulo: str,
+    texto: str,
+    ativo_sim: bool,
+) -> tuple[bool, str]:
+    try:
+        conn = st.connection("gsheets", type=GSheetsConnection)
+        df_raw = conn.read(spreadsheet=ID_GERAL, worksheet=_WS_CAMPANHAS_TEXTO)
+        df_ex = normalizar_df_campanhas_texto(df_raw)
+        ativo_txt = "SIM" if ativo_sim else "NÃO"
+        nova = pd.DataFrame(
+            [
+                {
+                    "Ordem": int(ordem),
+                    "Titulo": (titulo or "").strip(),
+                    "Texto": (texto or "").strip(),
+                    "Ativo": ativo_txt,
+                }
+            ]
+        )
+        df_final = pd.concat([df_ex, nova], ignore_index=True)
+        conn.update(spreadsheet=ID_GERAL, worksheet=_WS_CAMPANHAS_TEXTO, data=df_final)
+        return True, ""
+    except Exception as e:
+        return False, str(e)
+
+
+def excluir_linha_campanha_texto(indice_linha: int) -> tuple[bool, str]:
+    try:
+        conn = st.connection("gsheets", type=GSheetsConnection)
+        df_raw = conn.read(spreadsheet=ID_GERAL, worksheet=_WS_CAMPANHAS_TEXTO)
+        df_ex = normalizar_df_campanhas_texto(df_raw)
+        df_ex = df_ex.reset_index(drop=True)
+        n = len(df_ex)
+        if n == 0:
+            return False, "A planilha de texto das campanhas está vazia."
+        if indice_linha < 0 or indice_linha >= n:
+            return False, "Linha inválida."
+        df_new = df_ex.drop(index=indice_linha).reset_index(drop=True)
+        conn.update(spreadsheet=ID_GERAL, worksheet=_WS_CAMPANHAS_TEXTO, data=df_new)
+        return True, ""
+    except Exception as e:
+        return False, str(e)
+
+
 def excluir_linha_home_banner(indice_linha: int) -> tuple[bool, str]:
     """Remove uma linha da aba BD Home Banners pelo índice (0 = primeira linha de dados na leitura normalizada)."""
     try:
@@ -1372,7 +1481,17 @@ def _rotulo_opcao_excluir_banner(df_bn: pd.DataFrame, i: int) -> str:
     except Exception:
         host = ""
     sufixo = f" — {host}" if host else ""
-    return f"Linha {i + 1} · Ordem {ordem} · {tit or '(sem título)'}{sufixo}"
+    return f"Linha {i + 1} · Ordem {ordem} · {tit or '(imagem)'}{sufixo}"
+
+
+def _rotulo_opcao_excluir_campanha_texto(df_ct: pd.DataFrame, i: int) -> str:
+    r = df_ct.iloc[i]
+    ordem = r.get("Ordem", "")
+    tit = str(r.get("Titulo", "") or "").strip()
+    tit = (tit[:48] + "…") if len(tit) > 49 else tit
+    snip = str(r.get("Texto", "") or "").strip().replace("\n", " ")
+    snip = (snip[:36] + "…") if len(snip) > 37 else snip
+    return f"Linha {i + 1} · Ordem {ordem} · {tit or '(sem título)'}{' — ' + snip if snip else ''}"
 
 
 _COLS_LOGINS = ["Email", "Senha", "Nome", "Cargo", "Imobiliaria", "Telefone", "Adm"]
@@ -1426,6 +1545,7 @@ def carregar_dados_sistema():
                 pd.DataFrame(),
                 pd.DataFrame(),
                 dict(DEFAULT_PREMISSAS),
+                pd.DataFrame(columns=list(_COLS_CAMPANHAS_TEXTO)),
             )
         conn = st.connection("gsheets", type=GSheetsConnection)
         def limpar_moeda(val): return safe_float_convert(val)
@@ -1574,7 +1694,21 @@ def carregar_dados_sistema():
         except Exception:
             df_home_banners = pd.DataFrame(columns=list(_COLS_HOME_BANNERS))
 
-        return df_finan, df_estoque, df_politicas, df_cadastros, df_home_banners, premissas_dict
+        try:
+            df_ct_raw = conn.read(spreadsheet=ID_GERAL, worksheet=_WS_CAMPANHAS_TEXTO)
+            df_campanhas_texto = normalizar_df_campanhas_texto(df_ct_raw)
+        except Exception:
+            df_campanhas_texto = pd.DataFrame(columns=list(_COLS_CAMPANHAS_TEXTO))
+
+        return (
+            df_finan,
+            df_estoque,
+            df_politicas,
+            df_cadastros,
+            df_home_banners,
+            premissas_dict,
+            df_campanhas_texto,
+        )
     except Exception as e:
         st.error(f"Erro dados: {e}")
         return (
@@ -1584,6 +1718,7 @@ def carregar_dados_sistema():
             pd.DataFrame(),
             pd.DataFrame(),
             dict(DEFAULT_PREMISSAS),
+            pd.DataFrame(columns=list(_COLS_CAMPANHAS_TEXTO)),
         )
 
 # =============================================================================
@@ -2219,6 +2354,29 @@ def configurar_layout():
             width: 100%;
             order: 0;
         }}
+        .home-campanhas-copy {{
+            width: 100%;
+            max-width: min(720px, 100%);
+            margin: 0.5rem auto 0;
+            padding: 0 0.35rem 0.35rem;
+            box-sizing: border-box;
+            text-align: left;
+        }}
+        .home-campanhas-copy-list {{
+            margin: 0;
+            padding: 0 0 0 1.15rem;
+            list-style: disc;
+            color: {COR_TEXTO_LABEL};
+            font-size: 0.9rem;
+            line-height: 1.5;
+        }}
+        .home-campanhas-copy-list li {{
+            margin: 0.35rem 0;
+        }}
+        .home-campanhas-copy-titulo {{
+            font-weight: 700;
+            color: {COR_AZUL_ESC};
+        }}
         .home-banners-strip-outer {{
             display: flex;
             justify-content: center;
@@ -2243,32 +2401,35 @@ def configurar_layout():
         }}
         .home-banner-card {{
             flex: 0 0 auto;
-            width: min(148px, 46vw);
             scroll-snap-align: start;
             text-align: center;
             background: rgba(255, 255, 255, 0.94);
             border-radius: 12px;
-            padding: 8px 8px 10px;
+            padding: 6px;
             box-shadow: 0 2px 12px rgba(15, 23, 42, 0.08);
             border: 1px solid rgba(226, 232, 240, 0.95);
         }}
-        .home-banner-card img {{
+        .home-banner-card.home-banner-card--thumb {{
+            width: min(92px, 22vw);
+            padding: 5px;
+        }}
+        .home-banner-thumb-frame {{
             display: block;
             width: 100%;
-            height: 72px;
-            max-height: 72px;
-            object-fit: contain;
-            object-position: center;
-            border-radius: 8px;
+            aspect-ratio: 1 / 1;
+            border-radius: 10px;
+            overflow: hidden;
+            background: rgba(248, 250, 252, 0.95);
             margin: 0 auto;
-            background: rgba(248, 250, 252, 0.9);
         }}
-        .home-banner-title {{
-            margin-top: 8px;
-            font-size: 0.72rem;
-            font-weight: 600;
-            color: {COR_TEXTO_LABEL};
-            line-height: 1.25;
+        .home-banner-card.home-banner-card--thumb img {{
+            display: block;
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            object-position: center;
+            border-radius: 0;
+            margin: 0;
         }}
         .home-banner-lb-root {{
             flex: 0 0 auto;
@@ -2290,14 +2451,6 @@ def configurar_layout():
         .home-banner-card--fs:focus-visible {{
             outline: 2px solid {COR_AZUL_ESC};
             outline-offset: 3px;
-        }}
-        .home-banner-fs-hint {{
-            display: block;
-            margin-top: 4px;
-            font-size: 0.62rem;
-            font-weight: 500;
-            color: {COR_TEXTO_MUTED};
-            letter-spacing: 0.02em;
         }}
         .home-banner-lb-panel {{
             position: fixed;
@@ -2332,7 +2485,7 @@ def configurar_layout():
             display: flex;
             flex-direction: column;
             align-items: center;
-            gap: 1rem;
+            gap: 0;
             padding: 2.35rem 1.1rem 1.25rem;
             box-sizing: border-box;
         }}
@@ -2344,14 +2497,6 @@ def configurar_layout():
             object-fit: contain;
             border-radius: 10px;
             box-shadow: 0 10px 48px rgba(0, 0, 0, 0.4);
-        }}
-        .home-banner-lb-desc {{
-            color: #f1f5f9;
-            max-width: 40rem;
-            text-align: center;
-            font-size: 0.95rem;
-            line-height: 1.55;
-            margin: 0;
         }}
         .home-banner-lb-close {{
             position: absolute;
@@ -3045,6 +3190,7 @@ def aba_simulador_automacao(
     df_politicas,
     premissas_dict=None,
     df_home_banners: pd.DataFrame | None = None,
+    df_campanhas_texto: pd.DataFrame | None = None,
 ):
     if st.session_state.get("passo_simulacao") in (
         "input",
@@ -3071,14 +3217,16 @@ def aba_simulador_automacao(
         '<div class="header-brand-bar-wrap"><div class="header-brand-bar" aria-hidden="true"></div></div>',
         unsafe_allow_html=True,
     )
-    render_faixa_home_banners(df_home_banners if df_home_banners is not None else pd.DataFrame())
+    render_secao_campanhas_comerciais(
+        df_home_banners if df_home_banners is not None else pd.DataFrame(),
+        df_campanhas_texto if df_campanhas_texto is not None else pd.DataFrame(),
+    )
     if st.session_state.get("user_is_adm"):
-        with st.expander("Banners da página inicial (administrador — base de dados, aba Banners da home)", expanded=False):
+        with st.expander("Campanhas comerciais (administrador — planilha)", expanded=False):
             st.caption(
-                "Inclua o endereço **https** da imagem (por exemplo, Postimages). Na página inicial as imagens aparecem em **miniatura**; o visitante **amplia ao clicar**. "
-                "Colunas na planilha: Ordem, URL da imagem, Título, Ativo, **Tela cheia** (legado na planilha), **Descrição** "
-                "(opcional; aparece no painel ampliado). "
-                "Adicione as colunas necessárias na aba **Banners da home** da base de dados se ainda não existirem."
+                "**Imagens:** aba **BD Home Banners** — URL **https** (ex.: Postimages). Na home aparecem só **miniaturas quadradas**; ao clicar, **só a imagem** em tela cheia (sem título nem descrição na interface). "
+                "Colunas: Ordem, URL_Imagem, Titulo (opcional, só para organização na planilha), Ativo, Tela_Cheia, Descricao (legado; não é mais exibido). "
+                "**Texto abaixo da faixa:** crie a aba **BD Campanhas Texto** com colunas **Ordem**, **Titulo**, **Texto**, **Ativo** (SIM/NÃO); cada linha vira um item de lista com título + texto."
             )
             with st.form("form_novo_home_banner"):
                 c1, c2, c3 = st.columns(3)
@@ -3088,20 +3236,18 @@ def aba_simulador_automacao(
                     bn_ativo = st.selectbox("Ativo", ["SIM", "NÃO"], index=0)
                 with c3:
                     bn_tela_cheia = st.selectbox(
-                        "Tela cheia (planilha)",
+                        "Tela cheia (planilha — legado)",
                         ["NÃO", "SIM"],
                         index=0,
-                        help="Valor gravado na planilha (legado). Todas as campanhas já abrem ampliadas ao clicar; a descrição, se houver, aparece no painel ampliado.",
+                        help="Valor gravado na planilha; não altera o comportamento na interface.",
                     )
                 bn_url = st.text_input(
                     "Endereço da imagem (URL)",
                     placeholder="https://i.postimg.cc/...",
                 )
-                bn_titulo = st.text_input("Título", placeholder="Texto abaixo da imagem")
-                bn_descricao = st.text_area(
-                    "Descrição (painel ampliado)",
-                    placeholder="Opcional. Só é mostrada quando o visitante amplia a imagem ao clicar.",
-                    height=100,
+                bn_titulo = st.text_input(
+                    "Título (planilha — opcional)",
+                    placeholder="Só para identificar a linha na planilha / exclusão",
                 )
                 enviar_bn = st.form_submit_button("Gravar nova linha na aba Banners da home", type="primary")
             if enviar_bn:
@@ -3110,16 +3256,14 @@ def aba_simulador_automacao(
                 tc_sim = str(bn_tela_cheia or "").strip().upper() == "SIM"
                 if not url_t.startswith("https://"):
                     st.error("A URL da imagem deve começar com https:// (use o link direto do Postimages).")
-                elif not (bn_titulo or "").strip():
-                    st.error("Informe o título (legenda).")
                 else:
                     ok, err = gravar_nova_linha_home_banner(
                         int(bn_ordem),
                         url_t,
-                        bn_titulo.strip(),
+                        (bn_titulo or "").strip(),
                         ativo_sim,
                         tela_cheia_sim=tc_sim,
-                        descricao=(bn_descricao or "").strip(),
+                        descricao="",
                     )
                     if ok:
                         st.cache_data.clear()
@@ -3159,6 +3303,79 @@ def aba_simulador_automacao(
                             st.rerun()
                         else:
                             st.error(f"Não foi possível excluir: {err_del}")
+
+            st.markdown("---")
+            st.markdown("**Texto das campanhas (lista abaixo das imagens)**")
+            st.caption(
+                f"Aba **{_WS_CAMPANHAS_TEXTO}**: colunas Ordem, Titulo, Texto, Ativo. "
+                "Crie a aba na mesma planilha da base geral se ainda não existir."
+            )
+            with st.form("form_novo_campanha_texto"):
+                ct1, ct2 = st.columns(2)
+                with ct1:
+                    ct_ordem = st.number_input("Ordem (texto)", min_value=1, max_value=999, value=1, step=1)
+                with ct2:
+                    ct_ativo = st.selectbox("Ativo (texto)", ["SIM", "NÃO"], index=0, key="ct_ativo_sel")
+                ct_titulo = st.text_input(
+                    "Título da campanha (aparece em destaque no item)",
+                    placeholder="Ex.: Campanha de Carnaval:",
+                )
+                ct_texto = st.text_area(
+                    "Texto do item",
+                    placeholder="Ex.: Venda 3 vezes e ganhe 1 TV. Regras X e Y.",
+                    height=88,
+                )
+                enviar_ct = st.form_submit_button(
+                    f"Gravar nova linha em {_WS_CAMPANHAS_TEXTO}", type="primary"
+                )
+            if enviar_ct:
+                ct_a = str(ct_ativo or "").strip().upper() == "SIM"
+                if not (ct_titulo or "").strip() and not (ct_texto or "").strip():
+                    st.error("Preencha pelo menos o título ou o texto.")
+                else:
+                    ok_ct, err_ct = gravar_nova_linha_campanha_texto(
+                        int(ct_ordem),
+                        (ct_titulo or "").strip(),
+                        (ct_texto or "").strip(),
+                        ct_a,
+                    )
+                    if ok_ct:
+                        st.cache_data.clear()
+                        st.success("Linha gravada. Recarregando…")
+                        st.rerun()
+                    else:
+                        st.error(f"Não foi possível gravar: {err_ct}")
+
+            st.markdown("**Remover linha de texto**")
+            _df_ct_adm = normalizar_df_campanhas_texto(
+                df_campanhas_texto if df_campanhas_texto is not None else pd.DataFrame()
+            )
+            _df_ct_adm = _df_ct_adm.reset_index(drop=True)
+            if _df_ct_adm.empty:
+                st.caption(f"Não há linhas em {_WS_CAMPANHAS_TEXTO} (ou a aba ainda não existe).")
+            else:
+                _opts_ct = list(range(len(_df_ct_adm)))
+                _ix_ct = st.selectbox(
+                    "Linha a excluir",
+                    options=_opts_ct,
+                    format_func=lambda j: _rotulo_opcao_excluir_campanha_texto(_df_ct_adm, int(j)),
+                    key="campanha_texto_excluir_select",
+                )
+                _conf_ct = st.checkbox(
+                    "Confirmo exclusão permanente desta linha",
+                    key="campanha_texto_excluir_confirma",
+                )
+                if st.button("Excluir linha selecionada", type="secondary", key="campanha_texto_excluir_btn"):
+                    if not _conf_ct:
+                        st.warning("Marque a confirmação para excluir.")
+                    else:
+                        ok_dct, err_dct = excluir_linha_campanha_texto(int(_ix_ct))
+                        if ok_dct:
+                            st.cache_data.clear()
+                            st.success("Linha removida. Recarregando…")
+                            st.rerun()
+                        else:
+                            st.error(f"Não foi possível excluir: {err_dct}")
 
     # --- PÁGINA ÚNICA: perfil → valores → recomendações → unidade → distribuição (ordem fixa) ---
     if passo == 'sim':
@@ -4204,11 +4421,22 @@ def main():
     if not st.session_state["logged_in"]:
         tela_login(carregar_apenas_logins())
     else:
-        df_finan, df_estoque, df_politicas, _df_cad_hist, df_home_banners, premissas_dict = (
-            carregar_dados_sistema()
-        )
+        (
+            df_finan,
+            df_estoque,
+            df_politicas,
+            _df_cad_hist,
+            df_home_banners,
+            premissas_dict,
+            df_campanhas_texto,
+        ) = carregar_dados_sistema()
         aba_simulador_automacao(
-            df_finan, df_estoque, df_politicas, premissas_dict, df_home_banners=df_home_banners
+            df_finan,
+            df_estoque,
+            df_politicas,
+            premissas_dict,
+            df_home_banners=df_home_banners,
+            df_campanhas_texto=df_campanhas_texto,
         )
 
     st.markdown(f'<div class="footer">Direcional Engenharia — Rio de Janeiro | Desenvolvido por Lucas Maia</div>', unsafe_allow_html=True)
