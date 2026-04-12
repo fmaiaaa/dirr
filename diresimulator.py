@@ -2256,7 +2256,7 @@ def configurar_layout():
         a[href*="wa.me"]:not([data-testid="stLinkButton"]):hover {{
             color: #075e54 !important;
         }}
-        /* Botão WhatsApp (link_button para api.whatsapp.com): verde oficial, texto branco */
+        /* Botão "Enviar resumo por WhatsApp": azul Direcional, texto branco */
         a[data-testid="stLinkButton"][href*="api.whatsapp.com"],
         a[data-testid="stLinkButton"][href*="whatsapp.com"] {{
             display: flex !important;
@@ -2267,13 +2267,13 @@ def configurar_layout():
             min-height: 48px !important;
             padding: 0.65rem 1.15rem !important;
             border-radius: 8px !important;
-            background: #25d366 !important;
-            background-color: #25d366 !important;
+            background: {COR_AZUL_ESC} !important;
+            background-color: {COR_AZUL_ESC} !important;
             color: #ffffff !important;
             font-weight: 700 !important;
             text-decoration: none !important;
             border: none !important;
-            box-shadow: 0 2px 8px rgba(37, 211, 102, 0.35) !important;
+            box-shadow: 0 2px 8px rgba({RGB_AZUL_CSS}, 0.35) !important;
         }}
         a[data-testid="stLinkButton"][href*="api.whatsapp.com"] *,
         a[data-testid="stLinkButton"][href*="whatsapp.com"] * {{
@@ -2281,17 +2281,45 @@ def configurar_layout():
         }}
         a[data-testid="stLinkButton"][href*="api.whatsapp.com"]:hover,
         a[data-testid="stLinkButton"][href*="whatsapp.com"]:hover {{
-            background: #20bd5a !important;
-            background-color: #20bd5a !important;
+            background: #03346e !important;
+            background-color: #03346e !important;
             color: #ffffff !important;
-            box-shadow: 0 4px 14px rgba(37, 211, 102, 0.45) !important;
+            box-shadow: 0 4px 14px rgba({RGB_AZUL_CSS}, 0.45) !important;
         }}
-        /* Popup de PDF/e-mail/WhatsApp: mais largura (reforço além de width="large") */
+        /* Popup de PDF/e-mail/WhatsApp: centralizado na viewport + mais largura */
+        div[data-baseweb="modal"]:has(#dv-export-resumo-modal-marker) {{
+            display: flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+            padding: clamp(10px, 3vh, 24px) clamp(8px, 2.5vw, 16px) !important;
+            box-sizing: border-box !important;
+            min-height: 100vh !important;
+            min-height: 100dvh !important;
+        }}
+        div[data-baseweb="modal"]:has(#dv-export-resumo-modal-marker) > div {{
+            margin: auto !important;
+            max-height: calc(100dvh - 24px) !important;
+            overflow-y: auto !important;
+        }}
         div[data-testid="stDialog"]:has(#dv-export-resumo-modal-marker),
         section[data-testid="stDialog"]:has(#dv-export-resumo-modal-marker) {{
             width: min(920px, 96vw) !important;
             max-width: min(920px, 96vw) !important;
             min-width: min(560px, 92vw) !important;
+            margin-left: auto !important;
+            margin-right: auto !important;
+        }}
+        /* X do fechar: só o ícone gira (como nas campanhas) */
+        div[data-testid="stDialog"]:has(#dv-export-resumo-modal-marker) button[aria-label="Close"] svg,
+        div[data-baseweb="modal"]:has(#dv-export-resumo-modal-marker) button[aria-label="Close"] svg {{
+            transition: transform 0.3s ease !important;
+            transform: rotate(0deg);
+        }}
+        div[data-testid="stDialog"]:has(#dv-export-resumo-modal-marker) button[aria-label="Close"]:hover svg,
+        div[data-testid="stDialog"]:has(#dv-export-resumo-modal-marker) button[aria-label="Close"]:focus-visible svg,
+        div[data-baseweb="modal"]:has(#dv-export-resumo-modal-marker) button[aria-label="Close"]:hover svg,
+        div[data-baseweb="modal"]:has(#dv-export-resumo-modal-marker) button[aria-label="Close"]:focus-visible svg {{
+            transform: rotate(90deg) !important;
         }}
         div[data-testid="stAlert"] {{
             border-radius: 8px !important;
@@ -3213,14 +3241,33 @@ def show_export_dialog(d):
 
     st.markdown("---")
     st.markdown("**3. WhatsApp**")
-    st.caption("Abre o WhatsApp (Web ou app) com a mensagem pronta. Negrito (*texto*) e tópicos funcionam ao colar.")
-    _wa_msg = montar_mensagem_whatsapp_resumo(
+    _wa_sugerido = montar_mensagem_whatsapp_resumo(
         d,
         volta_caixa_val=_vc_dialog,
         nome_consultor=st.session_state.get("user_name", "") or "",
         canal_imobiliaria=st.session_state.get("user_imobiliaria", "") or "",
     )
-    _wa_link = _url_whatsapp_enviar_texto(_wa_msg)
+    if st.session_state.pop("_export_dialog_open_reset_wa", False):
+        st.session_state["export_dialog_wa_text"] = _wa_sugerido
+    elif "export_dialog_wa_text" not in st.session_state:
+        st.session_state["export_dialog_wa_text"] = _wa_sugerido
+
+    st.caption(
+        "Edite o texto abaixo antes de enviar. O botão do WhatsApp usa exatamente o que estiver na caixa. "
+        "Negrito (*texto*) e tópicos funcionam ao colar no app."
+    )
+    st.text_area(
+        "Texto da mensagem",
+        height=280,
+        key="export_dialog_wa_text",
+        help="Personalize a mensagem para o cliente; o link de envio é atualizado após cada alteração.",
+    )
+    if st.button("Restaurar texto sugerido", use_container_width=True, key="export_dialog_wa_restore"):
+        st.session_state["export_dialog_wa_text"] = _wa_sugerido
+        st.rerun()
+
+    _wa_corpo = (st.session_state.get("export_dialog_wa_text") or _wa_sugerido).strip() or _wa_sugerido
+    _wa_link = _url_whatsapp_enviar_texto(_wa_corpo)
     _wa_link_max = 6000
     if len(_wa_link) <= _wa_link_max:
         st.link_button(
@@ -3231,15 +3278,8 @@ def show_export_dialog(d):
         )
     else:
         st.info(
-            "O link automático ficou grande demais para o navegador. Copie o texto abaixo e cole no WhatsApp."
+            "O link automático ficou grande demais para o navegador. Copie o texto da caixa acima e cole no WhatsApp."
         )
-    st.text_area(
-        "Texto da mensagem",
-        value=_wa_msg,
-        height=260,
-        key="export_dialog_wa_text",
-        help="Selecione e copie se preferir enviar manualmente.",
-    )
 
 # =============================================================================
 # APLICAÇÃO PRINCIPAL
@@ -4353,6 +4393,7 @@ def aba_simulador_automacao(
         )
         st.markdown("---")
         if st.button("Opções de resumo (PDF, e-mail e WhatsApp)", use_container_width=True):
+            st.session_state["_export_dialog_open_reset_wa"] = True
             show_export_dialog(d)
         st.markdown("---")
         if st.button("Concluir e salvar simulação", type="primary", use_container_width=True):
