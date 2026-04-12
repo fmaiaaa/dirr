@@ -1232,12 +1232,12 @@ def configurar_layout():
         }}
         .stApp,
         [data-testid="stApp"] {{
-            background-color: #e8edf3 !important;
+            background-color: {COR_AZUL_ESC} !important;
             background-image: linear-gradient(
                 180deg,
-                rgba(248, 250, 252, 0.9) 0%,
-                rgba(241, 245, 249, 0.88) 45%,
-                rgba(226, 232, 240, 0.92) 100%
+                rgba(4, 66, 143, 0.82) 0%,
+                {COR_AZUL_ESC} 35%,
+                rgba(2, 42, 92, 0.96) 100%
             ), url("{bg_url}") !important;
             background-size: cover !important;
             background-position: center !important;
@@ -1271,8 +1271,8 @@ def configurar_layout():
             background-color: transparent !important;
         }}
         [data-testid="stToolbar"] {{
-            background: rgba(226, 238, 252, 0.92) !important;
-            border-bottom: 1px solid rgba(4, 66, 143, 0.15) !important;
+            background: #ffffff !important;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.2) !important;
         }}
         [data-testid="stToolbar"] button,
         [data-testid="stToolbar"] a {{
@@ -1310,13 +1310,18 @@ def configurar_layout():
             width: 300px;
         }}
 
-        h1, h2, h3, h4 {{
+        h1, h2, h3, h4, h5, h6 {{
             font-family: 'Montserrat', 'Inter', sans-serif !important;
             text-align: center !important;
             color: {COR_AZUL_ESC} !important;
             font-weight: 700;
             letter-spacing: -0.02em;
             line-height: 1.25;
+        }}
+        h5, h6 {{
+            font-weight: 600 !important;
+            font-size: 0.98rem !important;
+            color: {COR_TEXTO_MUTED} !important;
         }}
 
         .stMarkdown p, .stText, label, .stSelectbox label, .stTextInput label, .stNumberInput label {{
@@ -1335,15 +1340,10 @@ def configurar_layout():
             margin-top: 0.5rem !important;
             margin-bottom: 0.5rem !important;
             padding: 1.25rem 1.5rem !important;
-            background: linear-gradient(
-                180deg,
-                rgba(232, 242, 255, 0.88) 0%,
-                rgba(214, 230, 252, 0.9) 50%,
-                rgba(200, 220, 248, 0.88) 100%
-            ) !important;
+            background: #ffffff !important;
             border-radius: 8px !important;
-            border: 1px solid rgba(4, 66, 143, 0.18) !important;
-            box-shadow: 0 2px 12px rgba(4, 66, 143, 0.08) !important;
+            border: 1px solid #e2e8f0 !important;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06) !important;
         }}
         [data-testid="stVerticalBlockBorderWrapper"] {{
             border-radius: 8px !important;
@@ -1369,10 +1369,16 @@ def configurar_layout():
             line-height: 1.5 !important;
             text-align: center !important;
             justify-content: center !important;
+            align-items: center !important;
             width: 100% !important;
+            display: flex !important;
+            flex-direction: column !important;
         }}
-        [data-testid="stCaption"] > * {{
+        [data-testid="stCaption"] > *,
+        [data-testid="stCaption"] [data-testid="stMarkdownContainer"],
+        [data-testid="stCaption"] [data-testid="stMarkdownContainer"] p {{
             text-align: center !important;
+            width: 100% !important;
         }}
 
         div[data-baseweb="input"] {{
@@ -1541,13 +1547,14 @@ def configurar_layout():
             max-width: 960px;
             position: relative;
         }}
+        /* Barra animada — topo do conteúdo (substitui o antigo stepper) */
         .header-brand-bar-wrap {{
             width: 100vw;
             max-width: 100%;
             position: relative;
             left: 50%;
             transform: translateX(-50%);
-            margin: 0 0 1rem 0;
+            margin: 0 0 1.75rem 0;
         }}
         .header-brand-bar {{
             height: 5px;
@@ -1580,23 +1587,13 @@ def configurar_layout():
         }}
         .header-title {{
             font-family: 'Montserrat', 'Inter', sans-serif;
-            font-size: clamp(1.15rem, 2.5vw, 1.65rem);
-            font-weight: 700;
+            font-size: clamp(1.5rem, 3.5vw, 2.15rem);
+            font-weight: 800;
             line-height: 1.25;
             margin: 0 0 0.35rem 0;
             color: {COR_AZUL_ESC};
             text-align: center;
-        }}
-        .header-title .header-title-muted {{
-            font-weight: 600;
-            letter-spacing: 0.04em;
-            text-transform: uppercase;
-            font-size: 0.9em;
-        }}
-        .header-title .header-title-accent {{
-            color: {COR_VERMELHO};
-            font-weight: 800;
-            margin-left: 0.2em;
+            letter-spacing: -0.02em;
         }}
         .header-subtitle {{
             font-family: 'Inter', system-ui, sans-serif;
@@ -1708,83 +1705,6 @@ def configurar_layout():
         button[data-baseweb="tab"][aria-selected="true"] p {{ color: {COR_AZUL_ESC} !important; opacity: 1; }}
         div[data-baseweb="tab-highlight"] {{ background-color: {COR_VERMELHO} !important; height: 3px !important; }}
 
-        /* --- STEPPER (Visual CSS - Non-interactive) --- */
-        .stepper-container {{
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 1.75rem;
-            position: relative;
-            padding: 0 0.5rem;
-        }}
-        
-        .stepper-line-bg {{
-            position: absolute;
-            top: 24px;
-            left: 20px;
-            right: 20px;
-            height: 3px;
-            background-color: #e2e8f0;
-            z-index: 0;
-            border-radius: 99px;
-        }}
-        
-        .stepper-step {{
-            position: relative;
-            z-index: 2;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            cursor: default;
-            flex: 1;
-        }}
-        
-        .step-bubble {{
-            width: 48px;
-            height: 48px;
-            border-radius: 50%;
-            background-color: white;
-            border: 2px solid #e2e8f0;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-weight: 700;
-            font-size: 1rem;
-            color: #64748b;
-            margin-bottom: 0.75rem;
-            transition: all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
-            box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);
-        }}
-        
-        .step-label {{
-            font-size: 0.75rem;
-            font-weight: 700;
-            color: #94a3b8;
-            text-transform: uppercase;
-            letter-spacing: 0.05em;
-            transition: color 0.3s;
-        }}
-        
-        /* Active State */
-        .stepper-step.active .step-bubble {{
-            background: {COR_AZUL_ESC};
-            border-color: {COR_AZUL_ESC};
-            color: white;
-        }}
-        .stepper-step.active .step-label {{
-            color: {COR_AZUL_ESC};
-        }}
-        
-        /* Completed State */
-        .stepper-step.completed .step-bubble {{
-            background: #10b981; /* Emerald 500 */
-            border-color: #10b981;
-            color: white;
-        }}
-        .stepper-step.completed .step-label {{
-            color: #10b981;
-        }}
-
         .footer {{
             text-align: center;
             padding: 1.5rem 1rem;
@@ -1795,29 +1715,6 @@ def configurar_layout():
         }}
         </style>
     """, unsafe_allow_html=True)
-
-def render_stepper(current_step_name):
-    steps = [
-        {"id": "sim", "label": "Simulação"},
-        {"id": "summary", "label": "Resumo"},
-    ]
-    current_idx = 0 if current_step_name != "summary" else 1
-    
-    html = '<div class="stepper-container"><div class="stepper-line-bg"></div>'
-    for i, step in enumerate(steps):
-        status_class = ""
-        icon_content = str(i + 1)
-        if i < current_idx:
-            status_class = "completed"
-            icon_content = "✓"
-        elif i == current_idx:
-            status_class = "active"
-        html += f"""<div class="stepper-step {status_class}">
-    <div class="step-bubble">{icon_content}</div>
-    <div class="step-label">{step['label']}</div>
-</div>"""
-    html += '</div>'
-    st.markdown(html, unsafe_allow_html=True)
 
 def gerar_resumo_pdf(d):
     if not PDF_ENABLED:
@@ -1974,9 +1871,13 @@ def gerar_resumo_pdf(d):
         )
         pdf.cell(0, 4, "Direcional Engenharia - Rio de Janeiro", ln=True, align='C')
 
-        return bytes(pdf.output())
+        # fpdf2: output() sem dest tenta imprimir no stdout (quebra no Windows / Streamlit).
+        out = pdf.output(dest="S")
+        if isinstance(out, (bytes, bytearray)):
+            return bytes(out)
+        return out.encode("latin-1")
 
-    except:
+    except Exception:
         return None
 
 def enviar_email_smtp(destinatario, nome_cliente, pdf_bytes, dados_cliente, tipo='cliente'):
@@ -2256,9 +2157,11 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, premissas_dict=N
         return resolver_taxa_financiamento_anual_pct(d_cli or {}, _prem)
     if 'dados_cliente' not in st.session_state: st.session_state.dados_cliente = {}
 
-    # RENDER PROGRESS BAR
-    if passo != 'client_analytics':
-        render_stepper(passo)
+    if passo != "client_analytics":
+        st.markdown(
+            '<div class="header-brand-bar-wrap"><div class="header-brand-bar" aria-hidden="true"></div></div>',
+            unsafe_allow_html=True,
+        )
         
     # --- ABA ANALYTICS (SECURE TAB - ALTAIR) ---
     if passo == 'client_analytics':
@@ -2531,7 +2434,6 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, premissas_dict=N
                 _v_r = float(rendas_anteriores[_i]) if _i < len(rendas_anteriores) else _def_r
                 st.session_state[_rk] = float_para_campo_texto(_v_r, vazio_se_zero=True)
 
-        st.markdown("#### Renda e política")
         st.text_input("Participantes na Renda (1 a 4)", key="qtd_part_v3", placeholder="Ex.: 2")
         _qp = texto_inteiro(st.session_state.get("qtd_part_v3"), default=1, min_v=1, max_v=4)
         qtd_part = _qp if _qp is not None else 1
@@ -3288,11 +3190,10 @@ def main():
     logo_src = html_std.escape(_src_logo_topo_header(), quote=True)
     st.markdown(
         f'''<header class="header-container" role="banner">
-<div class="header-brand-bar-wrap"><div class="header-brand-bar" aria-hidden="true"></div></div>
 <div class="header-logo-wrap">
 <img src="{logo_src}" alt="Direcional Engenharia" class="header-logo-img" decoding="async" loading="eager" />
 </div>
-<h1 class="header-title"><span class="header-title-muted">Simulador imobiliário</span>&#32;<span class="header-title-accent" aria-label="DV">DV</span></h1>
+<h1 class="header-title">Simulador imobiliário DV</h1>
 <p class="header-subtitle">Gestão de <strong>vendas</strong> e <strong>viabilidade</strong> imobiliária</p>
 </header>''',
         unsafe_allow_html=True,
