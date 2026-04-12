@@ -1770,740 +1770,224 @@ def configurar_layout():
     bg_url = _css_url_fundo_simulador().replace("&", "&amp;")
     st.markdown(f"""
         <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Montserrat:wght@600;700;800&display=swap');
-        @keyframes brandBarFlow {{
-            0% {{ background-position: 0% 50%; }}
-            100% {{ background-position: 200% 50%; }}
-        }}
-        /* Movimento suave no fundo (imagem + overlay) */
-        @keyframes simAppBgDrift {{
-            0% {{ background-position: center center, 12% 42%; }}
-            35% {{ background-position: center center, 88% 38%; }}
-            70% {{ background-position: center center, 52% 78%; }}
-            100% {{ background-position: center center, 12% 42%; }}
-        }}
-        html, body, :root, [data-testid="stApp"] {{
-            color-scheme: light !important;
-        }}
-        /* Indicador "Running…" + nome da função no topo (Streamlit stStatusWidget) */
-        [data-testid="stStatusWidget"] {{
-            display: none !important;
-            visibility: hidden !important;
-            height: 0 !important;
-            max-height: 0 !important;
-            overflow: hidden !important;
-            pointer-events: none !important;
-        }}
-        /* Spinner de cache (redundante com show_spinner=False, mas reforça se a UI mudar) */
-        [data-testid="stSpinner"].stCacheSpinner {{
-            display: none !important;
-        }}
-        /* Sidebar oculta (navegação/galeria/histórico removidos da UI) */
-        section[data-testid="stSidebar"] {{ display: none !important; }}
-        [data-testid="stSidebarCollapsedControl"] {{ display: none !important; }}
-        div[data-testid="collapsedControl"] {{ display: none !important; }}
+/* ==========================================================================
+   Direcional Elite — UI refresh (Streamlit)
+   - Cleaner typography and spacing
+   - Modern cards, buttons, inputs
+   - Better responsiveness
+   ========================================================================== */
 
-        html, body {{
-            font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
-            font-feature-settings: 'kern' 1, 'liga' 1;
-            -webkit-font-smoothing: antialiased;
-            color: {COR_TEXTO_LABEL};
-            background: transparent !important;
-            background-color: transparent !important;
-        }}
-        .stApp,
-        [data-testid="stApp"] {{
-            /* Azul mais presente que antes, sem cobrir totalmente a foto */
-            background-color: rgba(4, 66, 143, 0.52) !important;
-            background-image: linear-gradient(
-                180deg,
-                rgba(4, 66, 143, 0.58) 0%,
-                rgba(4, 66, 143, 0.48) 45%,
-                rgba(2, 42, 92, 0.54) 100%
-            ), url("{bg_url}") !important;
-            /* Gradiente em tela cheia; foto com cover = mantém proporção (sem esticar). */
-            background-size: 100% 100%, cover !important;
-            background-position: center center, center center !important;
-            background-attachment: fixed !important;
-            background-repeat: no-repeat !important;
-            animation: simAppBgDrift 28s ease-in-out infinite !important;
-        }}
-        @media (prefers-reduced-motion: reduce) {{
-            .stApp,
-            [data-testid="stApp"] {{
-                animation: none !important;
-                background-size: 100% 100%, cover !important;
-                background-position: center center, center center !important;
-            }}
-        }}
-        [data-testid="stAppViewContainer"] {{
-            background: transparent !important;
-            background-color: transparent !important;
-            font-family: 'Inter', system-ui, sans-serif;
-            color: {COR_TEXTO_LABEL};
-        }}
-        header[data-testid="stHeader"],
-        [data-testid="stHeader"] {{
-            background: transparent !important;
-            background-color: transparent !important;
-            background-image: none !important;
-            border: none !important;
-            border-top: none !important;
-            box-shadow: none !important;
-            backdrop-filter: none !important;
-            -webkit-backdrop-filter: none !important;
-        }}
-        [data-testid="stHeader"] > div,
-        [data-testid="stHeader"] header {{
-            background: transparent !important;
-            background-color: transparent !important;
-            box-shadow: none !important;
-        }}
-        [data-testid="stDecoration"] {{
-            background: transparent !important;
-            background-color: transparent !important;
-        }}
-        [data-testid="stToolbar"] {{
-            background: transparent !important;
-            background-color: transparent !important;
-            border: none !important;
-            border-bottom: none !important;
-            box-shadow: none !important;
-        }}
-        [data-testid="stToolbar"] button,
-        [data-testid="stToolbar"] a,
-        [data-testid="stToolbar"] [data-testid] {{
-            color: rgba(255, 255, 255, 0.95) !important;
-        }}
-        [data-testid="stHeader"] button,
-        [data-testid="stHeader"] a {{
-            color: rgba(255, 255, 255, 0.95) !important;
-        }}
-        [data-testid="stToolbar"] svg,
-        [data-testid="stHeader"] svg {{
-            fill: rgba(255, 255, 255, 0.95) !important;
-            color: rgba(255, 255, 255, 0.95) !important;
-        }}
-        [data-testid="stMain"] {{
-            padding-left: clamp(10px, 2.2vw, 28px) !important;
-            padding-right: clamp(10px, 2.2vw, 28px) !important;
-            padding-top: clamp(12px, 3vh, 32px) !important;
-            padding-bottom: clamp(14px, 4vh, 40px) !important;
-            box-sizing: border-box !important;
-        }}
-        section.main > div {{
-            padding-top: 0.25rem !important;
-            padding-bottom: 0.35rem !important;
-        }}
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Montserrat:wght@600;700;800&display=swap');
 
-        /* Cards de recomendação: grupo centralizado; scroll horizontal só quando não cabem */
-        .recommendation-cards-outer {{
-            display: flex;
-            justify-content: center;
-            width: 100%;
-            box-sizing: border-box;
-        }}
-        .scrolling-wrapper {{
-            display: flex;
-            flex-wrap: nowrap;
-            overflow-x: auto;
-            -webkit-overflow-scrolling: touch;
-            gap: 20px;
-            padding-bottom: 20px;
-            margin-bottom: 20px;
-            width: max-content;
-            max-width: 100%;
-            box-sizing: border-box;
-        }}
-        
-        .scrolling-wrapper .card-item {{
-            flex: 0 0 auto;
-            width: 300px;
-        }}
+:root {
+  --de-font: 'Inter', system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+  --de-font-display: 'Montserrat', var(--de-font);
 
-        h1, h2, h3, h4, h5, h6 {{
-            font-family: 'Montserrat', 'Inter', sans-serif !important;
-            text-align: center !important;
-            color: {COR_AZUL_ESC} !important;
-            font-weight: 700;
-            letter-spacing: -0.02em;
-            line-height: 1.25;
-        }}
-        h5, h6 {{
-            font-weight: 600 !important;
-            font-size: 0.98rem !important;
-            color: {COR_TEXTO_MUTED} !important;
-        }}
+  --de-bg: #070B13;
+  --de-surface: rgba(255,255,255,0.06);
+  --de-surface-2: rgba(255,255,255,0.10);
+  --de-border: rgba(255,255,255,0.12);
+  --de-border-2: rgba(255,255,255,0.18);
 
-        .stMarkdown p, .stText, label, .stSelectbox label, .stTextInput label, .stNumberInput label {{
-            color: {COR_TEXTO_LABEL} !important;
-        }}
-        [data-testid="stWidgetLabel"] label,
-        [data-testid="stWidgetLabel"] p {{
-            color: {COR_TEXTO_LABEL} !important;
-        }}
-        /* Parágrafos do markdown = textos de apoio / subtítulos — centralizados */
-        div[data-testid="stMarkdown"] p {{
-            color: #334155;
-            line-height: 1.55;
-            text-align: center !important;
-        }}
+  --de-text: rgba(255,255,255,0.92);
+  --de-text-dim: rgba(255,255,255,0.72);
+  --de-text-mute: rgba(255,255,255,0.55);
 
-        .block-container {{
-            max-width: min(1680px, 97vw) !important;
-            margin-left: auto !important;
-            margin-right: auto !important;
-            margin-top: 0.5rem !important;
-            margin-bottom: 0.5rem !important;
-            padding: 1.25rem clamp(1rem, 2vw, 2rem) !important;
-            /* Branco quase sólido com transparência mínima + leve vidro */
-            background: rgba(255, 255, 255, 0.93) !important;
-            backdrop-filter: saturate(1.08) blur(10px) !important;
-            -webkit-backdrop-filter: saturate(1.08) blur(10px) !important;
-            border-radius: 8px !important;
-            border: 1px solid rgba(226, 232, 240, 0.92) !important;
-            box-shadow: 0 4px 24px rgba(4, 66, 143, 0.08), 0 1px 3px rgba(15, 23, 42, 0.06) !important;
-        }}
-        [data-testid="stVerticalBlockBorderWrapper"] {{
-            border-radius: 8px !important;
-            background: transparent !important;
-        }}
+  --de-accent: #7C3AED;
+  --de-accent-2: #22C55E;
+  --de-warn: #F59E0B;
+  --de-danger: #EF4444;
 
-        /* Títulos de conteúdo — hierarquia clara, só Montserrat + Inter herdada */
-        .stMarkdown h1 {{ font-size: clamp(1.5rem, 2.5vw, 1.85rem) !important; text-align: center !important; margin-bottom: 0.45rem !important; font-weight: 800 !important; }}
-        .stMarkdown h1.header-title {{
-            font-size: clamp(1.75rem, 4.8vw, 2.65rem) !important;
-            margin-bottom: 0.55rem !important;
-            line-height: 1.18 !important;
-        }}
-        .stMarkdown h2 {{ font-size: clamp(1.28rem, 2vw, 1.5rem) !important; text-align: center !important; margin-bottom: 0.45rem !important; font-weight: 700 !important; color: {COR_AZUL_ESC} !important; }}
-        .stMarkdown h3 {{ font-size: clamp(1.12rem, 1.8vw, 1.28rem) !important; text-align: center !important; margin-bottom: 0.4rem !important; font-weight: 700 !important; }}
-        .stMarkdown h4 {{ font-size: 1.05rem !important; text-align: center !important; margin-bottom: 0.35rem !important; font-weight: 700 !important; }}
-        .stMarkdown h5, .stMarkdown h6 {{
-            font-size: 0.95rem !important;
-            text-align: center !important;
-            margin-bottom: 0.3rem !important;
-            font-weight: 600 !important;
-            color: {COR_TEXTO_MUTED} !important;
-        }}
-        [data-testid="stCaption"] {{
-            font-family: 'Inter', sans-serif !important;
-            color: #475569 !important;
-            font-size: 0.9rem !important;
-            line-height: 1.5 !important;
-            text-align: center !important;
-            justify-content: center !important;
-            align-items: center !important;
-            width: 100% !important;
-            display: flex !important;
-            flex-direction: column !important;
-        }}
-        [data-testid="stCaption"] > *,
-        [data-testid="stCaption"] [data-testid="stMarkdownContainer"],
-        [data-testid="stCaption"] [data-testid="stMarkdownContainer"] p {{
-            text-align: center !important;
-            width: 100% !important;
-        }}
+  --de-shadow: 0 18px 50px rgba(0,0,0,0.55);
+  --de-shadow-soft: 0 10px 30px rgba(0,0,0,0.35);
 
-        div[data-baseweb="input"] {{
-            border-radius: 10px !important;
-            border: 1px solid #e2e8f0 !important;
-            background-color: {COR_INPUT_BG} !important;
-            transition: border-color 0.2s ease, box-shadow 0.2s ease !important;
-        }}
+  --de-radius: 16px;
+  --de-radius-sm: 12px;
+  --de-pad: 18px;
+}
 
-        div[data-baseweb="input"]:focus-within {{
-            border-color: rgba({RGB_AZUL_CSS}, 0.35) !important;
-            box-shadow: 0 0 0 3px rgba({RGB_AZUL_CSS}, 0.08) !important;
-            background-color: {COR_INPUT_BG} !important;
-        }}
+@keyframes deGradientFlow {
+  0% { background-position: 0% 50%; }
+  100% { background-position: 200% 50%; }
+}
 
-        /* Esconder botões + e - dos number inputs (apenas digitação) */
-        div[data-testid="stNumberInput"] button {{
-            display: none !important;
-        }}
-        div[data-testid="stNumberInput"] div[data-baseweb="input"],
-        div[data-testid="stTextInput"] div[data-baseweb="input"],
-        div[data-testid="stDateInput"] div[data-baseweb="input"],
-        div[data-baseweb="select"] {{
-            background-color: #f0f2f6 !important;
-        }}
+/* Base */
+html, body, [class*='css'], [data-testid='stAppViewContainer'] * {
+  font-family: var(--de-font) !important;
+}
 
-        /* --- ALTURA UNIFICADA 48px --- */
-        .stTextInput input, .stNumberInput input, .stDateInput input, div[data-baseweb="select"] > div {{
-            height: 48px !important;
-            min-height: 48px !important;
-            padding: 0 15px !important;
-            color: {COR_TEXTO_LABEL} !important;
-            font-size: 1rem !important;
-            line-height: 48px !important;
-            text-align: left !important;
-            display: flex !important;
-            align-items: center !important;
-        }}
-        div[data-testid="stNumberInput"] div[data-baseweb="input"] {{
-            height: 48px !important;
-            min-height: 48px !important;
-            display: flex !important;
-            align-items: center !important;
-        }}
+/* App background */
+html body [data-testid='stAppViewContainer'] {
+  background:
+    radial-gradient(1200px 700px at 12% 15%, rgba(124,58,237,0.22) 0%, rgba(124,58,237,0.0) 60%),
+    radial-gradient(900px 520px at 85% 18%, rgba(34,197,94,0.18) 0%, rgba(34,197,94,0.0) 62%),
+    radial-gradient(1200px 700px at 50% 115%, rgba(59,130,246,0.12) 0%, rgba(59,130,246,0.0) 55%),
+    linear-gradient(180deg, #060814 0%, #070B13 55%, #060814 100%);
+  color: var(--de-text) !important;
+}
 
-        div[data-baseweb="select"] span {{
-            text-align: left !important;
-            display: flex !important;
-            align-items: center !important;
-            height: 100% !important;
-        }}
+/* Reduce Streamlit default top padding and keep content centered */
+section[data-testid='stMain'] > div {
+  padding-top: 1.15rem !important;
+  padding-bottom: 2.0rem !important;
+  max-width: 1320px;
+}
 
-        div[data-testid="stDateInput"] > div, div[data-baseweb="select"] > div {{
-            background-color: #f0f2f6 !important;
-            border: 1px solid #e2e8f0 !important;
-            border-radius: 8px !important;
-            display: flex;
-            align-items: center;
-        }}
+/* Headings */
+h1, h2, h3, h4 {
+  font-family: var(--de-font-display) !important;
+  letter-spacing: -0.02em;
+}
 
-        div[data-testid="stDateInput"] div[data-baseweb="input"] {{
-            border: none !important;
-            background-color: transparent !important;
-        }}
+h1 { font-weight: 800 !important; }
+h2 { font-weight: 800 !important; }
+h3 { font-weight: 700 !important; }
 
-        .stButton button {{
-            font-family: 'Inter', system-ui, sans-serif;
-            border-radius: 8px !important;
-            padding: 0 16px !important;
-            width: 100% !important;
-            min-height: 44px !important;
-            height: auto !important;
-            font-weight: 600 !important;
-            font-size: 0.95rem !important;
-        }}
+/* Subtle top brand bar */
+header[data-testid='stHeader'] {
+  background: transparent !important;
+}
 
-        div[data-testid="column"] .stButton button, [data-testid="stSidebar"] .stButton button {{
-             min-height: 48px !important;
-             height: 48px !important;
-             font-size: 0.9rem !important;
-        }}
+header[data-testid='stHeader']::before {
+  content: '';
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  z-index: 10000;
+  background: linear-gradient(90deg, rgba(124,58,237,0.0), rgba(124,58,237,1.0), rgba(34,197,94,1.0), rgba(59,130,246,1.0), rgba(124,58,237,0.0));
+  background-size: 200% 100%;
+  animation: deGradientFlow 10s linear infinite;
+  box-shadow: 0 0 18px rgba(124,58,237,0.35);
+}
 
-        /* Botões primários = gradiente vermelho (ficha Vendas RJ) */
-        .stButton button[kind="primary"] {{
-            background: linear-gradient(180deg, {COR_VERMELHO} 0%, {COR_VERMELHO_ESCURO} 100%) !important;
-            color: #ffffff !important;
-            border: none !important;
-        }}
-        .stButton button[kind="primary"]:hover {{
-            background: linear-gradient(180deg, {COR_VERMELHO} 0%, {COR_VERMELHO_ESCURO} 100%) !important;
-            box-shadow: 0 8px 22px -5px rgba({RGB_VERMELHO_CSS}, 0.45) !important;
-        }}
+/* Hide Streamlit "running" status and footer */
+#MainMenu, footer, header [data-testid='stStatusWidget'] { visibility: hidden; }
 
-        /* Botões secundários (limpar ×, outros) = cinza; Voltar = azul via .btn-azul-anchor */
-        .stButton button:not([kind="primary"]) {{
-            background: #f0f2f6 !important;
-            color: {COR_AZUL_ESC} !important;
-            border: 1px solid #e2e8f0 !important;
-        }}
-        .stButton button:not([kind="primary"]):hover {{
-            border-color: #cbd5e1 !important;
-            color: {COR_AZUL_ESC} !important;
-            background: #e2e8f0 !important;
-        }}
+/* Cards (containers) */
+[data-testid='stVerticalBlockBorderWrapper'] {
+  background: var(--de-surface);
+  border: 1px solid var(--de-border);
+  border-radius: var(--de-radius);
+  box-shadow: var(--de-shadow-soft);
+}
 
-        /* Voltar = azul direcional (marcador data-btn-azul antes do botão) */
-        div[data-testid="stMarkdown"]:has([data-btn-azul]) + div[data-testid="stButton"] button {{
-            background: {COR_AZUL_ESC} !important;
-            color: #ffffff !important;
-            border: none !important;
-        }}
-        div[data-testid="stMarkdown"]:has([data-btn-azul]) + div[data-testid="stButton"] button:hover {{
-            background: #03346e !important;
-            box-shadow: 0 4px 14px rgba({RGB_AZUL_CSS}, 0.35) !important;
-        }}
-        a[href*="whatsapp.com"],
-        a[href*="wa.me"] {{
-            color: #128c7e !important;
-            font-weight: 600 !important;
-            text-decoration: underline !important;
-        }}
-        a[href*="whatsapp.com"]:hover,
-        a[href*="wa.me"]:hover {{
-            color: #075e54 !important;
-        }}
-        div[data-testid="stAlert"] {{
-            border-radius: 8px !important;
-            border: 1px solid #cbd5e1 !important;
-            background: #f8fafc !important;
-        }}
-        div[data-testid="stAlert"] p,
-        div[data-testid="stAlert"] span,
-        div[data-testid="stAlert"] div[data-testid="stMarkdownContainer"],
-        div[data-testid="stAlert"] div[data-testid="stMarkdownContainer"] * {{
-            color: {COR_AZUL_ESC} !important;
-        }}
-        div[data-testid="stAlert"] svg {{
-            fill: {COR_AZUL_ESC} !important;
-            color: {COR_AZUL_ESC} !important;
-        }}
+/* Make inner container padding nicer */
+[data-testid='stVerticalBlock'] {
+  gap: 0.65rem;
+}
 
-        .stDownloadButton button {{
-            background: #f0f2f6 !important;
-            color: {COR_AZUL_ESC} !important;
-            border: 1px solid #e2e8f0 !important;
-            height: 48px !important;
-        }}
-        .stDownloadButton button:hover {{
-            border-color: #cbd5e1 !important;
-            color: {COR_AZUL_ESC} !important;
-            background: #e2e8f0 !important;
-        }}
+/* Tabs */
+button[data-baseweb='tab'] {
+  color: var(--de-text-dim) !important;
+  border-radius: 999px !important;
+  padding: 10px 14px !important;
+  margin-right: 6px !important;
+  background: rgba(255,255,255,0.03) !important;
+  border: 1px solid rgba(255,255,255,0.08) !important;
+}
 
-        [data-testid="stSidebar"] .stButton button {{
-            padding: 8px 12px !important;
-            font-size: 0.75rem !important;
-            margin-bottom: 2px !important;
-            height: auto !important;
-            min-height: 30px !important;
-        }}
+button[data-baseweb='tab'][aria-selected='true'] {
+  color: var(--de-text) !important;
+  background: rgba(124,58,237,0.22) !important;
+  border-color: rgba(124,58,237,0.45) !important;
+}
 
-        .header-container {{
-            text-align: center;
-            padding: 0.85rem 1rem 1.1rem;
-            margin: 0 auto 1rem;
-            max-width: 1100px;
-            position: relative;
-        }}
-        /* Barra animada — topo do conteúdo (substitui o antigo stepper) */
-        .header-brand-bar-wrap {{
-            width: 100vw;
-            max-width: 100%;
-            position: relative;
-            left: 50%;
-            transform: translateX(-50%);
-            margin: 0 0 1.75rem 0;
-        }}
-        .header-brand-bar {{
-            height: 5px;
-            border-radius: 2px;
-            background: linear-gradient(
-                90deg,
-                {COR_AZUL_ESC} 0%,
-                {COR_VERMELHO} 25%,
-                #0ea5e9 50%,
-                {COR_VERMELHO} 75%,
-                {COR_AZUL_ESC} 100%
-            );
-            background-size: 200% 100%;
-            animation: brandBarFlow 5s ease-in-out infinite;
-        }}
-        .home-banners-wrap {{
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            width: 100vw;
-            max-width: 100%;
-            position: relative;
-            left: 50%;
-            transform: translateX(-50%);
-            margin: 0 0 1.25rem 0;
-            padding: 0 0.75rem;
-            box-sizing: border-box;
-            text-align: center;
-        }}
-        .home-banners-section-title {{
-            font-family: 'Montserrat', 'Inter', sans-serif !important;
-            font-size: clamp(1.12rem, 2.2vw, 1.42rem) !important;
-            font-weight: 700 !important;
-            color: {COR_AZUL_ESC} !important;
-            text-align: center !important;
-            margin: 0 0 0.85rem 0 !important;
-            padding: 0 0.25rem !important;
-            letter-spacing: -0.02em !important;
-            line-height: 1.25 !important;
-            width: 100%;
-            order: 0;
-        }}
-        .home-banners-strip-outer {{
-            display: flex;
-            justify-content: center;
-            width: 100%;
-            max-width: 100%;
-            overflow-x: auto;
-            overflow-y: hidden;
-            padding: 0 0.15rem;
-            box-sizing: border-box;
-            -webkit-overflow-scrolling: touch;
-            order: 1;
-        }}
-        .home-banners-strip {{
-            display: flex;
-            flex-direction: row;
-            flex-wrap: nowrap;
-            gap: 1rem;
-            padding: 0.35rem 0.25rem 0.75rem;
-            scroll-snap-type: x proximity;
-            margin-left: auto;
-            margin-right: auto;
-        }}
-        .home-banner-card {{
-            flex: 0 0 auto;
-            width: min(148px, 46vw);
-            scroll-snap-align: start;
-            text-align: center;
-            background: rgba(255, 255, 255, 0.94);
-            border-radius: 12px;
-            padding: 8px 8px 10px;
-            box-shadow: 0 2px 12px rgba(15, 23, 42, 0.08);
-            border: 1px solid rgba(226, 232, 240, 0.95);
-        }}
-        .home-banner-card img {{
-            display: block;
-            width: 100%;
-            height: 72px;
-            max-height: 72px;
-            object-fit: contain;
-            object-position: center;
-            border-radius: 8px;
-            margin: 0 auto;
-            background: rgba(248, 250, 252, 0.9);
-        }}
-        .home-banner-title {{
-            margin-top: 8px;
-            font-size: 0.72rem;
-            font-weight: 600;
-            color: {COR_TEXTO_LABEL};
-            line-height: 1.25;
-        }}
-        .home-banner-lb-root {{
-            flex: 0 0 auto;
-        }}
-        .home-banner-lb-input {{
-            position: absolute !important;
-            width: 1px !important;
-            height: 1px !important;
-            padding: 0 !important;
-            margin: -1px !important;
-            overflow: hidden !important;
-            clip: rect(0, 0, 0, 0) !important;
-            white-space: nowrap !important;
-            border: 0 !important;
-        }}
-        .home-banner-card--fs {{
-            cursor: pointer;
-        }}
-        .home-banner-card--fs:focus-visible {{
-            outline: 2px solid {COR_AZUL_ESC};
-            outline-offset: 3px;
-        }}
-        .home-banner-fs-hint {{
-            display: block;
-            margin-top: 4px;
-            font-size: 0.62rem;
-            font-weight: 500;
-            color: {COR_TEXTO_MUTED};
-            letter-spacing: 0.02em;
-        }}
-        .home-banner-lb-panel {{
-            position: fixed;
-            inset: 0;
-            z-index: 100050;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            padding: clamp(0.75rem, 3vw, 1.5rem);
-            box-sizing: border-box;
-            visibility: hidden;
-            opacity: 0;
-            pointer-events: none;
-            transition: opacity 0.2s ease, visibility 0.2s ease;
-        }}
-        .home-banner-lb-input:checked ~ .home-banner-lb-panel {{
-            visibility: visible;
-            opacity: 1;
-            pointer-events: auto;
-        }}
-        .home-banner-lb-backdrop {{
-            position: absolute;
-            inset: 0;
-            background: rgba(15, 23, 42, 0.9);
-            cursor: pointer;
-        }}
-        .home-banner-lb-inner {{
-            position: relative;
-            z-index: 2;
-            max-width: min(96vw, 1200px);
-            max-height: 92vh;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            gap: 1rem;
-            padding: 2.35rem 1.1rem 1.25rem;
-            box-sizing: border-box;
-        }}
-        .home-banner-lb-img {{
-            max-width: 100%;
-            max-height: min(72vh, 860px);
-            width: auto;
-            height: auto;
-            object-fit: contain;
-            border-radius: 10px;
-            box-shadow: 0 10px 48px rgba(0, 0, 0, 0.4);
-        }}
-        .home-banner-lb-desc {{
-            color: #f1f5f9;
-            max-width: 40rem;
-            text-align: center;
-            font-size: 0.95rem;
-            line-height: 1.55;
-            margin: 0;
-        }}
-        .home-banner-lb-close {{
-            position: absolute;
-            top: 0.25rem;
-            right: 0.25rem;
-            width: 2.35rem;
-            height: 2.35rem;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 1.45rem;
-            line-height: 1;
-            color: #f8fafc;
-            cursor: pointer;
-            border-radius: 10px;
-            background: rgba(255, 255, 255, 0.14);
-            border: 1px solid rgba(255, 255, 255, 0.28);
-        }}
-        .home-banner-lb-close:hover {{
-            background: rgba(255, 255, 255, 0.22);
-        }}
-        .header-logo-wrap {{
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            margin: 0 auto 0.85rem;
-        }}
-        .header-logo-wrap img {{
-            display: block;
-            margin: 0 auto;
-            max-height: 72px;
-            width: auto;
-            max-width: min(300px, 88vw);
-            height: auto;
-            object-fit: contain;
-        }}
-        .header-title {{
-            font-family: 'Montserrat', 'Inter', sans-serif;
-            font-size: clamp(1.75rem, 4.8vw, 2.65rem);
-            font-weight: 800;
-            line-height: 1.18;
-            margin: 0.2rem 0 0.55rem 0;
-            color: {COR_AZUL_ESC};
-            text-align: center;
-            letter-spacing: -0.03em;
-        }}
-        /* Cabeçalho injetado: wrapper do Streamlit às vezes força alinhamento à esquerda */
-        div[data-testid="stMarkdown"] .header-container {{
-            text-align: center !important;
-            width: 100%;
-            max-width: 100%;
-        }}
-        div[data-testid="stMarkdown"] .header-container .header-title {{
-            text-align: center !important;
-            font-size: clamp(1.75rem, 4.8vw, 2.65rem) !important;
-            font-weight: 800 !important;
-            line-height: 1.18 !important;
-        }}
+/* Buttons */
+.stButton > button {
+  border-radius: 12px !important;
+  border: 1px solid rgba(255,255,255,0.14) !important;
+  background: rgba(255,255,255,0.07) !important;
+  color: var(--de-text) !important;
+  padding: 0.60rem 0.90rem !important;
+  font-weight: 700 !important;
+  transition: transform 120ms ease, background 120ms ease, border-color 120ms ease;
+}
 
-        .card, .fin-box, .recommendation-card, .login-card {{
-            background: #ffffff;
-            padding: 18px;
-            border-radius: 8px;
-            border: 1px solid {COR_BORDA};
-            text-align: center;
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            align-items: center;
-        }}
+.stButton > button:hover {
+  transform: translateY(-1px);
+  border-color: rgba(255,255,255,0.22) !important;
+  background: rgba(255,255,255,0.10) !important;
+}
 
-        .summary-header {{
-            font-family: 'Montserrat', 'Inter', sans-serif;
-            background: {COR_AZUL_ESC};
-            color: #ffffff !important;
-            padding: 20px;
-            border-radius: 12px 12px 0 0;
-            font-weight: 800;
-            text-align: center;
-            text-transform: uppercase;
-            letter-spacing: 0.15em;
-            font-size: 0.9rem;
-        }}
-        .summary-body {{
-            background: #ffffff;
-            padding: 40px;
-            border: 1px solid {COR_BORDA};
-            border-radius: 0 0 12px 12px;
-            margin-bottom: 40px;
-            color: #111111;
-            text-align: center !important;
-        }}
-        .custom-alert {{
-            background-color: {COR_AZUL_ESC};
-            padding: 25px;
-            border-radius: 8px;
-            margin-bottom: 30px;
-            text-align: center;
-            font-weight: 600;
-            color: #ffffff !important;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            min-height: 60px; 
-        }}
-        .price-tag {{
-            color: {COR_VERMELHO};
-            font-weight: 900;
-            font-size: 1.5rem;
-            margin-top: 5px;
-        }}
-        .inline-ref {{
-            font-size: 0.72rem;
-            color: #111111;
-            margin-top: -12px;
-            margin-bottom: 15px;
-            font-weight: 700;
-            letter-spacing: 0.02em;
-            display: block;
-            width: 100%;
-            text-align: center !important;
-            opacity: 1;
-        }}
+.stButton > button:active {
+  transform: translateY(0px);
+}
 
-        .metric-label {{ color: {COR_AZUL_ESC} !important; opacity: 0.7; font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.15em; margin-bottom: 8px; }}
-        .metric-value {{ color: {COR_AZUL_ESC} !important; font-size: 1.8rem; font-weight: 800; font-family: 'Montserrat', 'Inter', sans-serif; }}
+/* Primary button style when Streamlit sets it */
+.stButton > button[kind='primary'] {
+  background: linear-gradient(135deg, rgba(124,58,237,0.95) 0%, rgba(99,102,241,0.95) 55%, rgba(34,197,94,0.90) 120%) !important;
+  border-color: rgba(124,58,237,0.55) !important;
+  box-shadow: 0 14px 30px rgba(124,58,237,0.22);
+}
 
-        .badge-ideal, .badge-seguro, .badge-multi {{
-            background-color: {COR_VERMELHO} !important;
-            color: white;
-            padding: 6px 14px;
-            border-radius: 20px;
-            font-weight: bold;
-            font-size: 0.82rem;
-            margin-top: 10px;
-            letter-spacing: 0.02em;
-            line-height: 1.25;
-        }}
-        
-        [data-testid="stSidebar"] {{ background-color: #fff; border-right: 1px solid {COR_BORDA}; }}
+/* Inputs */
+[data-baseweb='input'] input,
+[data-baseweb='textarea'] textarea,
+[data-baseweb='select'] > div {
+  background: rgba(255,255,255,0.06) !important;
+  border: 1px solid rgba(255,255,255,0.14) !important;
+  border-radius: 12px !important;
+  color: var(--de-text) !important;
+}
 
-        .footer {{
-            text-align: center;
-            padding: 1.5rem 1rem;
-            font-family: 'Inter', system-ui, sans-serif;
-            color: #64748b !important;
-            font-size: 0.8rem;
-            line-height: 1.5;
-        }}
-        </style>
+[data-baseweb='input'] input:focus,
+[data-baseweb='textarea'] textarea:focus {
+  border-color: rgba(124,58,237,0.55) !important;
+  box-shadow: 0 0 0 3px rgba(124,58,237,0.18) !important;
+}
+
+label, .stMarkdown, .stText, p { color: var(--de-text) !important; }
+small, .stCaption, .stMarkdown small { color: var(--de-text-mute) !important; }
+
+/* Metric cards */
+[data-testid='stMetric'] {
+  background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(255,255,255,0.10);
+  padding: 14px 14px;
+  border-radius: 14px;
+}
+
+[data-testid='stMetricLabel'] p { color: var(--de-text-mute) !important; }
+[data-testid='stMetricValue'] { color: var(--de-text) !important; }
+
+/* Dataframes / tables */
+[data-testid='stDataFrame'] {
+  border-radius: var(--de-radius-sm);
+  overflow: hidden;
+  border: 1px solid rgba(255,255,255,0.10);
+}
+
+/* Sidebar (if used) */
+section[data-testid='stSidebar'] {
+  background: rgba(10, 12, 20, 0.55) !important;
+  border-right: 1px solid rgba(255,255,255,0.08) !important;
+  backdrop-filter: blur(14px);
+}
+
+/* Toasts */
+[data-testid='stToast'] {
+  background: rgba(15, 18, 30, 0.86) !important;
+  border: 1px solid rgba(255,255,255,0.12) !important;
+  border-radius: 14px !important;
+}
+
+/* Make expanders look cleaner */
+details {
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.10);
+  border-radius: 14px;
+  padding: 6px 10px;
+}
+
+/* Mobile tweaks */
+@media (max-width: 768px) {
+  section[data-testid='stMain'] > div { padding-left: 0.9rem !important; padding-right: 0.9rem !important; }
+  button[data-baseweb='tab'] { padding: 8px 10px !important; }
+}
+</style>
+
     """, unsafe_allow_html=True)
 
 def gerar_resumo_pdf(d):
