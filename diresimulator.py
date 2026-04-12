@@ -32,7 +32,6 @@ URL_LOGO_DIRECIONAL_BIG = "https://logodownload.org/wp-content/uploads/2021/04/d
 # Mesmos ficheiros da ficha Credenciamento Vendas RJ (pasta deste .py, raiz do repo ou assets/)
 LOGO_TOPO_ARQUIVO = "502.57_LOGO DIRECIONAL_V2F-01.png"
 FAVICON_ARQUIVO = "502.57_LOGO D_COR_V3F.png"
-FUNDO_CADASTRO_ARQUIVO = "fundo_cadastrorh.jpg"
 
 # Paleta alinhada à ficha Credenciamento Vendas RJ (Streamlit)
 COR_AZUL_ESC = "#04428f"
@@ -584,240 +583,9 @@ except:
         pass
 
 # =============================================================================
-# 0. CATÁLOGO E UTILITÁRIOS (constantes em simulador_dv.config.constants)
+# 0. UTILITÁRIOS (catálogo/galeria de empreendimentos removidos)
 # =============================================================================
-# --- CATALOGO DE PRODUTOS COMPLETO ---
-CATALOGO_PRODUTOS = {
-    "CONQUISTA FLORIANÓPOLIS": {
-        "video": "https://www.youtube.com/watch?v=oU5SeVbmCsk",
-        "lat": -22.8878, "lon": -43.3567,
-        "imagens": [
-            {"nome": "Fachada", "link": "https://drive.google.com/file/d/1FtNq9m06iZ3ZAce1Eu8GXYeaUDhBSiV8/view?usp=drivesdk"},
-            {"nome": "Piscina Adulto", "link": "https://drive.google.com/file/d/1ud4Vk3oD2Gmcc9eOEMW-rn-2mIr1zGON/view?usp=drivesdk"},
-            {"nome": "Playground", "link": "https://drive.google.com/file/d/187TeBEzv2qbJQfbU8m30g7BDbs5kPYx8/view?usp=drivesdk"},
-            {"nome": "Salão de Festas", "link": "https://drive.google.com/file/d/1dTFFbyexiIJCk1k4-catyJ_dynvPj7Vj/view?usp=drivesdk"},
-            {"nome": "Fitness Externo", "link": "https://drive.google.com/file/d/1pY9CikHmAqYwxBYj5ohLmqNC0S_fzXKu/view?usp=drivesdk"},
-            {"nome": "Guarita", "link": "https://drive.google.com/file/d/1lMWl5-1OpjYKDLmX38Du9OQeYmUT-CwC/view?usp=drivesdk"},
-            {"nome": "Apartamento Garden", "link": "https://drive.google.com/file/d/1u2pc7a6P4DOPYp69RN0icmOZoTFriuKt/view?usp=drivesdk"},
-            {"nome": "Planta Tipo Meio", "link": "https://drive.google.com/file/d/1b4QxziB56rrcxMpgVMMNHN0XnPoKelFP/view?usp=drivesdk"},
-            {"nome": "Planta Garden", "link": "https://drive.google.com/file/d/13fzvOhPY8uVlBhmbhCQrAnEbse4wv7MY/view?usp=drivesdk"},
-            {"nome": "Masterplan", "link": "https://drive.google.com/file/d/1fR7GFbh9a-J3o3hv21bBbxudiW5-I6pe/view?usp=drivesdk"},
-            {"nome": "Ficha Técnica", "link": "https://drive.google.com/file/d/1u5KoeItcTYVgAfkk5UjqrI83lSjt0i2u/view?usp=drivesdk"}
-        ]
-    },
-    "ITANHANGÁ GREEN": {
-        "video": "https://www.youtube.com/watch?v=Lt74juwBMXM",
-        "lat": -22.9733, "lon": -43.3364,
-        "imagens": [
-            {"nome": "Fachada", "link": "https://drive.google.com/file/d/1PvfgCc1O6NfPsNpGxjzChduroYoCQGsF/view?usp=drivesdk"},
-            {"nome": "Piscina", "link": "https://drive.google.com/file/d/1tB0lFoYSDuL8pVj8_eArd8edYJ7a-Zd-/view?usp=drivesdk"},
-            {"nome": "Playground", "link": "https://drive.google.com/file/d/1_WWAQE_286TpbaNizsQVwCjMamahuOft/view?usp=drivesdk"},
-            {"nome": "Salão de Festas", "link": "https://drive.google.com/file/d/124HX2LthZRYI_FeMvZ9T-6WBVK-M94TT/view?usp=drivesdk"},
-            {"nome": "Guarita", "link": "https://drive.google.com/file/d/1C6mF2DS_X1QCYkhfYzCSmd0Ror_S4m3x/view?usp=drivesdk"},
-            {"nome": "Planta Tipo", "link": "https://drive.google.com/file/d/1_v9Vy03-j5U9lppXubsWtAib4DEAiUCz/view?usp=drivesdk"},
-            {"nome": "Planta Garden", "link": "https://drive.google.com/file/d/1etHATpKkP0ctj7H3uhFXHrAfB7xqpai3/view?usp=drivesdk"},
-            {"nome": "Masterplan", "link": "https://drive.google.com/file/d/1NXXcLhPiiZiquei9QH8_QM1M19tpXVp8/view?usp=drivesdk"},
-            {"nome": "Ficha Técnica", "link": "https://drive.google.com/file/d/18OdrnhrmHmvv2mu_MskLflGCMBgJQC2r/view?usp=drivesdk"}
-        ]
-    },
-    "MAX NORTE": {
-        "video": "https://www.youtube.com/watch?v=cnzn1cpJ4tA",
-        "lat": -22.8086, "lon": -43.3633,
-        "imagens": [
-            {"nome": "Fachada", "link": "https://drive.google.com/file/d/1AVdsT4MXMcH81K_EFUS2kgSU9luS6oCg/view?usp=drivesdk"},
-            {"nome": "Piscina", "link": "https://drive.google.com/file/d/1SECUIdrQC62v1Q4J7Rgwlh257PGcfyIB/view?usp=drivesdk"},
-            {"nome": "Playground", "link": "https://drive.google.com/file/d/1d_33bONdid1qZgwTMieCUQsQ_QX0e5H6/view?usp=drivesdk"},
-            {"nome": "Salão Gourmet", "link": "https://drive.google.com/file/d/1U_J6KqdChx3dTFwdPSm-EQHyrKUk4nbe/view?usp=drivesdk"},
-            {"nome": "Guarita", "link": "https://drive.google.com/file/d/1KFpxyD0eTgXAJ_Te6b0Jl41s8d0S0Dmk/view?usp=drivesdk"},
-            {"nome": "Apartamento", "link": "https://drive.google.com/file/d/1BQXjmuE_EU1WtPpoqhRsQzrHdBKkuY9a/view?usp=drivesdk"},
-            {"nome": "Planta Tipo", "link": "https://drive.google.com/file/d/1a9f7v6YFbpOhczb7nG_JeGtcgsXi0Fv7/view?usp=drivesdk"},
-            {"nome": "Masterplan", "link": "https://drive.google.com/file/d/1s4WwrmqiPxBTq3McM6dae4mauGw3PpI5/view?usp=drivesdk"}
-        ]
-    },
-    "NORTE CLUBE": {
-        "video": "https://www.youtube.com/watch?v=ElO6Q95Hsak",
-        "lat": -22.8752, "lon": -43.2905,
-        "imagens": [
-            {"nome": "Fachada", "link": "https://drive.google.com/file/d/1CdMMB44Em88E4dmaNyq-YJe4eEX53NEE/view?usp=drivesdk"},
-            {"nome": "Piscina", "link": "https://drive.google.com/file/d/1khrmZKSMV5uhh68tvdE10iM28yxvGBMK/view?usp=drivesdk"},
-            {"nome": "Playground", "link": "https://drive.google.com/file/d/1EKaLDk6GTJcIbY7VNVXnnurGqxTmhdxi/view?usp=drivesdk"},
-            {"nome": "Salão de Festas", "link": "https://drive.google.com/file/d/1IpwQYtIKde8EoOoDPGVGwoRmQ73b0ht8/view?usp=drivesdk"},
-            {"nome": "Quadra", "link": "https://drive.google.com/file/d/1j-n1kjGXcOzc2cUDl8yYA7drkXNZBrZK/view?usp=drivesdk"},
-            {"nome": "Planta Tipo", "link": "https://drive.google.com/file/d/1AQc25GcW2-YCBNUIlcRMBVnjFAL1oSuQ/view?usp=drivesdk"},
-            {"nome": "Planta Garden", "link": "https://drive.google.com/file/d/1ZL0l-x6ZnLLTFx_DZw7IIi3YeLkumlw3/view?usp=drivesdk"},
-            {"nome": "Ficha Técnica", "link": "https://drive.google.com/file/d/1DMmjq6Mu785xMfuUq0DFcAnLV1LpnW4Z/view?usp=drivesdk"}
-        ]
-    },
-    "CONQUISTA OCEÂNICA": {
-        "video": "https://www.youtube.com/watch?v=4g5oy3SCh-A",
-        "lat": -22.8711, "lon": -43.0133,
-        "imagens": [
-            {"nome": "Fachada", "link": "https://drive.google.com/file/d/1hIsxtMe-5NyiIIy7nXxFNcndCamuX1pu/view?usp=drivesdk"},
-            {"nome": "Piscina", "link": "https://drive.google.com/file/d/1Q488b06oCll4iwU5l_BgVJEEn4uVneho/view?usp=drivesdk"},
-            {"nome": "Playground", "link": "https://drive.google.com/file/d/1zQyrd4ZYb45bw76z7cajjZkiHjJnubbY/view?usp=drivesdk"},
-            {"nome": "Salão de Festas", "link": "https://drive.google.com/file/d/147z9BlYfjqEMc1yvHuosVHLEKATBSvjd/view?usp=drivesdk"},
-            {"nome": "Guarita", "link": "https://drive.google.com/file/d/1O6COShsXlNGtzeewOBRnUE45NVNIiOoh/view?usp=drivesdk"},
-            {"nome": "Planta Tipo", "link": "https://drive.google.com/file/d/14RsOJBM6jYDF4KumRCz1sCzj3Aix-UjT/view?usp=drivesdk"},
-            {"nome": "Planta Garden", "link": "https://drive.google.com/file/d/1BdldmlPt_97aAfcl_7YMp5uy7WJgs10U/view?usp=drivesdk"},
-            {"nome": "Ficha Técnica", "link": "https://drive.google.com/file/d/1vD4q4gkD31Nm4qL4pHs3zLytUq3MFfii/view?usp=drivesdk"}
-        ]
-    },
-    "PARQUE IGUAÇU": {
-        "video": "https://www.youtube.com/watch?v=PQOA5AS0Sdo",
-        "lat": -22.7758, "lon": -43.4861,
-        "imagens": [
-            {"nome": "Fachada", "link": "https://drive.google.com/file/d/1mdp1DBxGd7WpG-1BB67BDLHlJ_EAtj0V/view?usp=drivesdk"},
-            {"nome": "Piscina", "link": "https://drive.google.com/file/d/1TTTiFl605kS0LiztlzXfvn1hRj_X4_Fc/view?usp=drivesdk"},
-            {"nome": "Playground", "link": "https://drive.google.com/file/d/1jqjS025JccXTkMOP2QXBKAAc-4vKF5SN/view?usp=drivesdk"},
-            {"nome": "Salão de Festas", "link": "https://drive.google.com/file/d/1UJlpQm5rJqaZrF5DGgTmW8ygNLWpsp2y/view?usp=drivesdk"},
-            {"nome": "Churrasqueira", "link": "https://drive.google.com/file/d/1d1vxr_-Nb5A7iyLc_Mn7FqCwBUxwO3oZ/view?usp=drivesdk"},
-            {"nome": "Planta Tipo", "link": "https://drive.google.com/file/d/1FiSP0QP2EBRRWlYGsgd4ZkyLiqEWn5CG/view?usp=drivesdk"},
-            {"nome": "Planta Garden", "link": "https://drive.google.com/file/d/1uVoJkhPvylOMFRcJlR1bsfvBUAVwVVlv/view?usp=drivesdk"},
-            {"nome": "Ficha Técnica", "link": "https://drive.google.com/file/d/1m529O3c6pEz3sD3-Vba1BAUJKzj9XOxg/view?usp=drivesdk"}
-        ]
-    },
-    "SOUL SAMBA": {
-        "video": "https://www.youtube.com/watch?v=qTPaarVhHgs",
-        "lat": -22.8778, "lon": -43.2778,
-        "imagens": [
-            {"nome": "Fachada", "link": "https://drive.google.com/file/d/1Iv-887JKrY-h6wSktD_SXjeLZM28n4-Y/view?usp=drivesdk"},
-            {"nome": "Piscina", "link": "https://drive.google.com/file/d/14JNb9eQJLCbBkaIEExDmf9dH6yP3vKKA/view?usp=drivesdk"},
-            {"nome": "Playground", "link": "https://drive.google.com/file/d/16FjIZzAVVXouhm8eEwjDbArC8XsX2552/view?usp=drivesdk"},
-            {"nome": "Salão de Festas", "link": "https://drive.google.com/file/d/1wJszyTa-w1N6pczz2UJx6xi5zlDMhSeU/view?usp=drivesdk"},
-            {"nome": "Guarita", "link": "https://drive.google.com/file/d/1MqZBsikoiaDY-TD2Wm759WJV8Ozy-Li7/view?usp=drivesdk"},
-            {"nome": "Planta Tipo", "link": "https://drive.google.com/file/d/14RtGmEXYyFNkI33WMRD_NFD2M3OdOwj7/view?usp=drivesdk"},
-            {"nome": "Ficha Técnica", "link": "https://drive.google.com/file/d/1-hI2guSTSTHiynWe3QpC-CcXeuf2IhTs/view?usp=drivesdk"}
-        ]
-    },
-    "VERT ALCÂNTARA": {
-        "video": "https://www.youtube.com/watch?v=Lag2kS7wFnU",
-        "lat": -22.8222, "lon": -43.0031,
-        "imagens": [
-            {"nome": "Fachada", "link": "https://drive.google.com/file/d/1Hk_xywnFmA68J0lcuM6h9qK3GKgFT7Yt/view?usp=drivesdk"},
-            {"nome": "Piscina", "link": "https://drive.google.com/file/d/1pDm2u3z3pKqqqzMkYb93LIceScYzDFs_/view?usp=drivesdk"},
-            {"nome": "Coworking", "link": "https://drive.google.com/file/d/1XiffjmMTws-9ciqEhh6FiRI3MYSSROnh/view?usp=drivesdk"},
-            {"nome": "Sala de Jogos", "link": "https://drive.google.com/file/d/1hdENx08aVZBQP-df_l2fZOQ4FQF984DL/view?usp=drivesdk"},
-            {"nome": "Planta Tipo", "link": "https://drive.google.com/file/d/1D_zDCDaQVvK4DBc9UtURZSptGKZsvgb8/view?usp=drivesdk"},
-            {"nome": "Planta Garden", "link": "https://drive.google.com/file/d/1C2x7nZoKAJ7DNqsqxIai4wFOW032sTqi/view?usp=drivesdk"}
-        ]
-    },
-    "INN BARRA OLÍMPICA": {
-        "video": "https://www.youtube.com/watch?v=SGEJFc3jh5A",
-        "lat": -22.9567, "lon": -43.3761,
-        "imagens": [
-            {"nome": "Fachada", "link": "https://drive.google.com/file/d/1ScG09d2xcPblZKQJYlssw-AMSOLmx6qO/view?usp=drivesdk"},
-            {"nome": "Piscina", "link": "https://drive.google.com/file/d/1cYMq0jujtHC_DPUXrNpRf4jYN_83ntiK/view?usp=drivesdk"},
-            {"nome": "Playground", "link": "https://drive.google.com/file/d/1gaORQ2t3vur097TWHrGL_fF3oqSt6REu/view?usp=drivesdk"},
-            {"nome": "Salão de Festas", "link": "https://drive.google.com/file/d/1jYIt95E4_k0HhCpTCn7lBEM91G_VJLTF/view?usp=drivesdk"},
-            {"nome": "Planta Tipo", "link": "https://drive.google.com/file/d/1t-ZAfSHeyYWUgJx-2q00LpU15QSjSinh/view?usp=drivesdk"},
-            {"nome": "Ficha Técnica", "link": "https://drive.google.com/file/d/1CEykILUVyBfz0o73QFdjyIbvpof5P28w/view?usp=drivesdk"}
-        ]
-    },
-    "NOVA CAXIAS FUN": {
-        "video": "https://www.youtube.com/watch?v=3P_o4jVWsOI",
-        "lat": -22.7303, "lon": -43.3075,
-        "imagens": [
-            {"nome": "Fachada", "link": "https://drive.google.com/file/d/17YwXWQPvTXWX0bx0sNq9lX8ZN6r3Q7_F/view?usp=drivesdk"},
-            {"nome": "Piscina", "link": "https://drive.google.com/file/d/1jB16KnKTOdxFpj68OqOnnzlPl1ev1gyW/view?usp=drivesdk"},
-            {"nome": "Playground", "link": "https://drive.google.com/file/d/1-OM3XVNlYgfo2az26feqDfoYCjUxn7-d/view?usp=drivesdk"},
-            {"nome": "Salão de Festas", "link": "https://drive.google.com/file/d/1DBoZI2zVeycc3KnmKAhwFIK1GkMefb_X/view?usp=drivesdk"},
-            {"nome": "Planta Tipo", "link": "https://drive.google.com/file/d/1Te0683dB6MeOr_5JbXpEkhkb-Qcu_iBJ/view?usp=drivesdk"},
-            {"nome": "Ficha Técnica", "link": "https://drive.google.com/file/d/14l-h7mPypMoAFq7inaT-azt1CaP_evqF/view?usp=drivesdk"}
-        ]
-    },
-    "NOVA CAXIAS UP": {
-        "video": "https://www.youtube.com/watch?v=EbEcZvIdTvY",
-        "lat": -22.7303, "lon": -43.3075,
-        "imagens": [
-            {"nome": "Fachada", "link": "https://drive.google.com/file/d/12I_GnSQVtCp-rdnUu3mUh43fc4qG54Ke/view?usp=drivesdk"},
-            {"nome": "Piscina", "link": "https://drive.google.com/file/d/1cGDJJN79thO85xEyz74TvqIh6h4vsuCl/view?usp=drivesdk"},
-            {"nome": "Playground", "link": "https://drive.google.com/file/d/13qIgtrn55FD46nNMOYrr04r9JRvbTpZ0/view?usp=drivesdk"},
-            {"nome": "Salão de Festas", "link": "https://drive.google.com/file/d/1_lJXmBx02NVA9pjWkR9DGDM6JQbQOkU8/view?usp=drivesdk"},
-            {"nome": "Planta Tipo", "link": "https://drive.google.com/file/d/1FimZCNjC9Jy4ByW5n2-FOukEqoFGER87/view?usp=drivesdk"},
-            {"nome": "Ficha Técnica", "link": "https://drive.google.com/file/d/1gvehESpzNk4rqhA-bUOW_9YOT8XpEsi1/view?usp=drivesdk"}
-        ]
-    },
-    "RESERVA DO SOL": {
-        "video": "https://www.youtube.com/watch?v=Wij9XjG4slM",
-        "lat": -22.9536, "lon": -43.3858,
-        "imagens": [
-            {"nome": "Fachada", "link": "https://drive.google.com/file/d/1-RFBc4sQ7Tbo6qwhP3GXZQy3m7_DtFcB/view?usp=drivesdk"},
-            {"nome": "Piscina", "link": "https://drive.google.com/file/d/1HUqoUz1--CdmuZYd0DIvPhlyk9MnDt_O/view?usp=drivesdk"},
-            {"nome": "Playground", "link": "https://drive.google.com/file/d/1BnEkT8v6OCRdhx624sJRMPfcMjJsU2Tb/view?usp=drivesdk"},
-            {"nome": "Salão de Festas", "link": "https://drive.google.com/file/d/13xuG8_MJF_yM0Mt9Nnzft10mdGE4KbFn/view?usp=drivesdk"},
-            {"nome": "Planta Meio", "link": "https://drive.google.com/file/d/11wX-XPBMHOAqpKZUuwwJpJ_GcsiRxU1c/view?usp=drivesdk"},
-            {"nome": "Ficha Técnica", "link": "https://drive.google.com/file/d/1Cj-EuPHMF86pe7s0nw6XML2esCTd4Nqn/view?usp=drivesdk"}
-        ]
-    },
-    "RESIDENCIAL JERIVÁ": {
-        "video": "https://www.youtube.com/watch?v=GdEvqLVXeFw",
-        "lat": -22.8944, "lon": -43.5575,
-        "imagens": [
-            {"nome": "Fachada", "link": "https://drive.google.com/file/d/1nzOHc7-n7gZDAFSbdNwDXgnQAJNouRPU/view?usp=drivesdk"},
-            {"nome": "Piscina", "link": "https://drive.google.com/file/d/1R-TYH7oauG_qSFGTZbFzHjSaPkRcCEHC/view?usp=drivesdk"},
-            {"nome": "Playground", "link": "https://drive.google.com/file/d/1m4AHz4E5id5O5r5bI1-5zckXK5pPZ43s/view?usp=drivesdk"},
-            {"nome": "Salão de Festas", "link": "https://drive.google.com/file/d/12HxPpDvQeYhamousSPF976-7hb2WDbFc/view?usp=drivesdk"},
-            {"nome": "Planta Tipo", "link": "https://drive.google.com/file/d/1RnmcwKnMxy7jL5AbPUPFJToWV_O1PJV-/view?usp=drivesdk"},
-            {"nome": "Ficha Técnica", "link": "https://drive.google.com/file/d/1i8X-05E1NWAOxAgSQ6K1aX70NDXUlIUN/view?usp=drivesdk"}
-        ]
-    },
-    "RESIDENCIAL LARANJEIRAS": {
-        "video": "https://www.youtube.com/watch?v=jmV1RHkRlZ4",
-        "lat": -22.8944, "lon": -43.5575,
-        "imagens": [
-            {"nome": "Fachada", "link": "https://drive.google.com/file/d/19Eq2qFk5fx8AnG-ooWq6SsGGmQKsIvvb/view?usp=drivesdk"},
-            {"nome": "Piscina", "link": "https://drive.google.com/file/d/1v9zn2HdtjNWBKlrxAKFljUkCD7SHSupB/view?usp=drivesdk"},
-            {"nome": "Playground", "link": "https://drive.google.com/file/d/1xVLehaJSdy1xvz6eELz3I8VtSPoQ8C-c/view?usp=drivesdk"},
-            {"nome": "Salão de Festas", "link": "https://drive.google.com/file/d/1WItdv2DY59gu-yzW1RXPykdCU5i2mdb2/view?usp=drivesdk"},
-            {"nome": "Planta Tipo", "link": "https://drive.google.com/file/d/1noEQfz_FQ7w3s7oopg8FQwhvfUfccjuT/view?usp=drivesdk"}
-        ]
-    },
-    "VIVA VIDA REALENGO": {
-        "video": "https://www.youtube.com/watch?v=cfRvstasGaw",
-        "lat": -22.8797, "lon": -43.4286,
-        "imagens": [
-            {"nome": "Fachada", "link": "https://drive.google.com/file/d/1plxTT4MmRUP4xUl_300Rz7eFSH36uLFw/view?usp=drivesdk"},
-            {"nome": "Piscina", "link": "https://drive.google.com/file/d/1PT-z4PFD_VUTtxrPKoXJJ-lOL9ud17FQ/view?usp=drivesdk"},
-            {"nome": "Playground", "link": "https://drive.google.com/file/d/1j51NJUlnu7M4T1Bwax7UfmorEhv5dYu4/view?usp=drivesdk"},
-            {"nome": "Planta Tipo", "link": "https://drive.google.com/file/d/17xl-SYLLtpyIxb82qkQAKHX1c4peLLcq/view?usp=drivesdk"},
-            {"nome": "Ficha Técnica", "link": "https://drive.google.com/file/d/1-UfmBvETRRuvuq5R6rKA3Y_9s4xBzTc6/view?usp=drivesdk"}
-        ]
-    },
-    "RECANTO CLUBE": {
-        "video": "https://www.youtube.com/watch?v=7K3UUEIOT-8",
-        "lat": -22.9694, "lon": -43.5936,
-        "imagens": [
-            {"nome": "Fachada", "link": "https://drive.google.com/file/d/1pfvsC4S15n4HbtWeNp2crJcs0PcH5MRV/view?usp=drivesdk"},
-            {"nome": "Piscina", "link": "https://drive.google.com/file/d/19SDMm-pzyxBfK_jTK4Z5gp2-aLlW_Lxj/view?usp=drivesdk"},
-            {"nome": "Playground", "link": "https://drive.google.com/file/d/1aOW9ErNYvbdmVPeyCKYdWH1Z32joTliw/view?usp=drivesdk"},
-            {"nome": "Salão de Festas", "link": "https://drive.google.com/file/d/1bI4pk6j63uWBMmQnz07cDTNrB3YFCrpS/view?usp=drivesdk"},
-            {"nome": "Planta Tipo", "link": "https://drive.google.com/file/d/1fOM-Ul_JZwjELDMkmwkHE_JN669V9-ob/view?usp=drivesdk"},
-            {"nome": "Ficha Técnica", "link": "https://drive.google.com/file/d/1FT0IYF1VBWUX2iSxGqK7VuK-Z7sszSUK/view?usp=drivesdk"}
-        ]
-    }
-}
 
-def _load_catalogo_galeria():
-    """Carrega catálogo de produtos (vídeos, mapa, imagens Drive) de JSON se existir (fonte única com app Flask)."""
-    _here = os.path.dirname(os.path.abspath(__file__))
-    _base = _here  # monólito: ficheiro na raiz do repositório (equiv. ex. pai de simulador_dv/)
-    for path in [
-        os.path.join(_base, "static", "img", "galeria", "catalogo_produtos.json"),
-        os.path.join(_base, "catalogo_produtos.json"),
-        os.path.join(_here, "static", "img", "galeria", "catalogo_produtos.json"),
-    ]:
-        if os.path.isfile(path):
-            try:
-                with open(path, "r", encoding="utf-8") as f:
-                    return json.load(f)
-            except Exception:
-                pass
-    return {}
-
-# Se existir JSON do catálogo, usa como fonte (sobrescreve); senão mantém CATALOGO_PRODUTOS in-code
-_catalogo_json = _load_catalogo_galeria()
-if _catalogo_json:
-    CATALOGO_PRODUTOS.update(_catalogo_json)
 
 def fmt_br(valor):
     try:
@@ -1056,23 +824,41 @@ def calcular_fluxo_pagamento_detalhado(valor_fin, meses_fin, taxa_anual, sistema
     
     return pd.DataFrame(fluxo)
 
-def formatar_link_drive(url):
-    """
-    Retorna apenas a URL direta se for Google Drive para usar no modal customizado.
-    """
-    if "drive.google.com" in url and "/d/" in url:
-        try:
-            file_id = url.split("/d/")[1].split("/")[0]
-            # Link direto para visualização raw (export=view)
-            full_link = f"https://drive.google.com/uc?export=view&id={file_id}"
-            return full_link
-        except:
-            return url
-    return url
-
 def scroll_to_top():
     js = """<script>var body = window.parent.document.querySelector(".main"); if (body) { body.scrollTop = 0; } window.scrollTo(0, 0);</script>"""
     st.components.v1.html(js, height=0)
+
+def inject_enter_confirma_campo():
+    """Enter em campo de texto não submete o fluxo: apenas confirma o campo (blur)."""
+    js = r"""
+<script>
+(function () {
+  function isTextLike(el) {
+    if (!el || !el.closest) return false;
+    return el.closest('[data-testid="stTextInput"]') != null
+      || el.closest('[data-testid="stNumberInput"]') != null
+      || el.closest('[data-baseweb="input"]') != null;
+  }
+  document.addEventListener("keydown", function (e) {
+    if (e.key !== "Enter" || e.isComposing) return;
+    var t = e.target;
+    if (!t || (t.tagName !== "INPUT" && t.tagName !== "TEXTAREA")) return;
+    if (t.type === "submit" || t.type === "button" || t.type === "file") return;
+    if (t.closest("form[data-testid=\"stForm\"]")) {
+      e.preventDefault();
+      e.stopPropagation();
+      t.blur();
+      return;
+    }
+    if (isTextLike(t)) {
+      e.preventDefault();
+      t.blur();
+    }
+  }, true);
+})();
+</script>
+"""
+    st.components.v1.html(js, height=0, width=0)
 
 # =============================================================================
 # 1. CARREGAMENTO DE DADOS
@@ -1089,16 +875,10 @@ def carregar_dados_sistema():
         # Login removido — não lê mais BD Logins (compat.: 4.º retorno permanece DataFrame vazio)
         df_logins = pd.DataFrame(columns=['Email', 'Senha', 'Nome', 'Cargo', 'Imobiliaria', 'Telefone'])
 
-        # 1. SIMULAÇÕES (CADASTROS)
-        try: 
-            df_cadastros = conn.read(spreadsheet=ID_GERAL, worksheet="BD Simulações")
-            # Garantir formato correto do CPF se existir
-            if 'CPF' in df_cadastros.columns:
-                df_cadastros['CPF'] = df_cadastros['CPF'].apply(limpar_cpf_visual)
-        except: 
-            df_cadastros = pd.DataFrame()
-        
-        # 2. POLITICAS (Pro Soluto — comparador)
+        # Histórico em BD Simulações não é mais carregado na UI (gravação no resumo mantida)
+        df_cadastros = pd.DataFrame()
+
+        # 1. POLITICAS (Pro Soluto — comparador)
         df_politicas = pd.DataFrame()
         for ws_pol in ("POLITICAS", "BD Politicas", "BD Políticas"):
             try:
@@ -1109,7 +889,7 @@ def carregar_dados_sistema():
             except Exception:
                 continue
 
-        # 3. FINANCIAMENTOS
+        # 2. FINANCIAMENTOS
         try:
             df_finan = conn.read(spreadsheet=ID_GERAL, worksheet="BD Financiamentos")
             df_finan.columns = [str(c).strip() for c in df_finan.columns]
@@ -1117,7 +897,7 @@ def carregar_dados_sistema():
         except: 
             df_finan = pd.DataFrame()
 
-        # 4. ESTOQUE
+        # 3. ESTOQUE
         try:
             # Tenta carregar os dados
             df_raw = conn.read(spreadsheet=ID_GERAL, worksheet="BD Estoque Filtrada")
@@ -1280,40 +1060,6 @@ def _resolver_png_raiz(nome: str) -> Path | None:
     return None
 
 
-def _resolver_imagem_fundo_local(nome: str) -> Path | None:
-    """JPG/PNG: nome exato, stem+ext ou pasta assets/ (app e pai do repo)."""
-    for base in (_DIR_SIM_APP, _DIR_SIM_APP.parent):
-        for sub in ("", "assets"):
-            root = base / sub if sub else base
-            p = root / nome
-            if p.is_file():
-                return p
-            stem = Path(nome).stem
-            for ext in (".jpg", ".jpeg", ".JPG", ".JPEG", ".png", ".PNG"):
-                p2 = root / f"{stem}{ext}"
-                if p2.is_file():
-                    return p2
-    return None
-
-
-def _css_url_fundo_simulador() -> str:
-    """Data-URL com fundo_cadastrorh (ficha Vendas RJ); senão fallback neutro."""
-    p = _resolver_imagem_fundo_local(FUNDO_CADASTRO_ARQUIVO)
-    if p and p.is_file():
-        try:
-            raw = p.read_bytes()
-            suf = p.suffix.lower()
-            mime = "image/jpeg" if suf in (".jpg", ".jpeg") else "image/png"
-            b64 = base64.b64encode(raw).decode("ascii")
-            return f"data:{mime};base64,{b64}"
-        except OSError:
-            pass
-    return (
-        "https://images.unsplash.com/photo-1486406146926-c627a92ad1ab"
-        "?auto=format&fit=crop&w=1920&q=80"
-    )
-
-
 def _page_icon_streamlit():
     """Ícone da aba: 502.57_LOGO D_COR_V3F.png (ficha), senão favicon.png legado, senão URL."""
     p = _resolver_png_raiz(FAVICON_ARQUIVO)
@@ -1367,14 +1113,12 @@ def configurar_layout():
         initial_sidebar_state="collapsed",
     )
 
-    bg_url = _css_url_fundo_simulador()
     st.markdown(f"""
         <style>
-        /* Duas famílias: Montserrat (títulos / marca) + Inter (corpo e UI) */
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Montserrat:wght@600;700;800&display=swap');
-        @keyframes simFadeIn {{
-            from {{ opacity: 0; transform: translateY(14px); }}
-            to {{ opacity: 1; transform: translateY(0); }}
+        @keyframes brandBarFlow {{
+            0% {{ background-position: 0% 50%; }}
+            100% {{ background-position: 200% 50%; }}
         }}
         html, body, :root, [data-testid="stApp"] {{
             color-scheme: light !important;
@@ -1407,11 +1151,8 @@ def configurar_layout():
         }}
         .stApp,
         [data-testid="stApp"] {{
-            background:
-                linear-gradient(135deg, rgba({RGB_AZUL_CSS}, 0.82) 0%, rgba(30, 58, 95, 0.55) 38%, rgba({RGB_VERMELHO_CSS}, 0.22) 72%, rgba(15, 23, 42, 0.45) 100%),
-                url("{bg_url}") center / cover no-repeat !important;
-            background-attachment: scroll !important;
-            background-color: transparent !important;
+            background: linear-gradient(180deg, #e2e8f0 0%, #f1f5f9 35%, #f8fafc 100%) !important;
+            background-color: #f1f5f9 !important;
         }}
         [data-testid="stAppViewContainer"] {{
             background: transparent !important;
@@ -1440,26 +1181,15 @@ def configurar_layout():
             background-color: transparent !important;
         }}
         [data-testid="stToolbar"] {{
-            background: transparent !important;
-            background-color: transparent !important;
-            border: none !important;
-            color: rgba(255, 255, 255, 0.92) !important;
+            background: #ffffff !important;
+            border-bottom: 1px solid #e2e8f0 !important;
         }}
         [data-testid="stToolbar"] button,
         [data-testid="stToolbar"] a {{
-            color: rgba(255, 255, 255, 0.92) !important;
-            background: transparent !important;
-        }}
-        [data-testid="stToolbar"] svg {{
-            fill: currentColor !important;
+            color: #334155 !important;
         }}
         [data-testid="stHeader"] button {{
-            background: transparent !important;
-        }}
-        [data-testid="stToolbar"] button:hover,
-        [data-testid="stToolbar"] a:hover,
-        [data-testid="stHeader"] button:hover {{
-            background: rgba(255, 255, 255, 0.12) !important;
+            color: #334155 !important;
         }}
         [data-testid="stMain"] {{
             padding-left: clamp(14px, 4vw, 48px) !important;
@@ -1487,112 +1217,8 @@ def configurar_layout():
         
         .scrolling-wrapper .card-item {{
             flex: 0 0 auto;
-            width: 320px; /* Largura ajustada para caber mais info */
+            width: 300px;
         }}
-        
-        /* SCROLL IMAGENS */
-        .scrolling-images {{
-            display: flex;
-            flex-wrap: nowrap;
-            overflow-x: auto;
-            -webkit-overflow-scrolling: touch;
-            gap: 15px;
-            padding-bottom: 15px;
-            width: 100%;
-        }}
-        .scrolling-images img {{
-            height: 250px;
-            width: auto;
-            border-radius: 12px;
-            cursor: pointer;
-            transition: transform 0.2s;
-            border: 1px solid #eee;
-        }}
-        .scrolling-images img:hover {{
-            transform: scale(1.02);
-            border-color: {COR_AZUL_ESC};
-        }}
-        
-        /* MASTERPLAN PLACEHOLDER */
-        .masterplan-placeholder {{
-            height: 250px;
-            width: 350px;
-            background-color: #f1f5f9;
-            border: 2px dashed #cbd5e1;
-            border-radius: 12px;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            cursor: pointer;
-            color: #64748b;
-            font-weight: 700;
-            font-size: 0.9rem;
-            flex: 0 0 auto;
-            transition: all 0.2s;
-        }}
-        .masterplan-placeholder:hover {{
-            border-color: {COR_AZUL_ESC};
-            color: {COR_AZUL_ESC};
-            background-color: #e2e8f0;
-        }}
-        
-        /* LIGHTBOX MODAL CSS */
-        .modal {{
-            display: none; 
-            position: fixed; 
-            z-index: 99999; 
-            padding-top: 20px; 
-            left: 0;
-            top: 0;
-            width: 100%; 
-            height: 100%; 
-            overflow: hidden; 
-            background-color: rgba(0,0,0,0.95);
-        }}
-        .modal-content {{
-            margin: auto;
-            display: block;
-            width: auto;
-            max-width: 90%;
-            max-height: 90vh;
-            object-fit: contain;
-        }}
-        .close {{
-            position: absolute;
-            top: 15px;
-            right: 35px;
-            color: #f1f1f1;
-            font-size: 40px;
-            font-weight: bold;
-            transition: 0.3s;
-            cursor: pointer;
-            z-index: 100000;
-        }}
-        .close:hover,
-        .close:focus {{
-            color: #bbb;
-            text-decoration: none;
-            cursor: pointer;
-        }}
-        .prev, .next {{
-            cursor: pointer;
-            position: absolute;
-            top: 50%;
-            width: auto;
-            padding: 16px;
-            margin-top: -50px;
-            color: white;
-            font-weight: bold;
-            font-size: 30px;
-            transition: 0.6s ease;
-            border-radius: 0 3px 3px 0;
-            user-select: none;
-            -webkit-user-select: none;
-        }}
-        .next {{ right: 0; border-radius: 3px 0 0 3px; }}
-        .prev {{ left: 0; border-radius: 3px 0 0 3px; }}
-        .prev:hover, .next:hover {{ background-color: rgba(0,0,0,0.8); }}
 
         h1, h2, h3, h4 {{
             font-family: 'Montserrat', 'Inter', sans-serif !important;
@@ -1613,25 +1239,19 @@ def configurar_layout():
         div[data-testid="stMarkdown"] p {{ color: #334155; line-height: 1.55; }}
 
         .block-container {{
-            max-width: 1400px !important;
+            max-width: 1200px !important;
             margin-left: auto !important;
             margin-right: auto !important;
-            margin-top: clamp(4px, 1vh, 14px) !important;
-            margin-bottom: clamp(4px, 1vh, 14px) !important;
-            padding: 1.45rem 2rem 1.55rem 2rem !important;
-            background: rgba(255, 255, 255, 0.78) !important;
-            backdrop-filter: blur(18px) saturate(1.12);
-            -webkit-backdrop-filter: blur(18px) saturate(1.12);
-            border-radius: 24px !important;
-            border: 1px solid rgba(255, 255, 255, 0.45) !important;
-            box-shadow:
-                0 4px 6px -1px rgba({RGB_AZUL_CSS}, 0.06),
-                0 24px 48px -12px rgba({RGB_AZUL_CSS}, 0.18),
-                inset 0 1px 0 rgba(255, 255, 255, 0.55) !important;
-            animation: simFadeIn 0.65s cubic-bezier(0.22, 1, 0.36, 1) both;
+            margin-top: 0.5rem !important;
+            margin-bottom: 0.5rem !important;
+            padding: 1.25rem 1.5rem !important;
+            background: #ffffff !important;
+            border-radius: 8px !important;
+            border: 1px solid #e2e8f0 !important;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06) !important;
         }}
         [data-testid="stVerticalBlockBorderWrapper"] {{
-            border-radius: 16px !important;
+            border-radius: 8px !important;
             background: transparent !important;
         }}
 
@@ -1713,22 +1333,13 @@ def configurar_layout():
 
         .stButton button {{
             font-family: 'Inter', system-ui, sans-serif;
-            border-radius: 12px !important;
-            padding: 0 20px !important;
+            border-radius: 8px !important;
+            padding: 0 16px !important;
             width: 100% !important;
-            height: 60px !important;
-            font-weight: 700 !important;
-            text-transform: uppercase;
-            letter-spacing: 0.1em;
-            font-size: 1rem !important;
-            transition: transform 0.2s ease, box-shadow 0.2s ease !important;
-        }}
-        .stButton > button:hover {{
-            transform: translateY(-2px);
-            box-shadow: 0 8px 20px -6px rgba({RGB_AZUL_CSS}, 0.25) !important;
-        }}
-        .stButton button:active {{
-            transform: scale(0.98);
+            min-height: 44px !important;
+            height: auto !important;
+            font-weight: 600 !important;
+            font-size: 0.95rem !important;
         }}
 
         div[data-testid="column"] .stButton button, [data-testid="stSidebar"] .stButton button {{
@@ -1772,25 +1383,18 @@ def configurar_layout():
         }}
         a[href*="whatsapp.com"],
         a[href*="wa.me"] {{
-            background-color: #25D366 !important;
-            color: #ffffff !important;
-            border: 1px solid #1ebe57 !important;
-            border-radius: 12px !important;
+            color: #128c7e !important;
             font-weight: 600 !important;
-            text-decoration: none !important;
-            box-shadow: 0 2px 8px rgba(37, 211, 102, 0.35) !important;
+            text-decoration: underline !important;
         }}
         a[href*="whatsapp.com"]:hover,
         a[href*="wa.me"]:hover {{
-            background-color: #20bd5a !important;
-            border-color: #1aa34a !important;
-            color: #ffffff !important;
+            color: #075e54 !important;
         }}
         div[data-testid="stAlert"] {{
-            border-radius: 14px !important;
-            border: 2px solid {COR_AZUL_ESC} !important;
-            background: #ffffff !important;
-            box-shadow: 0 2px 12px rgba({RGB_AZUL_CSS}, 0.1) !important;
+            border-radius: 8px !important;
+            border: 1px solid #cbd5e1 !important;
+            background: #f8fafc !important;
         }}
         div[data-testid="stAlert"] p,
         div[data-testid="stAlert"] span,
@@ -1823,105 +1427,98 @@ def configurar_layout():
             min-height: 30px !important;
         }}
 
-        /* Cabeçalho global: sem caixa — logo e título sobre o degradê da página */
         .header-container {{
             text-align: center;
-            padding: clamp(1rem, 3vw, 1.75rem) 1rem 1.25rem;
-            margin: 0 auto 1.5rem;
-            max-width: 920px;
-            background: none !important;
-            backdrop-filter: none !important;
-            -webkit-backdrop-filter: none !important;
-            border: none !important;
-            box-shadow: none !important;
-            border-radius: 0 !important;
+            padding: 0.75rem 1rem 1rem;
+            margin: 0 auto 1rem;
+            max-width: 960px;
             position: relative;
+        }}
+        .header-brand-bar-wrap {{
+            width: 100vw;
+            max-width: 100%;
+            position: relative;
+            left: 50%;
+            transform: translateX(-50%);
+            margin: 0 0 1rem 0;
+        }}
+        .header-brand-bar {{
+            height: 5px;
+            border-radius: 2px;
+            background: linear-gradient(
+                90deg,
+                {COR_AZUL_ESC} 0%,
+                {COR_VERMELHO} 25%,
+                #0ea5e9 50%,
+                {COR_VERMELHO} 75%,
+                {COR_AZUL_ESC} 100%
+            );
+            background-size: 200% 100%;
+            animation: brandBarFlow 5s ease-in-out infinite;
         }}
         .header-logo-wrap {{
             display: flex;
             justify-content: center;
             align-items: center;
-            margin: 0 auto 1.1rem;
+            margin: 0 auto 0.75rem;
         }}
         .header-logo-wrap img {{
             display: block;
             margin: 0 auto;
-            max-height: 78px;
+            max-height: 64px;
             width: auto;
-            max-width: min(320px, 88vw);
+            max-width: min(280px, 85vw);
             height: auto;
             object-fit: contain;
-            filter: drop-shadow(0 2px 12px rgba(0, 0, 0, 0.18));
         }}
         .header-title {{
             font-family: 'Montserrat', 'Inter', sans-serif;
-            font-size: clamp(1.2rem, 2.8vw, 1.85rem);
-            font-weight: 800;
-            line-height: 1.2;
-            margin: 0 0 0.5rem 0;
-            letter-spacing: 0.04em;
-            color: #ffffff;
-            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.2), 0 2px 24px rgba(0, 0, 0, 0.12);
+            font-size: clamp(1.15rem, 2.5vw, 1.65rem);
+            font-weight: 700;
+            line-height: 1.25;
+            margin: 0 0 0.35rem 0;
+            color: {COR_AZUL_ESC};
         }}
         .header-title .header-title-muted {{
-            font-weight: 700;
-            letter-spacing: 0.08em;
+            font-weight: 600;
+            letter-spacing: 0.04em;
             text-transform: uppercase;
-            font-size: 0.92em;
-            opacity: 0.95;
+            font-size: 0.9em;
         }}
         .header-title .header-title-accent {{
-            color: #ffffff;
-            font-weight: 800;
-            margin-left: 0.15em;
-            padding: 0.08em 0.28em;
-            border-radius: 6px;
-            background: linear-gradient(135deg, {COR_VERMELHO} 0%, {COR_VERMELHO_ESCURO} 100%);
-            box-shadow: 0 2px 12px rgba({RGB_VERMELHO_CSS}, 0.45);
-            text-shadow: none;
-        }}
-        .header-title-rule {{
-            width: min(200px, 55vw);
-            height: 3px;
-            margin: 0.85rem auto 0;
-            border-radius: 999px;
-            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.85), {COR_VERMELHO}, rgba(255,255,255,0.85), transparent);
-            opacity: 0.95;
+            color: #fff;
+            font-weight: 700;
+            margin-left: 0.2em;
+            padding: 0.1em 0.35em;
+            border-radius: 4px;
+            background: {COR_VERMELHO};
         }}
         .header-subtitle {{
             font-family: 'Inter', system-ui, sans-serif;
-            color: rgba(255, 255, 255, 0.92);
-            font-size: clamp(0.875rem, 1.6vw, 1rem);
-            font-weight: 500;
-            margin: 0.65rem 0 0 0;
-            letter-spacing: 0.02em;
-            line-height: 1.5;
-            max-width: 36rem;
+            color: #475569;
+            font-size: 0.95rem;
+            font-weight: 400;
+            margin: 0.35rem 0 0 0;
+            line-height: 1.45;
+            max-width: 32rem;
             margin-left: auto;
             margin-right: auto;
-            text-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
         }}
         .header-subtitle strong {{
-            color: #ffffff;
+            color: {COR_AZUL_ESC};
             font-weight: 600;
         }}
 
         .card, .fin-box, .recommendation-card, .login-card {{
             background: #ffffff;
-            padding: 25px;
-            border-radius: 16px;
+            padding: 18px;
+            border-radius: 8px;
             border: 1px solid {COR_BORDA};
             text-align: center;
             display: flex;
             flex-direction: column;
             justify-content: center;
             align-items: center;
-            transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
-        }}
-        .card:hover, .fin-box:hover, .recommendation-card:hover {{
-            transform: translateY(-4px);
-            border-color: {COR_VERMELHO};
-            box-shadow: 0 10px 30px -10px rgba({RGB_VERMELHO_CSS}, 0.14);
         }}
 
         .summary-header {{
@@ -1990,52 +1587,17 @@ def configurar_layout():
             letter-spacing: 0.05em;
         }}
         
-        /* HOVER CARD EFFECT FOR ANALYTICS */
         .hover-card {{
             background-color: #ffffff;
-            border-radius: 12px;
-            padding: 20px;
-            border: 1px solid #eef2f6;
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
-            transition: transform 0.3s ease, box-shadow 0.3s ease;
+            border-radius: 8px;
+            padding: 16px;
+            border: 1px solid #e2e8f0;
             height: 100%;
-        }}
-        .hover-card:hover {{
-            transform: translateY(-5px);
-            box-shadow: 0 12px 24px rgba({RGB_AZUL_CSS}, 0.15);
-            border-color: {COR_AZUL_ESC};
         }}
 
         [data-testid="stSidebar"] {{ background-color: #fff; border-right: 1px solid {COR_BORDA}; }}
-        
-        .sidebar-profile {{
-            background: linear-gradient(135deg, #f8fafc 0%, #ffffff 100%);
-            border: 1px solid {COR_BORDA};
-            border-radius: 16px;
-            padding: 1.5rem;
-            text-align: center;
-            margin-bottom: 2rem;
-            box-shadow: 0 1px 2px 0 rgba(0,0,0,0.05);
-        }}
-        .profile-avatar {{
-            width: 56px;
-            height: 56px;
-            background: {COR_AZUL_ESC};
-            color: white;
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-weight: 700;
-            font-size: 1.5rem;
-            margin: 0 auto 1rem auto;
-            box-shadow: 0 4px 10px rgba({RGB_AZUL_CSS}, 0.3);
-        }}
 
-        .hist-item {{ display: block; width: 100%; text-align: left; padding: 8px; margin-bottom: 4px; border-radius: 8px; background: #fff; border: 1px solid {COR_BORDA}; color: {COR_AZUL_ESC}; font-size: 0.75rem; transition: all 0.2s; }}
-        .hist-item:hover {{ border-color: {COR_VERMELHO}; background: #fff5f5; }}
-
-        div[data-baseweb="tab-list"] {{ justify-content: center !important; gap: 40px; margin-bottom: 40px; }}
+        div[data-baseweb="tab-list"] {{ justify-content: center !important; gap: 24px; margin-bottom: 24px; }}
         button[data-baseweb="tab"] p {{ color: {COR_AZUL_ESC} !important; opacity: 0.6; font-weight: 700 !important; font-family: 'Montserrat', sans-serif !important; font-size: 0.9rem !important; text-transform: uppercase; letter-spacing: 0.1em; }}
         button[data-baseweb="tab"][aria-selected="true"] p {{ color: {COR_AZUL_ESC} !important; opacity: 1; }}
         div[data-baseweb="tab-highlight"] {{ background-color: {COR_VERMELHO} !important; height: 3px !important; }}
@@ -2045,9 +1607,9 @@ def configurar_layout():
             display: flex;
             justify-content: space-between;
             align-items: center;
-            margin-bottom: 3.5rem;
+            margin-bottom: 1.75rem;
             position: relative;
-            padding: 0 1rem;
+            padding: 0 0.5rem;
         }}
         
         .stepper-line-bg {{
@@ -2102,8 +1664,6 @@ def configurar_layout():
             background: {COR_AZUL_ESC};
             border-color: {COR_AZUL_ESC};
             color: white;
-            transform: scale(1.15);
-            box-shadow: 0 0 0 6px rgba({RGB_AZUL_CSS}, 0.15);
         }}
         .stepper-step.active .step-label {{
             color: {COR_AZUL_ESC};
@@ -2121,32 +1681,11 @@ def configurar_layout():
 
         .footer {{
             text-align: center;
-            padding: 2.25rem 1rem 1.25rem;
+            padding: 1.5rem 1rem;
             font-family: 'Inter', system-ui, sans-serif;
-            color: rgba(255, 255, 255, 0.78) !important;
+            color: #64748b !important;
             font-size: 0.8rem;
-            line-height: 1.55;
-            font-weight: 500;
-            letter-spacing: 0.02em;
-            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.12);
-        }}
-        
-        /* Estilização específica dos botões da Home */
-        div[data-testid="stButton"] button.home-card-btn {{
-             height: 250px !important;
-             border-radius: 16px !important;
-             border: 2px solid #eef2f6 !important;
-             background-color: white !important;
-             color: {COR_AZUL_ESC} !important;
-             box-shadow: 0 4px 6px rgba(0,0,0,0.05) !important;
-             font-size: 1.2rem !important;
-             font-weight: 700 !important;
-        }}
-        div[data-testid="stButton"] button.home-card-btn:hover {{
-             border-color: {COR_VERMELHO} !important;
-             color: {COR_VERMELHO} !important;
-             transform: translateY(-5px);
-             box-shadow: 0 10px 20px rgba({RGB_VERMELHO_CSS}, 0.15) !important;
+            line-height: 1.5;
         }}
         </style>
     """, unsafe_allow_html=True)
@@ -2597,7 +2136,7 @@ def show_export_dialog(d):
 # APLICAÇÃO PRINCIPAL
 # =============================================================================
 
-def aba_simulador_automacao(df_finan, df_estoque, df_politicas, _df_cadastros, premissas_dict=None):
+def aba_simulador_automacao(df_finan, df_estoque, df_politicas, premissas_dict=None):
     passo = st.session_state.get('passo_simulacao', 'input')
     if passo == 'gallery':
         st.session_state.passo_simulacao = 'input'
@@ -2886,28 +2425,23 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, _df_cadastros, p
                 _v_r = float(rendas_anteriores[_i]) if _i < len(rendas_anteriores) else _def_r
                 st.session_state[_rk] = float_para_campo_texto(_v_r, vazio_se_zero=True)
 
-        st.markdown(f"""<div style="border: 1px solid {COR_BORDA}; border-radius: 12px 12px 0 0; padding: 15px 20px; text-align: center; background: #f8fafc;">
-<p style="font-weight: 700; font-size: 1.1rem; margin: 0; color: {COR_AZUL_ESC};">Renda e política</p></div>""", unsafe_allow_html=True)
-        with st.form("form_cadastro"):
-            st.text_input("Participantes na Renda (1 a 4)", key="qtd_part_v3", placeholder="Ex.: 2")
-            _qp = texto_inteiro(st.session_state.get("qtd_part_v3"), default=1, min_v=1, max_v=4)
-            qtd_part = _qp if _qp is not None else 1
-            cols_renda = st.columns(qtd_part)
-            for i in range(qtd_part):
-                with cols_renda[i]:
-                    st.text_input(f"Renda Part. {i+1}", key=f"renda_part_{i}_v3", placeholder="R$ 0,00")
-            rank_opts = ["DIAMANTE", "OURO", "PRATA", "BRONZE", "AÇO"]
-            curr_ranking = st.session_state.dados_cliente.get('ranking', "DIAMANTE")
-            idx_ranking = rank_opts.index(curr_ranking) if curr_ranking in rank_opts else 0
-            ranking = st.selectbox("Ranking do Cliente", options=rank_opts, index=idx_ranking, key="in_rank_v28")
-            politica_ps = st.selectbox("Política de Pro Soluto", ["Direcional", "Emcash"], index=0 if st.session_state.dados_cliente.get('politica') != "Emcash" else 1, key="in_pol_v28")
-            social = st.toggle("Fator Social", value=st.session_state.dados_cliente.get('social', False), key="in_soc_v28")
-            cotista = st.toggle("Cotista FGTS", value=st.session_state.dados_cliente.get('cotista', True), key="in_cot_v28")
-            st.markdown("<br>", unsafe_allow_html=True)
-            submitted = st.form_submit_button("Confirmar e avançar", type="primary", use_container_width=True)
-        st.markdown(f"""<div style="border: 1px solid {COR_BORDA}; border-top: none; border-radius: 0 0 12px 12px; height: 8px; background: #f8fafc;"></div>""", unsafe_allow_html=True)
-
-        if submitted:
+        st.markdown("#### Renda e política")
+        st.text_input("Participantes na Renda (1 a 4)", key="qtd_part_v3", placeholder="Ex.: 2")
+        _qp = texto_inteiro(st.session_state.get("qtd_part_v3"), default=1, min_v=1, max_v=4)
+        qtd_part = _qp if _qp is not None else 1
+        cols_renda = st.columns(qtd_part)
+        for i in range(qtd_part):
+            with cols_renda[i]:
+                st.text_input(f"Renda Part. {i+1}", key=f"renda_part_{i}_v3", placeholder="R$ 0,00")
+        rank_opts = ["DIAMANTE", "OURO", "PRATA", "BRONZE", "AÇO"]
+        curr_ranking = st.session_state.dados_cliente.get('ranking', "DIAMANTE")
+        idx_ranking = rank_opts.index(curr_ranking) if curr_ranking in rank_opts else 0
+        ranking = st.selectbox("Ranking do Cliente", options=rank_opts, index=idx_ranking, key="in_rank_v28")
+        politica_ps = st.selectbox("Política de Pro Soluto", ["Direcional", "Emcash"], index=0 if st.session_state.dados_cliente.get('politica') != "Emcash" else 1, key="in_pol_v28")
+        social = st.toggle("Fator Social", value=st.session_state.dados_cliente.get('social', False), key="in_soc_v28")
+        cotista = st.toggle("Cotista FGTS", value=st.session_state.dados_cliente.get('cotista', True), key="in_cot_v28")
+        st.markdown("<br>", unsafe_allow_html=True)
+        if st.button("Confirmar e avançar", type="primary", use_container_width=True, key="btn_conf_perfil"):
             _qp_sub = texto_inteiro(st.session_state.get("qtd_part_v3"), default=1, min_v=1, max_v=4)
             qtd_part = _qp_sub if _qp_sub is not None else 1
             lista_rendas_input = [texto_moeda_para_float(st.session_state.get(f"renda_part_{j}_v3")) for j in range(qtd_part)]
@@ -3647,21 +3181,22 @@ def aba_simulador_automacao(df_finan, df_estoque, df_politicas, _df_cadastros, p
 
 def main():
     configurar_layout()
-    df_finan, df_estoque, df_politicas, _df_logins, df_cadastros, premissas_dict = carregar_dados_sistema()
+    inject_enter_confirma_campo()
+    df_finan, df_estoque, df_politicas, _df_logins, _df_cad_hist, premissas_dict = carregar_dados_sistema()
     logo_src = html_std.escape(_src_logo_topo_header(), quote=True)
     st.markdown(
         f'''<header class="header-container" role="banner">
+<div class="header-brand-bar-wrap"><div class="header-brand-bar" aria-hidden="true"></div></div>
 <div class="header-logo-wrap">
 <img src="{logo_src}" alt="Direcional Engenharia" class="header-logo-img" decoding="async" loading="eager" />
 </div>
 <h1 class="header-title"><span class="header-title-muted">Simulador imobiliário</span>&#32;<span class="header-title-accent" aria-label="DV">DV</span></h1>
-<div class="header-title-rule" aria-hidden="true"></div>
 <p class="header-subtitle">Gestão de <strong>vendas</strong> e <strong>viabilidade</strong> imobiliária</p>
 </header>''',
         unsafe_allow_html=True,
     )
 
-    aba_simulador_automacao(df_finan, df_estoque, df_politicas, df_cadastros, premissas_dict)
+    aba_simulador_automacao(df_finan, df_estoque, df_politicas, premissas_dict)
 
     st.markdown(f'<div class="footer">Direcional Engenharia - Rio de Janeiro | Developed by Lucas Maia</div>', unsafe_allow_html=True)
 
