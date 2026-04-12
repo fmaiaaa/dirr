@@ -1242,6 +1242,15 @@ def login_row_is_adm(row: pd.Series) -> bool:
     return str(v).strip().upper() == "SIM"
 
 
+# Ícone “sair de tela cheia” no popup da campanha (Material-style fullscreen_exit)
+_SVG_LB_FECHAR = (
+    '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" '
+    'viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" focusable="false">'
+    '<path d="M5 16h3v3h2v-5H5v2zm3-8H5v2h5V5H8v3zm6 11h2v-3h3v-2h-5v5zm2-11V5h-2v5h5V8h-3z"/>'
+    "</svg>"
+)
+
+
 def _img_url_seguro_https(url: str) -> str | None:
     u = (url or "").strip()
     if not u.startswith("https://"):
@@ -1255,6 +1264,15 @@ def _img_url_seguro_https(url: str) -> str | None:
     return html_std.escape(u, quote=True)
 
 
+def _titulo_campanha_com_dois_pontos_final(tit: str) -> str:
+    """Garante exatamente um ':' no fim do título; remove ':' extras no final antes de acrescentar."""
+    s = (tit or "").strip()
+    if not s:
+        return ""
+    core = s.rstrip(":").rstrip()
+    return f"{core}:" if core else ":"
+
+
 def _html_campanhas_texto_bloco(df_texto: pd.DataFrame) -> str:
     df = normalizar_df_campanhas_texto(df_texto)
     if df.empty:
@@ -1266,7 +1284,7 @@ def _html_campanhas_texto_bloco(df_texto: pd.DataFrame) -> str:
         body = str(row.get("Texto", "") or "").strip()
         if not tit and not body:
             continue
-        tit_esc = html_std.escape(tit)
+        tit_esc = html_std.escape(_titulo_campanha_com_dois_pontos_final(tit))
         body_esc = html_std.escape(body)
         if tit_esc and body_esc:
             inner = f'<span class="home-campanhas-copy-titulo">{tit_esc}</span> {body_esc}'
@@ -1314,11 +1332,12 @@ def render_secao_campanhas_comerciais(
                 f"</span></label>"
                 f'<div class="home-banner-lb-panel" role="presentation">'
                 f'<label for="{cid}" class="home-banner-lb-backdrop" aria-label="Fechar"></label>'
-                f'<div class="home-banner-lb-inner" role="dialog" aria-label="Imagem ampliada">'
+                f'<div class="home-banner-lb-inner">'
+                f'<div class="home-banner-lb-popup" role="dialog" aria-label="Imagem ampliada">'
                 f'<img class="home-banner-lb-img" src="{src}" alt="" loading="lazy" decoding="async" />'
-                f"</div>"
-                f'<label for="{cid}" class="home-banner-lb-close" aria-label="Fechar" title="Fechar">×</label>'
-                f"</div></div>"
+                f'<label for="{cid}" class="home-banner-lb-close" aria-label="Fechar" title="Fechar">'
+                f"{_SVG_LB_FECHAR}</label>"
+                f"</div></div></div></div>"
             )
     if not cards and not copy_html:
         return
@@ -2444,47 +2463,61 @@ def configurar_layout():
             position: absolute;
             inset: 0;
             z-index: 2;
-            width: 100%;
-            height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: clamp(0.75rem, 3vw, 1.75rem);
             margin: 0;
-            display: grid;
-            place-items: center;
-            place-content: center;
-            padding: 0;
             box-sizing: border-box;
+            pointer-events: none;
+        }}
+        .home-banner-lb-popup {{
+            position: relative;
+            pointer-events: auto;
+            width: max-content;
+            max-width: min(92vw, 100%);
+            max-height: min(88vh, 100%);
+            line-height: 0;
+            border-radius: 12px;
+            overflow: visible;
+            box-shadow: 0 24px 64px rgba(0, 0, 0, 0.5);
         }}
         .home-banner-lb-img {{
             display: block;
             margin: 0;
-            max-width: min(100vw, 100%);
-            max-height: min(100vh, 100%);
+            max-width: min(90vw, 100%);
+            max-height: min(85vh, 100%);
             width: auto;
             height: auto;
             object-fit: contain;
             object-position: center center;
             border-radius: 10px;
-            box-shadow: 0 10px 48px rgba(0, 0, 0, 0.4);
+            vertical-align: bottom;
         }}
         .home-banner-lb-close {{
-            position: fixed !important;
-            top: max(0.5rem, env(safe-area-inset-top, 0px)) !important;
-            right: max(0.5rem, env(safe-area-inset-right, 0px)) !important;
-            z-index: 2147483647 !important;
-            width: 2.35rem;
-            height: 2.35rem;
+            position: absolute;
+            top: max(0.35rem, env(safe-area-inset-top, 0px));
+            right: max(0.35rem, env(safe-area-inset-right, 0px));
+            z-index: 3;
+            width: 2.45rem;
+            height: 2.45rem;
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 1.45rem;
-            line-height: 1;
+            line-height: 0;
             color: #f8fafc;
             cursor: pointer;
-            border-radius: 10px;
-            background: rgba(255, 255, 255, 0.14);
-            border: 1px solid rgba(255, 255, 255, 0.28);
+            border-radius: 8px;
+            background: rgba(15, 23, 42, 0.82);
+            border: 1px solid rgba(255, 255, 255, 0.22);
+            box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
         }}
         .home-banner-lb-close:hover {{
-            background: rgba(255, 255, 255, 0.22);
+            background: rgba(30, 41, 59, 0.92);
+        }}
+        .home-banner-lb-close svg {{
+            display: block;
+            flex-shrink: 0;
         }}
         .header-logo-wrap {{
             display: flex;
