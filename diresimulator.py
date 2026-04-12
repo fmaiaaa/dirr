@@ -319,6 +319,8 @@ DEFAULT_PREMISSAS: Dict[str, float] = {
     "dire_fin_aa_f3_max": 8.16,
     "dire_fin_aa_f4": 10.0,
     "direcional_fin_aa_pct": 8.16,
+    "dire_ps_amort_m": 0.013351896270462446,
+    "ps_pv_meses_desconto_direcional": 11.0,
 }
 
 # Rótulos da coluna A do Excel → chaves internas
@@ -435,6 +437,31 @@ def valor_max_ps_g15(l_comparador: float, cap_politica_vu: float) -> float:
     return min(lc, cap) if lc > 0 else min(0.0, cap)
 
 
+def _politica_emcash_ui(politica_ui: str) -> bool:
+    return str(politica_ui or "").strip().lower() == "emcash"
+
+
+def principal_ps_b3_ajustado(valor_ps: float) -> float:
+    """SIMULADOR PS / Comparador B3: B41 + B41*((1+0,5%)^4-1)."""
+    v = float(valor_ps or 0.0)
+    if v <= 0.0:
+        return 0.0
+    return float(v * (1.0 + ((1.0 + 0.005) ** 4 - 1.0)))
+
+
+def _pmt_price_positivo(pv: float, taxa_mensal: float, n: int) -> float:
+    """Prestação constante (sistema PRICE), valor positivo; pv > 0."""
+    r = float(taxa_mensal)
+    nper = int(n or 0)
+    pvv = float(pv or 0.0)
+    if nper <= 0 or pvv <= 0.0 or r <= -1.0:
+        return 0.0
+    try:
+        return float(pvv * r * (1.0 + r) ** nper / ((1.0 + r) ** nper - 1.0))
+    except (ZeroDivisionError, OverflowError, ValueError):
+        return 0.0
+
+
 def parcela_ps_pmt(
     valor_ps: float,
     prazo_meses: int,
@@ -442,36 +469,33 @@ def parcela_ps_pmt(
     politica_ui: str,
 ) -> float:
     """
-    Parcela mensal do PS alinhada à célula **I5** do COMPARADOR TX EMCASH:
-    `(PMT(E2, n, PV) × -1) × (1+E1)`.
-
-    **E2** é **sempre** `emcash_fin_m` (**PREMISSAS B4**), igual ao **E2** global do comparador.
-    A política de venda (Emcash/Direcional na UI) **não** altera esta taxa; ela só afeta
-    tier/POLITICAS em `metricas_pro_soluto`. O financiamento do imóvel continua usando
-    `taxa_mensal_financiamento_imobiliario` em outros módulos.
-
-    `politica_ui` mantém compatibilidade de assinatura com a UI; é ignorado para E2.
+    Emcash (UI): I5 — (PMT(E2, n, B41) × -1) × (1+E1).
+    Direcional: B43/CE — PMT com principal B3 ajustado e taxa `dire_ps_amort_m` (sem (1+E1)).
     """
-    _ = politica_ui  # API / Streamlit; I5 não troca E2 com Emcash vs Direcional
     p = dict(DEFAULT_PREMISSAS)
     if premissas:
         p.update({k: float(v) for k, v in premissas.items() if v is not None})
-    e4 = excel_e4_mensal(p["ipca_aa"])
-    e1 = excel_e1(p["tx_emcash_b5"], e4)
-    pv = float(valor_ps or 0.0)
+    pv_raw = float(valor_ps or 0.0)
     n = int(prazo_meses or 0)
-    if n <= 0 or pv <= 0:
+    if n <= 0 or pv_raw <= 0.0:
         return 0.0
-    e2 = float(p["emcash_fin_m"])
-    if e2 <= -1:
-        return 0.0
-    try:
-        # PMT Excel com PV>0 devolve valor negativo; I5 usa (PMT*-1)*(1+E1) → prestação positiva.
-        pmt_excel = -pv * (e2 * (1 + e2) ** n) / ((1 + e2) ** n - 1)
-        pmt_pos = abs(float(pmt_excel))
-    except (ZeroDivisionError, ValueError, OverflowError):
-        return 0.0
-    return float(pmt_pos * (1.0 + e1))
+
+    if _politica_emcash_ui(politica_ui):
+        e4 = excel_e4_mensal(p["ipca_aa"])
+        e1 = excel_e1(p["tx_emcash_b5"], e4)
+        e2 = float(p["emcash_fin_m"])
+        if e2 <= -1:
+            return 0.0
+        try:
+            pmt_excel = -pv_raw * (e2 * (1 + e2) ** n) / ((1 + e2) ** n - 1)
+            pmt_pos = abs(float(pmt_excel))
+        except (ZeroDivisionError, ValueError, OverflowError):
+            return 0.0
+        return float(pmt_pos * (1.0 + e1))
+
+    taxa_ps = float(p.get("dire_ps_amort_m", DEFAULT_PREMISSAS["dire_ps_amort_m"]))
+    pv_adj = principal_ps_b3_ajustado(pv_raw)
+    return _pmt_price_positivo(pv_adj, taxa_ps, n)
 
 
 def metricas_pro_soluto(
@@ -492,14 +516,20 @@ def metricas_pro_soluto(
     if premissas:
         p.update({k: float(v) for k, v in premissas.items() if v is not None})
     row = resolve_politica_row(politica_ui, ranking, df_politicas)
+    prazo_ps_ui = int(min(row.parcelas_max, 120.0))
     e4 = excel_e4_mensal(p["ipca_aa"])
     e1 = excel_e1(p["tx_emcash_b5"], e4)
     k3 = k3_lambda(renda, row)
     j8 = parcela_max_j8(renda, k3, e1)
     g14 = parcela_max_g14(renda, k3)
     e2_comp = float(p["emcash_fin_m"])
-    prazo_k2 = int(min(row.parcelas_max, 120.0))
-    l8_bruto = pv_l8_positivo(e2_comp, prazo_k2, j8)
+    if _politica_emcash_ui(politica_ui):
+        row_em = politica_row_from_defaults("EMCASH")
+        prazo_pv_k2 = int(min(row_em.parcelas_max, 120.0)) if row_em else 66
+    else:
+        desc = int(float(p.get("ps_pv_meses_desconto_direcional", 11.0)))
+        prazo_pv_k2 = max(1, prazo_ps_ui - desc)
+    l8_bruto = pv_l8_positivo(e2_comp, prazo_pv_k2, j8)
     l8 = float(l8_bruto) * PS_PV_FATOR_COLUNA_L
     cap_vu = cap_valor_unidade(valor_unidade, row)
     ps_max_calc = valor_max_ps_g15(l8, cap_vu)
@@ -518,7 +548,7 @@ def metricas_pro_soluto(
         "cap_valor_unidade": cap_vu,
         "ps_max_comparador_politica": ps_max_calc,
         "ps_max_efetivo": ps_max_efetivo,
-        "prazo_ps_politica": prazo_k2,
+        "prazo_ps_politica": prazo_ps_ui,
     }
 
 
