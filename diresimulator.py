@@ -2689,7 +2689,6 @@ def aba_simulador_automacao(
 
         renda_cli = float(d.get("renda", 0) or 0)
         _matriz_bd = motor.obter_quatro_combinacoes_f2_f3_f4(renda_cli)
-        _rotulos_cen = [x["rotulo"] for x in _matriz_bd]
         _ix_cen = 2
         for i, rowq in enumerate(_matriz_bd):
             if rowq["social"] == bool(d.get("social", False)) and rowq["cotista"] == bool(d.get("cotista", True)):
@@ -2700,7 +2699,6 @@ def aba_simulador_automacao(
 
         _tbl_rows = "".join(
             f"<tr>"
-            f"<td style='padding:8px 10px;text-align:left;border-bottom:1px solid #e2e8f0;color:#334155;white-space:nowrap;'>{html_std.escape(it['rotulo'])}</td>"
             f"<td style='padding:8px 10px;text-align:center;border-bottom:1px solid #e2e8f0;color:#334155;font-weight:600;'>{_sim_nao(it['social'])}</td>"
             f"<td style='padding:8px 10px;text-align:center;border-bottom:1px solid #e2e8f0;color:#334155;font-weight:600;'>{_sim_nao(it['cotista'])}</td>"
             f"<td style='padding:8px 8px;text-align:right;border-bottom:1px solid #e2e8f0;color:#0f172a;'>R$ {fmt_br(it['fin_F2'])}</td>"
@@ -2713,25 +2711,24 @@ def aba_simulador_automacao(
             for it in _matriz_bd
         )
         st.markdown(
-            f"""<div style="max-width: min(1180px, 100%); margin: 0.5rem auto 1rem; overflow-x: auto;">
-<table style="width:100%; border-collapse: collapse; font-size: 0.78rem; color: #64748b;">
-<caption style="caption-side: top; padding-bottom: 8px; font-weight: 700; color: {COR_AZUL_ESC}; text-align: center;">BD Financiamentos — Faixas 2, 3 e 4 (todas as combinações)</caption>
+            f"""<div class="finan-subsidios-table-bleed" style="width:100vw;max-width:100%;position:relative;left:50%;transform:translateX(-50%);margin:0.5rem 0 1rem;padding:0 clamp(10px,2.2vw,28px);box-sizing:border-box;overflow-x:auto;-webkit-overflow-scrolling:touch;">
+<table style="width:100%;min-width:min(100%,720px);border-collapse:collapse;font-size:clamp(0.72rem,1.6vw,0.85rem);color:#64748b;table-layout:fixed;">
+<caption style="caption-side:top;padding-bottom:10px;font-weight:700;color:{COR_AZUL_ESC};text-align:center;font-size:clamp(0.85rem,2vw,1rem);">Financiamentos e subsídios (BD Financiamentos) — Faixas 2, 3 e 4</caption>
 <thead>
 <tr>
-<th rowspan="2" style="text-align:left;vertical-align:middle;padding:8px 10px;border-bottom:2px solid #cbd5e1;">Combinação</th>
-<th rowspan="2" style="text-align:center;vertical-align:middle;padding:8px 10px;border-bottom:2px solid #cbd5e1;">Fator Social</th>
-<th rowspan="2" style="text-align:center;vertical-align:middle;padding:8px 10px;border-bottom:2px solid #cbd5e1;">Cotista FGTS</th>
+<th rowspan="2" style="text-align:center;vertical-align:middle;padding:8px 10px;border-bottom:2px solid #cbd5e1;width:12%;">Fator Social</th>
+<th rowspan="2" style="text-align:center;vertical-align:middle;padding:8px 10px;border-bottom:2px solid #cbd5e1;width:12%;">Cotista FGTS</th>
 <th colspan="2" style="text-align:center;padding:6px 8px;border-bottom:1px solid #cbd5e1;">Faixa 2</th>
 <th colspan="2" style="text-align:center;padding:6px 8px;border-bottom:1px solid #cbd5e1;">Faixa 3</th>
 <th colspan="2" style="text-align:center;padding:6px 8px;border-bottom:1px solid #cbd5e1;">Faixa 4</th>
 </tr>
 <tr>
-<th style="text-align:right;padding:6px 8px;border-bottom:2px solid #cbd5e1;">Fin.</th>
-<th style="text-align:right;padding:6px 8px;border-bottom:2px solid #cbd5e1;">Sub.</th>
-<th style="text-align:right;padding:6px 8px;border-bottom:2px solid #cbd5e1;">Fin.</th>
-<th style="text-align:right;padding:6px 8px;border-bottom:2px solid #cbd5e1;">Sub.</th>
-<th style="text-align:right;padding:6px 8px;border-bottom:2px solid #cbd5e1;">Fin.</th>
-<th style="text-align:right;padding:6px 8px;border-bottom:2px solid #cbd5e1;">Sub.</th>
+<th style="text-align:right;padding:6px 8px;border-bottom:2px solid #cbd5e1;white-space:normal;line-height:1.25;">Financiamento</th>
+<th style="text-align:right;padding:6px 8px;border-bottom:2px solid #cbd5e1;white-space:normal;line-height:1.25;">Subsídios</th>
+<th style="text-align:right;padding:6px 8px;border-bottom:2px solid #cbd5e1;white-space:normal;line-height:1.25;">Financiamento</th>
+<th style="text-align:right;padding:6px 8px;border-bottom:2px solid #cbd5e1;white-space:normal;line-height:1.25;">Subsídios</th>
+<th style="text-align:right;padding:6px 8px;border-bottom:2px solid #cbd5e1;white-space:normal;line-height:1.25;">Financiamento</th>
+<th style="text-align:right;padding:6px 8px;border-bottom:2px solid #cbd5e1;white-space:normal;line-height:1.25;">Subsídios</th>
 </tr>
 </thead>
 <tbody>{_tbl_rows}</tbody>
@@ -2740,15 +2737,10 @@ def aba_simulador_automacao(
         )
         st.caption(
             f"Subsídios da curva inferiores a R$ {fmt_br(SUBSIDIO_MINIMO_CURVA)} são desconsiderados "
-            "(tratados como R$ 0,00), alinhado à regra da planilha comercial."
+            "(tratados como R$ 0,00), alinhado à regra da planilha comercial. "
+            "A tabela acima é só referência; financiamento e subsídio aprovados podem ser outros valores."
         )
-        _cen_esc = st.selectbox(
-            "Cenário para teto da curva (F2/F3/F4 na BD)",
-            options=_rotulos_cen,
-            index=_ix_cen,
-            key="cenario_soc_cotista_curva_v1",
-        )
-        _m = next((x for x in _matriz_bd if x["rotulo"] == _cen_esc), _matriz_bd[2])
+        _m = _matriz_bd[_ix_cen]
         social_cli = _m["social"]
         cotista_cli = _m["cotista"]
         st.session_state.dados_cliente["social"] = social_cli
@@ -2768,30 +2760,29 @@ def aba_simulador_automacao(
             if v is None: return default
             try: return float(v)
             except (TypeError, ValueError): return default
-        fin_max = max(0.0, float(d.get("finan_f_ref", 0) or 0))
-        fin_default = clamp_moeda_positiva(_num_f('finan_usado', 0.0), fin_max if fin_max > 0 else None)
+        # Sem teto pela curva da BD: só valores não negativos (tabela = referência).
+        fin_default = clamp_moeda_positiva(_num_f('finan_usado', 0.0), None)
         if "fin_aprovado_key" not in st.session_state:
             st.session_state["fin_aprovado_key"] = float_para_campo_texto(fin_default, vazio_se_zero=True)
         else:
             _f_raw = texto_moeda_para_float(st.session_state.get("fin_aprovado_key"))
-            _f_ok = clamp_moeda_positiva(_f_raw, fin_max if fin_max > 0 else None)
+            _f_ok = clamp_moeda_positiva(_f_raw, None)
             if abs(_f_raw - _f_ok) > 0.009:
                 st.session_state["fin_aprovado_key"] = float_para_campo_texto(_f_ok, vazio_se_zero=True)
         st.text_input("Financiamento Aprovado (R$)", key="fin_aprovado_key", placeholder="Ex.: 250000 ou 250.000,00")
-        f_u = clamp_moeda_positiva(texto_moeda_para_float(st.session_state.get("fin_aprovado_key")), fin_max if fin_max > 0 else None)
+        f_u = clamp_moeda_positiva(texto_moeda_para_float(st.session_state.get("fin_aprovado_key")), None)
         st.session_state.dados_cliente['finan_usado'] = f_u
 
-        fgts_max = max(0.0, float(d.get("sub_f_ref", 0) or 0))
-        sub_default = clamp_moeda_positiva(_num_f('fgts_sub_usado', 0.0), fgts_max if fgts_max > 0 else None)
+        sub_default = clamp_moeda_positiva(_num_f('fgts_sub_usado', 0.0), None)
         if "sub_aprovado_key" not in st.session_state:
             st.session_state["sub_aprovado_key"] = float_para_campo_texto(sub_default, vazio_se_zero=True)
         else:
             _s_raw = texto_moeda_para_float(st.session_state.get("sub_aprovado_key"))
-            _s_ok = clamp_moeda_positiva(_s_raw, fgts_max if fgts_max > 0 else None)
+            _s_ok = clamp_moeda_positiva(_s_raw, None)
             if abs(_s_raw - _s_ok) > 0.009:
                 st.session_state["sub_aprovado_key"] = float_para_campo_texto(_s_ok, vazio_se_zero=True)
         st.text_input("Subsídio Aprovado / FGTS + Subsídio (R$)", key="sub_aprovado_key", placeholder="Ex.: 50000 ou 50.000,00")
-        s_u = clamp_moeda_positiva(texto_moeda_para_float(st.session_state.get("sub_aprovado_key")), fgts_max if fgts_max > 0 else None)
+        s_u = clamp_moeda_positiva(texto_moeda_para_float(st.session_state.get("sub_aprovado_key")), None)
         st.session_state.dados_cliente['fgts_sub_usado'] = s_u
 
         prazo_atual = d.get('prazo_financiamento', 360)
@@ -3021,10 +3012,8 @@ def aba_simulador_automacao(
         u_nome = d.get('empreendimento_nome', 'N/A')
         u_unid = d.get('unidade_id', 'N/A')
         u_aval = d.get('imovel_avaliacao', u_valor)
-        fin_ref = max(0.0, float(d.get("finan_f_ref", 0) or 0))
-        sub_ref = max(0.0, float(d.get("sub_f_ref", 0) or 0))
-        f_u_input = clamp_moeda_positiva(float(d.get('finan_usado', 0) or 0), fin_ref if fin_ref > 0 else None)
-        fgts_u_input = clamp_moeda_positiva(float(d.get('fgts_sub_usado', 0) or 0), sub_ref if sub_ref > 0 else None)
+        f_u_input = clamp_moeda_positiva(float(d.get('finan_usado', 0) or 0), None)
+        fgts_u_input = clamp_moeda_positiva(float(d.get('fgts_sub_usado', 0) or 0), None)
         if u_valor > 0:
             f_u_input = min(f_u_input, u_valor)
             fgts_u_input = min(fgts_u_input, max(0.0, u_valor - f_u_input))
