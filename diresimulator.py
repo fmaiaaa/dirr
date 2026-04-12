@@ -1149,6 +1149,58 @@ def inject_login_password_manager_fields():
     st.components.v1.html(js, height=0, width=0)
 
 
+def inject_home_banner_dialog_modal():
+    """Abre/fecha lightbox com <dialog>.showModal() — top layer do navegador, centralizado na tela (não no scroll do app). Sem mover nós no DOM (compatível com React do Streamlit)."""
+    js = r"""
+<script>
+(function () {
+  var doc = document;
+  try {
+    if (window.parent && window.parent !== window && window.parent.document) {
+      doc = window.parent.document;
+    }
+  } catch (e) {
+    doc = document;
+  }
+  var root = doc.documentElement;
+  if (!root || root.getAttribute("data-dv-home-banner-dialog") === "1") return;
+  root.setAttribute("data-dv-home-banner-dialog", "1");
+  doc.addEventListener(
+    "click",
+    function (ev) {
+      var t = ev.target;
+      if (!t || !t.closest) return;
+      var openBtn = t.closest(".home-banner-lb-open");
+      if (openBtn) {
+        ev.preventDefault();
+        var did = openBtn.getAttribute("data-dv-dialog");
+        if (!did) return;
+        var dlg = doc.getElementById(did);
+        if (dlg && dlg.tagName === "DIALOG" && typeof dlg.showModal === "function") {
+          try {
+            dlg.showModal();
+          } catch (err) {}
+        }
+        return;
+      }
+      var closeBtn = t.closest(".home-banner-lb-dialog-close");
+      if (closeBtn) {
+        var dClose = closeBtn.closest("dialog");
+        if (dClose) dClose.close();
+        return;
+      }
+      if (t.tagName === "DIALOG" && t.classList.contains("home-banner-lb-dialog")) {
+        t.close();
+      }
+    },
+    true
+  );
+})();
+</script>
+"""
+    st.components.v1.html(js, height=0, width=0)
+
+
 # =============================================================================
 # 1. CARREGAMENTO DE DADOS
 # =============================================================================
@@ -1295,23 +1347,22 @@ def render_secao_campanhas_comerciais(
             src = _img_url_seguro_https(str(row.get("URL_Imagem", "") or ""))
             if not src:
                 continue
-            cid = f"home-banner-lb-{lb_idx}"
+            cid = f"dv-home-banner-dlg-{lb_idx}"
             lb_idx += 1
             cards.append(
                 f'<div class="home-banner-lb-root">'
-                f'<a href="#{cid}" class="home-banner-card home-banner-card--fs home-banner-card--thumb" '
-                f'title="Ampliar em tela cheia" aria-label="Ampliar imagem da campanha em tela cheia">'
+                f'<button type="button" class="home-banner-card home-banner-card--fs home-banner-card--thumb home-banner-lb-open" '
+                f'data-dv-dialog="{cid}" title="Ampliar em tela cheia" aria-label="Ampliar imagem da campanha em tela cheia">'
                 f'<span class="home-banner-thumb-frame">'
                 f'<img src="{src}" alt="" loading="lazy" decoding="async" />'
-                f"</span></a>"
-                f'<div id="{cid}" class="home-banner-lb-panel" role="dialog" aria-modal="true" aria-label="Imagem ampliada">'
-                f'<a href="#" class="home-banner-lb-backdrop" aria-label="Fechar"></a>'
-                f'<div class="home-banner-lb-inner">'
+                f"</span></button>"
+                f'<dialog id="{cid}" class="home-banner-lb-dialog" aria-label="Imagem ampliada">'
+                f'<div class="home-banner-lb-dialog-inner">'
                 f'<div class="home-banner-lb-popup">'
+                f'<button type="button" class="home-banner-lb-close home-banner-lb-dialog-close" '
+                f'aria-label="Fechar" title="Fechar">{_SVG_LB_FECHAR}</button>'
                 f'<img class="home-banner-lb-img" src="{src}" alt="" loading="lazy" decoding="async" />'
-                f'<a href="#" class="home-banner-lb-close" aria-label="Fechar" title="Fechar">'
-                f"{_SVG_LB_FECHAR}</a>"
-                f"</div></div></div></div>"
+                f"</div></div></dialog></div>"
             )
     if not cards and not copy_html:
         return
@@ -2390,62 +2441,48 @@ def configurar_layout():
             text-decoration: none;
             color: inherit;
         }}
+        button.home-banner-card.home-banner-card--thumb {{
+            font: inherit;
+            -webkit-appearance: none;
+            appearance: none;
+            border: 1px solid rgba(226, 232, 240, 0.95);
+            margin: 0;
+            text-align: inherit;
+        }}
         .home-banner-card--fs:focus-visible {{
             outline: 2px solid {COR_AZUL_ESC};
             outline-offset: 3px;
         }}
-        .home-banner-lb-panel {{
-            position: fixed !important;
-            top: 0 !important;
-            left: 0 !important;
-            right: 0 !important;
-            bottom: 0 !important;
-            width: 100vw !important;
-            height: 100vh !important;
-            min-height: -webkit-fill-available !important;
-            max-width: 100vw !important;
-            max-height: 100vh !important;
-            margin: 0 !important;
-            z-index: 2147483646 !important;
-            display: block;
+        /* <dialog>.showModal() = top layer do navegador: centro na viewport real, não no fluxo do app */
+        .home-banner-lb-dialog {{
+            border: none;
             padding: 0;
+            margin: auto;
+            background: transparent;
+            max-width: min(96vw, 100%);
+            max-height: min(94dvh, 100%);
             box-sizing: border-box;
-            visibility: hidden;
-            opacity: 0;
-            pointer-events: none;
-            transition: opacity 0.2s ease, visibility 0.2s ease;
+            overflow: visible;
         }}
-        .home-banner-lb-panel:target {{
-            visibility: visible !important;
-            opacity: 1 !important;
-            pointer-events: auto !important;
-        }}
-        .home-banner-lb-backdrop {{
-            position: absolute;
-            inset: 0;
-            display: block;
-            background: rgba(15, 23, 42, 0.9);
+        .home-banner-lb-dialog::backdrop {{
+            background: rgba(15, 23, 42, 0.92);
             cursor: pointer;
-            text-decoration: none;
         }}
-        .home-banner-lb-inner {{
-            position: absolute;
-            inset: 0;
-            z-index: 2;
+        .home-banner-lb-dialog-inner {{
             display: flex;
             align-items: center;
             justify-content: center;
             padding: clamp(0.75rem, 3vw, 1.75rem);
             margin: 0;
             box-sizing: border-box;
-            pointer-events: none;
+            max-width: min(96vw, 100vw);
+            max-height: min(92dvh, 100vh);
         }}
         .home-banner-lb-popup {{
             position: relative;
-            pointer-events: auto;
             width: max-content;
             max-width: min(92vw, 100%);
-            max-height: min(88vh, 100%);
+            max-height: min(88dvh, 88vh);
             line-height: 0;
             border-radius: 12px;
             overflow: visible;
@@ -2463,7 +2500,7 @@ def configurar_layout():
             border-radius: 10px;
             vertical-align: bottom;
         }}
-        .home-banner-lb-close {{
+        button.home-banner-lb-close {{
             position: absolute;
             top: max(0.35rem, env(safe-area-inset-top, 0px));
             right: max(0.35rem, env(safe-area-inset-right, 0px));
@@ -2479,7 +2516,8 @@ def configurar_layout():
             background: #ffffff !important;
             border: 1px solid rgba(15, 23, 42, 0.18);
             box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
-            text-decoration: none;
+            padding: 0;
+            margin: 0;
             color: inherit;
             box-sizing: border-box;
         }}
@@ -4383,6 +4421,7 @@ def _inject_login_vertical_center_css() -> None:
 def main():
     configurar_layout()
     inject_enter_confirma_campo()
+    inject_home_banner_dialog_modal()
     if "logged_in" not in st.session_state:
         st.session_state["logged_in"] = False
 
