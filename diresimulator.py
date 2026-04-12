@@ -1188,7 +1188,6 @@ def render_faixa_home_banners(df_banners: pd.DataFrame) -> None:
             continue
         tit = str(row.get("Titulo", "") or "").strip()
         tit_esc = html_std.escape(tit)
-        fs = banner_tela_cheia_sim(row.get("Tela_Cheia"))
         desc_raw = str(row.get("Descricao", "") or "").strip()
         desc_esc = _banner_descricao_html_segura(desc_raw)
         desc_block = ""
@@ -1196,38 +1195,31 @@ def render_faixa_home_banners(df_banners: pd.DataFrame) -> None:
             desc_block = (
                 f'<div class="home-banner-lb-desc" style="white-space:pre-wrap;">{desc_esc}</div>'
             )
-        if fs:
-            cid = f"home-banner-lb-{lb_idx}"
-            lb_idx += 1
-            cards.append(
-                f'<div class="home-banner-lb-root">'
-                f'<input type="checkbox" id="{cid}" class="home-banner-lb-input" autocomplete="off" '
-                f'aria-hidden="true" tabindex="-1" />'
-                f'<label for="{cid}" class="home-banner-card home-banner-card--fs" title="Ver em tela cheia">'
-                f'<img src="{src}" alt="{tit_esc}" loading="lazy" decoding="async" />'
-                f'<div class="home-banner-title">{tit_esc}</div>'
-                f'<span class="home-banner-fs-hint">Clique para tela cheia</span></label>'
-                f'<div class="home-banner-lb-panel" role="presentation">'
-                f'<label for="{cid}" class="home-banner-lb-backdrop" aria-label="Fechar"></label>'
-                f'<div class="home-banner-lb-inner" role="dialog" aria-label="{tit_esc}">'
-                f'<img class="home-banner-lb-img" src="{src}" alt="{tit_esc}" loading="lazy" decoding="async" />'
-                f"{desc_block}"
-                f'<label for="{cid}" class="home-banner-lb-close" aria-label="Fechar" title="Fechar">×</label>'
-                f"</div></div></div>"
-            )
-        else:
-            cards.append(
-                f'<div class="home-banner-card">'
-                f'<img src="{src}" alt="{tit_esc}" loading="lazy" decoding="async" />'
-                f'<div class="home-banner-title">{tit_esc}</div></div>'
-            )
+        cid = f"home-banner-lb-{lb_idx}"
+        lb_idx += 1
+        cards.append(
+            f'<div class="home-banner-lb-root">'
+            f'<input type="checkbox" id="{cid}" class="home-banner-lb-input" autocomplete="off" '
+            f'aria-hidden="true" tabindex="-1" />'
+            f'<label for="{cid}" class="home-banner-card home-banner-card--fs" title="Ampliar imagem">'
+            f'<img src="{src}" alt="{tit_esc}" loading="lazy" decoding="async" />'
+            f'<div class="home-banner-title">{tit_esc}</div>'
+            f'<span class="home-banner-fs-hint">Clique para ampliar</span></label>'
+            f'<div class="home-banner-lb-panel" role="presentation">'
+            f'<label for="{cid}" class="home-banner-lb-backdrop" aria-label="Fechar"></label>'
+            f'<div class="home-banner-lb-inner" role="dialog" aria-label="{tit_esc}">'
+            f'<img class="home-banner-lb-img" src="{src}" alt="{tit_esc}" loading="lazy" decoding="async" />'
+            f"{desc_block}"
+            f'<label for="{cid}" class="home-banner-lb-close" aria-label="Fechar" title="Fechar">×</label>'
+            f"</div></div></div>"
+        )
     if not cards:
         return
     st.markdown(
-        '<div class="home-banners-wrap">'
+        '<div class="home-banners-wrap" role="region" aria-label="Campanhas comerciais">'
         '<h2 class="home-banners-section-title">Campanhas comerciais</h2>'
         '<div class="home-banners-strip-outer">'
-        '<div class="home-banners-strip" role="region" aria-label="Campanhas comerciais">'
+        '<div class="home-banners-strip" role="group" aria-label="Miniaturas de campanhas">'
         + "".join(cards)
         + "</div></div></div>",
         unsafe_allow_html=True,
@@ -2119,6 +2111,9 @@ def configurar_layout():
             animation: brandBarFlow 5s ease-in-out infinite;
         }}
         .home-banners-wrap {{
+            display: flex;
+            flex-direction: column;
+            align-items: center;
             width: 100vw;
             max-width: 100%;
             position: relative;
@@ -2135,10 +2130,12 @@ def configurar_layout():
             font-weight: 700 !important;
             color: {COR_AZUL_ESC} !important;
             text-align: center !important;
-            margin: 0 0 0.7rem 0 !important;
+            margin: 0 0 0.85rem 0 !important;
             padding: 0 0.25rem !important;
             letter-spacing: -0.02em !important;
             line-height: 1.25 !important;
+            width: 100%;
+            order: 0;
         }}
         .home-banners-strip-outer {{
             display: flex;
@@ -2150,6 +2147,7 @@ def configurar_layout():
             padding: 0 0.15rem;
             box-sizing: border-box;
             -webkit-overflow-scrolling: touch;
+            order: 1;
         }}
         .home-banners-strip {{
             display: flex;
@@ -2163,23 +2161,25 @@ def configurar_layout():
         }}
         .home-banner-card {{
             flex: 0 0 auto;
-            width: min(200px, 72vw);
+            width: min(148px, 46vw);
             scroll-snap-align: start;
             text-align: center;
             background: rgba(255, 255, 255, 0.94);
             border-radius: 12px;
-            padding: 10px 10px 12px;
+            padding: 8px 8px 10px;
             box-shadow: 0 2px 12px rgba(15, 23, 42, 0.08);
             border: 1px solid rgba(226, 232, 240, 0.95);
         }}
         .home-banner-card img {{
             display: block;
             width: 100%;
-            height: auto;
-            max-height: 110px;
+            height: 72px;
+            max-height: 72px;
             object-fit: contain;
+            object-position: center;
             border-radius: 8px;
             margin: 0 auto;
+            background: rgba(248, 250, 252, 0.9);
         }}
         .home-banner-title {{
             margin-top: 8px;
@@ -2993,10 +2993,10 @@ def aba_simulador_automacao(
     if st.session_state.get("user_is_adm"):
         with st.expander("Banners da página inicial (administrador — base de dados, aba Banners da home)", expanded=False):
             st.caption(
-                "Inclua o endereço **https** da imagem (por exemplo, Postimages). Colunas na planilha: "
-                "Ordem, URL da imagem, Título, Ativo, **Tela cheia** (SIM/NÃO), **Descrição** "
-                "(texto longo; aparece só na visualização em tela cheia). "
-                "Adicione as duas últimas colunas na aba **Banners da home** da base de dados se ainda não existirem."
+                "Inclua o endereço **https** da imagem (por exemplo, Postimages). Na página inicial as imagens aparecem em **miniatura**; o visitante **amplia ao clicar**. "
+                "Colunas na planilha: Ordem, URL da imagem, Título, Ativo, **Tela cheia** (legado na planilha), **Descrição** "
+                "(opcional; aparece no painel ampliado). "
+                "Adicione as colunas necessárias na aba **Banners da home** da base de dados se ainda não existirem."
             )
             with st.form("form_novo_home_banner"):
                 c1, c2, c3 = st.columns(3)
@@ -3006,10 +3006,10 @@ def aba_simulador_automacao(
                     bn_ativo = st.selectbox("Ativo", ["SIM", "NÃO"], index=0)
                 with c3:
                     bn_tela_cheia = st.selectbox(
-                        "Tela cheia",
+                        "Tela cheia (planilha)",
                         ["NÃO", "SIM"],
                         index=0,
-                        help="SIM: abre a imagem em tela cheia; a descrição (se houver) aparece nessa vista.",
+                        help="Valor gravado na planilha (legado). Todas as campanhas já abrem ampliadas ao clicar; a descrição, se houver, aparece no painel ampliado.",
                     )
                 bn_url = st.text_input(
                     "Endereço da imagem (URL)",
@@ -3017,8 +3017,8 @@ def aba_simulador_automacao(
                 )
                 bn_titulo = st.text_input("Título", placeholder="Texto abaixo da imagem")
                 bn_descricao = st.text_area(
-                    "Descrição (tela cheia)",
-                    placeholder="Opcional. Só é mostrada ao abrir o banner em tela cheia.",
+                    "Descrição (painel ampliado)",
+                    placeholder="Opcional. Só é mostrada quando o visitante amplia a imagem ao clicar.",
                     height=100,
                 )
                 enviar_bn = st.form_submit_button("Gravar nova linha na aba Banners da home", type="primary")
@@ -3503,8 +3503,19 @@ def aba_simulador_automacao(
 
                 def label_uni(uid):
                     u = unidades_disp[unidades_disp["Identificador"] == uid].iloc[0]
+                    try:
+                        v_aval = fmt_br(float(u.get("Valor de Avaliação Bancária", 0) or 0))
+                    except (TypeError, ValueError):
+                        v_aval = fmt_br(0)
                     v_venda = fmt_br(u["Valor de Venda"])
-                    return f"{uid} | Valor de venda: R$ {v_venda}"
+                    try:
+                        v_vc = float(u.get("Volta_Caixa_Ref", 0) or 0)
+                    except (TypeError, ValueError):
+                        v_vc = 0.0
+                    v_vc_fmt = fmt_br(v_vc)
+                    return (
+                        f"{uid} | Avaliação: R$ {v_aval} | Venda: R$ {v_venda} | Volta ao Caixa: R$ {v_vc_fmt}"
+                    )
 
                 uni_escolhida_id = st.selectbox(
                     "Escolha a Unidade (do menor ao maior preço):",
