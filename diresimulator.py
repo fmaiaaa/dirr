@@ -462,6 +462,49 @@ def _pmt_price_positivo(pv: float, taxa_mensal: float, n: int) -> float:
         return 0.0
 
 
+def valor_ps_maximo_parcela_j8(
+    parcela_j8: float,
+    prazo_meses: int,
+    premissas: Optional[Mapping[str, float]],
+    politica_ui: str,
+) -> float:
+    """Maior PS (B41) com PMT(n) ≤ parcela_j8 (inverso de parcela_ps_pmt)."""
+    cap = float(parcela_j8 or 0.0)
+    n = int(prazo_meses or 0)
+    if cap <= 0.0 or n <= 0:
+        return 0.0
+    p = dict(DEFAULT_PREMISSAS)
+    if premissas:
+        p.update({k: float(v) for k, v in premissas.items() if v is not None})
+
+    if _politica_emcash_ui(politica_ui):
+        e4 = excel_e4_mensal(p["ipca_aa"])
+        e1 = excel_e1(p["tx_emcash_b5"], e4)
+        e2 = float(p["emcash_fin_m"])
+        if e2 <= -1.0:
+            return 0.0
+        try:
+            coef_core = e2 * (1.0 + e2) ** n / ((1.0 + e2) ** n - 1.0)
+            coef = float(coef_core) * (1.0 + e1)
+            if coef <= 0.0:
+                return 0.0
+            return float(cap / coef)
+        except (ZeroDivisionError, ValueError, OverflowError):
+            return 0.0
+
+    r = float(p.get("dire_ps_amort_m", DEFAULT_PREMISSAS["dire_ps_amort_m"]))
+    if r <= -1.0:
+        return 0.0
+    try:
+        pv_adj = cap * ((1.0 + r) ** n - 1.0) / (r * (1.0 + r) ** n)
+    except (ZeroDivisionError, ValueError, OverflowError):
+        return 0.0
+    mult = principal_ps_b3_ajustado(1.0)
+    if mult <= 0.0:
+        return 0.0
+    return float(pv_adj / mult)
+
+
 def parcela_ps_pmt(
     valor_ps: float,
     prazo_meses: int,
@@ -532,7 +575,10 @@ def metricas_pro_soluto(
     l8_bruto = pv_l8_positivo(e2_comp, prazo_pv_k2, j8)
     l8 = float(l8_bruto) * PS_PV_FATOR_COLUNA_L
     cap_vu = cap_valor_unidade(valor_unidade, row)
+    ps_cap_parcela_j8 = valor_ps_maximo_parcela_j8(j8, prazo_ps_ui, p, politica_ui)
     ps_max_calc = valor_max_ps_g15(l8, cap_vu)
+    if ps_cap_parcela_j8 > 0.0:
+        ps_max_calc = min(ps_max_calc, ps_cap_parcela_j8)
     if ps_cap_estoque is not None and float(ps_cap_estoque) > 0:
         ps_max_efetivo = min(ps_max_calc, float(ps_cap_estoque), cap_vu)
     else:
@@ -549,6 +595,7 @@ def metricas_pro_soluto(
         "ps_max_comparador_politica": ps_max_calc,
         "ps_max_efetivo": ps_max_efetivo,
         "prazo_ps_politica": prazo_ps_ui,
+        "ps_cap_parcela_j8": ps_cap_parcela_j8,
     }
 
 
@@ -557,9 +604,16 @@ def parcela_ps_para_valor(
     prazo_meses: int,
     politica_ui: str,
     premissas: Optional[Mapping[str, float]] = None,
+    parcela_max_j8: Optional[float] = None,
 ) -> float:
-    """Atalho para UI: parcela corrigida dado valor e prazo."""
-    return parcela_ps_pmt(valor_ps, prazo_meses, premissas, politica_ui)
+    """Parcela corrigida; limitada ao teto J8 quando informado."""
+    raw = parcela_ps_pmt(valor_ps, prazo_meses, premissas, politica_ui)
+    if parcela_max_j8 is None:
+        return raw
+    j8v = float(parcela_max_j8)
+    if j8v <= 0.0:
+        return raw
+    return float(min(raw, j8v))
 
 # ========================================================================
 # core/comparador_emcash.py
@@ -3646,8 +3700,8 @@ def aba_simulador_automacao(
                 "ps_max_comparador_politica": 0.0,
                 "cap_valor_unidade": 0.0,
                 "prazo_ps_politica": int(d.get("prazo_ps_max", 60) or 60),
+                "ps_cap_parcela_j8": 0.0,
             }
-        ps_limite_ui = float(mps.get("ps_max_efetivo", 0) or 0)
         prazo_cap_app = int(d.get("prazo_ps_max", 84) or 84)
         pol_prazo = int(mps.get("prazo_ps_politica", prazo_cap_app) or prazo_cap_app)
         parc_max_ui = max(1, min(pol_prazo, prazo_cap_app))
@@ -3659,6 +3713,33 @@ def aba_simulador_automacao(
         _vc1 = max(0.0, min(_vc0, vc_ref_num)) if vc_ref_num > 0 else max(0.0, _vc0)
         if abs(_vc0 - _vc1) > 0.009:
             st.session_state['volta_caixa_key'] = float_para_campo_texto(_vc1, vazio_se_zero=True)
+
+        if 'parc_ps_key' not in st.session_state:
+            try:
+                _p0 = int(d.get('ps_parcelas', min(60, parc_max_ui)) or 1)
+            except (TypeError, ValueError):
+                _p0 = 1
+            _p0 = max(1, min(_p0, parc_max_ui))
+            st.session_state['parc_ps_key'] = str(_p0)
+        else:
+            _pi = texto_inteiro(st.session_state.get("parc_ps_key"), default=1, min_v=1, max_v=parc_max_ui)
+            _pi = _pi if _pi is not None else 1
+            st.session_state['parc_ps_key'] = str(int(max(1, min(_pi, parc_max_ui))))
+
+        _parc_sync = int(st.session_state["parc_ps_key"] or "1")
+        _parc_sync = max(1, min(_parc_sync, parc_max_ui))
+        j8_fe = float(mps.get("parcela_max_j8") or 0)
+        pol_fe = str(d.get("politica", "Direcional"))
+        ps_cap_parc_fe = (
+            valor_ps_maximo_parcela_j8(j8_fe, _parc_sync, _prem, pol_fe)
+            if j8_fe > 0 and _parc_sync > 0
+            else 0.0
+        )
+        ps_limite_base_fe = float(mps.get("ps_max_efetivo", 0) or 0)
+        if ps_cap_parc_fe > 0.0:
+            ps_limite_ui = min(ps_limite_base_fe, ps_cap_parc_fe) if ps_limite_base_fe > 0.0 else ps_cap_parc_fe
+        else:
+            ps_limite_ui = ps_limite_base_fe
 
         if 'ps_u_key' not in st.session_state:
             st.session_state['ps_u_key'] = float_para_campo_texto(st.session_state.dados_cliente.get('ps_usado', 0.0), vazio_se_zero=True)
@@ -3672,18 +3753,6 @@ def aba_simulador_automacao(
         _ps1 = clamp_moeda_positiva(_ps0, _teto_ps)
         if abs(_ps0 - _ps1) > 0.009:
             st.session_state['ps_u_key'] = float_para_campo_texto(_ps1, vazio_se_zero=True)
-
-        if 'parc_ps_key' not in st.session_state:
-            try:
-                _p0 = int(d.get('ps_parcelas', min(60, parc_max_ui)) or 1)
-            except (TypeError, ValueError):
-                _p0 = 1
-            _p0 = max(1, min(_p0, parc_max_ui))
-            st.session_state['parc_ps_key'] = str(_p0)
-        else:
-            _pi = texto_inteiro(st.session_state.get("parc_ps_key"), default=1, min_v=1, max_v=parc_max_ui)
-            _pi = _pi if _pi is not None else 1
-            st.session_state['parc_ps_key'] = str(int(max(1, min(_pi, parc_max_ui))))
 
         if 'ato_1_key' not in st.session_state:
             st.session_state['ato_1_key'] = float_para_campo_texto(st.session_state.dados_cliente.get('ato_final', 0.0), vazio_se_zero=True)
@@ -3873,23 +3942,7 @@ def aba_simulador_automacao(
             help="Usa o saldo ainda não coberto (valor da unidade menos financiamento, Fundo de Garantia do Tempo de Serviço e subsídio, atos e volta ao caixa), limitado ao teto de Pro Soluto.",
         )
         st.write("")
-        col_ps_val, col_ps_parc = st.columns(2)
-
-        with col_ps_val:
-            st.text_input("Valor do Pro Soluto", key="ps_u_key", placeholder="0,00")
-            _ps_opts_f = []
-            if ps_limite_ui > 0:
-                _ps_opts_f.append(ps_limite_ui)
-            if u_valor > 0:
-                _ps_opts_f.append(max(0.0, u_valor - f_u_input - fgts_u_input))
-            _teto_ps_final = min(_ps_opts_f) if _ps_opts_f else None
-            ps_input_val = clamp_moeda_positiva(texto_moeda_para_float(st.session_state.get("ps_u_key")), _teto_ps_final)
-            st.session_state.dados_cliente['ps_usado'] = ps_input_val
-            ref_text_ps = f"Limite máximo de Pro Soluto: {reais_streamlit_html(fmt_br(ps_limite_ui))}"
-            st.markdown(
-                f'<div class="inline-ref" style="color:#111111;opacity:1;">{ref_text_ps}</div>',
-                unsafe_allow_html=True,
-            )
+        col_ps_parc, col_ps_val = st.columns(2)
 
         with col_ps_parc:
             st.text_input("Número de parcelas do Pro Soluto", key="parc_ps_key", placeholder=f"1 a {parc_max_ui}")
@@ -3898,11 +3951,41 @@ def aba_simulador_automacao(
             st.session_state.dados_cliente['ps_parcelas'] = parc
             st.markdown(f'<span class="inline-ref">Prazo máximo de parcelas do Pro Soluto: {parc_max_ui} meses</span>', unsafe_allow_html=True)
 
+        j8_ui = float(mps.get("parcela_max_j8") or 0)
+        pol_ui = str(d.get("politica", "Direcional"))
+        ps_cap_parc_ui = valor_ps_maximo_parcela_j8(j8_ui, parc, _prem, pol_ui) if j8_ui > 0 and parc > 0 else 0.0
+        ps_limite_base_ui = float(mps.get("ps_max_efetivo", 0) or 0)
+        if ps_cap_parc_ui > 0.0:
+            ps_limite_ui2 = min(ps_limite_base_ui, ps_cap_parc_ui) if ps_limite_base_ui > 0.0 else ps_cap_parc_ui
+        else:
+            ps_limite_ui2 = ps_limite_base_ui
+
+        with col_ps_val:
+            st.text_input("Valor do Pro Soluto", key="ps_u_key", placeholder="0,00")
+            _ps_opts_f = []
+            if ps_limite_ui2 > 0:
+                _ps_opts_f.append(ps_limite_ui2)
+            if u_valor > 0:
+                _ps_opts_f.append(max(0.0, u_valor - f_u_input - fgts_u_input))
+            _teto_ps_final = min(_ps_opts_f) if _ps_opts_f else None
+            ps_input_val = clamp_moeda_positiva(texto_moeda_para_float(st.session_state.get("ps_u_key")), _teto_ps_final)
+            st.session_state.dados_cliente['ps_usado'] = ps_input_val
+            ref_text_ps = f"Limite máximo de Pro Soluto: {reais_streamlit_html(fmt_br(ps_limite_ui2))}"
+            st.markdown(
+                f'<div class="inline-ref" style="color:#111111;opacity:1;">{ref_text_ps}</div>',
+                unsafe_allow_html=True,
+            )
+            st.markdown(
+                f'<span class="inline-ref">Parcela máx. (J8): {reais_streamlit_html(fmt_br(j8_ui))}</span>',
+                unsafe_allow_html=True,
+            )
+
         v_parc = parcela_ps_para_valor(
             float(ps_input_val or 0),
             parc,
-            str(d.get("politica", "Direcional")),
+            pol_ui,
             _prem,
+            parcela_max_j8=j8_ui if j8_ui > 0 else None,
         )
         st.session_state.dados_cliente['ps_mensal'] = v_parc
         st.session_state.dados_cliente['ps_mensal_simples'] = (float(ps_input_val or 0) / parc) if parc > 0 else 0.0
