@@ -32,8 +32,6 @@ URL_LOGO_DIRECIONAL_BIG = "https://logodownload.org/wp-content/uploads/2021/04/d
 # Mesmos ficheiros da ficha Credenciamento Vendas RJ (pasta deste .py, raiz do repo ou assets/)
 LOGO_TOPO_ARQUIVO = "502.57_LOGO DIRECIONAL_V2F-01.png"
 FAVICON_ARQUIVO = "502.57_LOGO D_COR_V3F.png"
-FUNDO_CADASTRO_ARQUIVO = "fundo_cadastrorh.jpg"
-
 # Paleta alinhada à ficha Credenciamento Vendas RJ (Streamlit)
 COR_AZUL_ESC = "#04428f"
 COR_VERMELHO = "#cb0935"
@@ -1854,40 +1852,6 @@ class MotorRecomendacao:
 _DIR_SIM_APP = Path(__file__).resolve().parent
 
 
-def _resolver_imagem_fundo_local(nome: str) -> Path | None:
-    """JPG/PNG: nome exato, stem+ext ou pasta assets/ (app e pai do repo)."""
-    for base in (_DIR_SIM_APP, _DIR_SIM_APP.parent):
-        for sub in ("", "assets"):
-            root = base / sub if sub else base
-            p = root / nome
-            if p.is_file():
-                return p
-            stem = Path(nome).stem
-            for ext in (".jpg", ".jpeg", ".JPG", ".JPEG", ".png", ".PNG"):
-                p2 = root / f"{stem}{ext}"
-                if p2.is_file():
-                    return p2
-    return None
-
-
-def _css_url_fundo_simulador() -> str:
-    """Imagem local (ficha Vendas RJ); senão fallback neutro."""
-    p = _resolver_imagem_fundo_local(FUNDO_CADASTRO_ARQUIVO)
-    if p and p.is_file():
-        try:
-            raw = p.read_bytes()
-            suf = p.suffix.lower()
-            mime = "image/jpeg" if suf in (".jpg", ".jpeg") else "image/png"
-            b64 = base64.b64encode(raw).decode("ascii")
-            return f"data:{mime};base64,{b64}"
-        except OSError:
-            pass
-    return (
-        "https://images.unsplash.com/photo-1486406146926-c627a92ad1ab"
-        "?auto=format&fit=crop&w=1920&q=80"
-    )
-
-
 def _resolver_png_raiz(nome: str) -> Path | None:
     """Procura PNG/JPG pelo nome exato na pasta do app, assets/ ou raiz do repo."""
     for base in (_DIR_SIM_APP, _DIR_SIM_APP.parent):
@@ -1952,21 +1916,9 @@ def configurar_layout():
         initial_sidebar_state="collapsed",
     )
 
-    bg_url = _css_url_fundo_simulador().replace("&", "&amp;")
     st.markdown(f"""
         <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Montserrat:wght@600;700;800&display=swap');
-        @keyframes brandBarFlow {{
-            0% {{ background-position: 0% 50%; }}
-            100% {{ background-position: 200% 50%; }}
-        }}
-        /* Movimento suave no fundo (imagem + overlay) */
-        @keyframes simAppBgDrift {{
-            0% {{ background-position: center center, 12% 42%; }}
-            35% {{ background-position: center center, 88% 38%; }}
-            70% {{ background-position: center center, 52% 78%; }}
-            100% {{ background-position: center center, 12% 42%; }}
-        }}
         html {{
             color-scheme: light only !important;
         }}
@@ -2001,28 +1953,11 @@ def configurar_layout():
         }}
         .stApp,
         [data-testid="stApp"] {{
-            /* Azul mais presente que antes, sem cobrir totalmente a foto */
-            background-color: rgba(4, 66, 143, 0.52) !important;
-            background-image: linear-gradient(
-                180deg,
-                rgba(4, 66, 143, 0.58) 0%,
-                rgba(4, 66, 143, 0.48) 45%,
-                rgba(2, 42, 92, 0.54) 100%
-            ), url("{bg_url}") !important;
-            /* Gradiente em tela cheia; foto com cover = mantém proporção (sem esticar). */
-            background-size: 100% 100%, cover !important;
-            background-position: center center, center center !important;
-            background-attachment: fixed !important;
+            background-color: #ffffff !important;
+            background-image: none !important;
+            background-attachment: scroll !important;
             background-repeat: no-repeat !important;
-            animation: simAppBgDrift 28s ease-in-out infinite !important;
-        }}
-        @media (prefers-reduced-motion: reduce) {{
-            .stApp,
-            [data-testid="stApp"] {{
-                animation: none !important;
-                background-size: 100% 100%, cover !important;
-                background-position: center center, center center !important;
-            }}
+            animation: none !important;
         }}
         /* SO em dark: mantém UI clara (inputs, texto, popovers Base Web) */
         @media (prefers-color-scheme: dark) {{
@@ -2157,16 +2092,16 @@ def configurar_layout():
         [data-testid="stToolbar"] button,
         [data-testid="stToolbar"] a,
         [data-testid="stToolbar"] [data-testid] {{
-            color: rgba(255, 255, 255, 0.95) !important;
+            color: #475569 !important;
         }}
         [data-testid="stHeader"] button,
         [data-testid="stHeader"] a {{
-            color: rgba(255, 255, 255, 0.95) !important;
+            color: #475569 !important;
         }}
         [data-testid="stToolbar"] svg,
         [data-testid="stHeader"] svg {{
-            fill: rgba(255, 255, 255, 0.95) !important;
-            color: rgba(255, 255, 255, 0.95) !important;
+            fill: #475569 !important;
+            color: #475569 !important;
         }}
         [data-testid="stMain"] {{
             padding-left: clamp(10px, 2.2vw, 28px) !important;
@@ -2240,17 +2175,19 @@ def configurar_layout():
             margin-top: 0.5rem !important;
             margin-bottom: 0.5rem !important;
             padding: 1.25rem clamp(1rem, 2vw, 2rem) !important;
-            /* Branco quase sólido com transparência mínima + leve vidro */
+            /* Vidro leve sobre fundo branco (transparência como antes) */
             background: rgba(255, 255, 255, 0.93) !important;
             backdrop-filter: saturate(1.08) blur(10px) !important;
             -webkit-backdrop-filter: saturate(1.08) blur(10px) !important;
             border-radius: 8px !important;
-            border: 1px solid rgba(226, 232, 240, 0.92) !important;
-            box-shadow: 0 4px 24px rgba(4, 66, 143, 0.08), 0 1px 3px rgba(15, 23, 42, 0.06) !important;
+            border: none !important;
+            box-shadow: 0 2px 16px rgba(15, 23, 42, 0.06), 0 1px 3px rgba(15, 23, 42, 0.04) !important;
         }}
         [data-testid="stVerticalBlockBorderWrapper"] {{
             border-radius: 8px !important;
             background: transparent !important;
+            border: none !important;
+            box-shadow: none !important;
         }}
 
         /* Títulos de conteúdo — hierarquia clara, só Montserrat + Inter herdada */
@@ -2583,18 +2520,17 @@ def configurar_layout():
             margin: 0 0 1.75rem 0;
         }}
         .header-brand-bar {{
-            height: 5px;
+            height: 3px;
             border-radius: 2px;
             background: linear-gradient(
                 90deg,
-                {COR_AZUL_ESC} 0%,
-                {COR_VERMELHO} 25%,
-                #0ea5e9 50%,
-                {COR_VERMELHO} 75%,
-                {COR_AZUL_ESC} 100%
+                rgba(227, 6, 19, 0.15) 0%,
+                {COR_VERMELHO} 45%,
+                {COR_VERMELHO} 55%,
+                rgba(227, 6, 19, 0.15) 100%
             );
-            background-size: 200% 100%;
-            animation: brandBarFlow 5s ease-in-out infinite;
+            background-size: 100% 100%;
+            animation: none;
         }}
         .home-banners-wrap {{
             display: flex;
@@ -3415,7 +3351,6 @@ def tela_login(df_logins: pd.DataFrame) -> None:
                             "user_is_adm": login_row_is_adm(data),
                         }
                     )
-                    st.success("Login realizado.")
                     st.rerun()
                 else:
                     st.error("Credenciais inválidas.")
@@ -3952,68 +3887,42 @@ def aba_simulador_automacao(
             if df_pool.empty:
                 st.markdown('<div class="custom-alert">Nenhuma unidade encontrada para o filtro.</div>', unsafe_allow_html=True)
             else:
-                cand_ideal = pd.DataFrame()
-                cand_seguro = pd.DataFrame()
                 final_cards = []
-
                 vv = pd.to_numeric(df_pool["Valor de Venda"], errors="coerce").fillna(0.0)
                 pc = pd.to_numeric(df_pool["Poder_Compra"], errors="coerce").fillna(0.0)
-                lim_seg = 0.9 * pc
-                mask_ideal = (vv > 0) & (vv <= pc)
-                ideal_sub = df_pool[mask_ideal]
-                label_ideal = "IDEAL"
-                if not ideal_sub.empty:
-                    max_p_i = pd.to_numeric(ideal_sub["Valor de Venda"], errors="coerce").max()
-                    cand_ideal = ideal_sub[pd.to_numeric(ideal_sub["Valor de Venda"], errors="coerce") == max_p_i]
+                # 100% do poder de compra por unidade (PS e teto já entram em Poder_Compra / linha)
+                mask_fit = (vv > 0) & (vv <= pc)
+                fit_sub = df_pool[mask_fit]
+                if not fit_sub.empty:
+                    max_p = pd.to_numeric(fit_sub["Valor de Venda"], errors="coerce").max()
+                    cand_rec = fit_sub[
+                        pd.to_numeric(fit_sub["Valor de Venda"], errors="coerce") == max_p
+                    ]
+                    label_rec, css_rec = "IDEAL", "badge-ideal"
                 else:
                     pool_pos = df_pool[vv > 0]
                     if pool_pos.empty:
-                        cand_ideal = pd.DataFrame()
+                        cand_rec = pd.DataFrame()
+                        label_rec, css_rec = "IDEAL", "badge-ideal"
                     else:
-                        min_v_i = pd.to_numeric(pool_pos["Valor de Venda"], errors="coerce").min()
-                        cand_ideal = pool_pos[
-                            pd.to_numeric(pool_pos["Valor de Venda"], errors="coerce") == min_v_i
+                        min_v = pd.to_numeric(pool_pos["Valor de Venda"], errors="coerce").min()
+                        cand_rec = pool_pos[
+                            pd.to_numeric(pool_pos["Valor de Venda"], errors="coerce") == min_v
                         ]
-                        label_ideal = "MENOR PREÇO"
-
-                mask_seg = (vv > 0) & (vv <= lim_seg)
-                seg_sub = df_pool[mask_seg]
-                label_seguro = "SEGURO"
-                if not seg_sub.empty:
-                    max_p_s = pd.to_numeric(seg_sub["Valor de Venda"], errors="coerce").max()
-                    cand_seguro = seg_sub[pd.to_numeric(seg_sub["Valor de Venda"], errors="coerce") == max_p_s]
-                else:
-                    stretch = df_pool[(vv > 0) & (vv > lim_seg)]
-                    if stretch.empty:
-                        cand_seguro = pd.DataFrame()
-                    else:
-                        min_v_s = pd.to_numeric(stretch["Valor de Venda"], errors="coerce").min()
-                        cand_seguro = stretch[
-                            pd.to_numeric(stretch["Valor de Venda"], errors="coerce") == min_v_s
-                        ]
-                        label_seguro = "MENOR PREÇO"
-
-                if not cand_ideal.empty and not cand_seguro.empty:
-                    _k_ideal = set(
-                        zip(
-                            cand_ideal["Empreendimento"].astype(str),
-                            cand_ideal["Identificador"].astype(str),
-                        )
-                    )
-                    cand_seguro = cand_seguro[
-                        ~cand_seguro.apply(
-                            lambda r: (str(r["Empreendimento"]), str(r["Identificador"])) in _k_ideal,
-                            axis=1,
-                        )
-                    ]
+                        label_rec, css_rec = "MENOR PREÇO", "badge-seguro"
 
                 def add_cards_group(label, df_group, css_class):
-                    df_u = df_group.drop_duplicates(subset=["Identificador"])
-                    for _, row in df_u.head(8).iterrows():
+                    if df_group is None or df_group.empty:
+                        return
+                    df_u = df_group.drop_duplicates(subset=["Empreendimento", "Identificador"])
+                    df_u = df_u.sort_values(
+                        ["Empreendimento", "Identificador"],
+                        ascending=[True, True],
+                    )
+                    for _, row in df_u.iterrows():
                         final_cards.append({"label": label, "row": row, "css": css_class})
 
-                add_cards_group(label_ideal, cand_ideal, "badge-ideal")
-                add_cards_group(label_seguro, cand_seguro, "badge-seguro")
+                add_cards_group(label_rec, cand_rec, css_rec)
 
                 if not final_cards:
                     st.info("Ajuste o filtro de empreendimento ou os valores aprovados para ver sugestões de unidades.")
@@ -4728,15 +4637,16 @@ def main():
     if not st.session_state["logged_in"]:
         tela_login(carregar_apenas_logins())
     else:
-        (
-            df_finan,
-            df_estoque,
-            df_politicas,
-            _df_cad_hist,
-            df_home_banners,
-            premissas_dict,
-            df_campanhas_texto,
-        ) = carregar_dados_sistema()
+        with st.spinner("A carregar o simulador…"):
+            (
+                df_finan,
+                df_estoque,
+                df_politicas,
+                _df_cad_hist,
+                df_home_banners,
+                premissas_dict,
+                df_campanhas_texto,
+            ) = carregar_dados_sistema()
         aba_simulador_automacao(
             df_finan,
             df_estoque,
