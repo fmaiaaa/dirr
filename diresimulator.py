@@ -1993,13 +1993,13 @@ def configurar_layout():
         }}
         .stApp,
         [data-testid="stApp"] {{
-            /* Imagem de fundo com véu branco (mais opaco — foto mais discreta) */
-            background-color: #f8fafc !important;
+            /* Véu sobre a foto: ~90% opaco (10% da imagem a transparecer) */
+            background-color: rgba(248, 250, 252, 0.9) !important;
             background-image: linear-gradient(
                 180deg,
-                rgba(255, 255, 255, 0.93) 0%,
-                rgba(255, 255, 255, 0.89) 42%,
-                rgba(248, 250, 252, 0.91) 100%
+                rgba(255, 255, 255, 0.9) 0%,
+                rgba(255, 255, 255, 0.9) 42%,
+                rgba(248, 250, 252, 0.9) 100%
             ), url("{bg_url}") !important;
             background-size: 100% 100%, cover !important;
             background-position: center center, center center !important;
@@ -2225,8 +2225,8 @@ def configurar_layout():
             margin-top: 0.5rem !important;
             margin-bottom: 0.5rem !important;
             padding: 1.25rem clamp(1rem, 2vw, 2rem) !important;
-            /* Vidro leve — painel um pouco mais opaco */
-            background: rgba(255, 255, 255, 0.97) !important;
+            /* Painel ~95% opaco + vidro (deixa perceber o fundo um pouco) */
+            background: rgba(255, 255, 255, 0.95) !important;
             backdrop-filter: saturate(1.08) blur(10px) !important;
             -webkit-backdrop-filter: saturate(1.08) blur(10px) !important;
             border-radius: 8px !important;
