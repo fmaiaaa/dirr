@@ -2004,13 +2004,13 @@ def configurar_layout():
         }}
         .stApp,
         [data-testid="stApp"] {{
-            /* Véu sobre a foto: ~90% opaco (10% da imagem a transparecer) */
-            background-color: rgba(248, 250, 252, 0.9) !important;
+            /* Único fundo: foto + véu branco com transparência mínima (~93% opaco) */
+            background-color: rgba(252, 252, 253, 0.93) !important;
             background-image: linear-gradient(
                 180deg,
-                rgba(255, 255, 255, 0.9) 0%,
-                rgba(255, 255, 255, 0.9) 42%,
-                rgba(248, 250, 252, 0.9) 100%
+                rgba(255, 255, 255, 0.93) 0%,
+                rgba(255, 255, 255, 0.93) 50%,
+                rgba(248, 250, 252, 0.93) 100%
             ), url("{bg_url}") !important;
             background-size: 100% 100%, cover !important;
             background-position: center center, center center !important;
@@ -2076,7 +2076,11 @@ def configurar_layout():
                 padding: 0.85rem clamp(0.65rem, 3.5vw, 1rem) !important;
                 margin-left: 0 !important;
                 margin-right: 0 !important;
-                border-radius: 6px !important;
+                border-radius: 0 !important;
+                background: transparent !important;
+                box-shadow: none !important;
+                backdrop-filter: none !important;
+                -webkit-backdrop-filter: none !important;
             }}
             .header-brand-bar-wrap {{
                 width: 100%;
@@ -2238,13 +2242,13 @@ def configurar_layout():
             margin-top: 0.25rem !important;
             margin-bottom: 0.35rem !important;
             padding: 1rem clamp(0.75rem, 1.5vw, 1.35rem) !important;
-            /* Painel um pouco mais transparente (~90% opaco) + vidro */
-            background: rgba(255, 255, 255, 0.9) !important;
-            backdrop-filter: saturate(1.08) blur(12px) !important;
-            -webkit-backdrop-filter: saturate(1.08) blur(12px) !important;
-            border-radius: 8px !important;
+            /* Sem cartão: conteúdo direto sobre o fundo único da app */
+            background: transparent !important;
+            backdrop-filter: none !important;
+            -webkit-backdrop-filter: none !important;
+            border-radius: 0 !important;
             border: none !important;
-            box-shadow: 0 2px 16px rgba(15, 23, 42, 0.06), 0 1px 3px rgba(15, 23, 42, 0.04) !important;
+            box-shadow: none !important;
         }}
         [data-testid="stVerticalBlockBorderWrapper"] {{
             border-radius: 8px !important;
@@ -2573,7 +2577,7 @@ def configurar_layout():
             max-width: 1100px;
             position: relative;
         }}
-        /* Barra animada — contida no .block-container (painel branco); vermelho dominante + azul Direcional em destaque */
+        /* Barra animada — mesma largura do conteúdo; vermelho dominante + azul Direcional */
         .header-brand-bar-wrap {{
             width: 100%;
             max-width: 100%;
