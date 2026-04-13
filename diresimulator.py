@@ -2067,12 +2067,13 @@ def configurar_layout():
                 border-radius: 6px !important;
             }}
             .header-brand-bar-wrap {{
-                width: 100vw;
-                max-width: none;
+                width: 100%;
+                max-width: 100%;
                 position: relative;
-                left: 50%;
-                transform: translateX(-50%);
+                left: auto;
+                transform: none;
                 margin: 0 0 1.5rem 0;
+                box-sizing: border-box;
             }}
             [data-testid="stHorizontalBlock"] {{
                 flex-direction: column !important;
@@ -2559,13 +2560,13 @@ def configurar_layout():
             max-width: 1100px;
             position: relative;
         }}
-        /* Barra animada — topo do conteúdo (largura total da viewport + faixa mais alta) */
+        /* Barra animada — contida no .block-container (painel branco); vermelho dominante + azul Direcional em destaque */
         .header-brand-bar-wrap {{
-            width: 100vw;
-            max-width: none;
+            width: 100%;
+            max-width: 100%;
             position: relative;
-            left: 50%;
-            transform: translateX(-50%);
+            left: auto;
+            transform: none;
             margin: 0 0 1.75rem 0;
             box-sizing: border-box;
         }}
@@ -2573,14 +2574,20 @@ def configurar_layout():
             height: 10px;
             border-radius: 5px;
             width: 100%;
+            max-width: 100%;
             background: linear-gradient(
                 90deg,
-                rgba(227, 6, 19, 0.2) 0%,
-                {COR_VERMELHO} 18%,
-                #f97316 40%,
-                #fb923c 50%,
-                {COR_VERMELHO} 68%,
-                rgba(227, 6, 19, 0.25) 100%
+                rgba(227, 6, 19, 0.45) 0%,
+                {COR_VERMELHO} 12%,
+                {COR_VERMELHO} 24%,
+                {COR_AZUL_ESC} 34%,
+                {COR_VERMELHO} 42%,
+                {COR_VERMELHO} 52%,
+                #d40830 58%,
+                {COR_VERMELHO} 66%,
+                {COR_AZUL_ESC} 76%,
+                {COR_VERMELHO} 86%,
+                rgba(227, 6, 19, 0.55) 100%
             );
             background-size: 200% 100%;
             animation: brandBarFlow 7s ease-in-out infinite;
