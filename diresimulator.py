@@ -2073,9 +2073,9 @@ def configurar_layout():
                 -webkit-backdrop-filter: none !important;
             }}
             .header-brand-bar-wrap {{
-                width: 100vw;
-                max-width: 100vw;
-                margin-left: calc(50% - 50vw);
+                width: 100%;
+                max-width: 100%;
+                margin-left: 0;
                 margin-right: 0;
                 margin-bottom: 1.5rem;
             }}
@@ -2614,11 +2614,11 @@ def configurar_layout():
             max-width: 1100px;
             position: relative;
         }}
-        /* Barra: largura total da viewport; gradiente horizontal azul → vermelho → azul; movimento discreto */
+        /* Barra: mesma largura útil dos demais widgets (coluna dentro do .block-container); gradiente azul ↔ vermelho */
         .header-brand-bar-wrap {{
-            width: 100vw;
-            max-width: 100vw;
-            margin-left: calc(50% - 50vw);
+            width: 100%;
+            max-width: 100%;
+            margin-left: 0;
             margin-right: 0;
             position: relative;
             left: auto;
