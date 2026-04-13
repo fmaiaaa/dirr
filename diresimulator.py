@@ -1955,10 +1955,10 @@ def configurar_layout():
     st.markdown(f"""
         <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Montserrat:wght@600;700;800&display=swap');
-        /* Azul sólido revelado do centro (clip-path): sem mistura com vermelho na zona azul */
-        @keyframes brandBarBlueClip {{
-            0% {{ clip-path: inset(0 49.5% 0 49.5%); }}
-            100% {{ clip-path: inset(0 0 0 0); }}
+        /* Barra institucional: gradiente azul ↔ vermelho; deslocamento suave (sem “dois blocos”) */
+        @keyframes brandBarGradientShift {{
+            0% {{ background-position: 0% 50%; }}
+            100% {{ background-position: 100% 50%; }}
         }}
         html {{
             color-scheme: light only !important;
@@ -2073,13 +2073,11 @@ def configurar_layout():
                 -webkit-backdrop-filter: none !important;
             }}
             .header-brand-bar-wrap {{
-                width: 100%;
-                max-width: 100%;
-                position: relative;
-                left: auto;
-                transform: none;
-                margin: 0 0 1.5rem 0;
-                box-sizing: border-box;
+                width: 100vw;
+                max-width: 100vw;
+                margin-left: calc(50% - 50vw);
+                margin-right: 0;
+                margin-bottom: 1.5rem;
             }}
             [data-testid="stHorizontalBlock"] {{
                 flex-direction: column !important;
@@ -2616,56 +2614,41 @@ def configurar_layout():
             max-width: 1100px;
             position: relative;
         }}
-        /* Barra: fundo vermelho no wrap; faixa azul sólida por cima (clip cresce do centro) */
+        /* Barra: largura total da viewport; gradiente horizontal azul → vermelho → azul; movimento discreto */
         .header-brand-bar-wrap {{
-            width: 100%;
-            max-width: min(1040px, 92%);
-            margin-left: auto;
-            margin-right: auto;
+            width: 100vw;
+            max-width: 100vw;
+            margin-left: calc(50% - 50vw);
+            margin-right: 0;
             position: relative;
             left: auto;
             transform: none;
             margin-bottom: 1.75rem;
             margin-top: 0;
             box-sizing: border-box;
-            height: 7px;
-            border-radius: 4px;
+            height: 5px;
+            border-radius: 0;
             overflow: hidden;
             background: linear-gradient(
-                180deg,
-                {COR_VERMELHO} 0%,
-                #d40830 48%,
-                {COR_VERMELHO_ESCURO} 52%,
-                {COR_VERMELHO} 100%
+                90deg,
+                {COR_AZUL_ESC} 0%,
+                #1a4a86 20%,
+                #5c2d52 45%,
+                {COR_VERMELHO} 50%,
+                #5c2d52 55%,
+                #1a4a86 80%,
+                {COR_AZUL_ESC} 100%
             );
-        }}
-        .header-brand-bar {{
-            display: block;
-            height: 100%;
-            width: 100%;
-            max-width: 100%;
-            margin: 0;
-            padding: 0;
-            border: none;
-            outline: none;
-            box-shadow: none;
-            border-radius: 0;
-            transform: translateZ(0);
-            backface-visibility: hidden;
-            will-change: clip-path;
-            background: linear-gradient(
-                180deg,
-                #0555a8 0%,
-                {COR_AZUL_ESC} 50%,
-                #033061 100%
-            );
-            clip-path: inset(0 49.5% 0 49.5%);
-            animation: brandBarBlueClip 8s linear infinite alternate;
+            background-size: 240% 100%;
+            background-repeat: no-repeat;
+            background-position: 0% 50%;
+            will-change: background-position;
+            animation: brandBarGradientShift 22s ease-in-out infinite alternate;
         }}
         @media (prefers-reduced-motion: reduce) {{
-            .header-brand-bar {{
+            .header-brand-bar-wrap {{
                 animation: none !important;
-                clip-path: inset(0 0 0 0) !important;
+                background-position: 50% 50% !important;
                 will-change: auto !important;
             }}
         }}
@@ -3606,7 +3589,7 @@ def aba_simulador_automacao(
     if 'dados_cliente' not in st.session_state: st.session_state.dados_cliente = {}
 
     st.markdown(
-        '<div class="header-brand-bar-wrap"><div class="header-brand-bar" aria-hidden="true"></div></div>',
+        '<div class="header-brand-bar-wrap" aria-hidden="true"></div>',
         unsafe_allow_html=True,
     )
     render_secao_campanhas_comerciais(
