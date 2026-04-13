@@ -2393,47 +2393,8 @@ def configurar_layout():
             box-shadow: 0 8px 22px -5px rgba({RGB_VERMELHO_CSS}, 0.45) !important;
         }}
 
-        /* Botões secundários = azul Direcional, texto branco */
+        /* Botões secundários = branco, texto escuro (primários continuam vermelhos) */
         .stButton button:not([kind="primary"]) {{
-            background: {COR_AZUL_ESC} !important;
-            color: #ffffff !important;
-            -webkit-text-fill-color: #ffffff !important;
-            border: none !important;
-            box-shadow: 0 2px 8px rgba({RGB_AZUL_CSS}, 0.22) !important;
-        }}
-        .stButton button:not([kind="primary"]):hover {{
-            background: #03346e !important;
-            color: #ffffff !important;
-            -webkit-text-fill-color: #ffffff !important;
-            border: none !important;
-            box-shadow: 0 4px 14px rgba({RGB_AZUL_CSS}, 0.35) !important;
-        }}
-        .stButton button:not([kind="primary"]) *,
-        .stButton button:not([kind="primary"]) span,
-        .stButton button:not([kind="primary"]) p {{
-            color: #ffffff !important;
-            -webkit-text-fill-color: #ffffff !important;
-        }}
-        .stButton button:not([kind="primary"]) svg {{
-            fill: #ffffff !important;
-            color: #ffffff !important;
-        }}
-
-        /* Voltar (data-btn-azul): mesmo padrão azul / branco */
-        div[data-testid="stMarkdown"]:has([data-btn-azul]) + div[data-testid="stButton"] button {{
-            background: {COR_AZUL_ESC} !important;
-            color: #ffffff !important;
-            -webkit-text-fill-color: #ffffff !important;
-            border: none !important;
-        }}
-        div[data-testid="stMarkdown"]:has([data-btn-azul]) + div[data-testid="stButton"] button:hover {{
-            background: #03346e !important;
-            color: #ffffff !important;
-            -webkit-text-fill-color: #ffffff !important;
-            box-shadow: 0 4px 14px rgba({RGB_AZUL_CSS}, 0.35) !important;
-        }}
-        /* Sair do sistema: branco, texto preto */
-        div[data-testid="stMarkdown"]:has([data-btn-logout]) + div[data-testid="stButton"] button {{
             background: #ffffff !important;
             background-color: #ffffff !important;
             color: #0f172a !important;
@@ -2441,7 +2402,7 @@ def configurar_layout():
             border: 1px solid #cbd5e1 !important;
             box-shadow: 0 1px 3px rgba(15, 23, 42, 0.08) !important;
         }}
-        div[data-testid="stMarkdown"]:has([data-btn-logout]) + div[data-testid="stButton"] button:hover {{
+        .stButton button:not([kind="primary"]):hover {{
             background: #f1f5f9 !important;
             background-color: #f1f5f9 !important;
             color: #0f172a !important;
@@ -2449,13 +2410,13 @@ def configurar_layout():
             border-color: #94a3b8 !important;
             box-shadow: 0 2px 8px rgba(15, 23, 42, 0.1) !important;
         }}
-        div[data-testid="stMarkdown"]:has([data-btn-logout]) + div[data-testid="stButton"] button *,
-        div[data-testid="stMarkdown"]:has([data-btn-logout]) + div[data-testid="stButton"] button span,
-        div[data-testid="stMarkdown"]:has([data-btn-logout]) + div[data-testid="stButton"] button p {{
+        .stButton button:not([kind="primary"]) *,
+        .stButton button:not([kind="primary"]) span,
+        .stButton button:not([kind="primary"]) p {{
             color: #0f172a !important;
             -webkit-text-fill-color: #0f172a !important;
         }}
-        div[data-testid="stMarkdown"]:has([data-btn-logout]) + div[data-testid="stButton"] button svg {{
+        .stButton button:not([kind="primary"]) svg {{
             fill: #0f172a !important;
             color: #0f172a !important;
         }}
@@ -2470,7 +2431,7 @@ def configurar_layout():
         a[href*="wa.me"]:not([data-testid="stLinkButton"]):hover {{
             color: #075e54 !important;
         }}
-        /* Botão WhatsApp (link_button): azul Direcional, letras brancas */
+        /* Botão WhatsApp (link_button): mesmo padrão secundário — branco, texto escuro */
         a[data-testid="stLinkButton"][href*="api.whatsapp.com"],
         a[data-testid="stLinkButton"][href*="whatsapp.com"],
         a[data-testid="stLinkButton"][href*="wa.me"] {{
@@ -2482,31 +2443,32 @@ def configurar_layout():
             min-height: 48px !important;
             padding: 0.65rem 1.15rem !important;
             border-radius: 8px !important;
-            background: {COR_AZUL_ESC} !important;
-            background-color: {COR_AZUL_ESC} !important;
+            background: #ffffff !important;
+            background-color: #ffffff !important;
             background-image: none !important;
-            color: #ffffff !important;
-            -webkit-text-fill-color: #ffffff !important;
+            color: #0f172a !important;
+            -webkit-text-fill-color: #0f172a !important;
             font-weight: 700 !important;
             text-decoration: none !important;
-            border: none !important;
-            box-shadow: 0 2px 8px rgba({RGB_AZUL_CSS}, 0.22) !important;
+            border: 1px solid #cbd5e1 !important;
+            box-shadow: 0 1px 3px rgba(15, 23, 42, 0.08) !important;
         }}
         a[data-testid="stLinkButton"][href*="api.whatsapp.com"] *,
         a[data-testid="stLinkButton"][href*="whatsapp.com"] *,
         a[data-testid="stLinkButton"][href*="wa.me"] * {{
-            color: #ffffff !important;
-            -webkit-text-fill-color: #ffffff !important;
+            color: #0f172a !important;
+            -webkit-text-fill-color: #0f172a !important;
         }}
         a[data-testid="stLinkButton"][href*="api.whatsapp.com"]:hover,
         a[data-testid="stLinkButton"][href*="whatsapp.com"]:hover,
         a[data-testid="stLinkButton"][href*="wa.me"]:hover {{
-            background: #03346e !important;
-            background-color: #03346e !important;
+            background: #f1f5f9 !important;
+            background-color: #f1f5f9 !important;
             background-image: none !important;
-            color: #ffffff !important;
-            -webkit-text-fill-color: #ffffff !important;
-            box-shadow: 0 4px 14px rgba({RGB_AZUL_CSS}, 0.35) !important;
+            color: #0f172a !important;
+            -webkit-text-fill-color: #0f172a !important;
+            border-color: #94a3b8 !important;
+            box-shadow: 0 2px 8px rgba(15, 23, 42, 0.1) !important;
         }}
         /* Reforço no st.dialog: Streamlit às vezes aplica cores invertidas no link_button */
         [data-testid="stDialog"] a[data-testid="stLinkButton"][href*="api.whatsapp.com"],
@@ -2520,31 +2482,32 @@ def configurar_layout():
             min-height: 48px !important;
             padding: 0.65rem 1.15rem !important;
             border-radius: 8px !important;
-            background: {COR_AZUL_ESC} !important;
-            background-color: {COR_AZUL_ESC} !important;
+            background: #ffffff !important;
+            background-color: #ffffff !important;
             background-image: none !important;
-            color: #ffffff !important;
-            -webkit-text-fill-color: #ffffff !important;
+            color: #0f172a !important;
+            -webkit-text-fill-color: #0f172a !important;
             font-weight: 700 !important;
             text-decoration: none !important;
-            border: none !important;
-            box-shadow: 0 2px 8px rgba({RGB_AZUL_CSS}, 0.22) !important;
+            border: 1px solid #cbd5e1 !important;
+            box-shadow: 0 1px 3px rgba(15, 23, 42, 0.08) !important;
         }}
         [data-testid="stDialog"] a[data-testid="stLinkButton"][href*="api.whatsapp.com"] *,
         [data-testid="stDialog"] a[data-testid="stLinkButton"][href*="whatsapp.com"] *,
         [data-testid="stDialog"] a[data-testid="stLinkButton"][href*="wa.me"] * {{
-            color: #ffffff !important;
-            -webkit-text-fill-color: #ffffff !important;
+            color: #0f172a !important;
+            -webkit-text-fill-color: #0f172a !important;
         }}
         [data-testid="stDialog"] a[data-testid="stLinkButton"][href*="api.whatsapp.com"]:hover,
         [data-testid="stDialog"] a[data-testid="stLinkButton"][href*="whatsapp.com"]:hover,
         [data-testid="stDialog"] a[data-testid="stLinkButton"][href*="wa.me"]:hover {{
-            background: #03346e !important;
-            background-color: #03346e !important;
+            background: #f1f5f9 !important;
+            background-color: #f1f5f9 !important;
             background-image: none !important;
-            color: #ffffff !important;
-            -webkit-text-fill-color: #ffffff !important;
-            box-shadow: 0 4px 14px rgba({RGB_AZUL_CSS}, 0.35) !important;
+            color: #0f172a !important;
+            -webkit-text-fill-color: #0f172a !important;
+            border-color: #94a3b8 !important;
+            box-shadow: 0 2px 8px rgba(15, 23, 42, 0.1) !important;
         }}
         /* st.dialog: data-testid="stDialog" fica no ROOT do modal (full screen), não num filho — :has() no baseweb nunca casava */
         [data-testid="stDialog"] {{
@@ -2615,25 +2578,27 @@ def configurar_layout():
         }}
 
         .stDownloadButton button {{
-            background: {COR_AZUL_ESC} !important;
-            color: #ffffff !important;
-            -webkit-text-fill-color: #ffffff !important;
-            border: none !important;
+            background: #ffffff !important;
+            background-color: #ffffff !important;
+            color: #0f172a !important;
+            -webkit-text-fill-color: #0f172a !important;
+            border: 1px solid #cbd5e1 !important;
             height: 48px !important;
-            box-shadow: 0 2px 8px rgba({RGB_AZUL_CSS}, 0.22) !important;
+            box-shadow: 0 1px 3px rgba(15, 23, 42, 0.08) !important;
         }}
         .stDownloadButton button:hover {{
-            background: #03346e !important;
-            color: #ffffff !important;
-            -webkit-text-fill-color: #ffffff !important;
-            border: none !important;
-            box-shadow: 0 4px 14px rgba({RGB_AZUL_CSS}, 0.35) !important;
+            background: #f1f5f9 !important;
+            background-color: #f1f5f9 !important;
+            color: #0f172a !important;
+            -webkit-text-fill-color: #0f172a !important;
+            border-color: #94a3b8 !important;
+            box-shadow: 0 2px 8px rgba(15, 23, 42, 0.1) !important;
         }}
         .stDownloadButton button *,
         .stDownloadButton button svg {{
-            color: #ffffff !important;
-            -webkit-text-fill-color: #ffffff !important;
-            fill: #ffffff !important;
+            color: #0f172a !important;
+            -webkit-text-fill-color: #0f172a !important;
+            fill: #0f172a !important;
         }}
 
         [data-testid="stSidebar"] .stButton button {{
@@ -3329,7 +3294,7 @@ def enviar_email_smtp(destinatario, nome_cliente, pdf_bytes, dados_cliente, tipo
                                     </table>
 
                                     <div style="text-align: center; margin: 35px 0;">
-                                        <a href="{wa_link}" style="background-color: #04428f; color: #ffffff; padding: 15px 30px; text-decoration: none; font-weight: bold; border-radius: 5px; font-size: 16px; display: inline-block;">Falar com o corretor pelo WhatsApp</a>
+                                        <a href="{wa_link}" style="background-color: #ffffff; color: #0f172a; border: 1px solid #cbd5e1; padding: 15px 30px; text-decoration: none; font-weight: bold; border-radius: 5px; font-size: 16px; display: inline-block;">Falar com o corretor pelo WhatsApp</a>
                                         <p style="font-size: 12px; color: #999; margin-top: 10px;">(Abra o documento em formato PDF em anexo para ver todos os detalhes.)</p>
                                     </div>
                                     
@@ -4609,7 +4574,6 @@ def aba_simulador_automacao(
             if abs(gap_final) <= 1.0: st.session_state.passo_simulacao = 'summary'; scroll_to_top(); st.rerun()
             else:
                 st.error(f"Não é possível avançar. Saldo pendente: R$ {fmt_br(gap_final)}")
-        st.markdown('<div data-btn-azul style="display:none" aria-hidden="true"></div>', unsafe_allow_html=True)
     elif passo == 'summary':
         d = st.session_state.dados_cliente
         _vc_sum = texto_moeda_para_float(st.session_state.get("volta_caixa_key"))
@@ -4747,14 +4711,12 @@ def aba_simulador_automacao(
                 st.cache_data.clear()
                 st.markdown(f'<div class="custom-alert">Registro salvo na aba Simulações da base de dados.</div>', unsafe_allow_html=True); time.sleep(2); st.session_state.dados_cliente = {}; st.session_state.passo_simulacao = 'sim'; scroll_to_top(); st.rerun()
             except Exception as e: st.error(f"Erro ao salvar: {e}")
-        st.markdown('<div data-btn-azul style="display:none" aria-hidden="true"></div>', unsafe_allow_html=True)
         if st.button("Voltar à simulação", use_container_width=True):
             st.session_state.passo_simulacao = 'sim'
             scroll_to_top()
             st.rerun()
 
     st.markdown("<br><br>", unsafe_allow_html=True)
-    st.markdown('<div data-btn-logout style="display:none" aria-hidden="true"></div>', unsafe_allow_html=True)
     if st.button("Sair do sistema", key="btn_logout_bottom", use_container_width=True):
         st.session_state["logged_in"] = False
         st.session_state["user_is_adm"] = False
