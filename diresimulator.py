@@ -1955,10 +1955,10 @@ def configurar_layout():
     st.markdown(f"""
         <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Montserrat:wght@600;700;800&display=swap');
-        /* Azul só no centro: elipse alarga do meio às pontas (camada sobre base vermelha) */
-        @keyframes brandBarBlueGrow {{
-            0% {{ background-size: 18% 100%, 100% 100%; }}
-            100% {{ background-size: 220% 100%, 100% 100%; }}
+        /* Azul sólido revelado do centro (clip-path): sem mistura com vermelho na zona azul */
+        @keyframes brandBarBlueClip {{
+            0% {{ clip-path: inset(0 49.5% 0 49.5%); }}
+            100% {{ clip-path: inset(0 0 0 0); }}
         }}
         html {{
             color-scheme: light only !important;
@@ -1994,13 +1994,13 @@ def configurar_layout():
         }}
         .stApp,
         [data-testid="stApp"] {{
-            /* Único fundo: foto + véu branco (~96% opaco — um pouco menos transparente) */
-            background-color: rgba(252, 252, 253, 0.96) !important;
+            /* Único fundo: foto + véu branco (~98% opaco) */
+            background-color: rgba(252, 252, 253, 0.98) !important;
             background-image: linear-gradient(
                 180deg,
-                rgba(255, 255, 255, 0.96) 0%,
-                rgba(255, 255, 255, 0.96) 50%,
-                rgba(248, 250, 252, 0.96) 100%
+                rgba(255, 255, 255, 0.98) 0%,
+                rgba(255, 255, 255, 0.98) 50%,
+                rgba(248, 250, 252, 0.98) 100%
             ), url("{bg_url}") !important;
             background-size: 100% 100%, cover !important;
             background-position: center center, center center !important;
@@ -2567,7 +2567,7 @@ def configurar_layout():
             max-width: 1100px;
             position: relative;
         }}
-        /* Barra: base vermelha + um único foco azul que cresce do centro para as extremidades */
+        /* Barra: fundo vermelho no wrap; faixa azul sólida por cima (clip cresce do centro) */
         .header-brand-bar-wrap {{
             width: 100%;
             max-width: 100%;
@@ -2576,38 +2576,44 @@ def configurar_layout():
             transform: none;
             margin: 0 0 1.75rem 0;
             box-sizing: border-box;
-        }}
-        .header-brand-bar {{
             height: 10px;
             border-radius: 5px;
+            overflow: hidden;
+            background: linear-gradient(
+                180deg,
+                {COR_VERMELHO} 0%,
+                #d40830 48%,
+                {COR_VERMELHO_ESCURO} 52%,
+                {COR_VERMELHO} 100%
+            );
+        }}
+        .header-brand-bar {{
+            display: block;
+            height: 100%;
             width: 100%;
             max-width: 100%;
+            margin: 0;
+            padding: 0;
+            border: none;
+            outline: none;
+            box-shadow: none;
+            border-radius: 0;
             transform: translateZ(0);
             backface-visibility: hidden;
-            will-change: background-size;
-            background-image:
-                radial-gradient(
-                    ellipse at 50% 50%,
-                    {COR_AZUL_ESC} 0%,
-                    rgba(4, 66, 143, 0.55) 42%,
-                    transparent 68%
-                ),
-                linear-gradient(
-                    180deg,
-                    {COR_VERMELHO} 0%,
-                    #d40830 48%,
-                    {COR_VERMELHO_ESCURO} 52%,
-                    {COR_VERMELHO} 100%
-                );
-            background-repeat: no-repeat, no-repeat;
-            background-position: center center, center center;
-            background-size: 18% 100%, 100% 100%;
-            animation: brandBarBlueGrow 14s linear infinite alternate;
+            will-change: clip-path;
+            background: linear-gradient(
+                180deg,
+                #0555a8 0%,
+                {COR_AZUL_ESC} 50%,
+                #033061 100%
+            );
+            clip-path: inset(0 49.5% 0 49.5%);
+            animation: brandBarBlueClip 8s linear infinite alternate;
         }}
         @media (prefers-reduced-motion: reduce) {{
             .header-brand-bar {{
                 animation: none !important;
-                background-size: 100% 100%, 100% 100% !important;
+                clip-path: inset(0 0 0 0) !important;
                 will-change: auto !important;
             }}
         }}
