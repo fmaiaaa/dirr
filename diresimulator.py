@@ -1149,51 +1149,161 @@ def inject_login_password_manager_fields():
 
 
 def inject_home_banner_dialog_modal():
-    """Abre/fecha lightbox com <dialog>.showModal() — top layer do navegador, centralizado na tela (não no scroll do app). Sem mover nós no DOM (compatível com React do Streamlit)."""
+    """Popup de campanha: overlay criado em JS (o Streamlit sanitiza o markdown e costuma remover <dialog>).
+
+    Dados vêm de data-dv-src (URL) e data-dv-t64 / data-dv-b64 (título e texto em UTF-8 base64).
+    """
     js = r"""
 <script>
 (function () {
-  var doc = document;
+  function b64ToUtf8(b64) {
+    if (!b64) return "";
+    try {
+      var bin = atob(b64);
+      var bytes = new Uint8Array(bin.length);
+      for (var i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+      return new TextDecoder("utf-8").decode(bytes);
+    } catch (e) {
+      return "";
+    }
+  }
+  function closeDvCampanha(doc) {
+    var root = doc.getElementById("dv-campanha-overlay-root");
+    if (root) {
+      try {
+        if (root.__dvCampanhaResize) {
+          var rw = root.__dvCampanhaResizeWin || window;
+          rw.removeEventListener("resize", root.__dvCampanhaResize);
+        }
+      } catch (e0) {}
+      root.remove();
+    }
+    try {
+      doc.removeEventListener("keydown", doc.__dvCampanhaEscHandler);
+    } catch (e2) {}
+    doc.__dvCampanhaEscHandler = null;
+  }
+  function openDvCampanha(doc, src, titleB64, bodyB64) {
+    closeDvCampanha(doc);
+    var title = b64ToUtf8(titleB64);
+    var body = b64ToUtf8(bodyB64);
+    var root = doc.createElement("div");
+    root.id = "dv-campanha-overlay-root";
+    root.className = "dv-campanha-overlay";
+    root.setAttribute("role", "dialog");
+    root.setAttribute("aria-modal", "true");
+    root.setAttribute("aria-label", "Campanha comercial");
+    var back = doc.createElement("div");
+    back.className = "dv-campanha-overlay-backdrop";
+    var panel = doc.createElement("div");
+    panel.className = "dv-campanha-overlay-panel";
+    var closeBtn = doc.createElement("button");
+    closeBtn.type = "button";
+    closeBtn.className = "dv-campanha-overlay-close";
+    closeBtn.setAttribute("aria-label", "Fechar");
+    closeBtn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 14 14" aria-hidden="true"><line x1="2" y1="2" x2="12" y2="12" stroke="#0f172a" stroke-width="2" stroke-linecap="round"/><line x1="12" y1="2" x2="2" y2="12" stroke="#0f172a" stroke-width="2" stroke-linecap="round"/></svg>';
+    closeBtn.addEventListener("click", function (ev) {
+      ev.stopPropagation();
+      closeDvCampanha(doc);
+    });
+    var imgWrap = doc.createElement("div");
+    imgWrap.className = "dv-campanha-overlay-img-wrap";
+    var img = doc.createElement("img");
+    img.className = "dv-campanha-overlay-img";
+    img.alt = "";
+    img.loading = "eager";
+    img.decoding = "async";
+    img.src = src;
+    imgWrap.appendChild(img);
+    var textWrap = doc.createElement("div");
+    textWrap.className = "dv-campanha-overlay-text";
+    if (title) {
+      var h = doc.createElement("h3");
+      h.className = "dv-campanha-overlay-title";
+      h.textContent = title;
+      textWrap.appendChild(h);
+    }
+    if (body) {
+      var p = doc.createElement("div");
+      p.className = "dv-campanha-overlay-body";
+      p.textContent = body;
+      textWrap.appendChild(p);
+    }
+    var inner = doc.createElement("div");
+    inner.className = "dv-campanha-overlay-inner";
+    inner.appendChild(imgWrap);
+    if (title || body) inner.appendChild(textWrap);
+    panel.appendChild(closeBtn);
+    panel.appendChild(inner);
+    root.appendChild(back);
+    root.appendChild(panel);
+    function layoutCampanhaPopup() {
+      try {
+        var w = img.clientWidth;
+        if (w > 0 && textWrap && inner.contains(textWrap)) {
+          textWrap.style.width = w + "px";
+          textWrap.style.maxWidth = w + "px";
+        }
+      } catch (e3) {}
+    }
+    img.addEventListener("load", layoutCampanhaPopup);
+    if (img.complete) {
+      requestAnimationFrame(layoutCampanhaPopup);
+    }
+    var rz = function () {
+      requestAnimationFrame(layoutCampanhaPopup);
+    };
+    var win = doc.defaultView || window;
+    win.addEventListener("resize", rz);
+    root.__dvCampanhaResize = rz;
+    root.__dvCampanhaResizeWin = win;
+    back.addEventListener("click", function () {
+      closeDvCampanha(doc);
+    });
+    panel.addEventListener("click", function (ev) {
+      ev.stopPropagation();
+    });
+    doc.body.appendChild(root);
+    doc.__dvCampanhaEscHandler = function (kev) {
+      if (kev.key === "Escape") closeDvCampanha(doc);
+    };
+    doc.addEventListener("keydown", doc.__dvCampanhaEscHandler);
+  }
+  function wire(doc) {
+    if (!doc || !doc.body) return;
+    if (doc.__dvCampanhaPopupWired) return;
+    doc.__dvCampanhaPopupWired = true;
+    doc.addEventListener(
+      "click",
+      function (ev) {
+        var t = ev.target;
+        if (!t || !t.closest) return;
+        var openBtn = t.closest(".home-banner-lb-open");
+        if (openBtn) {
+          ev.preventDefault();
+          var src = openBtn.getAttribute("data-dv-src");
+          if (!src) return;
+          var d = openBtn.ownerDocument || doc;
+          openDvCampanha(
+            d,
+            src,
+            openBtn.getAttribute("data-dv-t64") || "",
+            openBtn.getAttribute("data-dv-b64") || ""
+          );
+        }
+      },
+      true
+    );
+  }
+  var appDoc = document;
   try {
     if (window.parent && window.parent !== window && window.parent.document) {
-      doc = window.parent.document;
+      appDoc = window.parent.document;
     }
-  } catch (e) {
-    doc = document;
+  } catch (eParent) {
+    appDoc = document;
   }
-  var root = doc.documentElement;
-  if (!root || root.getAttribute("data-dv-home-banner-dialog") === "1") return;
-  root.setAttribute("data-dv-home-banner-dialog", "1");
-  doc.addEventListener(
-    "click",
-    function (ev) {
-      var t = ev.target;
-      if (!t || !t.closest) return;
-      var openBtn = t.closest(".home-banner-lb-open");
-      if (openBtn) {
-        ev.preventDefault();
-        var did = openBtn.getAttribute("data-dv-dialog");
-        if (!did) return;
-        var dlg = doc.getElementById(did);
-        if (dlg && dlg.tagName === "DIALOG" && typeof dlg.showModal === "function") {
-          try {
-            dlg.showModal();
-          } catch (err) {}
-        }
-        return;
-      }
-      var closeBtn = t.closest(".home-banner-lb-dialog-close");
-      if (closeBtn) {
-        var dClose = closeBtn.closest("dialog");
-        if (dClose) dClose.close();
-        return;
-      }
-      if (t.tagName === "DIALOG" && t.classList.contains("home-banner-lb-dialog")) {
-        t.close();
-      }
-    },
-    true
-  );
+  wire(appDoc);
 })();
 </script>
 """
@@ -1231,9 +1341,17 @@ def inject_modern_ui_runtime():
 # 1. CARREGAMENTO DE DADOS
 # =============================================================================
 
-_COLS_HOME_BANNERS = ("Ordem", "URL_Imagem", "Titulo", "Ativo", "Tela_Cheia", "Descricao")
+_COLS_HOME_BANNERS = (
+    "Ordem",
+    "URL_Imagem",
+    "Titulo",
+    "Ativo",
+    "Tela_Cheia",
+    "Descricao",
+    "Chave_Campanha",
+)
 _WS_CAMPANHAS_TEXTO = "BD Campanhas Texto"
-_COLS_CAMPANHAS_TEXTO = ("Ordem", "Titulo", "Texto", "Ativo")
+_COLS_CAMPANHAS_TEXTO = ("Ordem", "Titulo", "Texto", "Ativo", "Chave_Campanha")
 
 
 def normalizar_df_campanhas_texto(df: pd.DataFrame | None) -> pd.DataFrame:
@@ -1249,6 +1367,11 @@ def normalizar_df_campanhas_texto(df: pd.DataFrame | None) -> pd.DataFrame:
         "titulo": "Titulo",
         "texto": "Texto",
         "ativo": "Ativo",
+        "chave": "Chave_Campanha",
+        "Chave": "Chave_Campanha",
+        "chave campanha": "Chave_Campanha",
+        "Chave campanha": "Chave_Campanha",
+        "chave_campanha": "Chave_Campanha",
     }
     for a, b in list(ren.items()):
         if a in out.columns and a != b:
@@ -1278,6 +1401,11 @@ def normalizar_df_home_banners(df: pd.DataFrame | None) -> pd.DataFrame:
         "Descrição": "Descricao",
         "descricao": "Descricao",
         "desc": "Descricao",
+        "chave": "Chave_Campanha",
+        "Chave": "Chave_Campanha",
+        "chave campanha": "Chave_Campanha",
+        "Chave campanha": "Chave_Campanha",
+        "chave_campanha": "Chave_Campanha",
     }
     for a, b in list(ren.items()):
         if a in out.columns and a != b:
@@ -1293,16 +1421,6 @@ def login_row_is_adm(row: pd.Series) -> bool:
     if v is None or (isinstance(v, float) and pd.isna(v)):
         return False
     return str(v).strip().upper() == "SIM"
-
-
-# Botão fechar do popup: X preto em SVG (fundo branco no CSS)
-_SVG_LB_FECHAR = (
-    '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 14 14" '
-    'class="home-banner-lb-close-icon" aria-hidden="true" focusable="false">'
-    '<line x1="2" y1="2" x2="12" y2="12" stroke="#0f172a" stroke-width="2" stroke-linecap="round"/>'
-    '<line x1="12" y1="2" x2="2" y2="12" stroke="#0f172a" stroke-width="2" stroke-linecap="round"/>'
-    "</svg>"
-)
 
 
 def _img_url_seguro_https(url: str) -> str | None:
@@ -1357,38 +1475,67 @@ def _html_campanhas_texto_bloco(df_texto: pd.DataFrame) -> str:
     )
 
 
+def _utf8_base64_attr(s: str) -> str:
+    """UTF-8 → base64 (ASCII) para data-* no HTML (evita aspas quebradas)."""
+    return base64.b64encode((s or "").encode("utf-8")).decode("ascii")
+
+
+def _mapa_texto_campanha_por_chave(df_texto: pd.DataFrame) -> dict[str, tuple[str, str]]:
+    """Chave_Campanha (planilha texto) → (Título, Texto) para o popup; última linha vence se repetir chave."""
+    df = normalizar_df_campanhas_texto(df_texto)
+    out: dict[str, tuple[str, str]] = {}
+    if df.empty:
+        return out
+    for _, row in df.iterrows():
+        k = str(row.get("Chave_Campanha", "") or "").strip()
+        if not k:
+            continue
+        tit = str(row.get("Titulo", "") or "").strip()
+        body = str(row.get("Texto", "") or "").strip()
+        out[k] = (tit, body)
+    return out
+
+
 def render_secao_campanhas_comerciais(
     df_banners: pd.DataFrame,
     df_texto_campanhas: pd.DataFrame | None = None,
 ) -> None:
-    """Faixa de miniaturas fixas (clique = imagem em tela cheia na viewport) + texto em lista abaixo."""
+    """Faixa de miniaturas (clique = popup com imagem + texto) + texto em lista abaixo."""
     df_bn = normalizar_df_home_banners(df_banners).reset_index(drop=True)
+    mapa_chave = _mapa_texto_campanha_por_chave(
+        df_texto_campanhas if df_texto_campanhas is not None else pd.DataFrame()
+    )
     copy_html = _html_campanhas_texto_bloco(
         df_texto_campanhas if df_texto_campanhas is not None else pd.DataFrame()
     )
     cards: list[str] = []
     if not df_bn.empty:
-        lb_idx = 0
         for _, row in df_bn.iterrows():
+            atv = str(row.get("Ativo", "SIM") or "").strip().upper()
+            if atv in ("NÃO", "NAO", "N", "NO", "FALSE", "0"):
+                continue
             src = _img_url_seguro_https(str(row.get("URL_Imagem", "") or ""))
             if not src:
                 continue
-            cid = f"dv-home-banner-dlg-{lb_idx}"
-            lb_idx += 1
+            chave = str(row.get("Chave_Campanha", "") or "").strip()
+            tit_pop = str(row.get("Titulo", "") or "").strip()
+            body_pop = str(row.get("Descricao", "") or "").strip()
+            if chave and chave in mapa_chave:
+                t_map, b_map = mapa_chave[chave]
+                if t_map:
+                    tit_pop = t_map
+                if b_map:
+                    body_pop = b_map
+            t64 = _utf8_base64_attr(tit_pop)
+            b64 = _utf8_base64_attr(body_pop)
             cards.append(
                 f'<div class="home-banner-lb-root">'
                 f'<button type="button" class="home-banner-card home-banner-card--fs home-banner-card--thumb home-banner-lb-open" '
-                f'data-dv-dialog="{cid}" title="Ampliar em tela cheia" aria-label="Ampliar imagem da campanha em tela cheia">'
+                f'data-dv-src="{src}" data-dv-t64="{html_std.escape(t64, quote=True)}" data-dv-b64="{html_std.escape(b64, quote=True)}" '
+                f'title="Ver campanha" aria-label="Abrir campanha em destaque">'
                 f'<span class="home-banner-thumb-frame">'
                 f'<img src="{src}" alt="" loading="lazy" decoding="async" />'
-                f"</span></button>"
-                f'<dialog id="{cid}" class="home-banner-lb-dialog" aria-label="Imagem ampliada">'
-                f'<div class="home-banner-lb-dialog-inner">'
-                f'<div class="home-banner-lb-popup">'
-                f'<button type="button" class="home-banner-lb-close home-banner-lb-dialog-close" '
-                f'aria-label="Fechar" title="Fechar">{_SVG_LB_FECHAR}</button>'
-                f'<img class="home-banner-lb-img" src="{src}" alt="" loading="lazy" decoding="async" />'
-                f"</div></div></dialog></div>"
+                f"</span></button></div>"
             )
     if not cards and not copy_html:
         return
@@ -1410,8 +1557,14 @@ def render_secao_campanhas_comerciais(
     )
 
 
-def gravar_nova_linha_home_banner(url_imagem: str) -> tuple[bool, str]:
-    """Anexa linha na aba BD Home Banners: ordem automática, sempre ativo/tela cheia na planilha (legado)."""
+def gravar_nova_linha_home_banner(
+    url_imagem: str,
+    *,
+    chave_campanha: str = "",
+    titulo: str = "",
+    descricao: str = "",
+) -> tuple[bool, str]:
+    """Anexa linha na aba BD Home Banners. Use a mesma Chave_Campanha na aba de textos para juntar popup."""
     try:
         conn = st.connection("gsheets", type=GSheetsConnection)
         df_raw = conn.read(spreadsheet=ID_GERAL, worksheet="BD Home Banners")
@@ -1423,10 +1576,11 @@ def gravar_nova_linha_home_banner(url_imagem: str) -> tuple[bool, str]:
                 {
                     "Ordem": prox,
                     "URL_Imagem": url_imagem.strip(),
-                    "Titulo": "",
+                    "Titulo": (titulo or "").strip(),
                     "Ativo": "SIM",
                     "Tela_Cheia": "SIM",
-                    "Descricao": "",
+                    "Descricao": (descricao or "").strip(),
+                    "Chave_Campanha": (chave_campanha or "").strip(),
                 }
             ]
         )
@@ -1437,7 +1591,12 @@ def gravar_nova_linha_home_banner(url_imagem: str) -> tuple[bool, str]:
         return False, str(e)
 
 
-def gravar_nova_linha_campanha_texto(titulo: str, texto: str) -> tuple[bool, str]:
+def gravar_nova_linha_campanha_texto(
+    titulo: str,
+    texto: str,
+    *,
+    chave_campanha: str = "",
+) -> tuple[bool, str]:
     try:
         conn = st.connection("gsheets", type=GSheetsConnection)
         df_raw = conn.read(spreadsheet=ID_GERAL, worksheet=_WS_CAMPANHAS_TEXTO)
@@ -1451,6 +1610,7 @@ def gravar_nova_linha_campanha_texto(titulo: str, texto: str) -> tuple[bool, str
                     "Titulo": (titulo or "").strip(),
                     "Texto": (texto or "").strip(),
                     "Ativo": "SIM",
+                    "Chave_Campanha": (chave_campanha or "").strip(),
                 }
             ]
         )
@@ -1502,7 +1662,9 @@ def _rotulo_opcao_excluir_banner(df_bn: pd.DataFrame, i: int) -> str:
     r = df_bn.iloc[i]
     url = str(r.get("URL_Imagem", "") or "").strip()
     snip = (url[:56] + "…") if len(url) > 57 else url
-    return f"Linha {i + 1} · {snip or '(sem URL)'}"
+    ck = str(r.get("Chave_Campanha", "") or "").strip()
+    suf = f" · chave «{ck}»" if ck else ""
+    return f"Linha {i + 1} · {snip or '(sem URL)'}{suf}"
 
 
 def _rotulo_opcao_excluir_campanha_texto(df_ct: pd.DataFrame, i: int) -> str:
@@ -1511,7 +1673,9 @@ def _rotulo_opcao_excluir_campanha_texto(df_ct: pd.DataFrame, i: int) -> str:
     tit = (tit[:48] + "…") if len(tit) > 49 else tit
     snip = str(r.get("Texto", "") or "").strip().replace("\n", " ")
     snip = (snip[:36] + "…") if len(snip) > 37 else snip
-    return f"Linha {i + 1} · {tit or '(sem título)'}{' — ' + snip if snip else ''}"
+    ck = str(r.get("Chave_Campanha", "") or "").strip()
+    suf = f" · chave «{ck}»" if ck else ""
+    return f"Linha {i + 1} · {tit or '(sem título)'}{' — ' + snip if snip else ''}{suf}"
 
 
 _COLS_LOGINS = ["Email", "Senha", "Nome", "Cargo", "Imobiliaria", "Telefone", "Adm"]
@@ -1877,6 +2041,115 @@ class MotorRecomendacao:
     def calcular_poder_compra(self, renda, finan, fgts_sub, val_ps_limite):
         return (2 * renda) + finan + fgts_sub + val_ps_limite, val_ps_limite
 
+
+def _ps_max_estoque_row_cliente(row: pd.Series, d: dict) -> float:
+    """PS máximo da linha de estoque conforme política e ranking em `d` (mesma regra da recomendação)."""
+    pol = d.get("politica", "Direcional")
+    rank = d.get("ranking", "DIAMANTE")
+    if pol == "Emcash":
+        try:
+            return float(row.get("PS_EmCash", 0) or 0)
+        except (TypeError, ValueError):
+            return 0.0
+    col_rank = f"PS_{rank.title()}" if rank else "PS_Diamante"
+    if rank == "AÇO":
+        col_rank = "PS_Aco"
+    try:
+        return float(row.get(col_rank, 0) or 0)
+    except (TypeError, ValueError):
+        return 0.0
+
+
+def _calcular_poder_compra_linha_estoque(
+    row: pd.Series, d: dict, df_politicas: pd.DataFrame, prem: dict
+) -> pd.Series:
+    """Poder de compra por linha (alinhado à ETAPA Recomendação)."""
+    try:
+        v_venda = float(row.get("Valor de Venda", 0) or 0)
+    except (TypeError, ValueError):
+        v_venda = 0.0
+    fin = float(d.get("finan_usado", 0) or 0)
+    sub = float(d.get("fgts_sub_usado", 0) or 0)
+    ren = float(d.get("renda", 0) or 0)
+    ps_stock = max(0.0, _ps_max_estoque_row_cliente(row, d))
+    ps_eff = 0.0
+    if ps_stock <= 1e-9:
+        ps_eff = 0.0
+    else:
+        try:
+            mps = metricas_pro_soluto(
+                ren,
+                v_venda,
+                str(d.get("politica", "Direcional")),
+                str(d.get("ranking", "DIAMANTE")),
+                prem,
+                df_politicas,
+                ps_cap_estoque=ps_stock,
+            )
+            ps_eff = float(mps.get("ps_max_efetivo", 0) or 0)
+        except Exception:
+            ps_eff = float(ps_stock)
+    poder = (2.0 * ren) + fin + sub + max(0.0, ps_eff)
+    cobertura = (poder / v_venda) * 100.0 if v_venda > 0 else 0.0
+    return pd.Series([poder, cobertura, fin, sub])
+
+
+def df_estoque_com_poder_compra(
+    df: pd.DataFrame, d: dict, df_politicas: pd.DataFrame, prem: dict
+) -> pd.DataFrame:
+    """Anexa Poder_Compra, Cobertura, Finan_Unid, Sub_Unid (cópia do dataframe)."""
+    out = df.copy()
+    if out.empty:
+        return out
+    out[["Poder_Compra", "Cobertura", "Finan_Unid", "Sub_Unid"]] = out.apply(
+        lambda r: _calcular_poder_compra_linha_estoque(r, d, df_politicas, prem),
+        axis=1,
+    )
+    return out
+
+
+def candidatos_df_recomendados(df_pool: pd.DataFrame) -> pd.DataFrame:
+    """
+    Subconjunto «recomendado» (cards IDEAL / MENOR PREÇO): exige colunas Valor de Venda e Poder_Compra.
+    """
+    if df_pool.empty or "Valor de Venda" not in df_pool.columns:
+        return pd.DataFrame()
+    if "Poder_Compra" not in df_pool.columns:
+        return pd.DataFrame()
+    vv = pd.to_numeric(df_pool["Valor de Venda"], errors="coerce").fillna(0.0)
+    pc = pd.to_numeric(df_pool["Poder_Compra"], errors="coerce").fillna(0.0)
+    mask_fit = (vv > 0) & (vv <= pc)
+    fit_sub = df_pool[mask_fit]
+    if not fit_sub.empty:
+        max_p = pd.to_numeric(fit_sub["Valor de Venda"], errors="coerce").max()
+        return fit_sub[
+            pd.to_numeric(fit_sub["Valor de Venda"], errors="coerce") == max_p
+        ]
+    pool_pos = df_pool[vv > 0]
+    if pool_pos.empty:
+        return pd.DataFrame()
+    min_v = pd.to_numeric(pool_pos["Valor de Venda"], errors="coerce").min()
+    return pool_pos[pd.to_numeric(pool_pos["Valor de Venda"], errors="coerce") == min_v]
+
+
+def ids_unidades_recomendadas_empreendimento(
+    df_estoque: pd.DataFrame,
+    nome_empreendimento: str,
+    d: dict,
+    df_politicas: pd.DataFrame,
+    prem: dict,
+) -> set[str]:
+    """Identificadores recomendados (normalizados em str) — mesma regra dos cards por empreendimento."""
+    sub = df_estoque[df_estoque["Empreendimento"] == nome_empreendimento].copy()
+    if sub.empty or "Identificador" not in sub.columns:
+        return set()
+    sub = df_estoque_com_poder_compra(sub, d, df_politicas, prem)
+    cand = candidatos_df_recomendados(sub)
+    if cand.empty:
+        return set()
+    return {str(x).strip() for x in cand["Identificador"].unique() if x is not None and str(x).strip() != ""}
+
+
 _DIR_SIM_APP = Path(__file__).resolve().parent
 
 
@@ -1981,23 +2254,42 @@ def configurar_layout():
     bg_url = _css_url_fundo_simulador().replace("&", "&amp;")
     st.markdown(f"""
         <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Montserrat:wght@600;700;800&display=swap');
-        /* Barra institucional: gradiente azul ↔ vermelho; deslocamento suave (sem “dois blocos”) */
-        @keyframes brandBarGradientShift {{
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Montserrat:wght@400;600;700;800;900&display=swap');
+        /* Shimmer da barra (alinhado à Ficha Vendas RJ — ficha-hero-bar) */
+        @keyframes fichaBarShimmer {{
             0% {{ background-position: 0% 50%; }}
-            100% {{ background-position: 100% 50%; }}
+            100% {{ background-position: 200% 50%; }}
+        }}
+        /* Entrada do cartão principal (só opacity: transform no ancestor prende position:fixed do <dialog> das campanhas) */
+        @keyframes fichaFadeIn {{
+            from {{ opacity: 0; }}
+            to {{ opacity: 1; }}
+        }}
+        /* Entradas suaves (só sem prefers-reduced-motion) */
+        @keyframes dvFadeRise {{
+            from {{ opacity: 0; transform: translateY(12px); }}
+            to {{ opacity: 1; transform: translateY(0); }}
+        }}
+        @keyframes dvModalShell {{
+            from {{ opacity: 0; transform: scale(0.97) translateY(12px); }}
+            to {{ opacity: 1; transform: scale(1) translateY(0); }}
         }}
         /* Tokens de design (UI contemporânea; usados em sombras, raios e transições) */
         :root {{
             --dv-ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+            --dv-ease-spring: cubic-bezier(0.34, 1.2, 0.64, 1);
             --dv-duration: 0.22s;
+            --dv-duration-slow: 0.45s;
             --dv-radius-sm: 10px;
             --dv-radius-md: 14px;
             --dv-radius-lg: 18px;
-            --dv-shadow-xs: 0 1px 2px rgba(15, 23, 42, 0.05);
-            --dv-shadow-sm: 0 4px 18px -6px rgba(15, 23, 42, 0.08), 0 2px 8px -4px rgba(15, 23, 42, 0.05);
-            --dv-shadow-md: 0 14px 44px -12px rgba(15, 23, 42, 0.14), 0 6px 16px -6px rgba(15, 23, 42, 0.07);
-            --dv-surface-glass: rgba(255, 255, 255, 0.88);
+            --dv-radius-xl: 22px;
+            --dv-shadow-xs: 0 1px 2px rgba(15, 23, 42, 0.04);
+            --dv-shadow-sm: 0 4px 20px -8px rgba(15, 23, 42, 0.07), 0 2px 10px -4px rgba(15, 23, 42, 0.04);
+            --dv-shadow-md: 0 16px 48px -12px rgba(15, 23, 42, 0.12), 0 8px 20px -8px rgba(15, 23, 42, 0.06);
+            --dv-shadow-glow: 0 0 0 1px rgba({RGB_AZUL_CSS}, 0.06), 0 8px 32px -8px rgba({RGB_AZUL_CSS}, 0.12);
+            --dv-surface-glass: rgba(255, 255, 255, 0.82);
+            --dv-surface-glass-strong: rgba(255, 255, 255, 0.94);
         }}
         @media (prefers-reduced-motion: no-preference) {{
             html {{
@@ -2027,6 +2319,15 @@ def configurar_layout():
         [data-testid="stSpinner"].stCacheSpinner {{
             display: none !important;
         }}
+        /*
+         * Rerun / cálculos longos: o Streamlit aplica STALE_STYLES (opacity ~0.33 + transição)
+         * em cada wrapper [data-testid="stElementContainer"] — a UI parece “lavada”.
+         * Mantemos opacidade total para leitura e percepção estável durante o rerun.
+         */
+        [data-testid="stElementContainer"] {{
+            opacity: 1 !important;
+            transition: none !important;
+        }}
         /* Sidebar oculta (navegação/galeria/histórico removidos da UI) */
         section[data-testid="stSidebar"] {{ display: none !important; }}
         [data-testid="stSidebarCollapsedControl"] {{ display: none !important; }}
@@ -2042,20 +2343,22 @@ def configurar_layout():
             background: transparent !important;
             background-color: transparent !important;
         }}
+        /* Fundo estilo Ficha Credenciamento Vendas RJ: degradê diagonal marca + foto */
         .stApp,
         [data-testid="stApp"] {{
-            /* Único fundo: véu um pouco mais transparente (~96,5% opaco) */
-            background-color: rgba(252, 252, 253, 0.965) !important;
+            background-color: transparent !important;
             background-image: linear-gradient(
-                180deg,
-                rgba(255, 255, 255, 0.965) 0%,
-                rgba(255, 255, 255, 0.965) 50%,
-                rgba(248, 250, 252, 0.965) 100%
-            ), url("{bg_url}") !important;
-            background-size: 100% 100%, cover !important;
-            background-position: center center, center center !important;
-            background-attachment: fixed !important;
-            background-repeat: no-repeat !important;
+                    135deg,
+                    rgba({RGB_AZUL_CSS}, 0.82) 0%,
+                    rgba(30, 58, 95, 0.55) 38%,
+                    rgba({RGB_VERMELHO_CSS}, 0.22) 72%,
+                    rgba(15, 23, 42, 0.45) 100%
+                ),
+                url("{bg_url}") !important;
+            background-size: auto, cover !important;
+            background-position: center, center center !important;
+            background-attachment: scroll, scroll !important;
+            background-repeat: no-repeat, no-repeat !important;
             animation: none !important;
         }}
         /* SO em dark: mantém UI clara (inputs, texto, popovers Base Web) */
@@ -2102,25 +2405,31 @@ def configurar_layout():
         @media (max-width: 768px) {{
             .stApp,
             [data-testid="stApp"] {{
-                background-attachment: scroll !important;
+                background-attachment: scroll, scroll !important;
             }}
             [data-testid="stMain"] {{
-                padding-left: max(6px, env(safe-area-inset-left, 0px)) !important;
-                padding-right: max(6px, env(safe-area-inset-right, 0px)) !important;
-                padding-top: max(4px, env(safe-area-inset-top, 0px)) !important;
-                padding-bottom: max(8px, env(safe-area-inset-bottom, 0px)) !important;
+                padding-left: max(clamp(10px, 4vw, 28px), env(safe-area-inset-left, 0px)) !important;
+                padding-right: max(clamp(10px, 4vw, 28px), env(safe-area-inset-right, 0px)) !important;
+                padding-top: max(clamp(8px, 2.5vh, 24px), env(safe-area-inset-top, 0px)) !important;
+                padding-bottom: max(clamp(10px, 3vh, 28px), env(safe-area-inset-bottom, 0px)) !important;
             }}
             .block-container {{
                 max-width: 100% !important;
                 width: 100% !important;
-                padding: 0.85rem clamp(0.65rem, 3.5vw, 1rem) !important;
-                margin-left: 0 !important;
-                margin-right: 0 !important;
-                border-radius: 0 !important;
-                background: transparent !important;
-                box-shadow: none !important;
-                backdrop-filter: none !important;
-                -webkit-backdrop-filter: none !important;
+                padding: 1.1rem clamp(0.75rem, 3.5vw, 1.15rem) !important;
+                margin-left: auto !important;
+                margin-right: auto !important;
+                margin-top: clamp(4px, 1.5vw, 10px) !important;
+                margin-bottom: clamp(4px, 1.5vw, 10px) !important;
+                border-radius: 20px !important;
+                background: rgba(255, 255, 255, 0.82) !important;
+                border: 1px solid rgba(255, 255, 255, 0.5) !important;
+                box-shadow:
+                    0 4px 6px -1px rgba({RGB_AZUL_CSS}, 0.05),
+                    0 16px 36px -10px rgba({RGB_AZUL_CSS}, 0.14),
+                    inset 0 1px 0 rgba(255, 255, 255, 0.5) !important;
+                backdrop-filter: blur(14px) saturate(1.1) !important;
+                -webkit-backdrop-filter: blur(14px) saturate(1.1) !important;
             }}
             .header-brand-bar-wrap {{
                 width: 100%;
@@ -2192,32 +2501,54 @@ def configurar_layout():
             border: none !important;
             border-bottom: none !important;
             box-shadow: none !important;
+            color: rgba(255, 255, 255, 0.92) !important;
         }}
         [data-testid="stToolbar"] button,
         [data-testid="stToolbar"] a,
         [data-testid="stToolbar"] [data-testid] {{
-            color: #475569 !important;
+            color: rgba(255, 255, 255, 0.92) !important;
+            background: transparent !important;
+            background-color: transparent !important;
         }}
         [data-testid="stHeader"] button,
         [data-testid="stHeader"] a {{
-            color: #475569 !important;
+            color: rgba(255, 255, 255, 0.92) !important;
+            background: transparent !important;
+            background-color: transparent !important;
         }}
         [data-testid="stToolbar"] svg,
         [data-testid="stHeader"] svg {{
-            fill: #475569 !important;
-            color: #475569 !important;
+            fill: currentColor !important;
+            color: inherit !important;
+        }}
+        [data-testid="stToolbar"] svg path[stroke],
+        [data-testid="stHeader"] svg path[stroke] {{
+            stroke: currentColor !important;
+        }}
+        [data-testid="stToolbar"] button:hover,
+        [data-testid="stToolbar"] a:hover,
+        [data-testid="stHeader"] button:hover {{
+            background: rgba(255, 255, 255, 0.12) !important;
         }}
         [data-testid="stMain"] {{
-            /* Margem mínima em relação à viewport (antes: clamp alto em vh/vw) */
-            padding-left: max(8px, env(safe-area-inset-left, 0px)) !important;
-            padding-right: max(8px, env(safe-area-inset-right, 0px)) !important;
-            padding-top: max(6px, env(safe-area-inset-top, 0px)) !important;
-            padding-bottom: max(10px, env(safe-area-inset-bottom, 0px)) !important;
+            padding-left: max(clamp(14px, 5vw, 56px), env(safe-area-inset-left, 0px)) !important;
+            padding-right: max(clamp(14px, 5vw, 56px), env(safe-area-inset-right, 0px)) !important;
+            padding-top: max(clamp(12px, 3.5vh, 40px), env(safe-area-inset-top, 0px)) !important;
+            padding-bottom: max(clamp(14px, 4vh, 44px), env(safe-area-inset-bottom, 0px)) !important;
             box-sizing: border-box !important;
         }}
         section.main > div {{
             padding-top: 0.5rem !important;
             padding-bottom: 0.5rem !important;
+        }}
+
+        @media (prefers-reduced-motion: no-preference) {{
+            .header-container {{
+                animation: dvFadeRise var(--dv-duration-slow) var(--dv-ease-out) both;
+            }}
+            .home-banners-wrap {{
+                animation: dvFadeRise calc(var(--dv-duration-slow) + 0.1s) var(--dv-ease-out) 0.12s both;
+            }}
         }}
 
         /* Ritmo vertical uniforme entre secções, widgets e colunas */
@@ -2244,12 +2575,14 @@ def configurar_layout():
             ) !important;
         }}
 
-        /* Cards de recomendação: grupo centralizado; scroll horizontal só quando não cabem */
+        /* Cards de recomendação: grupo centralizado; fade nas bordas do carrossel */
         .recommendation-cards-outer {{
             display: flex;
             justify-content: center;
             width: 100%;
             box-sizing: border-box;
+            -webkit-mask-image: linear-gradient(90deg, transparent, #000 2%, #000 98%, transparent);
+            mask-image: linear-gradient(90deg, transparent, #000 2%, #000 98%, transparent);
         }}
         .scrolling-wrapper {{
             display: flex;
@@ -2262,11 +2595,27 @@ def configurar_layout():
             width: max-content;
             max-width: 100%;
             box-sizing: border-box;
+            scroll-behavior: smooth;
+            scrollbar-width: thin;
+            scrollbar-color: rgba({RGB_AZUL_CSS}, 0.35) transparent;
         }}
-        
+        .scrolling-wrapper::-webkit-scrollbar {{
+            height: 6px;
+        }}
+        .scrolling-wrapper::-webkit-scrollbar-thumb {{
+            background: linear-gradient(90deg, rgba({RGB_AZUL_CSS}, 0.25), rgba({RGB_VERMELHO_CSS}, 0.35));
+            border-radius: 99px;
+        }}
+
         .scrolling-wrapper .card-item {{
             flex: 0 0 auto;
             width: 300px;
+            transition: transform var(--dv-duration) var(--dv-ease-out);
+        }}
+        @media (hover: hover) and (prefers-reduced-motion: no-preference) {{
+            .scrolling-wrapper .card-item:hover {{
+                transform: scale(1.015);
+            }}
         }}
 
         h1, h2, h3, h4, h5, h6 {{
@@ -2301,25 +2650,41 @@ def configurar_layout():
             text-wrap: balance;
         }}
 
+        /* Cartão de vidro — mesma linguagem da Ficha Credenciamento (max-width largo para o simulador) */
         .block-container {{
-            --dv-rhythm: 1.2rem;
+            --dv-rhythm: 1.35rem;
             text-rendering: optimizeLegibility;
             max-width: min(1680px, 100%) !important;
             margin-left: auto !important;
             margin-right: auto !important;
-            margin-top: 0.25rem !important;
-            margin-bottom: 0.35rem !important;
-            padding: var(--dv-rhythm) clamp(0.75rem, 1.5vw, 1.35rem) !important;
-            /* Sem cartão: conteúdo direto sobre o fundo único da app */
-            background: transparent !important;
-            backdrop-filter: none !important;
-            -webkit-backdrop-filter: none !important;
-            border-radius: 0 !important;
-            border: none !important;
-            box-shadow: none !important;
+            margin-top: clamp(4px, 1vh, 14px) !important;
+            margin-bottom: clamp(4px, 1vh, 14px) !important;
+            padding: 1.45rem clamp(1.1rem, 2.8vw, 2.25rem) 1.55rem clamp(1.1rem, 2.8vw, 2.25rem) !important;
+            background: rgba(255, 255, 255, 0.78) !important;
+            backdrop-filter: blur(18px) saturate(1.15) !important;
+            -webkit-backdrop-filter: blur(18px) saturate(1.15) !important;
+            border-radius: 24px !important;
+            border: 1px solid rgba(255, 255, 255, 0.45) !important;
+            box-shadow:
+                0 4px 6px -1px rgba({RGB_AZUL_CSS}, 0.06),
+                0 24px 48px -12px rgba({RGB_AZUL_CSS}, 0.18),
+                inset 0 1px 0 rgba(255, 255, 255, 0.55) !important;
+        }}
+        @media (prefers-reduced-motion: no-preference) {{
+            .block-container {{
+                animation: fichaFadeIn 0.7s cubic-bezier(0.22, 1, 0.36, 1) both;
+            }}
+        }}
+        @media (prefers-reduced-motion: reduce) {{
+            .block-container {{
+                animation: none !important;
+            }}
+        }}
+        html[data-dv-reduced-motion="1"] .block-container {{
+            animation: none !important;
         }}
         [data-testid="stVerticalBlockBorderWrapper"] {{
-            border-radius: 8px !important;
+            border-radius: 16px !important;
             background: transparent !important;
             border: none !important;
             box-shadow: none !important;
@@ -2466,6 +2831,20 @@ def configurar_layout():
             box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.22),
                 0 10px 28px -6px rgba({RGB_VERMELHO_CSS}, 0.48) !important;
         }}
+        @media (hover: hover) and (prefers-reduced-motion: no-preference) {{
+            .stButton button[kind="primary"]:hover {{
+                transform: translateY(-2px) scale(1.01) !important;
+            }}
+            .stButton button:not([kind="primary"]):hover,
+            .stDownloadButton button:hover {{
+                transform: translateY(-1px) !important;
+            }}
+            a[data-testid="stLinkButton"][href*="whatsapp.com"]:hover,
+            a[data-testid="stLinkButton"][href*="wa.me"]:hover,
+            a[data-testid="stLinkButton"][href*="api.whatsapp.com"]:hover {{
+                transform: translateY(-1px) !important;
+            }}
+        }}
 
         /* Botões secundários = branco, texto escuro (primários continuam vermelhos) */
         .stButton button:not([kind="primary"]) {{
@@ -2519,7 +2898,8 @@ def configurar_layout():
             border-radius: var(--dv-radius-sm) !important;
             transition: background-color var(--dv-duration) var(--dv-ease-out),
                 border-color var(--dv-duration) var(--dv-ease-out),
-                box-shadow var(--dv-duration) var(--dv-ease-out) !important;
+                box-shadow var(--dv-duration) var(--dv-ease-out),
+                transform var(--dv-duration) var(--dv-ease-spring) !important;
             background: #ffffff !important;
             background-color: #ffffff !important;
             background-image: none !important;
@@ -2623,6 +3003,29 @@ def configurar_layout():
             align-items: center !important;
             justify-content: center !important;
         }}
+        /* Painel interior dos modais Streamlit: cartão flutuante + entrada */
+        [data-testid="stDialog"] > div > div {{
+            border-radius: var(--dv-radius-xl) !important;
+            border: 1px solid rgba(255, 255, 255, 0.7) !important;
+            box-shadow: 0 25px 60px -15px rgba(15, 23, 42, 0.2), var(--dv-shadow-sm) !important;
+            background: var(--dv-surface-glass-strong) !important;
+            backdrop-filter: blur(14px) saturate(165%) !important;
+            -webkit-backdrop-filter: blur(14px) saturate(165%) !important;
+            overflow: auto !important;
+        }}
+        @media (prefers-reduced-motion: no-preference) {{
+            [data-testid="stDialog"] > div > div {{
+                animation: dvModalShell 0.38s var(--dv-ease-spring) both;
+            }}
+        }}
+        @media (prefers-reduced-motion: reduce) {{
+            [data-testid="stDialog"] > div > div {{
+                animation: none !important;
+            }}
+        }}
+        html[data-dv-reduced-motion="1"] [data-testid="stDialog"] > div > div {{
+            animation: none !important;
+        }}
         /* Painel do popup de exportação: largura confortável (o Root continua em tela cheia) */
         [data-testid="stDialog"]:has(#dv-export-resumo-modal-marker) > div > div {{
             max-width: min(920px, 96vw) !important;
@@ -2641,9 +3044,16 @@ def configurar_layout():
             transform: rotate(90deg) !important;
         }}
         div[data-testid="stAlert"] {{
-            border-radius: 8px !important;
-            border: 1px solid #cbd5e1 !important;
-            background: #f8fafc !important;
+            border-radius: 14px !important;
+            border: 1px solid rgba(226, 232, 240, 0.95) !important;
+            background: linear-gradient(135deg, rgba(248, 250, 252, 0.98) 0%, rgba(241, 245, 249, 0.95) 100%) !important;
+            box-shadow: var(--dv-shadow-xs) !important;
+            transition: box-shadow var(--dv-duration) var(--dv-ease-out), transform var(--dv-duration) var(--dv-ease-out) !important;
+        }}
+        @media (hover: hover) {{
+            div[data-testid="stAlert"]:hover {{
+                box-shadow: var(--dv-shadow-sm) !important;
+            }}
         }}
         div[data-testid="stAlert"] p,
         div[data-testid="stAlert"] span,
@@ -2710,6 +3120,12 @@ def configurar_layout():
         [data-testid="stExpander"] summary {{
             font-weight: 600 !important;
             letter-spacing: -0.02em !important;
+            cursor: pointer !important;
+            transition: background-color var(--dv-duration) var(--dv-ease-out), color var(--dv-duration) var(--dv-ease-out) !important;
+            border-radius: calc(var(--dv-radius-md) - 2px) !important;
+        }}
+        [data-testid="stExpander"] summary:hover {{
+            background-color: rgba(255, 255, 255, 0.55) !important;
         }}
 
         .header-container {{
@@ -2719,7 +3135,7 @@ def configurar_layout():
             max-width: 1100px;
             position: relative;
         }}
-        /* Barra: mesma largura útil dos demais widgets (coluna dentro do .block-container); gradiente azul ↔ vermelho */
+        /* Barra tipo pill + shimmer (Ficha Vendas RJ — ficha-hero-bar) */
         .header-brand-bar-wrap {{
             width: 100%;
             max-width: 100%;
@@ -2731,24 +3147,22 @@ def configurar_layout():
             margin-bottom: 1.75rem;
             margin-top: 0;
             box-sizing: border-box;
-            height: 5px;
-            border-radius: 0;
+            height: 4px;
+            border-radius: 999px;
             overflow: hidden;
-            background: linear-gradient(
-                90deg,
-                {COR_AZUL_ESC} 0%,
-                #1a4a86 20%,
-                #5c2d52 45%,
-                {COR_VERMELHO} 50%,
-                #5c2d52 55%,
-                #1a4a86 80%,
-                {COR_AZUL_ESC} 100%
-            );
-            background-size: 240% 100%;
+            background: linear-gradient(90deg, {COR_AZUL_ESC}, {COR_VERMELHO}, {COR_AZUL_ESC});
+            background-size: 200% 100%;
             background-repeat: no-repeat;
             background-position: 0% 50%;
             will-change: background-position;
-            animation: brandBarGradientShift 22s ease-in-out infinite alternate;
+            box-shadow: 0 1px 3px rgba({RGB_AZUL_CSS}, 0.12);
+            animation: fichaBarShimmer 4s ease-in-out infinite alternate;
+        }}
+        @media (prefers-reduced-motion: no-preference) {{
+            .header-brand-bar-wrap {{
+                animation: dvFadeRise var(--dv-duration-slow) var(--dv-ease-out) 0.08s both,
+                    fichaBarShimmer 4s ease-in-out 0.45s infinite alternate;
+            }}
         }}
         @media (prefers-reduced-motion: reduce) {{
             .header-brand-bar-wrap {{
@@ -2761,6 +3175,10 @@ def configurar_layout():
             animation: none !important;
             background-position: 50% 50% !important;
             will-change: auto !important;
+        }}
+        html[data-dv-reduced-motion="1"] .header-container,
+        html[data-dv-reduced-motion="1"] .home-banners-wrap {{
+            animation: none !important;
         }}
         .home-banners-wrap {{
             display: flex;
@@ -2906,93 +3324,103 @@ def configurar_layout():
             outline: 2px solid {COR_AZUL_ESC};
             outline-offset: 3px;
         }}
-        /* <dialog>.showModal() = top layer do navegador: centro na viewport real, não no fluxo do app */
-        .home-banner-lb-dialog {{
-            border: none;
-            padding: 0;
-            margin: auto;
-            background: transparent;
-            max-width: min(96vw, 100%);
-            max-height: min(94dvh, 100%);
-            box-sizing: border-box;
-            overflow: visible;
-        }}
-        .home-banner-lb-dialog::backdrop {{
+        /* Popup campanha: largura/altura seguem a imagem + margem pequena; descrição abaixo com a mesma largura */
+        .dv-campanha-overlay {{
             position: fixed !important;
             inset: 0 !important;
-            width: 100vw !important;
-            height: 100vh !important;
-            min-height: 100dvh !important;
-            margin: 0 !important;
+            z-index: 999999 !important;
+            display: flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+            padding: 8px !important;
+            box-sizing: border-box !important;
+            pointer-events: auto !important;
+        }}
+        .dv-campanha-overlay-backdrop {{
+            position: absolute !important;
+            inset: 0 !important;
             background: rgba(15, 23, 42, 0.92) !important;
-            cursor: pointer;
+            cursor: pointer !important;
         }}
-        .home-banner-lb-dialog-inner {{
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            padding: clamp(0.75rem, 3vw, 1.75rem);
-            margin: 0;
-            box-sizing: border-box;
-            max-width: min(96vw, 100vw);
-            max-height: min(92dvh, 100vh);
-        }}
-        .home-banner-lb-popup {{
-            position: relative;
-            width: max-content;
-            max-width: min(92vw, 100%);
-            max-height: min(88dvh, 88vh);
-            line-height: 0;
-            border-radius: 12px;
-            overflow: visible;
-            box-shadow: 0 24px 64px rgba(0, 0, 0, 0.5);
-        }}
-        .home-banner-lb-img {{
-            display: block;
-            margin: 0;
-            max-width: min(90vw, 100%);
-            max-height: min(85vh, 100%);
-            width: auto;
-            height: auto;
-            object-fit: contain;
-            object-position: center center;
-            border-radius: 10px;
-            vertical-align: bottom;
-        }}
-        button.home-banner-lb-close {{
-            position: absolute;
-            top: max(0.35rem, env(safe-area-inset-top, 0px));
-            right: max(0.35rem, env(safe-area-inset-right, 0px));
-            z-index: 3;
-            width: 2.45rem;
-            height: 2.45rem;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            line-height: 0;
-            cursor: pointer;
-            border-radius: 4px;
+        .dv-campanha-overlay-panel {{
+            position: relative !important;
+            z-index: 1 !important;
+            display: inline-block !important;
+            width: max-content !important;
+            max-width: calc(100vw - 16px) !important;
+            max-height: calc(100dvh - 16px) !important;
+            overflow: hidden !important;
             background: #ffffff !important;
-            border: 1px solid rgba(15, 23, 42, 0.18);
-            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
-            padding: 0;
-            margin: 0;
-            color: inherit;
-            box-sizing: border-box;
+            border-radius: 12px !important;
+            box-shadow: 0 24px 64px rgba(0, 0, 0, 0.45) !important;
+            border: 1px solid rgba(255, 255, 255, 0.5) !important;
+            padding: 10px !important;
+            box-sizing: border-box !important;
+            vertical-align: top !important;
         }}
-        .home-banner-lb-close:focus-visible {{
-            outline: 2px solid {COR_AZUL_ESC};
-            outline-offset: 2px;
+        .dv-campanha-overlay-inner {{
+            display: inline-block !important;
+            vertical-align: top !important;
+            max-width: calc(100vw - 36px) !important;
+            max-height: calc(100dvh - 52px) !important;
+            overflow-x: hidden !important;
+            overflow-y: auto !important;
+            box-sizing: border-box !important;
+            text-align: center !important;
         }}
-        .home-banner-lb-close-icon {{
-            display: block;
-            flex-shrink: 0;
-            transition: transform 0.3s ease;
-            transform: rotate(0deg);
+        .dv-campanha-overlay-close {{
+            position: absolute !important;
+            top: max(6px, env(safe-area-inset-top, 0px)) !important;
+            right: max(6px, env(safe-area-inset-right, 0px)) !important;
+            z-index: 4 !important;
+            width: 2.45rem !important;
+            height: 2.45rem !important;
+            display: flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+            cursor: pointer !important;
+            border-radius: 8px !important;
+            background: #ffffff !important;
+            border: 1px solid rgba(15, 23, 42, 0.18) !important;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.15) !important;
+            padding: 0 !important;
+            margin: 0 !important;
         }}
-        .home-banner-lb-close:hover .home-banner-lb-close-icon,
-        .home-banner-lb-close:focus-visible .home-banner-lb-close-icon {{
-            transform: rotate(90deg);
+        .dv-campanha-overlay-img-wrap {{
+            display: inline-block !important;
+            line-height: 0 !important;
+            margin: 0 !important;
+            max-width: 100% !important;
+        }}
+        .dv-campanha-overlay-img {{
+            display: block !important;
+            width: auto !important;
+            height: auto !important;
+            max-width: calc(100vw - 36px) !important;
+            object-fit: contain !important;
+            border-radius: 10px !important;
+            vertical-align: top !important;
+        }}
+        .dv-campanha-overlay-text {{
+            color: #1e293b !important;
+            font-size: 0.95rem !important;
+            line-height: 1.55 !important;
+            text-align: left !important;
+            margin-top: 10px !important;
+            padding: 0 2px 2px !important;
+            box-sizing: border-box !important;
+        }}
+        .dv-campanha-overlay-title {{
+            margin: 0 0 0.5rem 0 !important;
+            font-size: 1.1rem !important;
+            font-weight: 700 !important;
+            color: {COR_AZUL_ESC} !important;
+            font-family: 'Montserrat', 'Inter', sans-serif !important;
+        }}
+        .dv-campanha-overlay-body {{
+            margin: 0 !important;
+            white-space: pre-wrap !important;
+            word-break: break-word !important;
         }}
         .header-logo-wrap {{
             display: flex;
@@ -3009,6 +3437,13 @@ def configurar_layout():
             height: auto;
             object-fit: contain;
             filter: drop-shadow(0 2px 10px rgba(15, 23, 42, 0.07));
+            transition: transform var(--dv-duration) var(--dv-ease-spring), filter var(--dv-duration) var(--dv-ease-out);
+        }}
+        @media (hover: hover) and (prefers-reduced-motion: no-preference) {{
+            .header-logo-wrap:hover img {{
+                transform: scale(1.02);
+                filter: drop-shadow(0 6px 18px rgba(15, 23, 42, 0.1));
+            }}
         }}
         .header-title {{
             font-family: 'Montserrat', 'Inter', sans-serif;
@@ -3119,27 +3554,37 @@ def configurar_layout():
         .metric-value {{ color: {COR_AZUL_ESC} !important; font-size: 1.8rem; font-weight: 800; font-family: 'Montserrat', 'Inter', sans-serif; }}
 
         .badge-ideal, .badge-seguro, .badge-multi {{
-            background-color: {COR_VERMELHO} !important;
+            background: linear-gradient(135deg, {COR_VERMELHO} 0%, {COR_VERMELHO_ESCURO} 100%) !important;
             color: white;
             padding: 6px 14px;
-            border-radius: 20px;
+            border-radius: 999px;
             font-weight: bold;
             font-size: 0.82rem;
             margin-top: 10px;
             letter-spacing: 0.02em;
             line-height: 1.25;
+            box-shadow: 0 2px 10px -2px rgba({RGB_VERMELHO_CSS}, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.2);
+            transition: transform var(--dv-duration) var(--dv-ease-spring), box-shadow var(--dv-duration) var(--dv-ease-out);
+        }}
+        @media (hover: hover) and (prefers-reduced-motion: no-preference) {{
+            .badge-ideal:hover, .badge-seguro:hover, .badge-multi:hover {{
+                transform: scale(1.04);
+                box-shadow: 0 6px 18px -4px rgba({RGB_VERMELHO_CSS}, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.22);
+            }}
         }}
         
         [data-testid="stSidebar"] {{ background-color: #fff; border-right: 1px solid {COR_BORDA}; }}
 
         .footer {{
             text-align: center;
-            margin-top: var(--dv-rhythm, 1.2rem) !important;
-            padding: var(--dv-rhythm, 1.2rem) 1rem;
+            margin-top: var(--dv-rhythm, 1.35rem) !important;
+            padding: var(--dv-rhythm, 1.35rem) 1rem calc(var(--dv-rhythm, 1.35rem) + 0.25rem);
             font-family: 'Inter', system-ui, sans-serif;
             color: #64748b !important;
             font-size: 0.8rem;
             line-height: 1.5;
+            border-top: 1px solid transparent;
+            border-image: linear-gradient(90deg, transparent, rgba(148, 163, 184, 0.45), transparent) 1;
         }}
         .footer em {{
             display: block;
@@ -3744,16 +4189,31 @@ def aba_simulador_automacao(
         df_home_banners if df_home_banners is not None else pd.DataFrame(),
         df_campanhas_texto if df_campanhas_texto is not None else pd.DataFrame(),
     )
+    inject_home_banner_dialog_modal()
     if st.session_state.get("user_is_adm"):
         with st.expander("Miniaturas — campanhas comerciais (administrador)", expanded=False):
             st.caption(
-                "Aba **BD Home Banners** na planilha geral. Informe só a **URL https** da imagem; a ordem na galeria segue a ordem das linhas na planilha (último lançamento = última miniatura). "
-                "Ao clicar, a imagem abre em **tela cheia no navegador**, mantendo a proporção original."
+                "Aba **BD Home Banners**. **URL https** da imagem; ordem da galeria = ordem das linhas. "
+                "**Chave da campanha** (opcional): use o **mesmo texto** na aba de textos e na miniatura para o popup mostrar **título + descrição** junto com a imagem. "
+                "Sem chave: o popup usa **Título** e **Descrição** desta linha na planilha (se preenchidos)."
             )
             with st.form("form_novo_home_banner"):
                 bn_url = st.text_input(
                     "Endereço da imagem (URL)",
                     placeholder="https://i.postimg.cc/...",
+                )
+                bn_chave = st.text_input(
+                    "Chave da campanha (opcional — igual à da aba de textos)",
+                    placeholder="Ex.: carnaval_2026",
+                )
+                bn_titulo = st.text_input(
+                    "Título no popup (se não houver linha de texto com a mesma chave)",
+                    placeholder="Ex.: Campanha de verão",
+                )
+                bn_desc = st.text_area(
+                    "Descrição no popup (se não houver linha de texto com a mesma chave)",
+                    placeholder="Texto curto que aparece abaixo da imagem…",
+                    height=72,
                 )
                 enviar_bn = st.form_submit_button("Gravar nova imagem na aba Banners da home", type="primary")
             if enviar_bn:
@@ -3761,7 +4221,12 @@ def aba_simulador_automacao(
                 if not url_t.startswith("https://"):
                     st.error("A URL da imagem deve começar com https:// (use o link direto do Postimages).")
                 else:
-                    ok, err = gravar_nova_linha_home_banner(url_t)
+                    ok, err = gravar_nova_linha_home_banner(
+                        url_t,
+                        chave_campanha=(bn_chave or "").strip(),
+                        titulo=(bn_titulo or "").strip(),
+                        descricao=(bn_desc or "").strip(),
+                    )
                     if ok:
                         st.cache_data.clear()
                         st.success("Imagem gravada na planilha. Recarregando…")
@@ -3802,10 +4267,15 @@ def aba_simulador_automacao(
 
         with st.expander("Textos — campanhas comerciais (administrador)", expanded=False):
             st.caption(
-                f"Aba **{_WS_CAMPANHAS_TEXTO}** (Titulo, Texto; colunas Ordem e Ativo são preenchidas automaticamente como SIM). "
-                "Na página, os textos ficam **abaixo das miniaturas**; cada item é um marcador com o **campo Título** em negrito/azul (mesmo estilo de antes) e, na sequência, o **Texto**."
+                f"Aba **{_WS_CAMPANHAS_TEXTO}** (Titulo, Texto, **Chave_Campanha** opcional; Ordem e Ativo automáticos). "
+                "Os textos continuam **abaixo das miniaturas** na página. Com **Chave da campanha** igual à da linha em **BD Home Banners**, "
+                "o **clique na miniatura** abre o popup com imagem + este título e texto."
             )
             with st.form("form_novo_campanha_texto"):
+                ct_chave = st.text_input(
+                    "Chave da campanha (opcional — igual à da miniatura)",
+                    placeholder="Ex.: carnaval_2026",
+                )
                 ct_titulo = st.text_input(
                     "Título",
                     placeholder='Ex.: "Campanha de Carnaval"',
@@ -3825,6 +4295,7 @@ def aba_simulador_automacao(
                     ok_ct, err_ct = gravar_nova_linha_campanha_texto(
                         (ct_titulo or "").strip(),
                         (ct_texto or "").strip(),
+                        chave_campanha=(ct_chave or "").strip(),
                     )
                     if ok_ct:
                         st.cache_data.clear()
@@ -4088,61 +4559,11 @@ def aba_simulador_automacao(
         d = st.session_state.dados_cliente
         st.markdown("### Recomendação de Imóveis")
 
-        df_disp_total = df_estoque.copy()
+        df_disp_total = df_estoque_com_poder_compra(df_estoque.copy(), d, df_politicas, _prem)
 
         if df_disp_total.empty:
             st.markdown('<div class="custom-alert">Sem estoque carregado para recomendações.</div>', unsafe_allow_html=True)
         else:
-            def _ps_max_estoque_row(row):
-                pol = d.get("politica", "Direcional")
-                rank = d.get("ranking", "DIAMANTE")
-                if pol == "Emcash":
-                    try:
-                        return float(row.get("PS_EmCash", 0) or 0)
-                    except (TypeError, ValueError):
-                        return 0.0
-                col_rank = f"PS_{rank.title()}" if rank else "PS_Diamante"
-                if rank == "AÇO":
-                    col_rank = "PS_Aco"
-                try:
-                    return float(row.get(col_rank, 0) or 0)
-                except (TypeError, ValueError):
-                    return 0.0
-
-            def calcular_poder_compra_linha(row):
-                """Dobro da renda + financiamento + subsídio + Pro Soluto efetivo (comparador, políticas e teto do estoque)."""
-                try:
-                    v_venda = float(row.get("Valor de Venda", 0) or 0)
-                except (TypeError, ValueError):
-                    v_venda = 0.0
-                fin = float(d.get("finan_usado", 0) or 0)
-                sub = float(d.get("fgts_sub_usado", 0) or 0)
-                ren = float(d.get("renda", 0) or 0)
-                ps_stock = max(0.0, _ps_max_estoque_row(row))
-                ps_eff = 0.0
-                if ps_stock <= 1e-9:
-                    ps_eff = 0.0
-                else:
-                    try:
-                        mps = metricas_pro_soluto(
-                            ren,
-                            v_venda,
-                            str(d.get("politica", "Direcional")),
-                            str(d.get("ranking", "DIAMANTE")),
-                            _prem,
-                            df_politicas,
-                            ps_cap_estoque=ps_stock,
-                        )
-                        ps_eff = float(mps.get("ps_max_efetivo", 0) or 0)
-                    except Exception:
-                        ps_eff = float(ps_stock)
-                poder = (2.0 * ren) + fin + sub + max(0.0, ps_eff)
-                cobertura = (poder / v_venda) * 100.0 if v_venda > 0 else 0.0
-                return pd.Series([poder, cobertura, fin, sub])
-
-            df_disp_total[["Poder_Compra", "Cobertura", "Finan_Unid", "Sub_Unid"]] = df_disp_total.apply(
-                calcular_poder_compra_linha, axis=1
-            )
             df_disp_total = df_disp_total.sort_values(["Valor de Venda", "Identificador"], ascending=[True, True])
 
             st.markdown("<br>", unsafe_allow_html=True)
@@ -4158,28 +4579,16 @@ def aba_simulador_automacao(
                 st.markdown('<div class="custom-alert">Nenhuma unidade encontrada para o filtro.</div>', unsafe_allow_html=True)
             else:
                 final_cards = []
-                vv = pd.to_numeric(df_pool["Valor de Venda"], errors="coerce").fillna(0.0)
-                pc = pd.to_numeric(df_pool["Poder_Compra"], errors="coerce").fillna(0.0)
-                # 100% do poder de compra por unidade (PS e teto já entram em Poder_Compra / linha)
-                mask_fit = (vv > 0) & (vv <= pc)
-                fit_sub = df_pool[mask_fit]
-                if not fit_sub.empty:
-                    max_p = pd.to_numeric(fit_sub["Valor de Venda"], errors="coerce").max()
-                    cand_rec = fit_sub[
-                        pd.to_numeric(fit_sub["Valor de Venda"], errors="coerce") == max_p
-                    ]
+                cand_rec = candidatos_df_recomendados(df_pool)
+                vv_l = pd.to_numeric(df_pool["Valor de Venda"], errors="coerce").fillna(0.0)
+                pc_l = pd.to_numeric(df_pool["Poder_Compra"], errors="coerce").fillna(0.0)
+                alguma_cabe = ((vv_l > 0) & (vv_l <= pc_l)).any()
+                if alguma_cabe:
                     label_rec, css_rec = "IDEAL", "badge-ideal"
+                elif (vv_l > 0).any():
+                    label_rec, css_rec = "MENOR PREÇO", "badge-seguro"
                 else:
-                    pool_pos = df_pool[vv > 0]
-                    if pool_pos.empty:
-                        cand_rec = pd.DataFrame()
-                        label_rec, css_rec = "IDEAL", "badge-ideal"
-                    else:
-                        min_v = pd.to_numeric(pool_pos["Valor de Venda"], errors="coerce").min()
-                        cand_rec = pool_pos[
-                            pd.to_numeric(pool_pos["Valor de Venda"], errors="coerce") == min_v
-                        ]
-                        label_rec, css_rec = "MENOR PREÇO", "badge-seguro"
+                    label_rec, css_rec = "IDEAL", "badge-ideal"
 
                 def add_cards_group(label, df_group, css_class):
                     if df_group is None or df_group.empty:
@@ -4251,13 +4660,32 @@ def aba_simulador_automacao(
             if unidades_disp.empty:
                 st.warning("Sem unidades disponíveis.")
             else:
-                uni_ordered = unidades_disp.drop_duplicates(subset=['Identificador'], keep='first')
-                current_uni_ids = uni_ordered['Identificador'].tolist()
+                _rec_ids_emp = ids_unidades_recomendadas_empreendimento(
+                    df_disponiveis, emp_escolhido, d, df_politicas, _prem
+                )
+                uni_ordered = unidades_disp.drop_duplicates(subset=['Identificador'], keep='first').copy()
+                uni_ordered["_vv_sort"] = pd.to_numeric(
+                    uni_ordered["Valor de Venda"], errors="coerce"
+                ).fillna(0.0)
+                uni_ordered["_id_norm"] = uni_ordered["Identificador"].map(
+                    lambda x: str(x).strip() if x is not None else ""
+                )
+                uo_rec = uni_ordered[uni_ordered["_id_norm"].isin(_rec_ids_emp)].sort_values(
+                    ["_vv_sort", "Identificador"], ascending=[True, True]
+                )
+                uo_out = uni_ordered[~uni_ordered["_id_norm"].isin(_rec_ids_emp)].sort_values(
+                    ["_vv_sort", "Identificador"], ascending=[True, True]
+                )
+                current_uni_ids = uo_rec["Identificador"].tolist() + uo_out["Identificador"].tolist()
                 idx_uni = 0
                 if 'unidade_id' in st.session_state.dados_cliente:
                     try:
-                        if st.session_state.dados_cliente['unidade_id'] in current_uni_ids:
-                            idx_uni = current_uni_ids.index(st.session_state.dados_cliente['unidade_id'])
+                        _uid_sv = st.session_state.dados_cliente['unidade_id']
+                        _u_norm = str(_uid_sv).strip()
+                        for _k, _cid in enumerate(current_uni_ids):
+                            if str(_cid).strip() == _u_norm:
+                                idx_uni = _k
+                                break
                     except Exception:
                         pass
 
@@ -4273,12 +4701,16 @@ def aba_simulador_automacao(
                     except (TypeError, ValueError):
                         v_vc = 0.0
                     v_vc_fmt = fmt_br(v_vc)
-                    return (
-                        f"{uid} | Avaliação: R$ {v_aval} | Venda: R$ {v_venda} | Desconto Volta ao Caixa: R$ {v_vc_fmt}"
+                    corpo = (
+                        f"{uid} | Avaliação: R$ {v_aval} | Venda: R$ {v_venda} | "
+                        f"Desconto Volta ao Caixa: R$ {v_vc_fmt}"
                     )
+                    if str(uid).strip() in _rec_ids_emp:
+                        return f"RECOMENDADA: {corpo}"
+                    return corpo
 
                 uni_escolhida_id = st.selectbox(
-                    "Escolha a Unidade (do menor ao maior preço):",
+                    "Escolha a Unidade (recomendadas primeiro; depois por preço crescente):",
                     options=current_uni_ids,
                     index=idx_uni,
                     format_func=label_uni,
@@ -4884,7 +5316,6 @@ def main():
     configurar_layout()
     inject_modern_ui_runtime()
     inject_enter_confirma_campo()
-    inject_home_banner_dialog_modal()
     if "logged_in" not in st.session_state:
         st.session_state["logged_in"] = False
 
