@@ -2374,26 +2374,43 @@ def configurar_layout():
             box-shadow: 0 8px 22px -5px rgba({RGB_VERMELHO_CSS}, 0.45) !important;
         }}
 
-        /* Botões secundários (limpar ×, outros) = cinza; Voltar = azul via .btn-azul-anchor */
+        /* Botões secundários = azul Direcional, texto branco */
         .stButton button:not([kind="primary"]) {{
-            background: #f0f2f6 !important;
-            color: {COR_AZUL_ESC} !important;
-            border: 1px solid #e2e8f0 !important;
+            background: {COR_AZUL_ESC} !important;
+            color: #ffffff !important;
+            -webkit-text-fill-color: #ffffff !important;
+            border: none !important;
+            box-shadow: 0 2px 8px rgba({RGB_AZUL_CSS}, 0.22) !important;
         }}
         .stButton button:not([kind="primary"]):hover {{
-            border-color: #cbd5e1 !important;
-            color: {COR_AZUL_ESC} !important;
-            background: #e2e8f0 !important;
+            background: #03346e !important;
+            color: #ffffff !important;
+            -webkit-text-fill-color: #ffffff !important;
+            border: none !important;
+            box-shadow: 0 4px 14px rgba({RGB_AZUL_CSS}, 0.35) !important;
+        }}
+        .stButton button:not([kind="primary"]) *,
+        .stButton button:not([kind="primary"]) span,
+        .stButton button:not([kind="primary"]) p {{
+            color: #ffffff !important;
+            -webkit-text-fill-color: #ffffff !important;
+        }}
+        .stButton button:not([kind="primary"]) svg {{
+            fill: #ffffff !important;
+            color: #ffffff !important;
         }}
 
-        /* Voltar = azul direcional (marcador data-btn-azul antes do botão) */
+        /* Voltar (data-btn-azul): mesmo padrão azul / branco */
         div[data-testid="stMarkdown"]:has([data-btn-azul]) + div[data-testid="stButton"] button {{
             background: {COR_AZUL_ESC} !important;
             color: #ffffff !important;
+            -webkit-text-fill-color: #ffffff !important;
             border: none !important;
         }}
         div[data-testid="stMarkdown"]:has([data-btn-azul]) + div[data-testid="stButton"] button:hover {{
             background: #03346e !important;
+            color: #ffffff !important;
+            -webkit-text-fill-color: #ffffff !important;
             box-shadow: 0 4px 14px rgba({RGB_AZUL_CSS}, 0.35) !important;
         }}
         /* Links WhatsApp em markdown (não são o botão link_button) */
@@ -2407,9 +2424,10 @@ def configurar_layout():
         a[href*="wa.me"]:not([data-testid="stLinkButton"]):hover {{
             color: #075e54 !important;
         }}
-        /* Botão "Enviar resumo por WhatsApp": verde WhatsApp, texto branco */
+        /* Botão WhatsApp (link_button): verde oficial, letras brancas */
         a[data-testid="stLinkButton"][href*="api.whatsapp.com"],
-        a[data-testid="stLinkButton"][href*="whatsapp.com"] {{
+        a[data-testid="stLinkButton"][href*="whatsapp.com"],
+        a[data-testid="stLinkButton"][href*="wa.me"] {{
             display: flex !important;
             align-items: center !important;
             justify-content: center !important;
@@ -2420,26 +2438,34 @@ def configurar_layout():
             border-radius: 8px !important;
             background: #25d366 !important;
             background-color: #25d366 !important;
+            background-image: none !important;
             color: #ffffff !important;
+            -webkit-text-fill-color: #ffffff !important;
             font-weight: 700 !important;
             text-decoration: none !important;
             border: none !important;
             box-shadow: 0 2px 8px rgba(37, 211, 102, 0.35) !important;
         }}
         a[data-testid="stLinkButton"][href*="api.whatsapp.com"] *,
-        a[data-testid="stLinkButton"][href*="whatsapp.com"] * {{
+        a[data-testid="stLinkButton"][href*="whatsapp.com"] *,
+        a[data-testid="stLinkButton"][href*="wa.me"] * {{
             color: #ffffff !important;
+            -webkit-text-fill-color: #ffffff !important;
         }}
         a[data-testid="stLinkButton"][href*="api.whatsapp.com"]:hover,
-        a[data-testid="stLinkButton"][href*="whatsapp.com"]:hover {{
+        a[data-testid="stLinkButton"][href*="whatsapp.com"]:hover,
+        a[data-testid="stLinkButton"][href*="wa.me"]:hover {{
             background: #20bd5a !important;
             background-color: #20bd5a !important;
+            background-image: none !important;
             color: #ffffff !important;
+            -webkit-text-fill-color: #ffffff !important;
             box-shadow: 0 4px 14px rgba(37, 211, 102, 0.45) !important;
         }}
         /* Reforço no st.dialog: Streamlit às vezes aplica cores invertidas no link_button */
         [data-testid="stDialog"] a[data-testid="stLinkButton"][href*="api.whatsapp.com"],
-        [data-testid="stDialog"] a[data-testid="stLinkButton"][href*="whatsapp.com"] {{
+        [data-testid="stDialog"] a[data-testid="stLinkButton"][href*="whatsapp.com"],
+        [data-testid="stDialog"] a[data-testid="stLinkButton"][href*="wa.me"] {{
             display: flex !important;
             align-items: center !important;
             justify-content: center !important;
@@ -2459,12 +2485,14 @@ def configurar_layout():
             box-shadow: 0 2px 8px rgba(37, 211, 102, 0.35) !important;
         }}
         [data-testid="stDialog"] a[data-testid="stLinkButton"][href*="api.whatsapp.com"] *,
-        [data-testid="stDialog"] a[data-testid="stLinkButton"][href*="whatsapp.com"] * {{
+        [data-testid="stDialog"] a[data-testid="stLinkButton"][href*="whatsapp.com"] *,
+        [data-testid="stDialog"] a[data-testid="stLinkButton"][href*="wa.me"] * {{
             color: #ffffff !important;
             -webkit-text-fill-color: #ffffff !important;
         }}
         [data-testid="stDialog"] a[data-testid="stLinkButton"][href*="api.whatsapp.com"]:hover,
-        [data-testid="stDialog"] a[data-testid="stLinkButton"][href*="whatsapp.com"]:hover {{
+        [data-testid="stDialog"] a[data-testid="stLinkButton"][href*="whatsapp.com"]:hover,
+        [data-testid="stDialog"] a[data-testid="stLinkButton"][href*="wa.me"]:hover {{
             background: #20bd5a !important;
             background-color: #20bd5a !important;
             background-image: none !important;
@@ -2541,15 +2569,25 @@ def configurar_layout():
         }}
 
         .stDownloadButton button {{
-            background: #f0f2f6 !important;
-            color: {COR_AZUL_ESC} !important;
-            border: 1px solid #e2e8f0 !important;
+            background: {COR_AZUL_ESC} !important;
+            color: #ffffff !important;
+            -webkit-text-fill-color: #ffffff !important;
+            border: none !important;
             height: 48px !important;
+            box-shadow: 0 2px 8px rgba({RGB_AZUL_CSS}, 0.22) !important;
         }}
         .stDownloadButton button:hover {{
-            border-color: #cbd5e1 !important;
-            color: {COR_AZUL_ESC} !important;
-            background: #e2e8f0 !important;
+            background: #03346e !important;
+            color: #ffffff !important;
+            -webkit-text-fill-color: #ffffff !important;
+            border: none !important;
+            box-shadow: 0 4px 14px rgba({RGB_AZUL_CSS}, 0.35) !important;
+        }}
+        .stDownloadButton button *,
+        .stDownloadButton button svg {{
+            color: #ffffff !important;
+            -webkit-text-fill-color: #ffffff !important;
+            fill: #ffffff !important;
         }}
 
         [data-testid="stSidebar"] .stButton button {{
