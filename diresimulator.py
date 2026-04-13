@@ -1955,6 +1955,10 @@ def configurar_layout():
     st.markdown(f"""
         <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Montserrat:wght@600;700;800&display=swap');
+        @keyframes brandBarFlow {{
+            0% {{ background-position: 0% 50%; }}
+            100% {{ background-position: 200% 50%; }}
+        }}
         html {{
             color-scheme: light only !important;
         }}
@@ -2063,11 +2067,12 @@ def configurar_layout():
                 border-radius: 6px !important;
             }}
             .header-brand-bar-wrap {{
-                width: 100%;
-                left: auto;
-                transform: none;
-                margin-left: 0;
-                margin-right: 0;
+                width: 100vw;
+                max-width: none;
+                position: relative;
+                left: 50%;
+                transform: translateX(-50%);
+                margin: 0 0 1.5rem 0;
             }}
             [data-testid="stHorizontalBlock"] {{
                 flex-direction: column !important;
@@ -2554,27 +2559,37 @@ def configurar_layout():
             max-width: 1100px;
             position: relative;
         }}
-        /* Barra animada — topo do conteúdo (substitui o antigo stepper) */
+        /* Barra animada — topo do conteúdo (largura total da viewport + faixa mais alta) */
         .header-brand-bar-wrap {{
             width: 100vw;
-            max-width: 100%;
+            max-width: none;
             position: relative;
             left: 50%;
             transform: translateX(-50%);
             margin: 0 0 1.75rem 0;
+            box-sizing: border-box;
         }}
         .header-brand-bar {{
-            height: 3px;
-            border-radius: 2px;
+            height: 10px;
+            border-radius: 5px;
+            width: 100%;
             background: linear-gradient(
                 90deg,
-                rgba(227, 6, 19, 0.15) 0%,
-                {COR_VERMELHO} 45%,
-                {COR_VERMELHO} 55%,
-                rgba(227, 6, 19, 0.15) 100%
+                rgba(227, 6, 19, 0.2) 0%,
+                {COR_VERMELHO} 18%,
+                #f97316 40%,
+                #fb923c 50%,
+                {COR_VERMELHO} 68%,
+                rgba(227, 6, 19, 0.25) 100%
             );
-            background-size: 100% 100%;
-            animation: none;
+            background-size: 200% 100%;
+            animation: brandBarFlow 7s ease-in-out infinite;
+        }}
+        @media (prefers-reduced-motion: reduce) {{
+            .header-brand-bar {{
+                animation: none !important;
+                background-position: 50% 50% !important;
+            }}
         }}
         .home-banners-wrap {{
             display: flex;
