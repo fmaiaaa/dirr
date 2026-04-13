@@ -1955,11 +1955,10 @@ def configurar_layout():
     st.markdown(f"""
         <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Montserrat:wght@600;700;800&display=swap');
-        /* Ida e volta suave (sem salto no loop) + curva mais fluida na animação */
+        /* Velocidade constante (linear) + alternate: evita “paragens” do ease nas inversões */
         @keyframes brandBarFlow {{
             0% {{ background-position: 0% 50%; }}
-            50% {{ background-position: 100% 50%; }}
-            100% {{ background-position: 0% 50%; }}
+            100% {{ background-position: 100% 50%; }}
         }}
         html {{
             color-scheme: light only !important;
@@ -2577,6 +2576,8 @@ def configurar_layout():
             border-radius: 5px;
             width: 100%;
             max-width: 100%;
+            transform: translateZ(0);
+            backface-visibility: hidden;
             background: linear-gradient(
                 90deg,
                 rgba(227, 6, 19, 0.45) 0%,
@@ -2591,8 +2592,9 @@ def configurar_layout():
                 {COR_VERMELHO} 86%,
                 rgba(227, 6, 19, 0.55) 100%
             );
-            background-size: 240% 100%;
-            animation: brandBarFlow 11s cubic-bezier(0.42, 0.01, 0.58, 1) infinite;
+            background-size: 200% 100%;
+            background-repeat: no-repeat;
+            animation: brandBarFlow 12s linear infinite alternate;
         }}
         @media (prefers-reduced-motion: reduce) {{
             .header-brand-bar {{
