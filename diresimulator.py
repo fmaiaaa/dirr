@@ -1955,9 +1955,11 @@ def configurar_layout():
     st.markdown(f"""
         <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Montserrat:wght@600;700;800&display=swap');
+        /* Ida e volta suave (sem salto no loop) + curva mais fluida na animação */
         @keyframes brandBarFlow {{
             0% {{ background-position: 0% 50%; }}
-            100% {{ background-position: 200% 50%; }}
+            50% {{ background-position: 100% 50%; }}
+            100% {{ background-position: 0% 50%; }}
         }}
         html {{
             color-scheme: light only !important;
@@ -2225,10 +2227,10 @@ def configurar_layout():
             margin-top: 0.5rem !important;
             margin-bottom: 0.5rem !important;
             padding: 1.25rem clamp(1rem, 2vw, 2rem) !important;
-            /* Painel ~95% opaco + vidro (deixa perceber o fundo um pouco) */
-            background: rgba(255, 255, 255, 0.95) !important;
-            backdrop-filter: saturate(1.08) blur(10px) !important;
-            -webkit-backdrop-filter: saturate(1.08) blur(10px) !important;
+            /* Painel um pouco mais transparente (~90% opaco) + vidro */
+            background: rgba(255, 255, 255, 0.9) !important;
+            backdrop-filter: saturate(1.08) blur(12px) !important;
+            -webkit-backdrop-filter: saturate(1.08) blur(12px) !important;
             border-radius: 8px !important;
             border: none !important;
             box-shadow: 0 2px 16px rgba(15, 23, 42, 0.06), 0 1px 3px rgba(15, 23, 42, 0.04) !important;
@@ -2589,8 +2591,8 @@ def configurar_layout():
                 {COR_VERMELHO} 86%,
                 rgba(227, 6, 19, 0.55) 100%
             );
-            background-size: 200% 100%;
-            animation: brandBarFlow 7s ease-in-out infinite;
+            background-size: 240% 100%;
+            animation: brandBarFlow 11s cubic-bezier(0.42, 0.01, 0.58, 1) infinite;
         }}
         @media (prefers-reduced-motion: reduce) {{
             .header-brand-bar {{
