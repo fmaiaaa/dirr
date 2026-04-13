@@ -2055,9 +2055,10 @@ def configurar_layout():
                 background-attachment: scroll !important;
             }}
             [data-testid="stMain"] {{
-                padding-left: max(8px, env(safe-area-inset-left, 0px)) !important;
-                padding-right: max(8px, env(safe-area-inset-right, 0px)) !important;
-                padding-top: max(10px, env(safe-area-inset-top, 0px)) !important;
+                padding-left: max(6px, env(safe-area-inset-left, 0px)) !important;
+                padding-right: max(6px, env(safe-area-inset-right, 0px)) !important;
+                padding-top: max(4px, env(safe-area-inset-top, 0px)) !important;
+                padding-bottom: max(8px, env(safe-area-inset-bottom, 0px)) !important;
             }}
             .block-container {{
                 max-width: 100% !important;
@@ -2155,10 +2156,11 @@ def configurar_layout():
             color: #475569 !important;
         }}
         [data-testid="stMain"] {{
-            padding-left: clamp(10px, 2.2vw, 28px) !important;
-            padding-right: clamp(10px, 2.2vw, 28px) !important;
-            padding-top: clamp(12px, 3vh, 32px) !important;
-            padding-bottom: clamp(14px, 4vh, 40px) !important;
+            /* Margem mínima em relação à viewport (antes: clamp alto em vh/vw) */
+            padding-left: max(8px, env(safe-area-inset-left, 0px)) !important;
+            padding-right: max(8px, env(safe-area-inset-right, 0px)) !important;
+            padding-top: max(6px, env(safe-area-inset-top, 0px)) !important;
+            padding-bottom: max(10px, env(safe-area-inset-bottom, 0px)) !important;
             box-sizing: border-box !important;
         }}
         section.main > div {{
@@ -2220,12 +2222,12 @@ def configurar_layout():
         }}
 
         .block-container {{
-            max-width: min(1680px, 97vw) !important;
+            max-width: min(1680px, 100%) !important;
             margin-left: auto !important;
             margin-right: auto !important;
-            margin-top: 0.5rem !important;
-            margin-bottom: 0.5rem !important;
-            padding: 1.25rem clamp(1rem, 2vw, 2rem) !important;
+            margin-top: 0.25rem !important;
+            margin-bottom: 0.35rem !important;
+            padding: 1rem clamp(0.75rem, 1.5vw, 1.35rem) !important;
             /* Painel um pouco mais transparente (~90% opaco) + vidro */
             background: rgba(255, 255, 255, 0.9) !important;
             backdrop-filter: saturate(1.08) blur(12px) !important;
@@ -4673,8 +4675,8 @@ def _inject_login_vertical_center_css() -> None:
             display: flex !important;
             flex-direction: column !important;
             justify-content: center !important;
-            padding-top: clamp(6px, 1.5vh, 14px) !important;
-            padding-bottom: clamp(10px, 2.5vh, 28px) !important;
+            padding-top: max(6px, env(safe-area-inset-top, 0px)) !important;
+            padding-bottom: max(10px, env(safe-area-inset-bottom, 0px)) !important;
             box-sizing: border-box !important;
         }
         </style>
