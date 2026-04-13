@@ -32,6 +32,7 @@ URL_LOGO_DIRECIONAL_BIG = "https://logodownload.org/wp-content/uploads/2021/04/d
 # Mesmos ficheiros da ficha Credenciamento Vendas RJ (pasta deste .py, raiz do repo ou assets/)
 LOGO_TOPO_ARQUIVO = "502.57_LOGO DIRECIONAL_V2F-01.png"
 FAVICON_ARQUIVO = "502.57_LOGO D_COR_V3F.png"
+FUNDO_CADASTRO_ARQUIVO = "fundo_cadastrorh.jpg"
 # Paleta alinhada à ficha Credenciamento Vendas RJ (Streamlit)
 COR_AZUL_ESC = "#04428f"
 COR_VERMELHO = "#cb0935"
@@ -1852,6 +1853,40 @@ class MotorRecomendacao:
 _DIR_SIM_APP = Path(__file__).resolve().parent
 
 
+def _resolver_imagem_fundo_local(nome: str) -> Path | None:
+    """JPG/PNG: nome exato, stem+ext ou pasta assets/ (app e pai do repo)."""
+    for base in (_DIR_SIM_APP, _DIR_SIM_APP.parent):
+        for sub in ("", "assets"):
+            root = base / sub if sub else base
+            p = root / nome
+            if p.is_file():
+                return p
+            stem = Path(nome).stem
+            for ext in (".jpg", ".jpeg", ".JPG", ".JPEG", ".png", ".PNG"):
+                p2 = root / f"{stem}{ext}"
+                if p2.is_file():
+                    return p2
+    return None
+
+
+def _css_url_fundo_simulador() -> str:
+    """Imagem local (ficha Vendas RJ); senão fallback neutro."""
+    p = _resolver_imagem_fundo_local(FUNDO_CADASTRO_ARQUIVO)
+    if p and p.is_file():
+        try:
+            raw = p.read_bytes()
+            suf = p.suffix.lower()
+            mime = "image/jpeg" if suf in (".jpg", ".jpeg") else "image/png"
+            b64 = base64.b64encode(raw).decode("ascii")
+            return f"data:{mime};base64,{b64}"
+        except OSError:
+            pass
+    return (
+        "https://images.unsplash.com/photo-1486406146926-c627a92ad1ab"
+        "?auto=format&fit=crop&w=1920&q=80"
+    )
+
+
 def _resolver_png_raiz(nome: str) -> Path | None:
     """Procura PNG/JPG pelo nome exato na pasta do app, assets/ ou raiz do repo."""
     for base in (_DIR_SIM_APP, _DIR_SIM_APP.parent):
@@ -1916,6 +1951,7 @@ def configurar_layout():
         initial_sidebar_state="collapsed",
     )
 
+    bg_url = _css_url_fundo_simulador().replace("&", "&amp;")
     st.markdown(f"""
         <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Montserrat:wght@600;700;800&display=swap');
@@ -1953,9 +1989,17 @@ def configurar_layout():
         }}
         .stApp,
         [data-testid="stApp"] {{
-            background-color: #ffffff !important;
-            background-image: none !important;
-            background-attachment: scroll !important;
+            /* Imagem de fundo com véu branco semitransparente (a imagem continua visível) */
+            background-color: #f1f5f9 !important;
+            background-image: linear-gradient(
+                180deg,
+                rgba(255, 255, 255, 0.82) 0%,
+                rgba(255, 255, 255, 0.74) 42%,
+                rgba(248, 250, 252, 0.78) 100%
+            ), url("{bg_url}") !important;
+            background-size: 100% 100%, cover !important;
+            background-position: center center, center center !important;
+            background-attachment: fixed !important;
             background-repeat: no-repeat !important;
             animation: none !important;
         }}
