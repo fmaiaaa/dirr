@@ -1481,7 +1481,7 @@ def _utf8_base64_attr(s: str) -> str:
     return base64.b64encode((s or "").encode("utf-8")).decode("ascii")
 
 
-@st.dialog("Miniaturas — campanhas comerciais (administrador)")
+@st.dialog("Campanhas comerciais")
 def dialog_adm_miniaturas_home_banners(df_home_banners: pd.DataFrame | None) -> None:
     """Gestão da aba BD Home Banners (URL, título e descrição do popup por miniatura)."""
     st.caption(
@@ -1550,9 +1550,9 @@ def dialog_adm_miniaturas_home_banners(df_home_banners: pd.DataFrame | None) -> 
                     st.error(f"Não foi possível excluir: {err_del}")
 
 
-def _render_adm_textos_campanhas_comerciais(df_campanhas_texto: pd.DataFrame) -> None:
+@st.dialog("Textos — campanhas comerciais (administrador)")
+def dialog_adm_textos_campanhas(df_campanhas_texto: pd.DataFrame) -> None:
     """Formulários admin para a aba de textos (lista pública abaixo das miniaturas)."""
-    st.subheader("Textos — campanhas comerciais (administrador)")
     st.caption(
         f"Aba **{_WS_CAMPANHAS_TEXTO}** (colunas **Titulo** e **Texto**; **Ordem** e **Ativo** seguem a planilha). "
         "Estes textos aparecem na **lista abaixo das miniaturas** para todos os utilizadores."
@@ -1657,21 +1657,43 @@ def render_secao_campanhas_comerciais(
             + "".join(cards)
             + "</div></div>"
         )
-    st.markdown(
-        '<div class="home-banners-wrap" role="region" aria-label="Campanhas comerciais">'
-        '<h2 class="home-banners-section-title">Campanhas comerciais</h2>'
-        + strip_html
-        + "</div>",
-        unsafe_allow_html=True,
-    )
-    if user_is_adm:
-        if st.button(
-            "Miniaturas — campanhas comerciais (administrador)",
-            key="dv_open_dialog_miniaturas_campanhas",
-            type="secondary",
-        ):
-            dialog_adm_miniaturas_home_banners(df_banners)
-        _render_adm_textos_campanhas_comerciais(df_txt)
+    if not user_is_adm:
+        st.markdown(
+            '<div class="home-banners-wrap" role="region" aria-label="Campanhas comerciais">'
+            '<h2 class="home-banners-section-title">Campanhas comerciais</h2>'
+            + strip_html
+            + "</div>",
+            unsafe_allow_html=True,
+        )
+    else:
+        st.markdown(
+            '<div class="home-banners-wrap" role="region" aria-label="Campanhas comerciais">'
+            '<h2 class="home-banners-section-title">Campanhas comerciais</h2>'
+            "</div>",
+            unsafe_allow_html=True,
+        )
+        bc1, bc2 = st.columns([1, 1], gap="small")
+        with bc1:
+            if st.button(
+                "Campanhas comerciais",
+                key="dv_open_dialog_campanhas_miniaturas",
+                type="secondary",
+                use_container_width=True,
+            ):
+                dialog_adm_miniaturas_home_banners(df_banners)
+        with bc2:
+            if st.button(
+                "Textos — campanhas comerciais (administrador)",
+                key="dv_open_dialog_campanhas_textos",
+                type="secondary",
+                use_container_width=True,
+            ):
+                dialog_adm_textos_campanhas(df_txt)
+        if strip_html:
+            st.markdown(
+                '<div class="home-banners-wrap">' + strip_html + "</div>",
+                unsafe_allow_html=True,
+            )
     if copy_html:
         st.markdown(copy_html, unsafe_allow_html=True)
 
