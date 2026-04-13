@@ -1200,6 +1200,33 @@ def inject_home_banner_dialog_modal():
     st.components.v1.html(js, height=0, width=0)
 
 
+def inject_modern_ui_runtime():
+    """Marca o documento com preferências de movimento para CSS; JS vanilla no parent (Streamlit usa React internamente — não há runtime React app embutível neste ficheiro)."""
+    js = r"""
+<script>
+(function () {
+  var doc = document;
+  try {
+    if (window.parent && window.parent !== window && window.parent.document) {
+      doc = window.parent.document;
+    }
+  } catch (e) {
+    doc = document;
+  }
+  var root = doc.documentElement;
+  if (!root || root.getAttribute("data-dv-ui-runtime") === "1") return;
+  root.setAttribute("data-dv-ui-runtime", "1");
+  try {
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      root.setAttribute("data-dv-reduced-motion", "1");
+    }
+  } catch (e2) {}
+})();
+</script>
+"""
+    st.components.v1.html(js, height=0, width=0)
+
+
 # =============================================================================
 # 1. CARREGAMENTO DE DADOS
 # =============================================================================
@@ -1960,6 +1987,27 @@ def configurar_layout():
             0% {{ background-position: 0% 50%; }}
             100% {{ background-position: 100% 50%; }}
         }}
+        /* Tokens de design (UI contemporânea; usados em sombras, raios e transições) */
+        :root {{
+            --dv-ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+            --dv-duration: 0.22s;
+            --dv-radius-sm: 10px;
+            --dv-radius-md: 14px;
+            --dv-radius-lg: 18px;
+            --dv-shadow-xs: 0 1px 2px rgba(15, 23, 42, 0.05);
+            --dv-shadow-sm: 0 4px 18px -6px rgba(15, 23, 42, 0.08), 0 2px 8px -4px rgba(15, 23, 42, 0.05);
+            --dv-shadow-md: 0 14px 44px -12px rgba(15, 23, 42, 0.14), 0 6px 16px -6px rgba(15, 23, 42, 0.07);
+            --dv-surface-glass: rgba(255, 255, 255, 0.88);
+        }}
+        @media (prefers-reduced-motion: no-preference) {{
+            html {{
+                scroll-behavior: smooth;
+            }}
+        }}
+        ::selection {{
+            background: rgba({RGB_AZUL_CSS}, 0.22) !important;
+            color: #0f172a !important;
+        }}
         html {{
             color-scheme: light only !important;
         }}
@@ -1987,7 +2035,9 @@ def configurar_layout():
         html, body {{
             font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
             font-feature-settings: 'kern' 1, 'liga' 1;
+            font-optical-sizing: auto;
             -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
             color: {COR_TEXTO_LABEL};
             background: transparent !important;
             background-color: transparent !important;
@@ -2185,7 +2235,13 @@ def configurar_layout():
         .block-container hr {{
             margin: var(--dv-rhythm) 0 !important;
             border: none !important;
-            border-top: 1px solid rgba(148, 163, 184, 0.42) !important;
+            height: 1px !important;
+            background: linear-gradient(
+                90deg,
+                transparent 0%,
+                rgba(148, 163, 184, 0.45) 50%,
+                transparent 100%
+            ) !important;
         }}
 
         /* Cards de recomendação: grupo centralizado; scroll horizontal só quando não cabem */
@@ -2237,12 +2293,17 @@ def configurar_layout():
         /* Parágrafos do markdown = textos de apoio / subtítulos — centralizados */
         div[data-testid="stMarkdown"] p {{
             color: #334155;
-            line-height: 1.55;
+            line-height: 1.58;
             text-align: center !important;
+            text-wrap: pretty;
+        }}
+        h1, h2, h3, .header-title, .home-banners-section-title {{
+            text-wrap: balance;
         }}
 
         .block-container {{
             --dv-rhythm: 1.2rem;
+            text-rendering: optimizeLegibility;
             max-width: min(1680px, 100%) !important;
             margin-left: auto !important;
             margin-right: auto !important;
@@ -2301,10 +2362,12 @@ def configurar_layout():
         }}
 
         div[data-baseweb="input"] {{
-            border-radius: 10px !important;
+            border-radius: var(--dv-radius-sm) !important;
             border: 1px solid #e2e8f0 !important;
             background-color: {COR_INPUT_BG} !important;
-            transition: border-color 0.2s ease, box-shadow 0.2s ease !important;
+            transition: border-color var(--dv-duration) var(--dv-ease-out),
+                box-shadow var(--dv-duration) var(--dv-ease-out),
+                background-color var(--dv-duration) var(--dv-ease-out) !important;
         }}
 
         div[data-baseweb="input"]:focus-within {{
@@ -2365,13 +2428,23 @@ def configurar_layout():
 
         .stButton button {{
             font-family: 'Inter', system-ui, sans-serif;
-            border-radius: 8px !important;
+            border-radius: var(--dv-radius-sm) !important;
             padding: 0 16px !important;
             width: 100% !important;
             min-height: 44px !important;
             height: auto !important;
             font-weight: 600 !important;
             font-size: 0.95rem !important;
+            transition: background-color var(--dv-duration) var(--dv-ease-out),
+                border-color var(--dv-duration) var(--dv-ease-out),
+                box-shadow var(--dv-duration) var(--dv-ease-out),
+                transform 0.12s var(--dv-ease-out),
+                color var(--dv-duration) var(--dv-ease-out) !important;
+        }}
+        @media (prefers-reduced-motion: no-preference) {{
+            .stButton button:active {{
+                transform: scale(0.987) !important;
+            }}
         }}
 
         div[data-testid="column"] .stButton button, [data-testid="stSidebar"] .stButton button {{
@@ -2385,10 +2458,13 @@ def configurar_layout():
             background: linear-gradient(180deg, {COR_VERMELHO} 0%, {COR_VERMELHO_ESCURO} 100%) !important;
             color: #ffffff !important;
             border: none !important;
+            box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.2),
+                0 4px 20px -4px rgba({RGB_VERMELHO_CSS}, 0.42) !important;
         }}
         .stButton button[kind="primary"]:hover {{
             background: linear-gradient(180deg, {COR_VERMELHO} 0%, {COR_VERMELHO_ESCURO} 100%) !important;
-            box-shadow: 0 8px 22px -5px rgba({RGB_VERMELHO_CSS}, 0.45) !important;
+            box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.22),
+                0 10px 28px -6px rgba({RGB_VERMELHO_CSS}, 0.48) !important;
         }}
 
         /* Botões secundários = branco, texto escuro (primários continuam vermelhos) */
@@ -2440,7 +2516,10 @@ def configurar_layout():
             box-sizing: border-box !important;
             min-height: 48px !important;
             padding: 0.65rem 1.15rem !important;
-            border-radius: 8px !important;
+            border-radius: var(--dv-radius-sm) !important;
+            transition: background-color var(--dv-duration) var(--dv-ease-out),
+                border-color var(--dv-duration) var(--dv-ease-out),
+                box-shadow var(--dv-duration) var(--dv-ease-out) !important;
             background: #ffffff !important;
             background-color: #ffffff !important;
             background-image: none !important;
@@ -2529,7 +2608,9 @@ def configurar_layout():
             display: flex !important;
             align-items: center !important;
             justify-content: center !important;
-            background: rgba(15, 23, 42, 0.82) !important;
+            background: rgba(15, 23, 42, 0.78) !important;
+            backdrop-filter: blur(10px) saturate(140%) !important;
+            -webkit-backdrop-filter: blur(10px) saturate(140%) !important;
             z-index: 2147483000 !important;
         }}
         [data-testid="stDialog"] > div {{
@@ -2583,6 +2664,10 @@ def configurar_layout():
             border: 1px solid #cbd5e1 !important;
             height: 48px !important;
             box-shadow: 0 1px 3px rgba(15, 23, 42, 0.08) !important;
+            border-radius: var(--dv-radius-sm) !important;
+            transition: background-color var(--dv-duration) var(--dv-ease-out),
+                border-color var(--dv-duration) var(--dv-ease-out),
+                box-shadow var(--dv-duration) var(--dv-ease-out) !important;
         }}
         .stDownloadButton button:hover {{
             background: #f1f5f9 !important;
@@ -2605,6 +2690,26 @@ def configurar_layout():
             margin-bottom: 2px !important;
             height: auto !important;
             min-height: 30px !important;
+        }}
+
+        /* Expanders: superfície em vidro fosco + hierarquia clara */
+        [data-testid="stExpander"] details {{
+            border-radius: var(--dv-radius-md) !important;
+            border: 1px solid rgba(226, 232, 240, 0.95) !important;
+            background: var(--dv-surface-glass) !important;
+            backdrop-filter: blur(12px) saturate(160%) !important;
+            -webkit-backdrop-filter: blur(12px) saturate(160%) !important;
+            box-shadow: var(--dv-shadow-xs) !important;
+            overflow: hidden !important;
+            transition: box-shadow var(--dv-duration) var(--dv-ease-out),
+                border-color var(--dv-duration) var(--dv-ease-out) !important;
+        }}
+        [data-testid="stExpander"] details[open] {{
+            box-shadow: var(--dv-shadow-sm) !important;
+        }}
+        [data-testid="stExpander"] summary {{
+            font-weight: 600 !important;
+            letter-spacing: -0.02em !important;
         }}
 
         .header-container {{
@@ -2651,6 +2756,11 @@ def configurar_layout():
                 background-position: 50% 50% !important;
                 will-change: auto !important;
             }}
+        }}
+        html[data-dv-reduced-motion="1"] .header-brand-bar-wrap {{
+            animation: none !important;
+            background-position: 50% 50% !important;
+            will-change: auto !important;
         }}
         .home-banners-wrap {{
             display: flex;
@@ -2728,11 +2838,23 @@ def configurar_layout():
             flex: 0 0 auto;
             scroll-snap-align: start;
             text-align: center;
-            background: rgba(255, 255, 255, 0.94);
-            border-radius: 12px;
+            background: var(--dv-surface-glass);
+            border-radius: var(--dv-radius-md);
             padding: 6px;
-            box-shadow: 0 2px 12px rgba(15, 23, 42, 0.08);
-            border: 1px solid rgba(226, 232, 240, 0.95);
+            box-shadow: var(--dv-shadow-sm);
+            border: 1px solid rgba(226, 232, 240, 0.92);
+            backdrop-filter: blur(10px) saturate(150%);
+            -webkit-backdrop-filter: blur(10px) saturate(150%);
+            transition: transform var(--dv-duration) var(--dv-ease-out),
+                box-shadow var(--dv-duration) var(--dv-ease-out),
+                border-color var(--dv-duration) var(--dv-ease-out);
+        }}
+        @media (hover: hover) and (prefers-reduced-motion: no-preference) {{
+            .home-banner-card:hover {{
+                transform: translateY(-2px);
+                box-shadow: var(--dv-shadow-md);
+                border-color: rgba(148, 163, 184, 0.55);
+            }}
         }}
         .home-banner-card.home-banner-card--thumb {{
             width: 96px;
@@ -2886,6 +3008,7 @@ def configurar_layout():
             max-width: min(300px, 88vw);
             height: auto;
             object-fit: contain;
+            filter: drop-shadow(0 2px 10px rgba(15, 23, 42, 0.07));
         }}
         .header-title {{
             font-family: 'Montserrat', 'Inter', sans-serif;
@@ -2912,14 +3035,28 @@ def configurar_layout():
 
         .card, .fin-box, .recommendation-card, .login-card {{
             background: #ffffff;
-            padding: 18px;
-            border-radius: 8px;
-            border: 1px solid {COR_BORDA};
+            padding: clamp(1rem, 2.5vw, 1.35rem);
+            border-radius: var(--dv-radius-md);
+            border: 1px solid rgba(226, 232, 240, 0.98);
             text-align: center;
             display: flex;
             flex-direction: column;
             justify-content: center;
             align-items: center;
+            box-shadow: var(--dv-shadow-sm);
+            transition: transform var(--dv-duration) var(--dv-ease-out),
+                box-shadow var(--dv-duration) var(--dv-ease-out),
+                border-color var(--dv-duration) var(--dv-ease-out);
+        }}
+        @media (hover: hover) and (prefers-reduced-motion: no-preference) {{
+            .recommendation-card:hover,
+            .login-card:hover,
+            .card:hover,
+            .fin-box:hover {{
+                transform: translateY(-3px);
+                box-shadow: var(--dv-shadow-md);
+                border-color: rgba(148, 163, 184, 0.45);
+            }}
         }}
 
         .summary-header {{
@@ -2927,7 +3064,7 @@ def configurar_layout():
             background: {COR_AZUL_ESC};
             color: #ffffff !important;
             padding: 20px;
-            border-radius: 12px 12px 0 0;
+            border-radius: var(--dv-radius-md) var(--dv-radius-md) 0 0;
             font-weight: 800;
             text-align: center;
             text-transform: uppercase;
@@ -2938,15 +3075,16 @@ def configurar_layout():
             background: #ffffff;
             padding: 40px;
             border: 1px solid {COR_BORDA};
-            border-radius: 0 0 12px 12px;
+            border-radius: 0 0 var(--dv-radius-md) var(--dv-radius-md);
             margin-bottom: 40px;
             color: #111111;
             text-align: center !important;
+            box-shadow: var(--dv-shadow-xs);
         }}
         .custom-alert {{
-            background-color: {COR_AZUL_ESC};
-            padding: 25px;
-            border-radius: 8px;
+            background: linear-gradient(135deg, {COR_AZUL_ESC} 0%, #033061 100%);
+            padding: clamp(1.1rem, 3vw, 1.5rem);
+            border-radius: var(--dv-radius-md);
             margin-bottom: 30px;
             text-align: center;
             font-weight: 600;
@@ -2954,7 +3092,9 @@ def configurar_layout():
             display: flex;
             align-items: center;
             justify-content: center;
-            min-height: 60px; 
+            min-height: 60px;
+            box-shadow: var(--dv-shadow-sm), inset 0 1px 0 rgba(255, 255, 255, 0.12);
+            border: 1px solid rgba(255, 255, 255, 0.12);
         }}
         .price-tag {{
             color: {COR_VERMELHO};
@@ -3006,6 +3146,14 @@ def configurar_layout():
             margin-top: 0.35rem;
             font-style: italic !important;
             font-weight: normal;
+        }}
+
+        /* Foco visível consistente (acessibilidade) */
+        .stButton button:focus-visible,
+        .stDownloadButton button:focus-visible,
+        a[data-testid="stLinkButton"]:focus-visible {{
+            outline: 2px solid rgba({RGB_AZUL_CSS}, 0.65) !important;
+            outline-offset: 2px !important;
         }}
         </style>
     """, unsafe_allow_html=True)
@@ -4734,6 +4882,7 @@ def _inject_login_vertical_center_css() -> None:
 
 def main():
     configurar_layout()
+    inject_modern_ui_runtime()
     inject_enter_confirma_campo()
     inject_home_banner_dialog_modal()
     if "logged_in" not in st.session_state:
