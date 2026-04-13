@@ -1481,34 +1481,150 @@ def _utf8_base64_attr(s: str) -> str:
     return base64.b64encode((s or "").encode("utf-8")).decode("ascii")
 
 
-def _mapa_texto_campanha_por_chave(df_texto: pd.DataFrame) -> dict[str, tuple[str, str]]:
-    """Chave_Campanha (planilha texto) → (Título, Texto) para o popup; última linha vence se repetir chave."""
-    df = normalizar_df_campanhas_texto(df_texto)
-    out: dict[str, tuple[str, str]] = {}
-    if df.empty:
-        return out
-    for _, row in df.iterrows():
-        k = str(row.get("Chave_Campanha", "") or "").strip()
-        if not k:
-            continue
-        tit = str(row.get("Titulo", "") or "").strip()
-        body = str(row.get("Texto", "") or "").strip()
-        out[k] = (tit, body)
-    return out
+@st.dialog("Miniaturas — campanhas comerciais (administrador)")
+def dialog_adm_miniaturas_home_banners(df_home_banners: pd.DataFrame | None) -> None:
+    """Gestão da aba BD Home Banners (URL, título e descrição do popup por miniatura)."""
+    st.caption(
+        "Aba **BD Home Banners** na planilha geral. Use **URL https** direta da imagem; a ordem na galeria segue a ordem das linhas. "
+        "O **Título** e a **Descrição** desta linha são os que aparecem no **popup** ao clicar na miniatura."
+    )
+    with st.form("form_novo_home_banner"):
+        bn_url = st.text_input(
+            "Endereço da imagem (URL)",
+            placeholder="https://i.postimg.cc/...",
+        )
+        bn_titulo = st.text_input(
+            "Título no popup",
+            placeholder="Ex.: Campanha de verão",
+        )
+        bn_desc = st.text_area(
+            "Descrição no popup",
+            placeholder="Texto curto que aparece abaixo da imagem…",
+            height=72,
+        )
+        enviar_bn = st.form_submit_button("Gravar nova imagem na aba Banners da home", type="primary")
+    if enviar_bn:
+        url_t = (bn_url or "").strip()
+        if not url_t.startswith("https://"):
+            st.error("A URL da imagem deve começar com https:// (use o link direto do Postimages).")
+        else:
+            ok, err = gravar_nova_linha_home_banner(
+                url_t,
+                titulo=(bn_titulo or "").strip(),
+                descricao=(bn_desc or "").strip(),
+            )
+            if ok:
+                st.cache_data.clear()
+                st.success("Imagem gravada na planilha. Recarregando…")
+                st.rerun()
+            else:
+                st.error(f"Não foi possível gravar: {err}")
+
+    st.markdown("**Remover miniatura**")
+    _df_bn_adm = normalizar_df_home_banners(df_home_banners if df_home_banners is not None else pd.DataFrame())
+    _df_bn_adm = _df_bn_adm.reset_index(drop=True)
+    if _df_bn_adm.empty:
+        st.caption("Não há linhas na aba Banners da home.")
+    else:
+        _opts_idx = list(range(len(_df_bn_adm)))
+        _ix_del = st.selectbox(
+            "Linha a excluir (mesma ordem da planilha ao carregar)",
+            options=_opts_idx,
+            format_func=lambda j: _rotulo_opcao_excluir_banner(_df_bn_adm, int(j)),
+            key="home_banner_excluir_select",
+        )
+        _conf_del = st.checkbox(
+            "Confirmo que quero remover permanentemente esta linha da planilha",
+            key="home_banner_excluir_confirma",
+        )
+        if st.button("Excluir linha selecionada", type="secondary", key="home_banner_excluir_btn"):
+            if not _conf_del:
+                st.warning("Marque a confirmação para excluir.")
+            else:
+                ok_del, err_del = excluir_linha_home_banner(int(_ix_del))
+                if ok_del:
+                    st.cache_data.clear()
+                    st.success("Linha removida. Recarregando…")
+                    st.rerun()
+                else:
+                    st.error(f"Não foi possível excluir: {err_del}")
+
+
+def _render_adm_textos_campanhas_comerciais(df_campanhas_texto: pd.DataFrame) -> None:
+    """Formulários admin para a aba de textos (lista pública abaixo das miniaturas)."""
+    st.subheader("Textos — campanhas comerciais (administrador)")
+    st.caption(
+        f"Aba **{_WS_CAMPANHAS_TEXTO}** (colunas **Titulo** e **Texto**; **Ordem** e **Ativo** seguem a planilha). "
+        "Estes textos aparecem na **lista abaixo das miniaturas** para todos os utilizadores."
+    )
+    with st.form("form_novo_campanha_texto"):
+        ct_titulo = st.text_input(
+            "Título",
+            placeholder='Ex.: "Campanha de Carnaval"',
+        )
+        ct_texto = st.text_area(
+            "Texto",
+            placeholder="Ex.: Campanha x e y válida entre xc e yc.",
+            height=100,
+        )
+        enviar_ct = st.form_submit_button(
+            f"Gravar nova linha em {_WS_CAMPANHAS_TEXTO}", type="primary"
+        )
+    if enviar_ct:
+        if not (ct_titulo or "").strip() and not (ct_texto or "").strip():
+            st.error("Preencha pelo menos o título ou o texto.")
+        else:
+            ok_ct, err_ct = gravar_nova_linha_campanha_texto(
+                (ct_titulo or "").strip(),
+                (ct_texto or "").strip(),
+            )
+            if ok_ct:
+                st.cache_data.clear()
+                st.success("Linha gravada. Recarregando…")
+                st.rerun()
+            else:
+                st.error(f"Não foi possível gravar: {err_ct}")
+
+    st.markdown("**Remover linha de texto**")
+    _df_ct_adm = normalizar_df_campanhas_texto(df_campanhas_texto)
+    _df_ct_adm = _df_ct_adm.reset_index(drop=True)
+    if _df_ct_adm.empty:
+        st.caption(f"Não há linhas em {_WS_CAMPANHAS_TEXTO} (ou a aba ainda não existe).")
+    else:
+        _opts_ct = list(range(len(_df_ct_adm)))
+        _ix_ct = st.selectbox(
+            "Linha a excluir",
+            options=_opts_ct,
+            format_func=lambda j: _rotulo_opcao_excluir_campanha_texto(_df_ct_adm, int(j)),
+            key="campanha_texto_excluir_select",
+        )
+        _conf_ct = st.checkbox(
+            "Confirmo exclusão permanente desta linha",
+            key="campanha_texto_excluir_confirma",
+        )
+        if st.button("Excluir linha selecionada", type="secondary", key="campanha_texto_excluir_btn"):
+            if not _conf_ct:
+                st.warning("Marque a confirmação para excluir.")
+            else:
+                ok_dct, err_dct = excluir_linha_campanha_texto(int(_ix_ct))
+                if ok_dct:
+                    st.cache_data.clear()
+                    st.success("Linha removida. Recarregando…")
+                    st.rerun()
+                else:
+                    st.error(f"Não foi possível excluir: {err_dct}")
 
 
 def render_secao_campanhas_comerciais(
     df_banners: pd.DataFrame,
     df_texto_campanhas: pd.DataFrame | None = None,
+    *,
+    user_is_adm: bool = False,
 ) -> None:
-    """Faixa de miniaturas (clique = popup com imagem + texto) + texto em lista abaixo."""
+    """Faixa de miniaturas (clique = popup com imagem + título/descrição da linha na BD Home Banners) + textos públicos em lista."""
     df_bn = normalizar_df_home_banners(df_banners).reset_index(drop=True)
-    mapa_chave = _mapa_texto_campanha_por_chave(
-        df_texto_campanhas if df_texto_campanhas is not None else pd.DataFrame()
-    )
-    copy_html = _html_campanhas_texto_bloco(
-        df_texto_campanhas if df_texto_campanhas is not None else pd.DataFrame()
-    )
+    df_txt = df_texto_campanhas if df_texto_campanhas is not None else pd.DataFrame()
+    copy_html = _html_campanhas_texto_bloco(df_txt)
     cards: list[str] = []
     if not df_bn.empty:
         for _, row in df_bn.iterrows():
@@ -1518,15 +1634,8 @@ def render_secao_campanhas_comerciais(
             src = _img_url_seguro_https(str(row.get("URL_Imagem", "") or ""))
             if not src:
                 continue
-            chave = str(row.get("Chave_Campanha", "") or "").strip()
             tit_pop = str(row.get("Titulo", "") or "").strip()
             body_pop = str(row.get("Descricao", "") or "").strip()
-            if chave and chave in mapa_chave:
-                t_map, b_map = mapa_chave[chave]
-                if t_map:
-                    tit_pop = t_map
-                if b_map:
-                    body_pop = b_map
             t64 = _utf8_base64_attr(tit_pop)
             b64 = _utf8_base64_attr(body_pop)
             cards.append(
@@ -1538,7 +1647,7 @@ def render_secao_campanhas_comerciais(
                 f'<img src="{src}" alt="" loading="lazy" decoding="async" />'
                 f"</span></button></div>"
             )
-    if not cards and not copy_html:
+    if not cards and not copy_html and not user_is_adm:
         return
     strip_html = ""
     if cards:
@@ -1552,10 +1661,19 @@ def render_secao_campanhas_comerciais(
         '<div class="home-banners-wrap" role="region" aria-label="Campanhas comerciais">'
         '<h2 class="home-banners-section-title">Campanhas comerciais</h2>'
         + strip_html
-        + copy_html
         + "</div>",
         unsafe_allow_html=True,
     )
+    if user_is_adm:
+        if st.button(
+            "Miniaturas — campanhas comerciais (administrador)",
+            key="dv_open_dialog_miniaturas_campanhas",
+            type="secondary",
+        ):
+            dialog_adm_miniaturas_home_banners(df_banners)
+        _render_adm_textos_campanhas_comerciais(df_txt)
+    if copy_html:
+        st.markdown(copy_html, unsafe_allow_html=True)
 
 
 def gravar_nova_linha_home_banner(
@@ -1565,7 +1683,7 @@ def gravar_nova_linha_home_banner(
     titulo: str = "",
     descricao: str = "",
 ) -> tuple[bool, str]:
-    """Anexa linha na aba BD Home Banners. Use a mesma Chave_Campanha na aba de textos para juntar popup."""
+    """Anexa linha na aba BD Home Banners (Título e Descrição alimentam o popup da miniatura)."""
     try:
         conn = st.connection("gsheets", type=GSheetsConnection)
         df_raw = conn.read(spreadsheet=ID_GERAL, worksheet="BD Home Banners")
@@ -1663,9 +1781,7 @@ def _rotulo_opcao_excluir_banner(df_bn: pd.DataFrame, i: int) -> str:
     r = df_bn.iloc[i]
     url = str(r.get("URL_Imagem", "") or "").strip()
     snip = (url[:56] + "…") if len(url) > 57 else url
-    ck = str(r.get("Chave_Campanha", "") or "").strip()
-    suf = f" · chave «{ck}»" if ck else ""
-    return f"Linha {i + 1} · {snip or '(sem URL)'}{suf}"
+    return f"Linha {i + 1} · {snip or '(sem URL)'}"
 
 
 def _rotulo_opcao_excluir_campanha_texto(df_ct: pd.DataFrame, i: int) -> str:
@@ -1674,9 +1790,7 @@ def _rotulo_opcao_excluir_campanha_texto(df_ct: pd.DataFrame, i: int) -> str:
     tit = (tit[:48] + "…") if len(tit) > 49 else tit
     snip = str(r.get("Texto", "") or "").strip().replace("\n", " ")
     snip = (snip[:36] + "…") if len(snip) > 37 else snip
-    ck = str(r.get("Chave_Campanha", "") or "").strip()
-    suf = f" · chave «{ck}»" if ck else ""
-    return f"Linha {i + 1} · {tit or '(sem título)'}{' — ' + snip if snip else ''}{suf}"
+    return f"Linha {i + 1} · {tit or '(sem título)'}{' — ' + snip if snip else ''}"
 
 
 _COLS_LOGINS = ["Email", "Senha", "Nome", "Cargo", "Imobiliaria", "Telefone", "Adm"]
@@ -2850,15 +2964,6 @@ def configurar_layout():
             box-shadow: 0 0 0 3px rgba({RGB_AZUL_CSS}, 0.08) !important;
         }}
 
-        .stTextInput input::placeholder,
-        .stNumberInput input::placeholder,
-        .stDateInput input::placeholder,
-        [data-testid="stTextArea"] textarea::placeholder {{
-            color: {COR_TEXTO_MUTED} !important;
-            opacity: 1 !important;
-            -webkit-text-fill-color: {COR_TEXTO_MUTED} !important;
-        }}
-
         .stButton button {{
             font-family: 'Inter', system-ui, sans-serif;
             border-radius: var(--dv-radius-sm) !important;
@@ -3450,6 +3555,19 @@ def configurar_layout():
             box-shadow: 0 2px 10px rgba(0, 0, 0, 0.15) !important;
             padding: 0 !important;
             margin: 0 !important;
+        }}
+        .dv-campanha-overlay-close svg {{
+            display: block !important;
+            transition: transform 0.28s var(--dv-ease-out) !important;
+        }}
+        @media (hover: hover) and (prefers-reduced-motion: no-preference) {{
+            .dv-campanha-overlay-close:hover svg,
+            .dv-campanha-overlay-close:focus-visible svg {{
+                transform: rotate(90deg) !important;
+            }}
+        }}
+        html[data-dv-reduced-motion="1"] .dv-campanha-overlay-close svg {{
+            transition: none !important;
         }}
         .dv-campanha-overlay-img-wrap {{
             display: inline-block !important;
@@ -4253,152 +4371,9 @@ def aba_simulador_automacao(
     render_secao_campanhas_comerciais(
         df_home_banners if df_home_banners is not None else pd.DataFrame(),
         df_campanhas_texto if df_campanhas_texto is not None else pd.DataFrame(),
+        user_is_adm=bool(st.session_state.get("user_is_adm")),
     )
     inject_home_banner_dialog_modal()
-    if st.session_state.get("user_is_adm"):
-        with st.expander("Miniaturas — campanhas comerciais (administrador)", expanded=False):
-            st.caption(
-                "Aba **BD Home Banners**. **URL https** da imagem; ordem da galeria = ordem das linhas. "
-                "**Chave da campanha** (opcional): use o **mesmo texto** na aba de textos e na miniatura para o popup mostrar **título + descrição** junto com a imagem. "
-                "Sem chave: o popup usa **Título** e **Descrição** desta linha na planilha (se preenchidos)."
-            )
-            with st.form("form_novo_home_banner"):
-                bn_url = st.text_input(
-                    "Endereço da imagem (URL)",
-                    placeholder="https://i.postimg.cc/...",
-                )
-                bn_chave = st.text_input(
-                    "Chave da campanha (opcional — igual à da aba de textos)",
-                    placeholder="Ex.: carnaval_2026",
-                )
-                bn_titulo = st.text_input(
-                    "Título no popup (se não houver linha de texto com a mesma chave)",
-                    placeholder="Ex.: Campanha de verão",
-                )
-                bn_desc = st.text_area(
-                    "Descrição no popup (se não houver linha de texto com a mesma chave)",
-                    placeholder="Texto curto que aparece abaixo da imagem…",
-                    height=72,
-                )
-                enviar_bn = st.form_submit_button("Gravar nova imagem na aba Banners da home", type="primary")
-            if enviar_bn:
-                url_t = (bn_url or "").strip()
-                if not url_t.startswith("https://"):
-                    st.error("A URL da imagem deve começar com https:// (use o link direto do Postimages).")
-                else:
-                    ok, err = gravar_nova_linha_home_banner(
-                        url_t,
-                        chave_campanha=(bn_chave or "").strip(),
-                        titulo=(bn_titulo or "").strip(),
-                        descricao=(bn_desc or "").strip(),
-                    )
-                    if ok:
-                        st.cache_data.clear()
-                        st.success("Imagem gravada na planilha. Recarregando…")
-                        st.rerun()
-                    else:
-                        st.error(f"Não foi possível gravar: {err}")
-
-            st.markdown("**Remover miniatura**")
-            _df_bn_adm = normalizar_df_home_banners(
-                df_home_banners if df_home_banners is not None else pd.DataFrame()
-            )
-            _df_bn_adm = _df_bn_adm.reset_index(drop=True)
-            if _df_bn_adm.empty:
-                st.caption("Não há linhas na aba Banners da home.")
-            else:
-                _opts_idx = list(range(len(_df_bn_adm)))
-                _ix_del = st.selectbox(
-                    "Linha a excluir (mesma ordem da planilha ao carregar)",
-                    options=_opts_idx,
-                    format_func=lambda j: _rotulo_opcao_excluir_banner(_df_bn_adm, int(j)),
-                    key="home_banner_excluir_select",
-                )
-                _conf_del = st.checkbox(
-                    "Confirmo que quero remover permanentemente esta linha da planilha",
-                    key="home_banner_excluir_confirma",
-                )
-                if st.button("Excluir linha selecionada", type="secondary", key="home_banner_excluir_btn"):
-                    if not _conf_del:
-                        st.warning("Marque a confirmação para excluir.")
-                    else:
-                        ok_del, err_del = excluir_linha_home_banner(int(_ix_del))
-                        if ok_del:
-                            st.cache_data.clear()
-                            st.success("Linha removida. Recarregando…")
-                            st.rerun()
-                        else:
-                            st.error(f"Não foi possível excluir: {err_del}")
-
-        with st.expander("Textos — campanhas comerciais (administrador)", expanded=False):
-            st.caption(
-                f"Aba **{_WS_CAMPANHAS_TEXTO}** (Titulo, Texto, **Chave_Campanha** opcional; Ordem e Ativo automáticos). "
-                "Os textos continuam **abaixo das miniaturas** na página. Com **Chave da campanha** igual à da linha em **BD Home Banners**, "
-                "o **clique na miniatura** abre o popup com imagem + este título e texto."
-            )
-            with st.form("form_novo_campanha_texto"):
-                ct_chave = st.text_input(
-                    "Chave da campanha (opcional — igual à da miniatura)",
-                    placeholder="Ex.: carnaval_2026",
-                )
-                ct_titulo = st.text_input(
-                    "Título",
-                    placeholder='Ex.: "Campanha de Carnaval"',
-                )
-                ct_texto = st.text_area(
-                    "Texto",
-                    placeholder="Ex.: Campanha x e y válida entre xc e yc.",
-                    height=100,
-                )
-                enviar_ct = st.form_submit_button(
-                    f"Gravar nova linha em {_WS_CAMPANHAS_TEXTO}", type="primary"
-                )
-            if enviar_ct:
-                if not (ct_titulo or "").strip() and not (ct_texto or "").strip():
-                    st.error("Preencha pelo menos o título ou o texto.")
-                else:
-                    ok_ct, err_ct = gravar_nova_linha_campanha_texto(
-                        (ct_titulo or "").strip(),
-                        (ct_texto or "").strip(),
-                        chave_campanha=(ct_chave or "").strip(),
-                    )
-                    if ok_ct:
-                        st.cache_data.clear()
-                        st.success("Linha gravada. Recarregando…")
-                        st.rerun()
-                    else:
-                        st.error(f"Não foi possível gravar: {err_ct}")
-
-            st.markdown("**Remover linha de texto**")
-            _df_ct_adm = normalizar_df_campanhas_texto(
-                df_campanhas_texto if df_campanhas_texto is not None else pd.DataFrame()
-            )
-            _df_ct_adm = _df_ct_adm.reset_index(drop=True)
-            if _df_ct_adm.empty:
-                st.caption(f"Não há linhas em {_WS_CAMPANHAS_TEXTO} (ou a aba ainda não existe).")
-            else:
-                _opts_ct = list(range(len(_df_ct_adm)))
-                _ix_ct = st.selectbox(
-                    "Linha a excluir",
-                    options=_opts_ct,
-                    format_func=lambda j: _rotulo_opcao_excluir_campanha_texto(_df_ct_adm, int(j)),
-                    key="campanha_texto_excluir_select",
-                )
-                _conf_ct = st.checkbox(
-                    "Confirmo exclusão permanente desta linha",
-                    key="campanha_texto_excluir_confirma",
-                )
-                if st.button("Excluir linha selecionada", type="secondary", key="campanha_texto_excluir_btn"):
-                    if not _conf_ct:
-                        st.warning("Marque a confirmação para excluir.")
-                    else:
-                        ok_dct, err_dct = excluir_linha_campanha_texto(int(_ix_ct))
-                        if ok_dct:
-                            st.cache_data.clear()
-                            st.success("Linha removida. Recarregando…")
-                            st.rerun()
-                        else:
-                            st.error(f"Não foi possível excluir: {err_dct}")
 
     # --- PÁGINA ÚNICA: perfil → valores → recomendações → unidade → distribuição (ordem fixa) ---
     if passo == 'sim':
@@ -4478,16 +4453,20 @@ def aba_simulador_automacao(
         def _sim_nao(v):
             return "Sim" if v else "Não"
 
+        _fx_cell = (
+            "padding:8px 8px;text-align:right;border-bottom:1px solid #e2e8f0;"
+            "color:#000000;-webkit-text-fill-color:#000000;font-weight:600;"
+        )
         _tbl_rows = "".join(
             f"<tr>"
             f"<td style='padding:8px 10px;text-align:center;border-bottom:1px solid #e2e8f0;color:#334155;font-weight:600;'>{_sim_nao(it['social'])}</td>"
             f"<td style='padding:8px 10px;text-align:center;border-bottom:1px solid #e2e8f0;color:#334155;font-weight:600;'>{_sim_nao(it['cotista'])}</td>"
-            f"<td style='padding:8px 8px;text-align:right;border-bottom:1px solid #e2e8f0;color:#0f172a;'>{reais_streamlit_html(fmt_br(it['fin_F2']))}</td>"
-            f"<td style='padding:8px 8px;text-align:right;border-bottom:1px solid #e2e8f0;color:#0f172a;'>{reais_streamlit_html(fmt_br(it['sub_F2']))}</td>"
-            f"<td style='padding:8px 8px;text-align:right;border-bottom:1px solid #e2e8f0;color:#0f172a;'>{reais_streamlit_html(fmt_br(it['fin_F3']))}</td>"
-            f"<td style='padding:8px 8px;text-align:right;border-bottom:1px solid #e2e8f0;color:#0f172a;'>{reais_streamlit_html(fmt_br(it['sub_F3']))}</td>"
-            f"<td style='padding:8px 8px;text-align:right;border-bottom:1px solid #e2e8f0;color:#0f172a;'>{reais_streamlit_html(fmt_br(it['fin_F4']))}</td>"
-            f"<td style='padding:8px 8px;text-align:right;border-bottom:1px solid #e2e8f0;color:#0f172a;'>{reais_streamlit_html(fmt_br(it['sub_F4']))}</td>"
+            f"<td style='{_fx_cell}'>{reais_streamlit_html(fmt_br(it['fin_F2']))}</td>"
+            f"<td style='{_fx_cell}'>{reais_streamlit_html(fmt_br(it['sub_F2']))}</td>"
+            f"<td style='{_fx_cell}'>{reais_streamlit_html(fmt_br(it['fin_F3']))}</td>"
+            f"<td style='{_fx_cell}'>{reais_streamlit_html(fmt_br(it['sub_F3']))}</td>"
+            f"<td style='{_fx_cell}'>{reais_streamlit_html(fmt_br(it['fin_F4']))}</td>"
+            f"<td style='{_fx_cell}'>{reais_streamlit_html(fmt_br(it['sub_F4']))}</td>"
             f"</tr>"
             for it in _matriz_bd
         )
@@ -4495,21 +4474,26 @@ def aba_simulador_automacao(
             f"""<div class="finan-subsidios-table-bleed" style="width:100vw;max-width:100%;position:relative;left:50%;transform:translateX(-50%);margin:0.5rem 0 1rem;padding:0 clamp(10px,2.2vw,28px);box-sizing:border-box;overflow-x:auto;-webkit-overflow-scrolling:touch;">
 <table style="width:100%;min-width:min(100%,720px);border-collapse:collapse;font-size:clamp(0.72rem,1.6vw,0.85rem);color:#111111;table-layout:fixed;">
 <caption style="caption-side:top;padding-bottom:10px;font-weight:700;color:#111111;text-align:center;font-size:clamp(0.85rem,2vw,1rem);">Financiamentos e subsídios (base de dados — Financiamentos) — Faixas 2, 3 e 4</caption>
+<colgroup>
+<col style="width:11%;" />
+<col style="width:13%;" />
+<col span="6" style="width:12.666666%;" />
+</colgroup>
 <thead>
 <tr>
-<th rowspan="2" style="text-align:center;vertical-align:middle;padding:8px 10px;border-bottom:2px solid #cbd5e1;width:12%;">Fator Social</th>
-<th rowspan="2" style="text-align:center;vertical-align:middle;padding:8px 10px;border-bottom:2px solid #cbd5e1;width:14%;">Cotista do Fundo de Garantia do Tempo de Serviço</th>
-<th colspan="2" style="text-align:center;padding:6px 8px;border-bottom:1px solid #cbd5e1;">Faixa 2</th>
-<th colspan="2" style="text-align:center;padding:6px 8px;border-bottom:1px solid #cbd5e1;">Faixa 3</th>
-<th colspan="2" style="text-align:center;padding:6px 8px;border-bottom:1px solid #cbd5e1;">Faixa 4</th>
+<th rowspan="2" style="text-align:center;vertical-align:middle;padding:8px 10px;border-bottom:2px solid #cbd5e1;">Fator Social</th>
+<th rowspan="2" style="text-align:center;vertical-align:middle;padding:8px 10px;border-bottom:2px solid #cbd5e1;">Cotista do Fundo de Garantia do Tempo de Serviço</th>
+<th colspan="2" style="text-align:center;padding:6px 8px;border-bottom:1px solid #cbd5e1;color:#000000;font-weight:700;">Faixa 2</th>
+<th colspan="2" style="text-align:center;padding:6px 8px;border-bottom:1px solid #cbd5e1;color:#000000;font-weight:700;">Faixa 3</th>
+<th colspan="2" style="text-align:center;padding:6px 8px;border-bottom:1px solid #cbd5e1;color:#000000;font-weight:700;">Faixa 4</th>
 </tr>
 <tr>
-<th style="text-align:right;padding:6px 8px;border-bottom:2px solid #cbd5e1;white-space:normal;line-height:1.25;">Financiamento</th>
-<th style="text-align:right;padding:6px 8px;border-bottom:2px solid #cbd5e1;white-space:normal;line-height:1.25;">Subsídios</th>
-<th style="text-align:right;padding:6px 8px;border-bottom:2px solid #cbd5e1;white-space:normal;line-height:1.25;">Financiamento</th>
-<th style="text-align:right;padding:6px 8px;border-bottom:2px solid #cbd5e1;white-space:normal;line-height:1.25;">Subsídios</th>
-<th style="text-align:right;padding:6px 8px;border-bottom:2px solid #cbd5e1;white-space:normal;line-height:1.25;">Financiamento</th>
-<th style="text-align:right;padding:6px 8px;border-bottom:2px solid #cbd5e1;white-space:normal;line-height:1.25;">Subsídios</th>
+<th style="text-align:right;padding:6px 8px;border-bottom:2px solid #cbd5e1;white-space:normal;line-height:1.25;color:#000000;font-weight:700;">Financiamento</th>
+<th style="text-align:right;padding:6px 8px;border-bottom:2px solid #cbd5e1;white-space:normal;line-height:1.25;color:#000000;font-weight:700;">Subsídios</th>
+<th style="text-align:right;padding:6px 8px;border-bottom:2px solid #cbd5e1;white-space:normal;line-height:1.25;color:#000000;font-weight:700;">Financiamento</th>
+<th style="text-align:right;padding:6px 8px;border-bottom:2px solid #cbd5e1;white-space:normal;line-height:1.25;color:#000000;font-weight:700;">Subsídios</th>
+<th style="text-align:right;padding:6px 8px;border-bottom:2px solid #cbd5e1;white-space:normal;line-height:1.25;color:#000000;font-weight:700;">Financiamento</th>
+<th style="text-align:right;padding:6px 8px;border-bottom:2px solid #cbd5e1;white-space:normal;line-height:1.25;color:#000000;font-weight:700;">Subsídios</th>
 </tr>
 </thead>
 <tbody>{_tbl_rows}</tbody>
