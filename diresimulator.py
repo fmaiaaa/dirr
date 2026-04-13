@@ -39,7 +39,8 @@ COR_VERMELHO = "#cb0935"
 COR_FUNDO = "#04428f"
 COR_BORDA = "#eef2f6"
 COR_TEXTO_MUTED = "#64748b"
-COR_INPUT_BG = "#f0f2f6"
+COR_INPUT_BG = "#ffffff"
+COR_INPUT_TEXTO = "#000000"
 COR_TEXTO_LABEL = "#1e293b"
 COR_VERMELHO_ESCURO = "#9e0828"
 
@@ -2255,10 +2256,10 @@ def configurar_layout():
     st.markdown(f"""
         <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Montserrat:wght@400;600;700;800;900&display=swap');
-        /* Shimmer da barra (alinhado à Ficha Vendas RJ — ficha-hero-bar) */
-        @keyframes fichaBarShimmer {{
-            0% {{ background-position: 0% 50%; }}
-            100% {{ background-position: 200% 50%; }}
+        /* Barra superior: alterna azul ↔ vermelho marca, sempre opaca (sem “esvair”) */
+        @keyframes fichaBarBrandOscillate {{
+            0%, 100% {{ background-color: {COR_AZUL_ESC}; }}
+            50% {{ background-color: {COR_VERMELHO}; }}
         }}
         /* Entrada do cartão principal (só opacity: transform no ancestor prende position:fixed do <dialog> das campanhas) */
         @keyframes fichaFadeIn {{
@@ -2281,6 +2282,8 @@ def configurar_layout():
             --dv-duration: 0.22s;
             --dv-duration-slow: 0.45s;
             --dv-radius-sm: 10px;
+            --dv-input-radius: 10px;
+            --dv-input-height: 48px;
             --dv-radius-md: 14px;
             --dv-radius-lg: 18px;
             --dv-radius-xl: 22px;
@@ -2385,13 +2388,13 @@ def configurar_layout():
             .stTextInput input, .stNumberInput input, .stDateInput input, textarea,
             div[data-baseweb="input"] input {{
                 background-color: {COR_INPUT_BG} !important;
-                color: {COR_TEXTO_LABEL} !important;
-                -webkit-text-fill-color: {COR_TEXTO_LABEL} !important;
+                color: {COR_INPUT_TEXTO} !important;
+                -webkit-text-fill-color: {COR_INPUT_TEXTO} !important;
             }}
             div[data-baseweb="select"] > div,
             div[data-testid="stDateInput"] > div {{
-                background-color: #f0f2f6 !important;
-                color: {COR_TEXTO_LABEL} !important;
+                background-color: {COR_INPUT_BG} !important;
+                color: {COR_INPUT_TEXTO} !important;
             }}
             ul[role="listbox"], div[data-baseweb="popover"] {{
                 background: #ffffff !important;
@@ -2726,10 +2729,24 @@ def configurar_layout():
             width: 100% !important;
         }}
 
+        /* Largura total da coluna para todos os widgets editáveis */
+        [data-testid="stTextInput"],
+        [data-testid="stNumberInput"],
+        [data-testid="stDateInput"],
+        [data-testid="stSelectbox"],
+        [data-testid="stTextArea"] {{
+            width: 100% !important;
+            max-width: 100% !important;
+            box-sizing: border-box !important;
+        }}
+
         div[data-baseweb="input"] {{
-            border-radius: var(--dv-radius-sm) !important;
+            border-radius: var(--dv-input-radius) !important;
             border: 1px solid #e2e8f0 !important;
             background-color: {COR_INPUT_BG} !important;
+            width: 100% !important;
+            max-width: 100% !important;
+            box-sizing: border-box !important;
             transition: border-color var(--dv-duration) var(--dv-ease-out),
                 box-shadow var(--dv-duration) var(--dv-ease-out),
                 background-color var(--dv-duration) var(--dv-ease-out) !important;
@@ -2741,6 +2758,13 @@ def configurar_layout():
             background-color: {COR_INPUT_BG} !important;
         }}
 
+        div[data-baseweb="select"] {{
+            width: 100% !important;
+            max-width: 100% !important;
+            box-sizing: border-box !important;
+            border-radius: var(--dv-input-radius) !important;
+        }}
+
         /* Esconder botões + e - dos number inputs (apenas digitação) */
         div[data-testid="stNumberInput"] button {{
             display: none !important;
@@ -2749,24 +2773,26 @@ def configurar_layout():
         div[data-testid="stTextInput"] div[data-baseweb="input"],
         div[data-testid="stDateInput"] div[data-baseweb="input"],
         div[data-baseweb="select"] {{
-            background-color: #f0f2f6 !important;
+            background-color: {COR_INPUT_BG} !important;
         }}
 
-        /* --- ALTURA UNIFICADA 48px --- */
+        /* --- Altura 48px (texto, número, data, select); texto longo em área de texto --- */
         .stTextInput input, .stNumberInput input, .stDateInput input, div[data-baseweb="select"] > div {{
-            height: 48px !important;
-            min-height: 48px !important;
+            height: var(--dv-input-height) !important;
+            min-height: var(--dv-input-height) !important;
             padding: 0 15px !important;
-            color: {COR_TEXTO_LABEL} !important;
+            color: {COR_INPUT_TEXTO} !important;
+            -webkit-text-fill-color: {COR_INPUT_TEXTO} !important;
             font-size: 1rem !important;
-            line-height: 48px !important;
+            line-height: var(--dv-input-height) !important;
             text-align: left !important;
             display: flex !important;
             align-items: center !important;
+            background-color: {COR_INPUT_BG} !important;
         }}
         div[data-testid="stNumberInput"] div[data-baseweb="input"] {{
-            height: 48px !important;
-            min-height: 48px !important;
+            height: var(--dv-input-height) !important;
+            min-height: var(--dv-input-height) !important;
             display: flex !important;
             align-items: center !important;
         }}
@@ -2776,12 +2802,14 @@ def configurar_layout():
             display: flex !important;
             align-items: center !important;
             height: 100% !important;
+            color: {COR_INPUT_TEXTO} !important;
+            -webkit-text-fill-color: {COR_INPUT_TEXTO} !important;
         }}
 
         div[data-testid="stDateInput"] > div, div[data-baseweb="select"] > div {{
-            background-color: #f0f2f6 !important;
+            background-color: {COR_INPUT_BG} !important;
             border: 1px solid #e2e8f0 !important;
-            border-radius: 8px !important;
+            border-radius: var(--dv-input-radius) !important;
             display: flex;
             align-items: center;
         }}
@@ -2789,6 +2817,46 @@ def configurar_layout():
         div[data-testid="stDateInput"] div[data-baseweb="input"] {{
             border: none !important;
             background-color: transparent !important;
+        }}
+
+        /* Áreas de texto: mesma largura / raio; altura mínima alinhada à linha única */
+        [data-testid="stTextArea"] textarea,
+        .stTextArea textarea {{
+            width: 100% !important;
+            max-width: 100% !important;
+            box-sizing: border-box !important;
+            min-height: var(--dv-input-height) !important;
+            padding: 12px 15px !important;
+            border-radius: var(--dv-input-radius) !important;
+            border: 1px solid #e2e8f0 !important;
+            background-color: {COR_INPUT_BG} !important;
+            color: {COR_INPUT_TEXTO} !important;
+            -webkit-text-fill-color: {COR_INPUT_TEXTO} !important;
+            font-size: 1rem !important;
+            line-height: 1.45 !important;
+        }}
+        [data-testid="stTextArea"] div[data-baseweb="textarea"],
+        [data-testid="stTextArea"] div[data-baseweb="input"] {{
+            border-radius: var(--dv-input-radius) !important;
+            border: 1px solid #e2e8f0 !important;
+            background-color: {COR_INPUT_BG} !important;
+            width: 100% !important;
+            max-width: 100% !important;
+            box-sizing: border-box !important;
+        }}
+        [data-testid="stTextArea"] div[data-baseweb="textarea"]:focus-within,
+        [data-testid="stTextArea"] div[data-baseweb="input"]:focus-within {{
+            border-color: rgba({RGB_AZUL_CSS}, 0.35) !important;
+            box-shadow: 0 0 0 3px rgba({RGB_AZUL_CSS}, 0.08) !important;
+        }}
+
+        .stTextInput input::placeholder,
+        .stNumberInput input::placeholder,
+        .stDateInput input::placeholder,
+        [data-testid="stTextArea"] textarea::placeholder {{
+            color: {COR_TEXTO_MUTED} !important;
+            opacity: 1 !important;
+            -webkit-text-fill-color: {COR_TEXTO_MUTED} !important;
         }}
 
         .stButton button {{
@@ -3135,7 +3203,7 @@ def configurar_layout():
             max-width: 1100px;
             position: relative;
         }}
-        /* Barra tipo pill + shimmer (Ficha Vendas RJ — ficha-hero-bar) */
+        /* Barra tipo pill: cor alterna azul ↔ vermelho (opacidade total) */
         .header-brand-bar-wrap {{
             width: 100%;
             max-width: 100%;
@@ -3150,30 +3218,27 @@ def configurar_layout():
             height: 4px;
             border-radius: 999px;
             overflow: hidden;
-            background: linear-gradient(90deg, {COR_AZUL_ESC}, {COR_VERMELHO}, {COR_AZUL_ESC});
-            background-size: 200% 100%;
-            background-repeat: no-repeat;
-            background-position: 0% 50%;
-            will-change: background-position;
+            background-color: {COR_AZUL_ESC};
+            background-image: none;
             box-shadow: 0 1px 3px rgba({RGB_AZUL_CSS}, 0.12);
-            animation: fichaBarShimmer 4s ease-in-out infinite alternate;
+            animation: none;
         }}
         @media (prefers-reduced-motion: no-preference) {{
             .header-brand-bar-wrap {{
                 animation: dvFadeRise var(--dv-duration-slow) var(--dv-ease-out) 0.08s both,
-                    fichaBarShimmer 4s ease-in-out 0.45s infinite alternate;
+                    fichaBarBrandOscillate 3.5s ease-in-out 0.45s infinite;
             }}
         }}
         @media (prefers-reduced-motion: reduce) {{
             .header-brand-bar-wrap {{
                 animation: none !important;
-                background-position: 50% 50% !important;
+                background-color: {COR_AZUL_ESC} !important;
                 will-change: auto !important;
             }}
         }}
         html[data-dv-reduced-motion="1"] .header-brand-bar-wrap {{
             animation: none !important;
-            background-position: 50% 50% !important;
+            background-color: {COR_AZUL_ESC} !important;
             will-change: auto !important;
         }}
         html[data-dv-reduced-motion="1"] .header-container,
