@@ -1994,13 +1994,13 @@ def configurar_layout():
         }}
         .stApp,
         [data-testid="stApp"] {{
-            /* Único fundo: foto + véu branco (~98% opaco) */
-            background-color: rgba(252, 252, 253, 0.98) !important;
+            /* Único fundo: véu um pouco mais transparente (~96,5% opaco) */
+            background-color: rgba(252, 252, 253, 0.965) !important;
             background-image: linear-gradient(
                 180deg,
-                rgba(255, 255, 255, 0.98) 0%,
-                rgba(255, 255, 255, 0.98) 50%,
-                rgba(248, 250, 252, 0.98) 100%
+                rgba(255, 255, 255, 0.965) 0%,
+                rgba(255, 255, 255, 0.965) 50%,
+                rgba(248, 250, 252, 0.965) 100%
             ), url("{bg_url}") !important;
             background-size: 100% 100%, cover !important;
             background-position: center center, center center !important;
@@ -2168,8 +2168,26 @@ def configurar_layout():
             box-sizing: border-box !important;
         }}
         section.main > div {{
-            padding-top: 0.25rem !important;
-            padding-bottom: 0.35rem !important;
+            padding-top: 0.5rem !important;
+            padding-bottom: 0.5rem !important;
+        }}
+
+        /* Ritmo vertical uniforme entre secções, widgets e colunas */
+        .block-container [data-testid="stVerticalBlock"] {{
+            display: flex !important;
+            flex-direction: column !important;
+            gap: var(--dv-rhythm) !important;
+            align-items: stretch !important;
+        }}
+        .block-container [data-testid="stHorizontalBlock"] {{
+            gap: var(--dv-rhythm) !important;
+            align-items: flex-start !important;
+        }}
+        .block-container div[data-testid="stMarkdownContainer"] hr,
+        .block-container hr {{
+            margin: var(--dv-rhythm) 0 !important;
+            border: none !important;
+            border-top: 1px solid rgba(148, 163, 184, 0.42) !important;
         }}
 
         /* Cards de recomendação: grupo centralizado; scroll horizontal só quando não cabem */
@@ -2226,12 +2244,13 @@ def configurar_layout():
         }}
 
         .block-container {{
+            --dv-rhythm: 1.2rem;
             max-width: min(1680px, 100%) !important;
             margin-left: auto !important;
             margin-right: auto !important;
             margin-top: 0.25rem !important;
             margin-bottom: 0.35rem !important;
-            padding: 1rem clamp(0.75rem, 1.5vw, 1.35rem) !important;
+            padding: var(--dv-rhythm) clamp(0.75rem, 1.5vw, 1.35rem) !important;
             /* Sem cartão: conteúdo direto sobre o fundo único da app */
             background: transparent !important;
             backdrop-filter: none !important;
@@ -2413,6 +2432,33 @@ def configurar_layout():
             -webkit-text-fill-color: #ffffff !important;
             box-shadow: 0 4px 14px rgba({RGB_AZUL_CSS}, 0.35) !important;
         }}
+        /* Sair do sistema: branco, texto preto */
+        div[data-testid="stMarkdown"]:has([data-btn-logout]) + div[data-testid="stButton"] button {{
+            background: #ffffff !important;
+            background-color: #ffffff !important;
+            color: #0f172a !important;
+            -webkit-text-fill-color: #0f172a !important;
+            border: 1px solid #cbd5e1 !important;
+            box-shadow: 0 1px 3px rgba(15, 23, 42, 0.08) !important;
+        }}
+        div[data-testid="stMarkdown"]:has([data-btn-logout]) + div[data-testid="stButton"] button:hover {{
+            background: #f1f5f9 !important;
+            background-color: #f1f5f9 !important;
+            color: #0f172a !important;
+            -webkit-text-fill-color: #0f172a !important;
+            border-color: #94a3b8 !important;
+            box-shadow: 0 2px 8px rgba(15, 23, 42, 0.1) !important;
+        }}
+        div[data-testid="stMarkdown"]:has([data-btn-logout]) + div[data-testid="stButton"] button *,
+        div[data-testid="stMarkdown"]:has([data-btn-logout]) + div[data-testid="stButton"] button span,
+        div[data-testid="stMarkdown"]:has([data-btn-logout]) + div[data-testid="stButton"] button p {{
+            color: #0f172a !important;
+            -webkit-text-fill-color: #0f172a !important;
+        }}
+        div[data-testid="stMarkdown"]:has([data-btn-logout]) + div[data-testid="stButton"] button svg {{
+            fill: #0f172a !important;
+            color: #0f172a !important;
+        }}
         /* Links WhatsApp em markdown (não são o botão link_button) */
         a[href*="whatsapp.com"]:not([data-testid="stLinkButton"]),
         a[href*="wa.me"]:not([data-testid="stLinkButton"]) {{
@@ -2424,7 +2470,7 @@ def configurar_layout():
         a[href*="wa.me"]:not([data-testid="stLinkButton"]):hover {{
             color: #075e54 !important;
         }}
-        /* Botão WhatsApp (link_button): verde oficial, letras brancas */
+        /* Botão WhatsApp (link_button): azul Direcional, letras brancas */
         a[data-testid="stLinkButton"][href*="api.whatsapp.com"],
         a[data-testid="stLinkButton"][href*="whatsapp.com"],
         a[data-testid="stLinkButton"][href*="wa.me"] {{
@@ -2436,15 +2482,15 @@ def configurar_layout():
             min-height: 48px !important;
             padding: 0.65rem 1.15rem !important;
             border-radius: 8px !important;
-            background: #25d366 !important;
-            background-color: #25d366 !important;
+            background: {COR_AZUL_ESC} !important;
+            background-color: {COR_AZUL_ESC} !important;
             background-image: none !important;
             color: #ffffff !important;
             -webkit-text-fill-color: #ffffff !important;
             font-weight: 700 !important;
             text-decoration: none !important;
             border: none !important;
-            box-shadow: 0 2px 8px rgba(37, 211, 102, 0.35) !important;
+            box-shadow: 0 2px 8px rgba({RGB_AZUL_CSS}, 0.22) !important;
         }}
         a[data-testid="stLinkButton"][href*="api.whatsapp.com"] *,
         a[data-testid="stLinkButton"][href*="whatsapp.com"] *,
@@ -2455,12 +2501,12 @@ def configurar_layout():
         a[data-testid="stLinkButton"][href*="api.whatsapp.com"]:hover,
         a[data-testid="stLinkButton"][href*="whatsapp.com"]:hover,
         a[data-testid="stLinkButton"][href*="wa.me"]:hover {{
-            background: #20bd5a !important;
-            background-color: #20bd5a !important;
+            background: #03346e !important;
+            background-color: #03346e !important;
             background-image: none !important;
             color: #ffffff !important;
             -webkit-text-fill-color: #ffffff !important;
-            box-shadow: 0 4px 14px rgba(37, 211, 102, 0.45) !important;
+            box-shadow: 0 4px 14px rgba({RGB_AZUL_CSS}, 0.35) !important;
         }}
         /* Reforço no st.dialog: Streamlit às vezes aplica cores invertidas no link_button */
         [data-testid="stDialog"] a[data-testid="stLinkButton"][href*="api.whatsapp.com"],
@@ -2474,15 +2520,15 @@ def configurar_layout():
             min-height: 48px !important;
             padding: 0.65rem 1.15rem !important;
             border-radius: 8px !important;
-            background: #25d366 !important;
-            background-color: #25d366 !important;
+            background: {COR_AZUL_ESC} !important;
+            background-color: {COR_AZUL_ESC} !important;
             background-image: none !important;
             color: #ffffff !important;
             -webkit-text-fill-color: #ffffff !important;
             font-weight: 700 !important;
             text-decoration: none !important;
             border: none !important;
-            box-shadow: 0 2px 8px rgba(37, 211, 102, 0.35) !important;
+            box-shadow: 0 2px 8px rgba({RGB_AZUL_CSS}, 0.22) !important;
         }}
         [data-testid="stDialog"] a[data-testid="stLinkButton"][href*="api.whatsapp.com"] *,
         [data-testid="stDialog"] a[data-testid="stLinkButton"][href*="whatsapp.com"] *,
@@ -2493,12 +2539,12 @@ def configurar_layout():
         [data-testid="stDialog"] a[data-testid="stLinkButton"][href*="api.whatsapp.com"]:hover,
         [data-testid="stDialog"] a[data-testid="stLinkButton"][href*="whatsapp.com"]:hover,
         [data-testid="stDialog"] a[data-testid="stLinkButton"][href*="wa.me"]:hover {{
-            background: #20bd5a !important;
-            background-color: #20bd5a !important;
+            background: #03346e !important;
+            background-color: #03346e !important;
             background-image: none !important;
             color: #ffffff !important;
             -webkit-text-fill-color: #ffffff !important;
-            box-shadow: 0 4px 14px rgba(37, 211, 102, 0.45) !important;
+            box-shadow: 0 4px 14px rgba({RGB_AZUL_CSS}, 0.35) !important;
         }}
         /* st.dialog: data-testid="stDialog" fica no ROOT do modal (full screen), não num filho — :has() no baseweb nunca casava */
         [data-testid="stDialog"] {{
@@ -2608,14 +2654,17 @@ def configurar_layout():
         /* Barra: fundo vermelho no wrap; faixa azul sólida por cima (clip cresce do centro) */
         .header-brand-bar-wrap {{
             width: 100%;
-            max-width: 100%;
+            max-width: min(1040px, 92%);
+            margin-left: auto;
+            margin-right: auto;
             position: relative;
             left: auto;
             transform: none;
-            margin: 0 0 1.75rem 0;
+            margin-bottom: 1.75rem;
+            margin-top: 0;
             box-sizing: border-box;
-            height: 10px;
-            border-radius: 5px;
+            height: 7px;
+            border-radius: 4px;
             overflow: hidden;
             background: linear-gradient(
                 180deg,
@@ -2997,7 +3046,8 @@ def configurar_layout():
 
         .footer {{
             text-align: center;
-            padding: 1.5rem 1rem;
+            margin-top: var(--dv-rhythm, 1.2rem) !important;
+            padding: var(--dv-rhythm, 1.2rem) 1rem;
             font-family: 'Inter', system-ui, sans-serif;
             color: #64748b !important;
             font-size: 0.8rem;
@@ -3279,7 +3329,7 @@ def enviar_email_smtp(destinatario, nome_cliente, pdf_bytes, dados_cliente, tipo
                                     </table>
 
                                     <div style="text-align: center; margin: 35px 0;">
-                                        <a href="{wa_link}" style="background-color: #25D366; color: #ffffff; padding: 15px 30px; text-decoration: none; font-weight: bold; border-radius: 5px; font-size: 16px; display: inline-block;">Falar com o corretor pelo WhatsApp</a>
+                                        <a href="{wa_link}" style="background-color: #04428f; color: #ffffff; padding: 15px 30px; text-decoration: none; font-weight: bold; border-radius: 5px; font-size: 16px; display: inline-block;">Falar com o corretor pelo WhatsApp</a>
                                         <p style="font-size: 12px; color: #999; margin-top: 10px;">(Abra o documento em formato PDF em anexo para ver todos os detalhes.)</p>
                                     </div>
                                     
@@ -3535,6 +3585,7 @@ def show_export_dialog(d):
             st.error("E-mail inválido")
 
     st.markdown("---")
+    st.markdown("**3. WhatsApp**")
     _wa_msg = montar_mensagem_whatsapp_resumo(
         d,
         volta_caixa_val=_vc_dialog,
@@ -4703,7 +4754,7 @@ def aba_simulador_automacao(
             st.rerun()
 
     st.markdown("<br><br>", unsafe_allow_html=True)
-    st.markdown('<div data-btn-azul style="display:none" aria-hidden="true"></div>', unsafe_allow_html=True)
+    st.markdown('<div data-btn-logout style="display:none" aria-hidden="true"></div>', unsafe_allow_html=True)
     if st.button("Sair do sistema", key="btn_logout_bottom", use_container_width=True):
         st.session_state["logged_in"] = False
         st.session_state["user_is_adm"] = False
