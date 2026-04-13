@@ -1955,10 +1955,20 @@ def configurar_layout():
     st.markdown(f"""
         <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Montserrat:wght@600;700;800&display=swap');
-        /* Velocidade constante (linear) + alternate: evita “paragens” do ease nas inversões */
-        @keyframes brandBarFlow {{
-            0% {{ background-position: 0% 50%; }}
-            100% {{ background-position: 100% 50%; }}
+        /* Pulso uniforme: subida e descida linear (sem ease), ciclo contínuo */
+        @keyframes brandBarPulse {{
+            0% {{
+                filter: brightness(0.88) saturate(0.94);
+                box-shadow: 0 0 0 rgba(203, 9, 53, 0);
+            }}
+            50% {{
+                filter: brightness(1.14) saturate(1.1);
+                box-shadow: 0 0 16px rgba(203, 9, 53, 0.4);
+            }}
+            100% {{
+                filter: brightness(0.88) saturate(0.94);
+                box-shadow: 0 0 0 rgba(203, 9, 53, 0);
+            }}
         }}
         html {{
             color-scheme: light only !important;
@@ -2580,6 +2590,7 @@ def configurar_layout():
             max-width: 100%;
             transform: translateZ(0);
             backface-visibility: hidden;
+            will-change: filter, box-shadow;
             background: linear-gradient(
                 90deg,
                 rgba(227, 6, 19, 0.45) 0%,
@@ -2594,14 +2605,15 @@ def configurar_layout():
                 {COR_VERMELHO} 86%,
                 rgba(227, 6, 19, 0.55) 100%
             );
-            background-size: 200% 100%;
-            background-repeat: no-repeat;
-            animation: brandBarFlow 12s linear infinite alternate;
+            background-size: 100% 100%;
+            animation: brandBarPulse 2.6s linear infinite;
         }}
         @media (prefers-reduced-motion: reduce) {{
             .header-brand-bar {{
                 animation: none !important;
-                background-position: 50% 50% !important;
+                filter: none !important;
+                box-shadow: none !important;
+                will-change: auto !important;
             }}
         }}
         .home-banners-wrap {{
