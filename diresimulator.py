@@ -1955,20 +1955,10 @@ def configurar_layout():
     st.markdown(f"""
         <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Montserrat:wght@600;700;800&display=swap');
-        /* Pulso uniforme: subida e descida linear (sem ease), ciclo contínuo */
-        @keyframes brandBarPulse {{
-            0% {{
-                filter: brightness(0.88) saturate(0.94);
-                box-shadow: 0 0 0 rgba(203, 9, 53, 0);
-            }}
-            50% {{
-                filter: brightness(1.14) saturate(1.1);
-                box-shadow: 0 0 16px rgba(203, 9, 53, 0.4);
-            }}
-            100% {{
-                filter: brightness(0.88) saturate(0.94);
-                box-shadow: 0 0 0 rgba(203, 9, 53, 0);
-            }}
+        /* Azul só no centro: elipse alarga do meio às pontas (camada sobre base vermelha) */
+        @keyframes brandBarBlueGrow {{
+            0% {{ background-size: 18% 100%, 100% 100%; }}
+            100% {{ background-size: 220% 100%, 100% 100%; }}
         }}
         html {{
             color-scheme: light only !important;
@@ -2004,13 +1994,13 @@ def configurar_layout():
         }}
         .stApp,
         [data-testid="stApp"] {{
-            /* Único fundo: foto + véu branco com transparência mínima (~93% opaco) */
-            background-color: rgba(252, 252, 253, 0.93) !important;
+            /* Único fundo: foto + véu branco (~96% opaco — um pouco menos transparente) */
+            background-color: rgba(252, 252, 253, 0.96) !important;
             background-image: linear-gradient(
                 180deg,
-                rgba(255, 255, 255, 0.93) 0%,
-                rgba(255, 255, 255, 0.93) 50%,
-                rgba(248, 250, 252, 0.93) 100%
+                rgba(255, 255, 255, 0.96) 0%,
+                rgba(255, 255, 255, 0.96) 50%,
+                rgba(248, 250, 252, 0.96) 100%
             ), url("{bg_url}") !important;
             background-size: 100% 100%, cover !important;
             background-position: center center, center center !important;
@@ -2577,7 +2567,7 @@ def configurar_layout():
             max-width: 1100px;
             position: relative;
         }}
-        /* Barra animada — mesma largura do conteúdo; vermelho dominante + azul Direcional */
+        /* Barra: base vermelha + um único foco azul que cresce do centro para as extremidades */
         .header-brand-bar-wrap {{
             width: 100%;
             max-width: 100%;
@@ -2594,29 +2584,30 @@ def configurar_layout():
             max-width: 100%;
             transform: translateZ(0);
             backface-visibility: hidden;
-            will-change: filter, box-shadow;
-            background: linear-gradient(
-                90deg,
-                rgba(227, 6, 19, 0.45) 0%,
-                {COR_VERMELHO} 12%,
-                {COR_VERMELHO} 24%,
-                {COR_AZUL_ESC} 34%,
-                {COR_VERMELHO} 42%,
-                {COR_VERMELHO} 52%,
-                #d40830 58%,
-                {COR_VERMELHO} 66%,
-                {COR_AZUL_ESC} 76%,
-                {COR_VERMELHO} 86%,
-                rgba(227, 6, 19, 0.55) 100%
-            );
-            background-size: 100% 100%;
-            animation: brandBarPulse 2.6s linear infinite;
+            will-change: background-size;
+            background-image:
+                radial-gradient(
+                    ellipse at 50% 50%,
+                    {COR_AZUL_ESC} 0%,
+                    rgba(4, 66, 143, 0.55) 42%,
+                    transparent 68%
+                ),
+                linear-gradient(
+                    180deg,
+                    {COR_VERMELHO} 0%,
+                    #d40830 48%,
+                    {COR_VERMELHO_ESCURO} 52%,
+                    {COR_VERMELHO} 100%
+                );
+            background-repeat: no-repeat, no-repeat;
+            background-position: center center, center center;
+            background-size: 18% 100%, 100% 100%;
+            animation: brandBarBlueGrow 14s linear infinite alternate;
         }}
         @media (prefers-reduced-motion: reduce) {{
             .header-brand-bar {{
                 animation: none !important;
-                filter: none !important;
-                box-shadow: none !important;
+                background-size: 100% 100%, 100% 100% !important;
                 will-change: auto !important;
             }}
         }}
