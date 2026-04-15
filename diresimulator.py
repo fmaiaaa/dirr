@@ -1763,10 +1763,24 @@ def render_secao_campanhas_comerciais(
               const h = Math.min(760, Math.floor(sh * 0.86));
               const left = Math.max(0, Math.floor((sw - w) / 2));
               const top = Math.max(0, Math.floor((sh - h) / 2));
+              const popupName = "dv_campanha_popup_{key_suffix}";
+              const features = [
+                "popup=yes",
+                `width=${{w}}`,
+                `height=${{h}}`,
+                `left=${{left}}`,
+                `top=${{top}}`,
+                "resizable=yes",
+                "scrollbars=yes",
+                "toolbar=no",
+                "menubar=no",
+                "location=no",
+                "status=no"
+              ].join(",");
               const pop = window.open(
                 "",
-                "dv_campanha_popup",
-                `popup=yes,width=${{w}},height=${{h}},left=${{left}},top=${{top}},resizable=yes,scrollbars=yes`
+                popupName,
+                features
               );
               if (!pop) {{
                 alert("Popup bloqueado pelo navegador. Permita popups para este site.");
