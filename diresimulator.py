@@ -882,8 +882,8 @@ def montar_mensagem_whatsapp_resumo(
             item("Pro Soluto (valor)", brs("ps_usado", 0)),
             item("Número de parcelas do Pro Soluto", d.get("ps_parcelas", "-")),
             item("Mensalidade do Pro Soluto", brs("ps_mensal", 0)),
-            item("Total em atos (ato 0 e parcelados)", brs("entrada_total", 0)),
-            item("Ato 0", brs("ato_final", 0)),
+            item("Total em atos (Ato 1 (Entrada Imediata) e parcelados)", brs("entrada_total", 0)),
+            item("Ato 1 (Entrada Imediata)", brs("ato_final", 0)),
             item("Ato 30", brs("ato_30", 0)),
             item("Ato 60", brs("ato_60", 0)),
         ]
@@ -917,19 +917,45 @@ def _url_whatsapp_enviar_texto(texto: str) -> str:
     return f"https://api.whatsapp.com/send?text={urllib.parse.quote(texto)}"
 
 
-def _normalizar_separador_decimal_duas_casas(s: str) -> str:
-    """`,` ou `.` como decimal na antepenúltima posição com 2 dígitos finais (por exemplo, 1.234,56 no padrão brasileiro ou 1,234.56 no padrão internacional). Evita 2.000 ser lido como mil."""
-    s = str(s).strip()
-    if len(s) < 3 or s[-3] not in ",." or not s[-2:].isdigit():
-        return s
-    dec_sep = s[-3]
-    frac = s[-2:]
-    head = s[:-3]
-    if dec_sep == ",":
-        head = head.replace(".", "").replace(",", "")
-    else:
-        head = head.replace(",", "").replace(".", "")
-    return f"{head}.{frac}"
+def _normalizar_numero_texto(s: str) -> str:
+    """
+    Normaliza números com vírgula/ponto seguindo a regra de entrada:
+    - 2 casas após o separador => decimal (12,50 -> 12.50 | 12.50 -> 12.50)
+    - 3+ casas após o separador => milhar/inteiro (1,250 -> 1250 | 1.250 -> 1250)
+    """
+    t = str(s).strip()
+    if t == "":
+        return t
+    sinal = ""
+    if t[0] in "+-":
+        sinal = t[0]
+        t = t[1:]
+    if t == "":
+        return sinal
+
+    if "," not in t and "." not in t:
+        return f"{sinal}{t}"
+
+    # Com vírgula e ponto, usa o último separador como candidato a decimal.
+    if "," in t and "." in t:
+        idx = max(t.rfind(","), t.rfind("."))
+        frac = t[idx + 1:]
+        if frac.isdigit() and len(frac) <= 2:
+            inteiro = re.sub(r"[.,]", "", t[:idx])
+            return f"{sinal}{inteiro}.{frac}"
+        return f"{sinal}{re.sub(r'[.,]', '', t)}"
+
+    sep = "," if "," in t else "."
+    partes = t.split(sep)
+    if len(partes) == 1:
+        return f"{sinal}{t}"
+
+    frac = partes[-1]
+    if frac.isdigit() and len(frac) <= 2:
+        inteiro = "".join(partes[:-1])
+        return f"{sinal}{inteiro}.{frac}"
+
+    return f"{sinal}{''.join(partes)}"
 
 
 def safe_float_convert(val):
@@ -941,7 +967,7 @@ def safe_float_convert(val):
         return float(val)
     s = str(val).replace("R$", "").replace("\u00a0", " ").strip()
     s_compact = re.sub(r"\s+", "", s)
-    s_try = _normalizar_separador_decimal_duas_casas(s_compact)
+    s_try = _normalizar_numero_texto(s_compact)
     try:
         return float(s_try)
     except ValueError:
@@ -950,13 +976,10 @@ def safe_float_convert(val):
         return float(s)
     except ValueError:
         pass
-    if "," in s_compact:
-        s2 = s_compact.replace(".", "").replace(",", ".")
+    if "," in s_compact or "." in s_compact:
+        s2 = _normalizar_numero_texto(s_compact)
     else:
-        if s_compact.count(".") >= 1:
-            s2 = s_compact.replace(".", "")
-        else:
-            s2 = s_compact
+        s2 = s_compact
     try:
         return float(s2)
     except ValueError:
@@ -964,7 +987,7 @@ def safe_float_convert(val):
 
 
 def texto_moeda_para_float(s, default=0.0):
-    """Converte texto livre (BR/US) em float; vazio → default. Vírgula ou ponto antes de 2 casas finais = decimal."""
+    """Converte texto livre (BR/US) em float; vazio -> default."""
     if s is None:
         return default
     if isinstance(s, bool):
@@ -978,7 +1001,7 @@ def texto_moeda_para_float(s, default=0.0):
     t = re.sub(r"\s+", "", t)
     if t == "":
         return default
-    t = _normalizar_separador_decimal_duas_casas(t)
+    t = _normalizar_numero_texto(t)
     return safe_float_convert(t)
 
 def texto_inteiro(s, default=None, min_v=None, max_v=None):
@@ -3927,8 +3950,8 @@ def gerar_resumo_pdf(d, volta_caixa_val: float = 0.0):
         linha("Pro Soluto (valor)", f"R$ {fmt_br(d.get('ps_usado', 0))}")
         linha("Número de parcelas do Pro Soluto", _pdf_text_seguro(d.get("ps_parcelas")))
         linha("Mensalidade do Pro Soluto", f"R$ {fmt_br(d.get('ps_mensal', 0))}")
-        linha("Total em atos (ato 0 e parcelados)", f"R$ {fmt_br(d.get('entrada_total', 0))}")
-        linha("Ato 0", f"R$ {fmt_br(d.get('ato_final', 0))}")
+        linha("Total em atos (Ato 1 (Entrada Imediata) e parcelados)", f"R$ {fmt_br(d.get('entrada_total', 0))}")
+        linha("Ato 1 (Entrada Imediata)", f"R$ {fmt_br(d.get('ato_final', 0))}")
         linha("Ato 30", f"R$ {fmt_br(d.get('ato_30', 0))}")
         linha("Ato 60", f"R$ {fmt_br(d.get('ato_60', 0))}")
         if not _politica_emcash(d.get("politica")):
@@ -4163,7 +4186,7 @@ def enviar_email_smtp(destinatario, nome_cliente, pdf_bytes, dados_cliente, tipo
                                             <td align="right" style="color: #002c5d;"><b>R$ {entrada}</b></td>
                                         </tr>
                                         <tr>
-                                             <td>&nbsp;&nbsp;↳ Ato 0</td>
+                                             <td>&nbsp;&nbsp;↳ Ato 1 (Entrada Imediata)</td>
                                              <td align="right">R$ {a0}</td>
                                         </tr>
                                         <tr>
@@ -4990,8 +5013,8 @@ def aba_simulador_automacao(
             novo = min(gap, teto_b) if teto_b > 0 else gap
             st.session_state["ps_u_key"] = float_para_campo_texto(novo, vazio_se_zero=True)
 
-        # --- Ato 0: só key + session_state (evita conflito value/key) ---
-        st.text_input("Ato 0", key="ato_1_key", placeholder="0,00", help="Valor pago no ato da assinatura.")
+        # --- Ato 1 (Entrada Imediata): só key + session_state (evita conflito value/key) ---
+        st.text_input("Ato 1 (Entrada Imediata)", key="ato_1_key", placeholder="0,00", help="Valor pago no ato da assinatura.")
         r1 = max(0.0, texto_moeda_para_float(st.session_state.get("ato_1_key")))
         st.session_state.dados_cliente['ato_final'] = r1
         
@@ -5269,8 +5292,8 @@ def aba_simulador_automacao(
             f"""<b>Número de parcelas do Pro Soluto:</b> {d.get('ps_parcelas')}<br>"""
             f"""<b>Mensalidade do Pro Soluto:</b> {reais_streamlit_html(fmt_br(d.get('ps_mensal', 0)))}<br>"""
             f"""<hr style="border: 0; border-top: 1px solid #e2e8f0; margin: 10px 0;">"""
-            f"""<b>Total em atos (ato 0 e parcelados):</b> {reais_streamlit_html(fmt_br(d.get('entrada_total', 0)))}<br>"""
-            f"""<b>Ato 0:</b> {reais_streamlit_html(fmt_br(d.get('ato_final', 0)))}<br>"""
+            f"""<b>Total em atos (Ato 1 (Entrada Imediata) e parcelados):</b> {reais_streamlit_html(fmt_br(d.get('entrada_total', 0)))}<br>"""
+            f"""<b>Ato 1 (Entrada Imediata):</b> {reais_streamlit_html(fmt_br(d.get('ato_final', 0)))}<br>"""
             f"""<b>Ato 30:</b> {reais_streamlit_html(fmt_br(d.get('ato_30', 0)))}<br>"""
             f"""<b>Ato 60:</b> {reais_streamlit_html(fmt_br(d.get('ato_60', 0)))}{_linha_resumo_ato_90}<br>"""
             f"""<hr style="border: 0; border-top: 1px solid #e2e8f0; margin: 10px 0;">"""
