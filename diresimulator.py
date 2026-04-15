@@ -1682,9 +1682,16 @@ def render_secao_campanhas_comerciais(
                     st.markdown(
                         f"""
                         <div style="text-align:center;">
-                          <a href="?dv_campanha={qp_val}" title="Abrir campanha" aria-label="Abrir campanha">
-                            <img src="{src}" alt="" style="width:160px;max-width:100%;height:auto;border-radius:12px;border:1px solid #e2e8f0;box-shadow:0 6px 16px rgba(15,23,42,.10);" />
-                          </a>
+                          <form method="get" action="" style="display:inline-block;margin:0;padding:0;">
+                            <input type="hidden" name="dv_campanha" value="{qp_val}" />
+                            <input
+                              type="image"
+                              src="{src}"
+                              alt="Abrir campanha"
+                              title="Abrir campanha"
+                              style="width:160px;max-width:100%;height:auto;border-radius:12px;border:1px solid #e2e8f0;box-shadow:0 6px 16px rgba(15,23,42,.10);cursor:pointer;"
+                            />
+                          </form>
                           {f'<div style="font-size:0.78rem;color:#334155;margin-top:6px;">{ttl}</div>' if ttl else ""}
                         </div>
                         """,
