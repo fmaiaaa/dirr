@@ -2231,6 +2231,10 @@ def _calcular_poder_compra_linha_estoque(
     fin = float(d.get("finan_usado", 0) or 0)
     sub = float(d.get("fgts_sub_usado", 0) or 0)
     ren = float(d.get("renda", 0) or 0)
+    try:
+        vc_folga = max(0.0, float(row.get("Volta_Caixa_Ref", 0) or 0))
+    except (TypeError, ValueError):
+        vc_folga = 0.0
     ps_stock = max(0.0, _ps_max_estoque_row_cliente(row, d))
     ps_eff = 0.0
     if ps_stock <= 1e-9:
@@ -2249,7 +2253,7 @@ def _calcular_poder_compra_linha_estoque(
             ps_eff = float(mps.get("ps_max_efetivo", 0) or 0)
         except Exception:
             ps_eff = float(ps_stock)
-    poder = (2.0 * ren) + fin + sub + max(0.0, ps_eff)
+    poder = (2.0 * ren) + fin + sub + max(0.0, ps_eff) + vc_folga
     cobertura = (poder / v_venda) * 100.0 if v_venda > 0 else 0.0
     return pd.Series([poder, cobertura, fin, sub])
 
