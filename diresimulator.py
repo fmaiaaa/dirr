@@ -1667,7 +1667,7 @@ def render_secao_campanhas_comerciais(
     df_txt = df_texto_campanhas if df_texto_campanhas is not None else pd.DataFrame()
     copy_html = _html_campanhas_texto_bloco(df_txt)
 
-    def _render_miniaturas_centradas(campanhas: list[dict[str, str]], prefixo_chave: str) -> None:
+    def _render_miniaturas_centradas(campanhas: list[dict[str, str]]) -> None:
         if not campanhas:
             return
         max_cols = 4
@@ -1676,18 +1676,34 @@ def render_secao_campanhas_comerciais(
             cols = st.columns(6, gap="small")
             start = {1: 2, 2: 2, 3: 1, 4: 1}.get(len(linha), 1)
             for j, campanha in enumerate(linha):
-                idx = ini + j
                 with cols[start + j]:
                     st.image(campanha.get("src", ""), width=160)
                     ttl = (campanha.get("titulo") or "").strip()
                     if ttl:
                         st.caption(ttl)
-                    if st.button(
-                        "Abrir popup",
-                        key=f"dv_campanha_popup_{prefixo_chave}_{idx}",
-                        use_container_width=True,
-                    ):
-                        dialog_visualizar_campanha(campanha)
+                    st.markdown('<div style="height:6px;"></div>', unsafe_allow_html=True)
+
+    def _seletor_unico_popup(campanhas: list[dict[str, str]], prefixo_chave: str) -> None:
+        if not campanhas:
+            return
+        opcoes = list(range(len(campanhas)))
+        def _rotulo(i: int) -> str:
+            t = (campanhas[i].get("titulo") or "").strip()
+            return t if t else f"Campanha {i + 1}"
+        idx_sel = st.selectbox(
+            "Selecionar campanha para abrir",
+            options=opcoes,
+            format_func=_rotulo,
+            key=f"dv_campanha_select_{prefixo_chave}",
+        )
+        _c0, _c1, _c2 = st.columns([1, 2, 1], gap="small")
+        with _c1:
+            if st.button(
+                "Abrir campanha selecionada",
+                key=f"dv_campanha_popup_single_{prefixo_chave}",
+                use_container_width=True,
+            ):
+                dialog_visualizar_campanha(campanhas[int(idx_sel)])
     campanhas_ativas: list[dict[str, str]] = []
     if not df_bn.empty:
         for _, row in df_bn.iterrows():
@@ -1713,7 +1729,8 @@ def render_secao_campanhas_comerciais(
             + "</div>",
             unsafe_allow_html=True,
         )
-        _render_miniaturas_centradas(campanhas_ativas, "pub")
+        _render_miniaturas_centradas(campanhas_ativas)
+        _seletor_unico_popup(campanhas_ativas, "pub")
     else:
         st.markdown(
             '<div class="home-banners-wrap" role="region" aria-label="Campanhas comerciais">'
@@ -1738,7 +1755,8 @@ def render_secao_campanhas_comerciais(
                 use_container_width=True,
             ):
                 dialog_adm_textos_campanhas(df_txt)
-        _render_miniaturas_centradas(campanhas_ativas, "adm")
+        _render_miniaturas_centradas(campanhas_ativas)
+        _seletor_unico_popup(campanhas_ativas, "adm")
 
     if copy_html:
         st.markdown(copy_html, unsafe_allow_html=True)
