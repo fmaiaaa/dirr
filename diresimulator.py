@@ -1673,7 +1673,8 @@ def render_secao_campanhas_comerciais(
         """Galeria centralizada com popup inline em componente HTML (sem rerun/login)."""
         if not campanhas:
             return
-        data_json = json.dumps(
+        import json as _json
+        data_json = _json.dumps(
             [
                 {
                     "src": str(c.get("src", "") or ""),
@@ -1765,23 +1766,29 @@ def render_secao_campanhas_comerciais(
                 "dv_campanha_popup",
                 `popup=yes,width=${{w}},height=${{h}},left=${{left}},top=${{top}},resizable=yes,scrollbars=yes`
               );
-              if (!pop) return;
+              if (!pop) {{
+                alert("O navegador bloqueou o popup. Permita popups para este site.");
+                return;
+              }}
               const titulo = esc(c?.titulo || "");
               const descricao = nl2br(c?.descricao || "");
               const src = esc(c?.src || "");
               const html = `<!doctype html>
                 <html><head><meta charset="utf-8"><title>${{titulo || "Campanha comercial"}}</title>
                 <style>
-                  body{{margin:0;padding:16px;font-family:Inter,system-ui,sans-serif;background:#0f172a;color:#e2e8f0;}}
-                  .wrap{{max-width:920px;margin:0 auto;}}
-                  img{{width:100%;height:auto;border-radius:12px;border:1px solid rgba(255,255,255,.15);display:block;}}
-                  h1{{font-size:1.15rem;margin:12px 0 8px;color:#fff;}}
-                  p{{margin:0;line-height:1.55;color:#cbd5e1;}}
+                  body{{margin:0;padding:24px;font-family:Inter,system-ui,sans-serif;background:#ffffff;color:#0f172a;}}
+                  .wrap{{max-width:940px;margin:0 auto;}}
+                  .card{{background:#ffffff;border:1px solid #e2e8f0;border-radius:16px;padding:16px;box-shadow:0 16px 40px rgba(15,23,42,.12);}}
+                  img{{width:100%;height:auto;border-radius:12px;border:1px solid #e2e8f0;display:block;}}
+                  h1{{font-size:1.2rem;margin:14px 0 8px;color:#0f3f7f;line-height:1.25;}}
+                  p{{margin:0;line-height:1.6;color:#334155;}}
                 </style></head>
                 <body><div class="wrap">
-                  <img src="${{src}}" alt="">
-                  ${{titulo ? `<h1>${{titulo}}</h1>` : ""}}
-                  ${{descricao ? `<p>${{descricao}}</p>` : ""}}
+                  <div class="card">
+                    <img src="${{src}}" alt="">
+                    ${{titulo ? `<h1>${{titulo}}</h1>` : ""}}
+                    ${{descricao ? `<p>${{descricao}}</p>` : ""}}
+                  </div>
                 </div></body></html>`;
               pop.document.open();
               pop.document.write(html);
@@ -1797,7 +1804,7 @@ def render_secao_campanhas_comerciais(
           }})();
         </script>
         """
-        components.html(html_gallery, height=altura, scrolling=False)
+        st.components.v1.html(html_gallery, height=altura, scrolling=False)
     campanhas_ativas: list[dict[str, str]] = []
     if not df_bn.empty:
         for _, row in df_bn.iterrows():
