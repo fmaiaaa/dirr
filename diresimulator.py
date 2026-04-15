@@ -1669,199 +1669,34 @@ def render_secao_campanhas_comerciais(
     df_txt = df_texto_campanhas if df_texto_campanhas is not None else pd.DataFrame()
     copy_html = _html_campanhas_texto_bloco(df_txt)
 
-    def _render_galeria_popup_inline(campanhas: list[dict[str, str]], *, key_suffix: str) -> None:
-        """Galeria centralizada com popup/modal interno no próprio componente (sem nova aba)."""
+    def _render_miniaturas_popup_real(campanhas: list[dict[str, str]]) -> None:
+        """Renderiza miniaturas que disparam o popup JS legado (home-banner-lb-open)."""
         if not campanhas:
             return
-        import json as _json
-        data_json = _json.dumps(
-            [
-                {
-                    "src": str(c.get("src", "") or ""),
-                    "titulo": str(c.get("titulo", "") or ""),
-                    "descricao": str(c.get("descricao", "") or ""),
-                }
-                for c in campanhas
-            ],
-            ensure_ascii=False,
+        cards: list[str] = []
+        for c in campanhas:
+            src = _img_url_seguro_https(str(c.get("src", "") or ""))
+            if not src:
+                continue
+            t64 = _utf8_base64_attr(str(c.get("titulo", "") or ""))
+            b64 = _utf8_base64_attr(str(c.get("descricao", "") or ""))
+            cards.append(
+                f'<div class="home-banner-lb-root">'
+                f'<button type="button" class="home-banner-card home-banner-card--fs home-banner-card--thumb home-banner-lb-open" '
+                f'data-dv-src="{src}" data-dv-t64="{html_std.escape(t64, quote=True)}" data-dv-b64="{html_std.escape(b64, quote=True)}" '
+                f'title="Ver campanha" aria-label="Abrir campanha em destaque">'
+                f'<span class="home-banner-thumb-frame"><img src="{src}" alt="" loading="lazy" decoding="async" /></span>'
+                f"</button></div>"
+            )
+        if not cards:
+            return
+        strip_html = (
+            '<div class="home-banners-strip-outer">'
+            '<div class="home-banners-strip" role="group" aria-label="Miniaturas de campanhas">'
+            + "".join(cards)
+            + "</div></div>"
         )
-        linhas = (len(campanhas) + 3) // 4
-        # Altura proporcional da galeria para evitar espaço em branco excessivo
-        # entre miniaturas e o bloco de textos das campanhas.
-        altura = 32 + (linhas * 190)
-        html_gallery = f"""
-        <div id="dv-camp-gallery-{key_suffix}"></div>
-        <style>
-          #dv-camp-gallery-{key_suffix} {{
-            width: 100%;
-            margin: 0 auto;
-            font-family: Inter, system-ui, sans-serif;
-          }}
-          #dv-camp-gallery-{key_suffix} .grid {{
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(160px, 160px));
-            gap: 14px;
-            justify-content: center;
-            justify-items: center;
-            align-items: start;
-            width: 100%;
-            margin: 0 auto;
-          }}
-          #dv-camp-gallery-{key_suffix} .thumb-btn {{
-            border: 0;
-            background: transparent;
-            padding: 0;
-            cursor: pointer;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            gap: 6px;
-          }}
-          #dv-camp-gallery-{key_suffix} .thumb {{
-            width: 160px;
-            max-width: 100%;
-            height: auto;
-            border-radius: 12px;
-            border: 1px solid #e2e8f0;
-            box-shadow: 0 6px 16px rgba(15, 23, 42, 0.10);
-            display: block;
-          }}
-          #dv-camp-gallery-{key_suffix} .ttl {{
-            font-size: .78rem;
-            color: #334155;
-            text-align: center;
-            max-width: 160px;
-            line-height: 1.25;
-          }}
-          #dv-camp-gallery-{key_suffix} .overlay {{
-            position: fixed;
-            inset: 0;
-            z-index: 99999;
-            background: rgba(15, 23, 42, .82);
-            display: none;
-            align-items: center;
-            justify-content: center;
-            padding: 12px;
-            box-sizing: border-box;
-          }}
-          #dv-camp-gallery-{key_suffix} .panel {{
-            width: min(920px, 96vw);
-            max-height: 94vh;
-            overflow: auto;
-            background: #ffffff;
-            border-radius: 16px;
-            border: 1px solid #e2e8f0;
-            padding: 14px;
-            box-sizing: border-box;
-            position: relative;
-            box-shadow: 0 20px 48px rgba(15, 23, 42, .20);
-          }}
-          #dv-camp-gallery-{key_suffix} .close {{
-            position: absolute;
-            top: 10px;
-            right: 10px;
-            border: 1px solid #cbd5e1;
-            background: #ffffff;
-            color: #0f172a;
-            border-radius: 10px;
-            width: 36px;
-            height: 36px;
-            font-size: 22px;
-            line-height: 1;
-            cursor: pointer;
-          }}
-          #dv-camp-gallery-{key_suffix} .hero {{
-            width: 100%;
-            height: auto;
-            border-radius: 12px;
-            border: 1px solid #e2e8f0;
-            display: block;
-            margin: 0 auto 12px;
-            background: #f8fafc;
-          }}
-          #dv-camp-gallery-{key_suffix} .h3 {{
-            margin: 0 0 8px 0;
-            color: #0f3f7f;
-            font-size: 1.2rem;
-            line-height: 1.25;
-            font-weight: 700;
-          }}
-          #dv-camp-gallery-{key_suffix} .desc {{
-            margin: 0;
-            color: #334155;
-            line-height: 1.6;
-            white-space: pre-wrap;
-          }}
-          @media (max-width: 860px) {{
-            #dv-camp-gallery-{key_suffix} .grid {{
-              grid-template-columns: repeat(auto-fit, minmax(140px, 140px));
-            }}
-          }}
-        </style>
-        <script>
-          (function() {{
-            const root = document.getElementById("dv-camp-gallery-{key_suffix}");
-            if (!root) return;
-            const data = {data_json};
-            const esc = (s) => String(s || "")
-              .replace(/&/g, "&amp;").replace(/</g, "&lt;")
-              .replace(/>/g, "&gt;").replace(/"/g, "&quot;")
-              .replace(/'/g, "&#39;");
-            const cards = data.map((c, i) => `
-              <button type="button" class="thumb-btn" data-idx="${{i}}" aria-label="Abrir campanha">
-                <img class="thumb" src="${{esc(c.src)}}" alt="">
-                ${{c.titulo ? `<div class="ttl">${{esc(c.titulo)}}</div>` : ""}}
-              </button>
-            `).join("");
-            root.innerHTML = `
-              <div class="grid">${{cards}}</div>
-              <div class="overlay" id="ov">
-                <div class="panel" role="dialog" aria-modal="true" aria-label="Campanha comercial">
-                  <button type="button" class="close" id="closeBtn" aria-label="Fechar">×</button>
-                  <img class="hero" id="hero" src="" alt="">
-                  <h3 class="h3" id="title"></h3>
-                  <p class="desc" id="desc"></p>
-                </div>
-              </div>
-            `;
-            const nl2br = (s) => esc(s).replace(/\\n/g, "<br>");
-            const ov = root.querySelector("#ov");
-            const hero = root.querySelector("#hero");
-            const title = root.querySelector("#title");
-            const desc = root.querySelector("#desc");
-            const closeBtn = root.querySelector("#closeBtn");
-            let lastFocus = null;
-            const closePopup = () => {{
-              ov.style.display = "none";
-              if (lastFocus && typeof lastFocus.focus === "function") {{
-                try {{ lastFocus.focus(); }} catch (e) {{}}
-              }}
-            }};
-            function openCampaignPopup(c, fromEl) {{
-              lastFocus = fromEl || null;
-              hero.src = c?.src || "";
-              title.textContent = c?.titulo || "";
-              desc.innerHTML = nl2br(c?.descricao || "");
-              ov.style.display = "flex";
-              try {{ closeBtn.focus(); }} catch (e) {{}}
-            }}
-            root.querySelectorAll(".thumb-btn").forEach((btn) => {{
-              btn.addEventListener("click", () => {{
-                const c = data[Number(btn.dataset.idx)] || {{}};
-                openCampaignPopup(c, btn);
-              }});
-            }});
-            closeBtn.addEventListener("click", closePopup);
-            ov.addEventListener("click", (ev) => {{
-              if (ev.target === ov) closePopup();
-            }});
-            document.addEventListener("keydown", (ev) => {{
-              if (ev.key === "Escape" && ov.style.display === "flex") closePopup();
-            }});
-          }})();
-        </script>
-        """
-        st.components.v1.html(html_gallery, height=altura, scrolling=False)
+        st.markdown('<div class="home-banners-wrap">' + strip_html + "</div>", unsafe_allow_html=True)
     campanhas_ativas: list[dict[str, str]] = []
     if not df_bn.empty:
         for _, row in df_bn.iterrows():
@@ -1887,7 +1722,7 @@ def render_secao_campanhas_comerciais(
             + "</div>",
             unsafe_allow_html=True,
         )
-        _render_galeria_popup_inline(campanhas_ativas, key_suffix="pub")
+        _render_miniaturas_popup_real(campanhas_ativas)
     else:
         st.markdown(
             '<div class="home-banners-wrap" role="region" aria-label="Campanhas comerciais">'
@@ -1912,7 +1747,7 @@ def render_secao_campanhas_comerciais(
                 use_container_width=True,
             ):
                 dialog_adm_textos_campanhas(df_txt)
-        _render_galeria_popup_inline(campanhas_ativas, key_suffix="adm")
+        _render_miniaturas_popup_real(campanhas_ativas)
 
     if copy_html:
         st.markdown(copy_html, unsafe_allow_html=True)
@@ -4619,6 +4454,7 @@ def aba_simulador_automacao(
         df_campanhas_texto if df_campanhas_texto is not None else pd.DataFrame(),
         user_is_adm=bool(st.session_state.get("user_is_adm")),
     )
+    inject_home_banner_dialog_modal()
 
     # --- PÁGINA ÚNICA: perfil → valores → recomendações → unidade → distribuição (ordem fixa) ---
     if passo == 'sim':
