@@ -1638,6 +1638,22 @@ def dialog_adm_textos_campanhas(df_campanhas_texto: pd.DataFrame) -> None:
                     st.error(f"Não foi possível excluir: {err_dct}")
 
 
+@st.dialog("Campanha comercial")
+def dialog_visualizar_campanha(campanha: dict[str, str]) -> None:
+    """Popup nativo Streamlit para exibir campanha com imagem e descrição."""
+    src = str(campanha.get("src", "") or "").strip()
+    titulo = str(campanha.get("titulo", "") or "").strip()
+    descricao = str(campanha.get("descricao", "") or "").strip()
+    if src:
+        st.image(src, use_container_width=True)
+    if titulo:
+        st.markdown(f"### {html_std.escape(titulo)}")
+    if descricao:
+        st.write(descricao)
+    else:
+        st.caption("Sem descrição para esta campanha.")
+
+
 def render_secao_campanhas_comerciais(
     df_banners: pd.DataFrame,
     df_texto_campanhas: pd.DataFrame | None = None,
@@ -1648,7 +1664,7 @@ def render_secao_campanhas_comerciais(
     df_bn = normalizar_df_home_banners(df_banners).reset_index(drop=True)
     df_txt = df_texto_campanhas if df_texto_campanhas is not None else pd.DataFrame()
     copy_html = _html_campanhas_texto_bloco(df_txt)
-    cards: list[str] = []
+    campanhas_ativas: list[dict[str, str]] = []
     if not df_bn.empty:
         for _, row in df_bn.iterrows():
             atv = str(row.get("Ativo", "SIM") or "").strip().upper()
@@ -1657,33 +1673,40 @@ def render_secao_campanhas_comerciais(
             src = _img_url_seguro_https(str(row.get("URL_Imagem", "") or ""))
             if not src:
                 continue
-            cards.append(
-                f'<div class="home-banner-lb-root">'
-                f'<a class="home-banner-card home-banner-card--fs home-banner-card--thumb" '
-                f'href="{src}" target="_blank" rel="noopener noreferrer" '
-                f'title="Ver campanha" aria-label="Abrir campanha em destaque">'
-                f'<span class="home-banner-thumb-frame">'
-                f'<img src="{src}" alt="" loading="lazy" decoding="async" />'
-                f"</span></a></div>"
+            campanhas_ativas.append(
+                {
+                    "src": src,
+                    "titulo": str(row.get("Titulo", "") or "").strip(),
+                    "descricao": str(row.get("Descricao", "") or "").strip(),
+                }
             )
-    if not cards and not copy_html and not user_is_adm:
+    if not campanhas_ativas and not copy_html and not user_is_adm:
         return
-    strip_html = ""
-    if cards:
-        strip_html = (
-            '<div class="home-banners-strip-outer">'
-            '<div class="home-banners-strip" role="group" aria-label="Miniaturas de campanhas">'
-            + "".join(cards)
-            + "</div></div>"
-        )
     if not user_is_adm:
         st.markdown(
             '<div class="home-banners-wrap" role="region" aria-label="Campanhas comerciais">'
             '<h2 class="home-banners-section-title">Campanhas comerciais</h2>'
-            + strip_html
             + "</div>",
             unsafe_allow_html=True,
         )
+        if campanhas_ativas:
+            ncols = 4
+            for ini in range(0, len(campanhas_ativas), ncols):
+                linha = campanhas_ativas[ini : ini + ncols]
+                cols = st.columns(ncols, gap="small")
+                for j, campanha in enumerate(linha):
+                    idx = ini + j
+                    with cols[j]:
+                        st.image(campanha["src"], use_container_width=True)
+                        ttl = (campanha.get("titulo") or "").strip()
+                        if ttl:
+                            st.caption(ttl)
+                        if st.button(
+                            "Ver campanha",
+                            key=f"dv_campanha_open_{idx}",
+                            use_container_width=True,
+                        ):
+                            dialog_visualizar_campanha(campanha)
     else:
         st.markdown(
             '<div class="home-banners-wrap" role="region" aria-label="Campanhas comerciais">'
@@ -1708,11 +1731,24 @@ def render_secao_campanhas_comerciais(
                 use_container_width=True,
             ):
                 dialog_adm_textos_campanhas(df_txt)
-        if strip_html:
-            st.markdown(
-                '<div class="home-banners-wrap">' + strip_html + "</div>",
-                unsafe_allow_html=True,
-            )
+        if campanhas_ativas:
+            ncols = 4
+            for ini in range(0, len(campanhas_ativas), ncols):
+                linha = campanhas_ativas[ini : ini + ncols]
+                cols = st.columns(ncols, gap="small")
+                for j, campanha in enumerate(linha):
+                    idx = ini + j
+                    with cols[j]:
+                        st.image(campanha["src"], use_container_width=True)
+                        ttl = (campanha.get("titulo") or "").strip()
+                        if ttl:
+                            st.caption(ttl)
+                        if st.button(
+                            "Ver campanha",
+                            key=f"dv_campanha_open_adm_{idx}",
+                            use_container_width=True,
+                        ):
+                            dialog_visualizar_campanha(campanha)
     if copy_html:
         st.markdown(copy_html, unsafe_allow_html=True)
 
