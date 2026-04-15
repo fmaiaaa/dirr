@@ -1730,61 +1730,6 @@ def render_secao_campanhas_comerciais(
             max-width: 160px;
             line-height: 1.25;
           }}
-          #dv-camp-gallery-{key_suffix} .overlay {{
-            position: fixed;
-            inset: 0;
-            z-index: 99999;
-            background: rgba(15, 23, 42, .82);
-            display: none;
-            align-items: center;
-            justify-content: center;
-            padding: 12px;
-            box-sizing: border-box;
-          }}
-          #dv-camp-gallery-{key_suffix} .panel {{
-            width: min(900px, 96vw);
-            max-height: 94vh;
-            overflow: auto;
-            background: #fff;
-            border-radius: 14px;
-            border: 1px solid #e2e8f0;
-            padding: 12px;
-            box-sizing: border-box;
-            position: relative;
-            margin-top: 0;
-          }}
-          #dv-camp-gallery-{key_suffix} .close {{
-            position: absolute;
-            top: 8px;
-            right: 8px;
-            border: 1px solid #cbd5e1;
-            background: #fff;
-            border-radius: 8px;
-            width: 34px;
-            height: 34px;
-            font-size: 20px;
-            line-height: 1;
-            cursor: pointer;
-          }}
-          #dv-camp-gallery-{key_suffix} .hero {{
-            width: 100%;
-            height: auto;
-            border-radius: 10px;
-            display: block;
-            margin: 0 auto 10px;
-          }}
-          #dv-camp-gallery-{key_suffix} .h3 {{
-            margin: 0 0 8px 0;
-            color: #0f3f7f;
-            font-size: 1.15rem;
-            font-weight: 700;
-          }}
-          #dv-camp-gallery-{key_suffix} .desc {{
-            margin: 0;
-            color: #1e293b;
-            white-space: pre-wrap;
-            line-height: 1.5;
-          }}
           @media (max-width: 860px) {{
             #dv-camp-gallery-{key_suffix} .grid {{
               grid-template-columns: repeat(auto-fit, minmax(140px, 140px));
@@ -1806,37 +1751,48 @@ def render_secao_campanhas_comerciais(
                 ${{c.titulo ? `<div class="ttl">${{esc(c.titulo)}}</div>` : ""}}
               </button>
             `).join("");
-            root.innerHTML = `
-              <div class="grid">${{cards}}</div>
-              <div class="overlay" id="ov">
-                <div class="panel">
-                  <button type="button" class="close" id="closeBtn" aria-label="Fechar">×</button>
-                  <img class="hero" id="hero" src="" alt="">
-                  <h3 class="h3" id="title"></h3>
-                  <p class="desc" id="desc"></p>
-                </div>
-              </div>
-            `;
-            const ov = root.querySelector("#ov");
-            const hero = root.querySelector("#hero");
-            const title = root.querySelector("#title");
-            const desc = root.querySelector("#desc");
-            const close = () => {{ ov.style.display = "none"; }};
+            root.innerHTML = `<div class="grid">${{cards}}</div>`;
+            const nl2br = (s) => esc(s).replace(/\\n/g, "<br>");
+            function openCampaignPopup(c) {{
+              const sw = window.screen?.width || 1280;
+              const sh = window.screen?.height || 800;
+              const w = Math.min(980, Math.floor(sw * 0.9));
+              const h = Math.min(780, Math.floor(sh * 0.9));
+              const left = Math.max(0, Math.floor((sw - w) / 2));
+              const top = Math.max(0, Math.floor((sh - h) / 2));
+              const pop = window.open(
+                "",
+                "dv_campanha_popup",
+                `popup=yes,width=${{w}},height=${{h}},left=${{left}},top=${{top}},resizable=yes,scrollbars=yes`
+              );
+              if (!pop) return;
+              const titulo = esc(c?.titulo || "");
+              const descricao = nl2br(c?.descricao || "");
+              const src = esc(c?.src || "");
+              const html = `<!doctype html>
+                <html><head><meta charset="utf-8"><title>${{titulo || "Campanha comercial"}}</title>
+                <style>
+                  body{{margin:0;padding:16px;font-family:Inter,system-ui,sans-serif;background:#0f172a;color:#e2e8f0;}}
+                  .wrap{{max-width:920px;margin:0 auto;}}
+                  img{{width:100%;height:auto;border-radius:12px;border:1px solid rgba(255,255,255,.15);display:block;}}
+                  h1{{font-size:1.15rem;margin:12px 0 8px;color:#fff;}}
+                  p{{margin:0;line-height:1.55;color:#cbd5e1;}}
+                </style></head>
+                <body><div class="wrap">
+                  <img src="${{src}}" alt="">
+                  ${{titulo ? `<h1>${{titulo}}</h1>` : ""}}
+                  ${{descricao ? `<p>${{descricao}}</p>` : ""}}
+                </div></body></html>`;
+              pop.document.open();
+              pop.document.write(html);
+              pop.document.close();
+              pop.focus();
+            }}
             root.querySelectorAll(".thumb-btn").forEach((btn) => {{
               btn.addEventListener("click", () => {{
                 const c = data[Number(btn.dataset.idx)] || {{}};
-                hero.src = c.src || "";
-                title.textContent = c.titulo || "";
-                desc.textContent = c.descricao || "";
-                ov.style.display = "flex";
+                openCampaignPopup(c);
               }});
-            }});
-            root.querySelector("#closeBtn").addEventListener("click", close);
-            ov.addEventListener("click", (ev) => {{
-              if (ev.target === ov) close();
-            }});
-            document.addEventListener("keydown", (ev) => {{
-              if (ev.key === "Escape" && ov.style.display === "flex") close();
             }});
           }})();
         </script>
