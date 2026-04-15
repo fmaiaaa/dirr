@@ -1670,7 +1670,7 @@ def render_secao_campanhas_comerciais(
     copy_html = _html_campanhas_texto_bloco(df_txt)
 
     def _render_galeria_popup_inline(campanhas: list[dict[str, str]], *, key_suffix: str) -> None:
-        """Galeria centralizada com popup inline em componente HTML (sem rerun/login)."""
+        """Galeria centralizada com popup/modal interno no próprio componente (sem nova aba)."""
         if not campanhas:
             return
         import json as _json
@@ -1731,6 +1731,65 @@ def render_secao_campanhas_comerciais(
             max-width: 160px;
             line-height: 1.25;
           }}
+          #dv-camp-gallery-{key_suffix} .overlay {{
+            position: fixed;
+            inset: 0;
+            z-index: 99999;
+            background: rgba(15, 23, 42, .82);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            padding: 12px;
+            box-sizing: border-box;
+          }}
+          #dv-camp-gallery-{key_suffix} .panel {{
+            width: min(920px, 96vw);
+            max-height: 94vh;
+            overflow: auto;
+            background: #ffffff;
+            border-radius: 16px;
+            border: 1px solid #e2e8f0;
+            padding: 14px;
+            box-sizing: border-box;
+            position: relative;
+            box-shadow: 0 20px 48px rgba(15, 23, 42, .20);
+          }}
+          #dv-camp-gallery-{key_suffix} .close {{
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            border: 1px solid #cbd5e1;
+            background: #ffffff;
+            color: #0f172a;
+            border-radius: 10px;
+            width: 36px;
+            height: 36px;
+            font-size: 22px;
+            line-height: 1;
+            cursor: pointer;
+          }}
+          #dv-camp-gallery-{key_suffix} .hero {{
+            width: 100%;
+            height: auto;
+            border-radius: 12px;
+            border: 1px solid #e2e8f0;
+            display: block;
+            margin: 0 auto 12px;
+            background: #f8fafc;
+          }}
+          #dv-camp-gallery-{key_suffix} .h3 {{
+            margin: 0 0 8px 0;
+            color: #0f3f7f;
+            font-size: 1.2rem;
+            line-height: 1.25;
+            font-weight: 700;
+          }}
+          #dv-camp-gallery-{key_suffix} .desc {{
+            margin: 0;
+            color: #334155;
+            line-height: 1.6;
+            white-space: pre-wrap;
+          }}
           @media (max-width: 860px) {{
             #dv-camp-gallery-{key_suffix} .grid {{
               grid-template-columns: repeat(auto-fit, minmax(140px, 140px));
@@ -1752,54 +1811,50 @@ def render_secao_campanhas_comerciais(
                 ${{c.titulo ? `<div class="ttl">${{esc(c.titulo)}}</div>` : ""}}
               </button>
             `).join("");
-            root.innerHTML = `<div class="grid">${{cards}}</div>`;
+            root.innerHTML = `
+              <div class="grid">${{cards}}</div>
+              <div class="overlay" id="ov">
+                <div class="panel" role="dialog" aria-modal="true" aria-label="Campanha comercial">
+                  <button type="button" class="close" id="closeBtn" aria-label="Fechar">×</button>
+                  <img class="hero" id="hero" src="" alt="">
+                  <h3 class="h3" id="title"></h3>
+                  <p class="desc" id="desc"></p>
+                </div>
+              </div>
+            `;
             const nl2br = (s) => esc(s).replace(/\\n/g, "<br>");
-            function openCampaignPopup(c) {{
-              const sw = window.screen?.width || 1280;
-              const sh = window.screen?.height || 800;
-              const w = Math.min(980, Math.floor(sw * 0.9));
-              const h = Math.min(780, Math.floor(sh * 0.9));
-              const left = Math.max(0, Math.floor((sw - w) / 2));
-              const top = Math.max(0, Math.floor((sh - h) / 2));
-              const pop = window.open(
-                "",
-                "dv_campanha_popup",
-                `popup=yes,width=${{w}},height=${{h}},left=${{left}},top=${{top}},resizable=yes,scrollbars=yes`
-              );
-              if (!pop) {{
-                alert("O navegador bloqueou o popup. Permita popups para este site.");
-                return;
+            const ov = root.querySelector("#ov");
+            const hero = root.querySelector("#hero");
+            const title = root.querySelector("#title");
+            const desc = root.querySelector("#desc");
+            const closeBtn = root.querySelector("#closeBtn");
+            let lastFocus = null;
+            const closePopup = () => {{
+              ov.style.display = "none";
+              if (lastFocus && typeof lastFocus.focus === "function") {{
+                try {{ lastFocus.focus(); }} catch (e) {{}}
               }}
-              const titulo = esc(c?.titulo || "");
-              const descricao = nl2br(c?.descricao || "");
-              const src = esc(c?.src || "");
-              const html = `<!doctype html>
-                <html><head><meta charset="utf-8"><title>${{titulo || "Campanha comercial"}}</title>
-                <style>
-                  body{{margin:0;padding:24px;font-family:Inter,system-ui,sans-serif;background:#ffffff;color:#0f172a;}}
-                  .wrap{{max-width:940px;margin:0 auto;}}
-                  .card{{background:#ffffff;border:1px solid #e2e8f0;border-radius:16px;padding:16px;box-shadow:0 16px 40px rgba(15,23,42,.12);}}
-                  img{{width:100%;height:auto;border-radius:12px;border:1px solid #e2e8f0;display:block;}}
-                  h1{{font-size:1.2rem;margin:14px 0 8px;color:#0f3f7f;line-height:1.25;}}
-                  p{{margin:0;line-height:1.6;color:#334155;}}
-                </style></head>
-                <body><div class="wrap">
-                  <div class="card">
-                    <img src="${{src}}" alt="">
-                    ${{titulo ? `<h1>${{titulo}}</h1>` : ""}}
-                    ${{descricao ? `<p>${{descricao}}</p>` : ""}}
-                  </div>
-                </div></body></html>`;
-              pop.document.open();
-              pop.document.write(html);
-              pop.document.close();
-              pop.focus();
+            }};
+            function openCampaignPopup(c, fromEl) {{
+              lastFocus = fromEl || null;
+              hero.src = c?.src || "";
+              title.textContent = c?.titulo || "";
+              desc.innerHTML = nl2br(c?.descricao || "");
+              ov.style.display = "flex";
+              try {{ closeBtn.focus(); }} catch (e) {{}}
             }}
             root.querySelectorAll(".thumb-btn").forEach((btn) => {{
               btn.addEventListener("click", () => {{
                 const c = data[Number(btn.dataset.idx)] || {{}};
-                openCampaignPopup(c);
+                openCampaignPopup(c, btn);
               }});
+            }});
+            closeBtn.addEventListener("click", closePopup);
+            ov.addEventListener("click", (ev) => {{
+              if (ev.target === ov) closePopup();
+            }});
+            document.addEventListener("keydown", (ev) => {{
+              if (ev.key === "Escape" && ov.style.display === "flex") closePopup();
             }});
           }})();
         </script>
