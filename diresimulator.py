@@ -1664,6 +1664,32 @@ def render_secao_campanhas_comerciais(
     df_bn = normalizar_df_home_banners(df_banners).reset_index(drop=True)
     df_txt = df_texto_campanhas if df_texto_campanhas is not None else pd.DataFrame()
     copy_html = _html_campanhas_texto_bloco(df_txt)
+
+    def _render_miniaturas_centradas(campanhas: list[dict[str, str]], prefixo_chave: str) -> None:
+        if not campanhas:
+            return
+        max_cols = 4
+        for ini in range(0, len(campanhas), max_cols):
+            linha = campanhas[ini : ini + max_cols]
+            cols = st.columns(6, gap="small")
+            start = {1: 2, 2: 2, 3: 1, 4: 1}.get(len(linha), 1)
+            for j, campanha in enumerate(linha):
+                idx = ini + j
+                with cols[start + j]:
+                    qp_val = f"{prefixo_chave}_{idx}"
+                    src = html_std.escape(campanha.get("src", "") or "", quote=True)
+                    ttl = html_std.escape((campanha.get("titulo") or "").strip())
+                    st.markdown(
+                        f"""
+                        <div style="text-align:center;">
+                          <a href="?dv_campanha={qp_val}" title="Abrir campanha" aria-label="Abrir campanha">
+                            <img src="{src}" alt="" style="width:160px;max-width:100%;height:auto;border-radius:12px;border:1px solid #e2e8f0;box-shadow:0 6px 16px rgba(15,23,42,.10);" />
+                          </a>
+                          {f'<div style="font-size:0.78rem;color:#334155;margin-top:6px;">{ttl}</div>' if ttl else ""}
+                        </div>
+                        """,
+                        unsafe_allow_html=True,
+                    )
     campanhas_ativas: list[dict[str, str]] = []
     if not df_bn.empty:
         for _, row in df_bn.iterrows():
@@ -1689,24 +1715,7 @@ def render_secao_campanhas_comerciais(
             + "</div>",
             unsafe_allow_html=True,
         )
-        if campanhas_ativas:
-            ncols = 4
-            for ini in range(0, len(campanhas_ativas), ncols):
-                linha = campanhas_ativas[ini : ini + ncols]
-                cols = st.columns(ncols, gap="small")
-                for j, campanha in enumerate(linha):
-                    idx = ini + j
-                    with cols[j]:
-                        st.image(campanha["src"], use_container_width=True)
-                        ttl = (campanha.get("titulo") or "").strip()
-                        if ttl:
-                            st.caption(ttl)
-                        if st.button(
-                            "Ver campanha",
-                            key=f"dv_campanha_open_{idx}",
-                            use_container_width=True,
-                        ):
-                            dialog_visualizar_campanha(campanha)
+        _render_miniaturas_centradas(campanhas_ativas, "pub")
     else:
         st.markdown(
             '<div class="home-banners-wrap" role="region" aria-label="Campanhas comerciais">'
@@ -1731,24 +1740,23 @@ def render_secao_campanhas_comerciais(
                 use_container_width=True,
             ):
                 dialog_adm_textos_campanhas(df_txt)
-        if campanhas_ativas:
-            ncols = 4
-            for ini in range(0, len(campanhas_ativas), ncols):
-                linha = campanhas_ativas[ini : ini + ncols]
-                cols = st.columns(ncols, gap="small")
-                for j, campanha in enumerate(linha):
-                    idx = ini + j
-                    with cols[j]:
-                        st.image(campanha["src"], use_container_width=True)
-                        ttl = (campanha.get("titulo") or "").strip()
-                        if ttl:
-                            st.caption(ttl)
-                        if st.button(
-                            "Ver campanha",
-                            key=f"dv_campanha_open_adm_{idx}",
-                            use_container_width=True,
-                        ):
-                            dialog_visualizar_campanha(campanha)
+        _render_miniaturas_centradas(campanhas_ativas, "adm")
+
+    _qp_camp = st.query_params.get("dv_campanha")
+    if isinstance(_qp_camp, list):
+        _qp_camp = _qp_camp[0] if _qp_camp else None
+    if _qp_camp:
+        try:
+            _idx_qp = int(str(_qp_camp).split("_")[-1])
+        except (TypeError, ValueError):
+            _idx_qp = None
+        if _idx_qp is not None and 0 <= _idx_qp < len(campanhas_ativas):
+            dialog_visualizar_campanha(campanhas_ativas[_idx_qp])
+        try:
+            st.query_params.pop("dv_campanha")
+        except Exception:
+            pass
+
     if copy_html:
         st.markdown(copy_html, unsafe_allow_html=True)
 
