@@ -712,6 +712,7 @@ def resolver_taxa_financiamento_anual_pct(
 
 import logging
 import streamlit as st
+import streamlit.components.v1 as components
 import pandas as pd
 import re
 from streamlit_gsheets import GSheetsConnection
