@@ -494,6 +494,37 @@ def taxa_ps_direcional_por_entrega(
         return float(premissas.get("dire_ps_amort_m", DEFAULT_PREMISSAS["dire_ps_amort_m"]))
 
 
+CURVA_PS_DIRE_84_BASE_10K: dict[int, float] = {
+    0: 214.0, 1: 212.0, 2: 210.0, 3: 208.0, 4: 206.0, 5: 204.0, 6: 203.0, 7: 201.0,
+    8: 199.0, 9: 198.0, 10: 196.0, 11: 194.0, 12: 193.0, 13: 191.0, 14: 190.0, 15: 188.0,
+    16: 187.0, 17: 186.0, 18: 184.0, 19: 183.0, 20: 182.0, 21: 181.0, 22: 180.0, 23: 179.0,
+    24: 177.0, 25: 176.0, 26: 175.0, 27: 174.0, 28: 173.0, 29: 172.0, 30: 171.0, 31: 171.0,
+    32: 170.0, 33: 169.0, 34: 168.0, 35: 167.0, 36: 166.0, 37: 166.0, 38: 165.0, 39: 164.0,
+    40: 163.0, 41: 163.0, 42: 162.0, 43: 161.0, 44: 161.0, 45: 160.0, 46: 160.0, 47: 159.0,
+    48: 159.0, 49: 158.0, 50: 157.0, 51: 157.0, 52: 157.0, 53: 156.0, 54: 156.0, 55: 155.0,
+}
+
+
+def parcela_ps_direcional_curva_84(valor_ps: float, meses_entrega: int) -> float:
+    """
+    Curva comercial informada pelo time:
+    - Base: Pro Soluto de R$ 10.000,00 em 84x
+    - Chave: mês até entrega
+    - Escalonamento linear para outros valores de Pro Soluto.
+    """
+    v = float(valor_ps or 0.0)
+    if v <= 0.0:
+        return 0.0
+    if not CURVA_PS_DIRE_84_BASE_10K:
+        return 0.0
+    m = int(meses_entrega or 0)
+    m_min = min(CURVA_PS_DIRE_84_BASE_10K.keys())
+    m_max = max(CURVA_PS_DIRE_84_BASE_10K.keys())
+    m = max(m_min, min(m, m_max))
+    base_10k = float(CURVA_PS_DIRE_84_BASE_10K.get(m, CURVA_PS_DIRE_84_BASE_10K[m_max]))
+    return float(base_10k * (v / 10000.0))
+
+
 def _pmt_price_positivo(pv: float, taxa_mensal: float, n: int) -> float:
     """Prestação constante (sistema PRICE), valor positivo; pv > 0."""
     r = float(taxa_mensal)
@@ -582,6 +613,8 @@ def parcela_ps_pmt(
             return 0.0
         return float(pmt_pos * (1.0 + e1))
 
+    if n == 84:
+        return parcela_ps_direcional_curva_84(pv_raw, int(meses_entrega or 0))
     taxa_ps = taxa_ps_direcional_por_entrega(
         p,
         n,
@@ -3891,7 +3924,7 @@ def configurar_layout():
             .badge-ideal:hover, .badge-seguro:hover, .badge-multi:hover {{
                 transform: scale(1.04);
                 box-shadow: 0 6px 18px -4px rgba({RGB_VERMELHO_CSS}, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.22);
-            }}
+            }}a
         }}
         
         [data-testid="stSidebar"] {{ background-color: #fff; border-right: 1px solid {COR_BORDA}; }}
