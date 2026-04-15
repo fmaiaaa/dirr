@@ -1652,6 +1652,8 @@ def dialog_visualizar_campanha(campanha: dict[str, str]) -> None:
         st.write(descricao)
     else:
         st.caption("Sem descrição para esta campanha.")
+    if st.button("Fechar", key=f"dv_fechar_campanha_{abs(hash(src + titulo)) % 10_000_000}", use_container_width=True):
+        st.rerun()
 
 
 def render_secao_campanhas_comerciais(
@@ -1676,27 +1678,16 @@ def render_secao_campanhas_comerciais(
             for j, campanha in enumerate(linha):
                 idx = ini + j
                 with cols[start + j]:
-                    qp_val = f"{prefixo_chave}_{idx}"
-                    src = html_std.escape(campanha.get("src", "") or "", quote=True)
-                    ttl = html_std.escape((campanha.get("titulo") or "").strip())
-                    st.markdown(
-                        f"""
-                        <div style="text-align:center;">
-                          <form method="get" action="" style="display:inline-block;margin:0;padding:0;">
-                            <input type="hidden" name="dv_campanha" value="{qp_val}" />
-                            <input
-                              type="image"
-                              src="{src}"
-                              alt="Abrir campanha"
-                              title="Abrir campanha"
-                              style="width:160px;max-width:100%;height:auto;border-radius:12px;border:1px solid #e2e8f0;box-shadow:0 6px 16px rgba(15,23,42,.10);cursor:pointer;"
-                            />
-                          </form>
-                          {f'<div style="font-size:0.78rem;color:#334155;margin-top:6px;">{ttl}</div>' if ttl else ""}
-                        </div>
-                        """,
-                        unsafe_allow_html=True,
-                    )
+                    st.image(campanha.get("src", ""), width=160)
+                    ttl = (campanha.get("titulo") or "").strip()
+                    if ttl:
+                        st.caption(ttl)
+                    if st.button(
+                        "Abrir popup",
+                        key=f"dv_campanha_popup_{prefixo_chave}_{idx}",
+                        use_container_width=True,
+                    ):
+                        dialog_visualizar_campanha(campanha)
     campanhas_ativas: list[dict[str, str]] = []
     if not df_bn.empty:
         for _, row in df_bn.iterrows():
@@ -1748,21 +1739,6 @@ def render_secao_campanhas_comerciais(
             ):
                 dialog_adm_textos_campanhas(df_txt)
         _render_miniaturas_centradas(campanhas_ativas, "adm")
-
-    _qp_camp = st.query_params.get("dv_campanha")
-    if isinstance(_qp_camp, list):
-        _qp_camp = _qp_camp[0] if _qp_camp else None
-    if _qp_camp:
-        try:
-            _idx_qp = int(str(_qp_camp).split("_")[-1])
-        except (TypeError, ValueError):
-            _idx_qp = None
-        if _idx_qp is not None and 0 <= _idx_qp < len(campanhas_ativas):
-            dialog_visualizar_campanha(campanhas_ativas[_idx_qp])
-        try:
-            st.query_params.pop("dv_campanha")
-        except Exception:
-            pass
 
     if copy_html:
         st.markdown(copy_html, unsafe_allow_html=True)
