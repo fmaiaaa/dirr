@@ -1686,7 +1686,9 @@ def render_secao_campanhas_comerciais(
             ensure_ascii=False,
         )
         linhas = (len(campanhas) + 3) // 4
-        altura = 220 + (linhas * 170)
+        # Altura proporcional da galeria para evitar espaço em branco excessivo
+        # entre miniaturas e o bloco de textos das campanhas.
+        altura = 32 + (linhas * 190)
         html_gallery = f"""
         <div id="dv-camp-gallery-{key_suffix}"></div>
         <style>
