@@ -101,7 +101,7 @@ import pandas as pd
 # Valores extraídos de excel_extracao_celulas.txt (aba POLITICAS, linhas 2–7).
 # Manter alinhado ao Excel: cada classificação = um bloco do comparador (K3, X3, AJ3…).
 DEFAULT_POLITICAS_ROWS: List[Dict[str, Any]] = [
-    {"classificacao": "EMCASH", "prosoluto_pct": 0.25, "faixa_renda": 0.0, "fx_renda_1": 0.55, "fx_renda_2": 0.55, "parcelas_max": 66.0},
+    {"classificacao": "EMCASH", "prosoluto_pct": 0.25, "faixa_renda": 0.0, "fx_renda_1": 0.55, "fx_renda_2": 0.55, "parcelas_max": 84.0},
     {"classificacao": "DIAMANTE", "prosoluto_pct": 0.25, "faixa_renda": 4000.0, "fx_renda_1": 0.5, "fx_renda_2": 0.5, "parcelas_max": 84.0},
     {"classificacao": "OURO", "prosoluto_pct": 0.20, "faixa_renda": 4000.0, "fx_renda_1": 0.5, "fx_renda_2": 0.5, "parcelas_max": 84.0},
     {"classificacao": "PRATA", "prosoluto_pct": 0.18, "faixa_renda": 4000.0, "fx_renda_1": 0.48, "fx_renda_2": 0.48, "parcelas_max": 84.0},
@@ -449,6 +449,51 @@ def principal_ps_b3_ajustado(valor_ps: float) -> float:
     return float(v * (1.0 + ((1.0 + 0.005) ** 4 - 1.0)))
 
 
+def meses_ate_entrega(data_entrega: Any) -> int:
+    """C37 (tempo para entrega): se já passou, retorna 0; senão, meses corridos até a entrega."""
+    if data_entrega is None:
+        return 0
+    s = str(data_entrega).strip()
+    if not s:
+        return 0
+    dt = pd.to_datetime(s, dayfirst=True, errors="coerce")
+    if pd.isna(dt):
+        return 0
+    hoje = date.today()
+    entrega = dt.date()
+    meses = (entrega.year - hoje.year) * 12 + (entrega.month - hoje.month)
+    if entrega.day < hoje.day:
+        meses -= 1
+    return max(0, int(meses))
+
+
+def taxa_ps_direcional_por_entrega(
+    premissas: Mapping[str, float],
+    prazo_meses: int,
+    meses_entrega: int,
+) -> float:
+    """
+    Taxa efetiva mensal do Pro Soluto Direcional combinando fases pré e pós-entrega.
+    - Até entrega: DIRE PRE
+    - Após entrega: DIRE POS
+    """
+    n = int(prazo_meses or 0)
+    if n <= 0:
+        return float(premissas.get("dire_ps_amort_m", DEFAULT_PREMISSAS["dire_ps_amort_m"]))
+    r_pre = float(premissas.get("dire_pre_m", DEFAULT_PREMISSAS["dire_pre_m"]))
+    r_pos = float(premissas.get("dire_pos_m", DEFAULT_PREMISSAS["dire_pos_m"]))
+    if r_pre <= -1.0 or r_pos <= -1.0:
+        return float(premissas.get("dire_ps_amort_m", DEFAULT_PREMISSAS["dire_ps_amort_m"]))
+    m_pre = max(0, min(int(meses_entrega or 0), n))
+    m_pos = max(0, n - m_pre)
+    fator_total = ((1.0 + r_pre) ** m_pre) * ((1.0 + r_pos) ** m_pos
+    )
+    try:
+        return float(fator_total ** (1.0 / n) - 1.0)
+    except (ValueError, OverflowError, ZeroDivisionError):
+        return float(premissas.get("dire_ps_amort_m", DEFAULT_PREMISSAS["dire_ps_amort_m"]))
+
+
 def _pmt_price_positivo(pv: float, taxa_mensal: float, n: int) -> float:
     """Prestação constante (sistema PRICE), valor positivo; pv > 0."""
     r = float(taxa_mensal)
@@ -510,10 +555,11 @@ def parcela_ps_pmt(
     prazo_meses: int,
     premissas: Optional[Mapping[str, float]],
     politica_ui: str,
+    meses_entrega: Optional[int] = None,
 ) -> float:
     """
     Emcash (UI): I5 — (PMT(E2, n, B41) × -1) × (1+E1).
-    Direcional: B43/CE — PMT com principal B3 ajustado e taxa `dire_ps_amort_m` (sem (1+E1)).
+    Direcional: PMT com principal B3 ajustado e taxa efetiva pré/pós conforme tempo até entrega.
     """
     p = dict(DEFAULT_PREMISSAS)
     if premissas:
@@ -536,7 +582,11 @@ def parcela_ps_pmt(
             return 0.0
         return float(pmt_pos * (1.0 + e1))
 
-    taxa_ps = float(p.get("dire_ps_amort_m", DEFAULT_PREMISSAS["dire_ps_amort_m"]))
+    taxa_ps = taxa_ps_direcional_por_entrega(
+        p,
+        n,
+        int(meses_entrega or 0),
+    )
     pv_adj = principal_ps_b3_ajustado(pv_raw)
     return _pmt_price_positivo(pv_adj, taxa_ps, n)
 
@@ -568,7 +618,7 @@ def metricas_pro_soluto(
     e2_comp = float(p["emcash_fin_m"])
     if _politica_emcash_ui(politica_ui):
         row_em = politica_row_from_defaults("EMCASH")
-        prazo_pv_k2 = int(min(row_em.parcelas_max, 120.0)) if row_em else 66
+        prazo_pv_k2 = int(min(row_em.parcelas_max, 120.0)) if row_em else 84
     else:
         desc = int(float(p.get("ps_pv_meses_desconto_direcional", 11.0)))
         prazo_pv_k2 = max(1, prazo_ps_ui - desc)
@@ -603,9 +653,16 @@ def parcela_ps_para_valor(
     politica_ui: str,
     premissas: Optional[Mapping[str, float]] = None,
     parcela_max_j8: Optional[float] = None,
+    meses_entrega: Optional[int] = None,
 ) -> float:
     """Parcela corrigida; limitada ao teto J8 quando informado."""
-    raw = parcela_ps_pmt(valor_ps, prazo_meses, premissas, politica_ui)
+    raw = parcela_ps_pmt(
+        valor_ps,
+        prazo_meses,
+        premissas,
+        politica_ui,
+        meses_entrega=meses_entrega,
+    )
     if parcela_max_j8 is None:
         return raw
     j8v = float(parcela_max_j8)
@@ -4493,7 +4550,7 @@ def aba_simulador_automacao(
 
         lista_rendas_input = [texto_moeda_para_float(st.session_state.get(f"renda_part_{j}_v3")) for j in range(qtd_part)]
         renda_total_calc = sum(lista_rendas_input)
-        prazo_ps_max = 66 if politica_ps == "Emcash" else 84
+        prazo_ps_max = 84 if politica_ps == "Emcash" else 84
         st.session_state.dados_cliente.update({
             'nome': 'Simulação',
             'cpf': '',
@@ -4865,7 +4922,7 @@ def aba_simulador_automacao(
                         'volta_caixa_ref': u_row.get('Volta_Caixa_Ref', 0.0),
                     })
                     pol = d.get('politica', 'Direcional')
-                    prazo_max_ps = 66 if pol == 'Emcash' else 84
+                    prazo_max_ps = 84 if pol == 'Emcash' else 84
                     st.session_state.dados_cliente['prazo_ps_max'] = prazo_max_ps
 
         st.markdown("---")
@@ -5198,12 +5255,15 @@ def aba_simulador_automacao(
                 unsafe_allow_html=True,
             )
 
+        meses_entrega_unid = meses_ate_entrega(d.get("unid_entrega", ""))
+        st.session_state.dados_cliente["meses_ate_entrega"] = meses_entrega_unid
         v_parc = parcela_ps_para_valor(
             float(ps_input_val or 0),
             parc,
             pol_ui,
             _prem,
             parcela_max_j8=j8_ui if j8_ui > 0 else None,
+            meses_entrega=meses_entrega_unid,
         )
         st.session_state.dados_cliente['ps_mensal'] = v_parc
         st.session_state.dados_cliente['ps_mensal_simples'] = (float(ps_input_val or 0) / parc) if parc > 0 else 0.0
