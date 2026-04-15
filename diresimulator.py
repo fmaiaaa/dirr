@@ -1667,43 +1667,179 @@ def render_secao_campanhas_comerciais(
     df_txt = df_texto_campanhas if df_texto_campanhas is not None else pd.DataFrame()
     copy_html = _html_campanhas_texto_bloco(df_txt)
 
-    def _render_miniaturas_centradas(campanhas: list[dict[str, str]]) -> None:
+    def _render_galeria_popup_inline(campanhas: list[dict[str, str]], *, key_suffix: str) -> None:
+        """Galeria centralizada com popup inline em componente HTML (sem rerun/login)."""
         if not campanhas:
             return
-        max_cols = 4
-        for ini in range(0, len(campanhas), max_cols):
-            linha = campanhas[ini : ini + max_cols]
-            cols = st.columns(6, gap="small")
-            start = {1: 2, 2: 2, 3: 1, 4: 1}.get(len(linha), 1)
-            for j, campanha in enumerate(linha):
-                with cols[start + j]:
-                    st.image(campanha.get("src", ""), width=160)
-                    ttl = (campanha.get("titulo") or "").strip()
-                    if ttl:
-                        st.caption(ttl)
-                    st.markdown('<div style="height:6px;"></div>', unsafe_allow_html=True)
-
-    def _seletor_unico_popup(campanhas: list[dict[str, str]], prefixo_chave: str) -> None:
-        if not campanhas:
-            return
-        opcoes = list(range(len(campanhas)))
-        def _rotulo(i: int) -> str:
-            t = (campanhas[i].get("titulo") or "").strip()
-            return t if t else f"Campanha {i + 1}"
-        idx_sel = st.selectbox(
-            "Selecionar campanha para abrir",
-            options=opcoes,
-            format_func=_rotulo,
-            key=f"dv_campanha_select_{prefixo_chave}",
+        data_json = json.dumps(
+            [
+                {
+                    "src": str(c.get("src", "") or ""),
+                    "titulo": str(c.get("titulo", "") or ""),
+                    "descricao": str(c.get("descricao", "") or ""),
+                }
+                for c in campanhas
+            ],
+            ensure_ascii=False,
         )
-        _c0, _c1, _c2 = st.columns([1, 2, 1], gap="small")
-        with _c1:
-            if st.button(
-                "Abrir campanha selecionada",
-                key=f"dv_campanha_popup_single_{prefixo_chave}",
-                use_container_width=True,
-            ):
-                dialog_visualizar_campanha(campanhas[int(idx_sel)])
+        linhas = (len(campanhas) + 3) // 4
+        altura = 220 + (linhas * 170)
+        html_gallery = f"""
+        <div id="dv-camp-gallery-{key_suffix}"></div>
+        <style>
+          #dv-camp-gallery-{key_suffix} {{
+            width: 100%;
+            margin: 0 auto;
+            font-family: Inter, system-ui, sans-serif;
+          }}
+          #dv-camp-gallery-{key_suffix} .grid {{
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(160px, 160px));
+            gap: 14px;
+            justify-content: center;
+            justify-items: center;
+            align-items: start;
+            width: 100%;
+            margin: 0 auto;
+          }}
+          #dv-camp-gallery-{key_suffix} .thumb-btn {{
+            border: 0;
+            background: transparent;
+            padding: 0;
+            cursor: pointer;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 6px;
+          }}
+          #dv-camp-gallery-{key_suffix} .thumb {{
+            width: 160px;
+            max-width: 100%;
+            height: auto;
+            border-radius: 12px;
+            border: 1px solid #e2e8f0;
+            box-shadow: 0 6px 16px rgba(15, 23, 42, 0.10);
+            display: block;
+          }}
+          #dv-camp-gallery-{key_suffix} .ttl {{
+            font-size: .78rem;
+            color: #334155;
+            text-align: center;
+            max-width: 160px;
+            line-height: 1.25;
+          }}
+          #dv-camp-gallery-{key_suffix} .overlay {{
+            position: fixed;
+            inset: 0;
+            z-index: 99999;
+            background: rgba(15, 23, 42, .82);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            padding: clamp(30px, 8vh, 72px) 12px 12px;
+            box-sizing: border-box;
+          }}
+          #dv-camp-gallery-{key_suffix} .panel {{
+            width: min(900px, 96vw);
+            max-height: 94vh;
+            overflow: auto;
+            background: #fff;
+            border-radius: 14px;
+            border: 1px solid #e2e8f0;
+            padding: 12px;
+            box-sizing: border-box;
+            position: relative;
+            margin-top: clamp(10px, 2.2vh, 24px);
+          }}
+          #dv-camp-gallery-{key_suffix} .close {{
+            position: absolute;
+            top: 8px;
+            right: 8px;
+            border: 1px solid #cbd5e1;
+            background: #fff;
+            border-radius: 8px;
+            width: 34px;
+            height: 34px;
+            font-size: 20px;
+            line-height: 1;
+            cursor: pointer;
+          }}
+          #dv-camp-gallery-{key_suffix} .hero {{
+            width: 100%;
+            height: auto;
+            border-radius: 10px;
+            display: block;
+            margin: 0 auto 10px;
+          }}
+          #dv-camp-gallery-{key_suffix} .h3 {{
+            margin: 0 0 8px 0;
+            color: #0f3f7f;
+            font-size: 1.15rem;
+            font-weight: 700;
+          }}
+          #dv-camp-gallery-{key_suffix} .desc {{
+            margin: 0;
+            color: #1e293b;
+            white-space: pre-wrap;
+            line-height: 1.5;
+          }}
+          @media (max-width: 860px) {{
+            #dv-camp-gallery-{key_suffix} .grid {{
+              grid-template-columns: repeat(auto-fit, minmax(140px, 140px));
+            }}
+          }}
+        </style>
+        <script>
+          (function() {{
+            const root = document.getElementById("dv-camp-gallery-{key_suffix}");
+            if (!root) return;
+            const data = {data_json};
+            const esc = (s) => String(s || "")
+              .replace(/&/g, "&amp;").replace(/</g, "&lt;")
+              .replace(/>/g, "&gt;").replace(/"/g, "&quot;")
+              .replace(/'/g, "&#39;");
+            const cards = data.map((c, i) => `
+              <button type="button" class="thumb-btn" data-idx="${{i}}" aria-label="Abrir campanha">
+                <img class="thumb" src="${{esc(c.src)}}" alt="">
+                ${{c.titulo ? `<div class="ttl">${{esc(c.titulo)}}</div>` : ""}}
+              </button>
+            `).join("");
+            root.innerHTML = `
+              <div class="grid">${{cards}}</div>
+              <div class="overlay" id="ov">
+                <div class="panel">
+                  <button type="button" class="close" id="closeBtn" aria-label="Fechar">×</button>
+                  <img class="hero" id="hero" src="" alt="">
+                  <h3 class="h3" id="title"></h3>
+                  <p class="desc" id="desc"></p>
+                </div>
+              </div>
+            `;
+            const ov = root.querySelector("#ov");
+            const hero = root.querySelector("#hero");
+            const title = root.querySelector("#title");
+            const desc = root.querySelector("#desc");
+            const close = () => {{ ov.style.display = "none"; }};
+            root.querySelectorAll(".thumb-btn").forEach((btn) => {{
+              btn.addEventListener("click", () => {{
+                const c = data[Number(btn.dataset.idx)] || {{}};
+                hero.src = c.src || "";
+                title.textContent = c.titulo || "";
+                desc.textContent = c.descricao || "";
+                ov.style.display = "flex";
+              }});
+            }});
+            root.querySelector("#closeBtn").addEventListener("click", close);
+            ov.addEventListener("click", (ev) => {{
+              if (ev.target === ov) close();
+            }});
+            document.addEventListener("keydown", (ev) => {{
+              if (ev.key === "Escape" && ov.style.display === "flex") close();
+            }});
+          }})();
+        </script>
+        """
+        components.html(html_gallery, height=altura, scrolling=False)
     campanhas_ativas: list[dict[str, str]] = []
     if not df_bn.empty:
         for _, row in df_bn.iterrows():
@@ -1729,8 +1865,7 @@ def render_secao_campanhas_comerciais(
             + "</div>",
             unsafe_allow_html=True,
         )
-        _render_miniaturas_centradas(campanhas_ativas)
-        _seletor_unico_popup(campanhas_ativas, "pub")
+        _render_galeria_popup_inline(campanhas_ativas, key_suffix="pub")
     else:
         st.markdown(
             '<div class="home-banners-wrap" role="region" aria-label="Campanhas comerciais">'
@@ -1755,8 +1890,7 @@ def render_secao_campanhas_comerciais(
                 use_container_width=True,
             ):
                 dialog_adm_textos_campanhas(df_txt)
-        _render_miniaturas_centradas(campanhas_ativas)
-        _seletor_unico_popup(campanhas_ativas, "adm")
+        _render_galeria_popup_inline(campanhas_ativas, key_suffix="adm")
 
     if copy_html:
         st.markdown(copy_html, unsafe_allow_html=True)
