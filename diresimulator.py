@@ -725,6 +725,7 @@ from email.mime.text import MIMEText
 from email.mime.application import MIMEApplication
 import os
 from pathlib import Path
+import json
 import pytz
 import altair as alt
 import urllib.parse
@@ -1736,7 +1737,7 @@ def render_secao_campanhas_comerciais(
             display: none;
             align-items: center;
             justify-content: center;
-            padding: clamp(30px, 8vh, 72px) 12px 12px;
+            padding: 12px;
             box-sizing: border-box;
           }}
           #dv-camp-gallery-{key_suffix} .panel {{
@@ -1749,7 +1750,7 @@ def render_secao_campanhas_comerciais(
             padding: 12px;
             box-sizing: border-box;
             position: relative;
-            margin-top: clamp(10px, 2.2vh, 24px);
+            margin-top: 0;
           }}
           #dv-camp-gallery-{key_suffix} .close {{
             position: absolute;
