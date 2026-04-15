@@ -1657,18 +1657,14 @@ def render_secao_campanhas_comerciais(
             src = _img_url_seguro_https(str(row.get("URL_Imagem", "") or ""))
             if not src:
                 continue
-            tit_pop = str(row.get("Titulo", "") or "").strip()
-            body_pop = str(row.get("Descricao", "") or "").strip()
-            t64 = _utf8_base64_attr(tit_pop)
-            b64 = _utf8_base64_attr(body_pop)
             cards.append(
                 f'<div class="home-banner-lb-root">'
-                f'<button type="button" class="home-banner-card home-banner-card--fs home-banner-card--thumb home-banner-lb-open" '
-                f'data-dv-src="{src}" data-dv-t64="{html_std.escape(t64, quote=True)}" data-dv-b64="{html_std.escape(b64, quote=True)}" '
+                f'<a class="home-banner-card home-banner-card--fs home-banner-card--thumb" '
+                f'href="{src}" target="_blank" rel="noopener noreferrer" '
                 f'title="Ver campanha" aria-label="Abrir campanha em destaque">'
                 f'<span class="home-banner-thumb-frame">'
                 f'<img src="{src}" alt="" loading="lazy" decoding="async" />'
-                f"</span></button></div>"
+                f"</span></a></div>"
             )
     if not cards and not copy_html and not user_is_adm:
         return
@@ -4422,7 +4418,6 @@ def aba_simulador_automacao(
         df_campanhas_texto if df_campanhas_texto is not None else pd.DataFrame(),
         user_is_adm=bool(st.session_state.get("user_is_adm")),
     )
-    inject_home_banner_dialog_modal()
 
     # --- PÁGINA ÚNICA: perfil → valores → recomendações → unidade → distribuição (ordem fixa) ---
     if passo == 'sim':
