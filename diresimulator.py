@@ -2389,9 +2389,10 @@ def _metricas_lucro_unidade(
 ) -> pd.Series:
     """
     Métricas para recomendação por lucro:
-    saldo_teto_vcx = Valor Venda - 2*Renda - FGTS/Sub - Finan - PS_unidade - VCX_teto
-    Compatível quando saldo_teto_vcx >= 0.
-    Lucro recomendado = (Valor Venda - VCX usado) * 1.9 + VCX preservado
+    poder_compra_base = 2*Renda + Finan + FGTS/Sub + PS_unidade
+    necessidade_vcx = max(0, Valor Venda - poder_compra_base)
+    Compatível quando necessidade_vcx <= VCX_teto.
+    Lucro recomendado = 1,9% do Valor Venda + 50% do VCX excedente (não utilizado).
     """
     try:
         v_venda = float(row.get("Valor de Venda", 0) or 0)
@@ -2406,14 +2407,15 @@ def _metricas_lucro_unidade(
     sub = float(d.get("fgts_sub_usado", 0) or 0)
     ps_unid = max(0.0, _ps_max_estoque_row_cliente(row, d))
 
-    base_sem_vcx = v_venda - (2.0 * ren) - sub - fin - ps_unid
-    saldo_teto_vcx = base_sem_vcx - vcx_teto
-    compativel = bool(saldo_teto_vcx >= 0.0)
+    poder_compra_base = (2.0 * ren) + fin + sub + ps_unid
+    necessidade_vcx = max(0.0, v_venda - poder_compra_base)
+    saldo_teto_vcx = vcx_teto - necessidade_vcx
+    compativel = bool(necessidade_vcx <= vcx_teto + 1e-9)
 
-    vcx_necessario = max(0.0, -base_sem_vcx)
-    vcx_usado = min(vcx_teto, vcx_necessario)
+    vcx_usado = min(vcx_teto, necessidade_vcx)
     vcx_preservado = max(0.0, vcx_teto - vcx_usado)
-    lucro = ((v_venda - vcx_usado) * 1.9) + vcx_preservado if compativel else -1e18
+    comissao = 0.019 * v_venda
+    lucro = (comissao + (0.5 * vcx_preservado)) if compativel else -1e18
     return pd.Series([compativel, vcx_usado, vcx_preservado, lucro, saldo_teto_vcx])
 
 
