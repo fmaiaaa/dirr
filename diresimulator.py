@@ -3111,6 +3111,23 @@ def configurar_layout():
             align-items: center !important;
             background-color: {COR_INPUT_BG} !important;
         }}
+        .stTextInput input::placeholder,
+        .stNumberInput input::placeholder,
+        .stDateInput input::placeholder,
+        .stTextArea textarea::placeholder,
+        div[data-baseweb="input"] input::placeholder {{
+            color: #6b7280 !important;
+            opacity: 0.52 !important;
+            -webkit-text-fill-color: #6b7280 !important;
+        }}
+        .stTextInput input::-webkit-input-placeholder,
+        .stNumberInput input::-webkit-input-placeholder,
+        .stDateInput input::-webkit-input-placeholder,
+        .stTextArea textarea::-webkit-input-placeholder,
+        div[data-baseweb="input"] input::-webkit-input-placeholder {{
+            color: #6b7280 !important;
+            opacity: 0.52 !important;
+        }}
         div[data-testid="stNumberInput"] div[data-baseweb="input"] {{
             height: var(--dv-input-height) !important;
             min-height: var(--dv-input-height) !important;
