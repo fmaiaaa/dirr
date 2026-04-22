@@ -948,8 +948,7 @@ def montar_mensagem_whatsapp_resumo(
         linhas.append(item(f"Renda participante {i + 1}", f"R$ {fmt_br(rvf)}"))
 
     linhas.extend(["", "*Dados do imóvel*"])
-    if d.get("nome_imobiliaria"):
-        linhas.append(item("Imobiliária", d.get("nome_imobiliaria")))
+    linhas.append(item("Nome do Cliente ou Imobiliária", d.get("nome", "-")))
     linhas.append(item("Empreendimento", d.get("empreendimento_nome", "-")))
     linhas.append(item("Unidade", d.get("unidade_id", "-")))
     linhas.append(item("Valor total", f"R$ {fmt_br(v_total)}"))
@@ -3464,6 +3463,48 @@ def configurar_layout():
             fill: {COR_AZUL_ESC} !important;
             color: {COR_AZUL_ESC} !important;
         }}
+        /* Avisos por severidade na paleta Direcional */
+        div[data-testid="stAlert"][kind="warning"],
+        div[data-testid="stAlert"]:has([data-baseweb="notification"][kind="warning"]) {{
+            border-color: rgba({RGB_AZUL_CSS}, 0.42) !important;
+            background: linear-gradient(135deg, rgba({RGB_AZUL_CSS}, 0.10) 0%, rgba({RGB_AZUL_CSS}, 0.05) 100%) !important;
+        }}
+        div[data-testid="stAlert"][kind="warning"] p,
+        div[data-testid="stAlert"][kind="warning"] span,
+        div[data-testid="stAlert"][kind="warning"] div[data-testid="stMarkdownContainer"],
+        div[data-testid="stAlert"][kind="warning"] div[data-testid="stMarkdownContainer"] *,
+        div[data-testid="stAlert"]:has([data-baseweb="notification"][kind="warning"]) p,
+        div[data-testid="stAlert"]:has([data-baseweb="notification"][kind="warning"]) span,
+        div[data-testid="stAlert"]:has([data-baseweb="notification"][kind="warning"]) div[data-testid="stMarkdownContainer"],
+        div[data-testid="stAlert"]:has([data-baseweb="notification"][kind="warning"]) div[data-testid="stMarkdownContainer"] * {{
+            color: {COR_AZUL_ESC} !important;
+        }}
+        div[data-testid="stAlert"][kind="warning"] svg,
+        div[data-testid="stAlert"]:has([data-baseweb="notification"][kind="warning"]) svg {{
+            fill: {COR_AZUL_ESC} !important;
+            color: {COR_AZUL_ESC} !important;
+        }}
+
+        div[data-testid="stAlert"][kind="error"],
+        div[data-testid="stAlert"]:has([data-baseweb="notification"][kind="negative"]) {{
+            border-color: rgba({RGB_VERMELHO_CSS}, 0.45) !important;
+            background: linear-gradient(135deg, rgba({RGB_VERMELHO_CSS}, 0.12) 0%, rgba({RGB_VERMELHO_CSS}, 0.05) 100%) !important;
+        }}
+        div[data-testid="stAlert"][kind="error"] p,
+        div[data-testid="stAlert"][kind="error"] span,
+        div[data-testid="stAlert"][kind="error"] div[data-testid="stMarkdownContainer"],
+        div[data-testid="stAlert"][kind="error"] div[data-testid="stMarkdownContainer"] *,
+        div[data-testid="stAlert"]:has([data-baseweb="notification"][kind="negative"]) p,
+        div[data-testid="stAlert"]:has([data-baseweb="notification"][kind="negative"]) span,
+        div[data-testid="stAlert"]:has([data-baseweb="notification"][kind="negative"]) div[data-testid="stMarkdownContainer"],
+        div[data-testid="stAlert"]:has([data-baseweb="notification"][kind="negative"]) div[data-testid="stMarkdownContainer"] * {{
+            color: {COR_VERMELHO} !important;
+        }}
+        div[data-testid="stAlert"][kind="error"] svg,
+        div[data-testid="stAlert"]:has([data-baseweb="notification"][kind="negative"]) svg {{
+            fill: {COR_VERMELHO} !important;
+            color: {COR_VERMELHO} !important;
+        }}
 
         .stDownloadButton button {{
             background: #ffffff !important;
@@ -4101,8 +4142,7 @@ def gerar_resumo_pdf(d, volta_caixa_val: float = 0.0):
 
         pdf.ln(2)
         secao("Dados do imóvel")
-        if d.get("nome_imobiliaria"):
-            linha("Imobiliária", _pdf_text_seguro(d.get("nome_imobiliaria")))
+        linha("Nome do Cliente ou Imobiliária", _pdf_text_seguro(d.get("nome", "-")))
         linha("Empreendimento", _pdf_text_seguro(d.get("empreendimento_nome")))
         linha("Unidade", _pdf_text_seguro(d.get("unidade_id")))
         linha("Valor total", f"R$ {fmt_br(v_total)}", True)
@@ -4199,8 +4239,10 @@ def enviar_email_smtp(destinatario, nome_cliente, pdf_bytes, dados_cliente, tipo
     msg['From'] = sender_email; msg['To'] = destinatario
     
     # Extrair dados para o email
-    emp = dados_cliente.get('empreendimento_nome', 'Seu Imóvel')
-    unid = dados_cliente.get('unidade_id', '')
+    nome_cliente_fmt = str(nome_cliente or dados_cliente.get("nome") or "Cliente").strip() or "Cliente"
+    emp = str(dados_cliente.get('empreendimento_nome', 'Seu Imóvel') or 'Seu Imóvel').strip()
+    unid = str(dados_cliente.get('unidade_id', '') or '').strip()
+    produto_ref = f"{emp} - Unidade {unid}" if unid else emp
     try:
         _vc_mail = max(0.0, float(dados_cliente.get("volta_caixa_aplicado", 0) or 0))
     except (TypeError, ValueError):
@@ -4238,14 +4280,14 @@ def enviar_email_smtp(destinatario, nome_cliente, pdf_bytes, dados_cliente, tipo
     if not corretor_tel_clean.startswith('55'):
         corretor_tel_clean = '55' + corretor_tel_clean # Assuming Brazil
 
-    wa_msg = f"Olá {corretor_nome}, sou {nome_cliente}. Realizei uma simulação para o {emp} (Unidade {unid}) e gostaria de saber mais detalhes."
+    wa_msg = f"Olá {corretor_nome}, sou {nome_cliente_fmt}. Realizei uma simulação para {produto_ref} e gostaria de saber mais detalhes."
     wa_link = f"https://wa.me/{corretor_tel_clean}?text={urllib.parse.quote(wa_msg)}"
     
     URL_LOGO_BRANCA = "https://drive.google.com/uc?export=view&id=1m0iX6FCikIBIx4gtSX3Y_YMYxxND2wAh"
 
     # TEMPLATE CLIENTE (Foco no sonho, design limpo, usando Tabelas para evitar sobreposição)
     if tipo == 'cliente':
-        msg['Subject'] = f"Seu sonho está próximo! Simulação - {emp}"
+        msg['Subject'] = f"{nome_cliente_fmt}, sua simulação: {produto_ref}"
         html_content = f"""
         <!DOCTYPE html>
         <html>
@@ -4266,9 +4308,9 @@ def enviar_email_smtp(destinatario, nome_cliente, pdf_bytes, dados_cliente, tipo
                             <!-- Corpo -->
                             <tr>
                                 <td style="padding: 40px;">
-                                    <h2 style="color: #002c5d; margin: 0 0 20px 0; font-weight: 300; text-align: center;">Olá, {nome_cliente}!</h2>
+                                    <h2 style="color: #002c5d; margin: 0 0 20px 0; font-weight: 300; text-align: center;">Olá, {nome_cliente_fmt}!</h2>
                                     <p style="font-size: 16px; line-height: 1.6; text-align: center; color: #555;">
-                                        Foi ótimo apresentar as oportunidades da Direcional para você. O imóvel <strong>{emp}</strong> é incrível e desenhamos uma condição especial para o seu perfil.
+                                        Foi ótimo apresentar as oportunidades da Direcional para você. Preparamos a condição para <strong>{produto_ref}</strong>.
                                     </p>
                                     
                                     <!-- Card Destaque -->
@@ -4276,7 +4318,7 @@ def enviar_email_smtp(destinatario, nome_cliente, pdf_bytes, dados_cliente, tipo
                                         <tr>
                                             <td>
                                                 <p style="margin: 0; font-weight: bold; color: #002c5d; font-size: 18px;">{emp}</p>
-                                                <p style="margin: 5px 0 0 0; color: #777;">Unidade: {unid}</p>
+                                                <p style="margin: 5px 0 0 0; color: #777;">{('Unidade: ' + unid) if unid else ''}</p>
                                                 <p style="margin: 15px 0 0 0; font-size: 24px; font-weight: bold; color: #e30613;">Valor promocional: R$ {val_venda}</p>
                                             </td>
                                         </tr>
@@ -4314,7 +4356,7 @@ def enviar_email_smtp(destinatario, nome_cliente, pdf_bytes, dados_cliente, tipo
     
     # TEMPLATE CORRETOR (Foco técnico, dados completos, usando Tabelas)
     else:
-        msg['Subject'] = f"LEAD: {nome_cliente} - {emp} - {unid}"
+        msg['Subject'] = f"LEAD: {nome_cliente_fmt} | {produto_ref}"
         html_content = f"""
         <!DOCTYPE html>
         <html>
@@ -4341,13 +4383,13 @@ def enviar_email_smtp(destinatario, nome_cliente, pdf_bytes, dados_cliente, tipo
                                         <tr>
                                             <td width="50%" valign="top">
                                                 <p style="margin: 0 0 5px 0; font-size: 12px; color: #666;">CLIENTE</p>
-                                                <p style="margin: 0; font-weight: bold; font-size: 16px;">{nome_cliente}</p>
+                                                <p style="margin: 0; font-weight: bold; font-size: 16px;">{nome_cliente_fmt}</p>
                                                 <p style="margin: 5px 0 0 0; font-size: 14px;">Renda: R$ {renda_cli}</p>
                                             </td>
                                             <td width="50%" valign="top">
                                                 <p style="margin: 0 0 5px 0; font-size: 12px; color: #666;">PRODUTO</p>
                                                 <p style="margin: 0; font-weight: bold; font-size: 16px;">{emp}</p>
-                                                <p style="margin: 5px 0 0 0;">Unid: {unid}</p>
+                                                <p style="margin: 5px 0 0 0;">{('Unid: ' + unid) if unid else ''}</p>
                                             </td>
                                         </tr>
                                     </table>
@@ -4407,8 +4449,11 @@ def enviar_email_smtp(destinatario, nome_cliente, pdf_bytes, dados_cliente, tipo
     msg.attach(MIMEText(html_content, 'html'))
     
     if pdf_bytes:
-        part = MIMEApplication(pdf_bytes, Name=f"Resumo_{nome_cliente}.pdf")
-        part['Content-Disposition'] = f'attachment; filename="Resumo_{nome_cliente}.pdf"'
+        _safe_prod = re.sub(r"[^a-zA-Z0-9_-]+", "_", produto_ref)[:60]
+        _safe_nome = re.sub(r"[^a-zA-Z0-9_-]+", "_", nome_cliente_fmt)[:40]
+        _pdf_name = f"Resumo_{_safe_nome}_{_safe_prod}.pdf"
+        part = MIMEApplication(pdf_bytes, Name=_pdf_name)
+        part['Content-Disposition'] = f'attachment; filename="{_pdf_name}"'
         msg.attach(part)
     try:
         server = smtplib.SMTP(smtp_server, smtp_port); server.ehlo(); server.starttls(); server.ehlo()
@@ -4613,17 +4658,11 @@ def aba_simulador_automacao(
             "Os blocos abaixo atualizam automaticamente ao alterar estes campos.</p>",
             unsafe_allow_html=True,
         )
-        _nome_cli = st.text_input(
-            "Nome do cliente (opcional)",
+        _nome_ref = st.text_input(
+            "Nome do Cliente ou Imobiliária (opcional)",
             value=str(st.session_state.dados_cliente.get("nome", "") or ""),
-            key="nome_cliente_opt_v1",
-            placeholder="Exemplo: João da Silva",
-        )
-        _nome_imob = st.text_input(
-            "Nome da imobiliária (opcional)",
-            value=str(st.session_state.dados_cliente.get("nome_imobiliaria", "") or ""),
-            key="nome_imobiliaria_opt_v1",
-            placeholder="Exemplo: Imobiliária Exemplo",
+            key="nome_cliente_imobiliaria_opt_v1",
+            placeholder="Exemplo: João da Silva ou Imobiliária Exemplo",
         )
 
         rendas_anteriores = st.session_state.dados_cliente.get('rendas_lista', [])
@@ -4656,8 +4695,8 @@ def aba_simulador_automacao(
         renda_total_calc = sum(lista_rendas_input)
         prazo_ps_max = 84 if politica_ps == "Emcash" else 84
         st.session_state.dados_cliente.update({
-            'nome': str(_nome_cli or "").strip() or "Simulação",
-            'nome_imobiliaria': str(_nome_imob or "").strip(),
+            'nome': str(_nome_ref or "").strip() or "Simulação",
+            'nome_imobiliaria': "",
             'cpf': '',
             'data_nascimento': None,
             'renda': renda_total_calc,
@@ -4888,6 +4927,17 @@ def aba_simulador_automacao(
             else:
                 final_cards = []
                 cand_rec = candidatos_df_recomendados(df_pool)
+                if emp_rec == "Todos" and not df_pool.empty:
+                    fit_all = df_pool[df_pool.get("Unidade_Compativel", False) == True].copy()
+                    if not fit_all.empty and "Empreendimento" in fit_all.columns:
+                        fit_all["Lucro_Recomendacao"] = pd.to_numeric(
+                            fit_all.get("Lucro_Recomendacao", 0), errors="coerce"
+                        ).fillna(-1e18)
+                        fit_all = fit_all.sort_values(
+                            ["Empreendimento", "Lucro_Recomendacao", "Valor de Venda", "Identificador"],
+                            ascending=[True, False, False, True],
+                        )
+                        cand_rec = fit_all.groupby("Empreendimento", as_index=False).head(1)
                 comp_col = pd.to_numeric(df_pool.get("Unidade_Compativel", pd.Series(dtype=float)), errors="coerce").fillna(0.0)
                 alguma_cabe = (comp_col > 0).any()
                 label_rec, css_rec = ("MAIOR LUCRO", "badge-ideal") if alguma_cabe else ("SEM COMPATIBILIDADE", "badge-seguro")
@@ -5433,33 +5483,56 @@ def aba_simulador_automacao(
         
         # --- INPUT VOLTA AO CAIXA (NOVO) ---
         st.markdown("<hr style='margin: 10px 0;'>", unsafe_allow_html=True)
-        vc_ref = d.get('volta_caixa_ref', 0.0)
-        st.text_input("Desconto Volta ao Caixa", key="volta_caixa_key", placeholder="0,00")
-        _vc_in = texto_moeda_para_float(st.session_state.get("volta_caixa_key"))
-        vc_input_val = max(0.0, min(_vc_in, float(vc_ref or 0))) if float(vc_ref or 0) > 0 else max(0.0, _vc_in)
+        vc_ref = float(d.get('volta_caixa_ref', 0.0) or 0.0)
+        if "valor_proposta_final_key" not in st.session_state:
+            _vc_boot = texto_moeda_para_float(st.session_state.get("volta_caixa_key"))
+            _vc_boot = max(0.0, min(_vc_boot, vc_ref)) if vc_ref > 0 else max(0.0, _vc_boot)
+            st.session_state["valor_proposta_final_key"] = float_para_campo_texto(
+                max(0.0, u_valor - _vc_boot),
+                vazio_se_zero=False,
+            )
+        st.text_input("Valor Final da Proposta", key="valor_proposta_final_key", placeholder="0,00")
+        proposta_final = clamp_moeda_positiva(texto_moeda_para_float(st.session_state.get("valor_proposta_final_key")), u_valor if u_valor > 0 else None)
+        if u_valor > 0 and proposta_final > u_valor:
+            proposta_final = u_valor
+        vc_input_val = max(0.0, u_valor - proposta_final)
+        if vc_ref > 0:
+            vc_input_val = min(vc_input_val, vc_ref)
+            proposta_final = max(0.0, u_valor - vc_input_val)
+        st.session_state["valor_proposta_final_key"] = float_para_campo_texto(proposta_final, vazio_se_zero=False)
+        st.session_state["volta_caixa_key"] = float_para_campo_texto(vc_input_val, vazio_se_zero=True)
 
-        ref_text_vc = f"Folga Volta ao Caixa: {reais_streamlit_html(fmt_br(vc_ref))}"
+        vc_preservado = max(0.0, vc_ref - vc_input_val)
+        ref_text_vc = f"Volta ao Caixa Preservado: {reais_streamlit_html(fmt_br(vc_preservado))}"
         st.markdown(
             f'<div class="inline-ref" style="color:#111111;opacity:0.72;">{ref_text_vc}</div>',
             unsafe_allow_html=True,
         )
         
-        # Recalcular entrada: não negativa; soma dos atos ≤ saldo (valor − fin − subsídio − PS − volta ao caixa)
+        # Recalcular entrada: quando houver excedente, reduzir primeiro o Pro Soluto.
+        # Só ajustar atos se o excedente remanescente continuar positivo após reduzir PS.
         r1_val = max(0.0, texto_moeda_para_float(st.session_state.get("ato_1_key")))
         r2_val = max(0.0, texto_moeda_para_float(st.session_state.get("ato_2_key")))
         r3_val = max(0.0, texto_moeda_para_float(st.session_state.get("ato_3_key")))
         r4_val = max(0.0, texto_moeda_para_float(st.session_state.get("ato_4_key"))) if not is_emcash else 0.0
-        cap_entrada_final = max(0.0, u_valor - f_u_input - fgts_u_input - ps_efetivo - vc_input_val)
         sum_ent = r1_val + r2_val + r3_val + r4_val
-        if sum_ent > cap_entrada_final + 0.01:
-            if sum_ent > 0 and cap_entrada_final >= 0:
-                _kf2 = cap_entrada_final / sum_ent
-                r1_val *= _kf2
-                r2_val *= _kf2
-                r3_val *= _kf2
-                r4_val *= _kf2
-            else:
-                r1_val = r2_val = r3_val = r4_val = 0.0
+        excedente_total = (f_u_input + fgts_u_input + vc_input_val + ps_efetivo + sum_ent) - u_valor
+        if excedente_total > 0.01:
+            reduzir_ps = min(ps_efetivo, excedente_total)
+            ps_efetivo = max(0.0, ps_efetivo - reduzir_ps)
+            excedente_total -= reduzir_ps
+            if excedente_total > 0.01:
+                sum_ent = r1_val + r2_val + r3_val + r4_val
+                alvo_atos = max(0.0, sum_ent - excedente_total)
+                if sum_ent > 0 and alvo_atos >= 0:
+                    _kf2 = alvo_atos / sum_ent
+                    r1_val *= _kf2
+                    r2_val *= _kf2
+                    r3_val *= _kf2
+                    r4_val *= _kf2
+                else:
+                    r1_val = r2_val = r3_val = r4_val = 0.0
+            st.session_state['ps_u_key'] = float_para_campo_texto(ps_efetivo, vazio_se_zero=True)
 
         st.session_state.dados_cliente['ato_final'] = r1_val
         st.session_state.dados_cliente['ato_30'] = r2_val
@@ -5467,6 +5540,7 @@ def aba_simulador_automacao(
         st.session_state.dados_cliente['ato_90'] = r4_val
         total_entrada_cash = r1_val + r2_val + r3_val + r4_val
         st.session_state.dados_cliente['entrada_total'] = total_entrada_cash
+        st.session_state.dados_cliente['ps_usado'] = ps_efetivo
 
         # Inclui o Volta ao Caixa na dedução do GAP FINAL
         gap_final = u_valor - f_u_input - fgts_u_input - ps_efetivo - total_entrada_cash - vc_input_val
@@ -5497,12 +5571,11 @@ def aba_simulador_automacao(
             rendas_sum.append(0.0)
 
         st.markdown(f"### Resumo da Simulação - {d.get('nome', 'Cliente')}")
-        if d.get("nome_imobiliaria"):
-            st.markdown(
-                f'<p style="text-align:center;margin:0 0 0.5rem 0;font-weight:600;color:{COR_AZUL_ESC};">'
-                f"Imobiliária: {html_std.escape(str(d.get('nome_imobiliaria')))}</p>",
-                unsafe_allow_html=True,
-            )
+        st.markdown(
+            f'<p style="text-align:center;margin:0 0 0.5rem 0;font-weight:600;color:{COR_AZUL_ESC};">'
+            f"Nome do Cliente ou Imobiliária: {html_std.escape(str(d.get('nome', '-')))}</p>",
+            unsafe_allow_html=True,
+        )
         st.markdown('<div class="summary-header">Renda</div>', unsafe_allow_html=True)
         _ren_html = (
             f"<b>Renda familiar total:</b> {reais_streamlit_html(fmt_br(d.get('renda', 0)))}<br>"
