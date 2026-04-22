@@ -931,7 +931,8 @@ def montar_mensagem_whatsapp_resumo(
         vc_apl = max(0.0, float(volta_caixa_val or 0))
     except (TypeError, ValueError):
         vc_apl = 0.0
-    v_emp = max(0.0, float(d.get("imovel_valor", 0) or 0) - vc_apl)
+    v_total = max(0.0, float(d.get("imovel_valor", 0) or 0))
+    v_prop = max(0.0, v_total - vc_apl)
 
     linhas = [
         "*Resumo da simulação — Direcional*",
@@ -947,9 +948,13 @@ def montar_mensagem_whatsapp_resumo(
         linhas.append(item(f"Renda participante {i + 1}", f"R$ {fmt_br(rvf)}"))
 
     linhas.extend(["", "*Dados do imóvel*"])
+    if d.get("nome_imobiliaria"):
+        linhas.append(item("Imobiliária", d.get("nome_imobiliaria")))
     linhas.append(item("Empreendimento", d.get("empreendimento_nome", "-")))
     linhas.append(item("Unidade", d.get("unidade_id", "-")))
-    linhas.append(item("Valor do empreendimento", f"R$ {fmt_br(v_emp)}"))
+    linhas.append(item("Valor total", f"R$ {fmt_br(v_total)}"))
+    linhas.append(item("Desconto (VCX usado)", f"R$ {fmt_br(vc_apl)}"))
+    linhas.append(item("Valor com desconto (proposta)", f"R$ {fmt_br(v_prop)}"))
     if d.get("unid_entrega"):
         linhas.append(item("Previsão de entrega", d.get("unid_entrega")))
     if d.get("unid_area"):
@@ -974,7 +979,6 @@ def montar_mensagem_whatsapp_resumo(
             item("Pro Soluto (valor)", brs("ps_usado", 0)),
             item("Número de parcelas do Pro Soluto", d.get("ps_parcelas", "-")),
             item("Mensalidade do Pro Soluto", brs("ps_mensal", 0)),
-            item("Total em atos (Ato 1 (Entrada Imediata) e parcelados)", brs("entrada_total", 0)),
             item("Ato 1 (Entrada Imediata)", brs("ato_final", 0)),
             item("Ato 30", brs("ato_30", 0)),
             item("Ato 60", brs("ato_60", 0)),
@@ -2380,6 +2384,39 @@ def _calcular_poder_compra_linha_estoque(
     return pd.Series([poder, cobertura, fin, sub])
 
 
+def _metricas_lucro_unidade(
+    row: pd.Series, d: dict, df_politicas: pd.DataFrame, prem: dict
+) -> pd.Series:
+    """
+    Métricas para recomendação por lucro:
+    saldo_teto_vcx = Valor Venda - 2*Renda - FGTS/Sub - Finan - PS_unidade - VCX_teto
+    Compatível quando saldo_teto_vcx >= 0.
+    Lucro recomendado = (Valor Venda - VCX usado) * 1.9 + VCX preservado
+    """
+    try:
+        v_venda = float(row.get("Valor de Venda", 0) or 0)
+    except (TypeError, ValueError):
+        v_venda = 0.0
+    try:
+        vcx_teto = max(0.0, float(row.get("Volta_Caixa_Ref", 0) or 0))
+    except (TypeError, ValueError):
+        vcx_teto = 0.0
+    ren = float(d.get("renda", 0) or 0)
+    fin = float(d.get("finan_usado", 0) or 0)
+    sub = float(d.get("fgts_sub_usado", 0) or 0)
+    ps_unid = max(0.0, _ps_max_estoque_row_cliente(row, d))
+
+    base_sem_vcx = v_venda - (2.0 * ren) - sub - fin - ps_unid
+    saldo_teto_vcx = base_sem_vcx - vcx_teto
+    compativel = bool(saldo_teto_vcx >= 0.0)
+
+    vcx_necessario = max(0.0, -base_sem_vcx)
+    vcx_usado = min(vcx_teto, vcx_necessario)
+    vcx_preservado = max(0.0, vcx_teto - vcx_usado)
+    lucro = ((v_venda - vcx_usado) * 1.9) + vcx_preservado if compativel else -1e18
+    return pd.Series([compativel, vcx_usado, vcx_preservado, lucro, saldo_teto_vcx])
+
+
 def df_estoque_com_poder_compra(
     df: pd.DataFrame, d: dict, df_politicas: pd.DataFrame, prem: dict
 ) -> pd.DataFrame:
@@ -2391,31 +2428,30 @@ def df_estoque_com_poder_compra(
         lambda r: _calcular_poder_compra_linha_estoque(r, d, df_politicas, prem),
         axis=1,
     )
+    out[["Unidade_Compativel", "VCX_Usado_Fechamento", "VCX_Preservado", "Lucro_Recomendacao", "Saldo_Teto_VCX"]] = out.apply(
+        lambda r: _metricas_lucro_unidade(r, d, df_politicas, prem),
+        axis=1,
+    )
     return out
 
 
 def candidatos_df_recomendados(df_pool: pd.DataFrame) -> pd.DataFrame:
     """
-    Subconjunto «recomendado» (cards IDEAL / MENOR PREÇO): exige colunas Valor de Venda e Poder_Compra.
+    Subconjunto recomendado por maior lucro previsto.
+    Espera colunas calculadas:
+    - Unidade_Compativel
+    - Lucro_Recomendacao
     """
-    if df_pool.empty or "Valor de Venda" not in df_pool.columns:
+    if df_pool.empty:
         return pd.DataFrame()
-    if "Poder_Compra" not in df_pool.columns:
+    if "Unidade_Compativel" not in df_pool.columns or "Lucro_Recomendacao" not in df_pool.columns:
         return pd.DataFrame()
-    vv = pd.to_numeric(df_pool["Valor de Venda"], errors="coerce").fillna(0.0)
-    pc = pd.to_numeric(df_pool["Poder_Compra"], errors="coerce").fillna(0.0)
-    mask_fit = (vv > 0) & (vv <= pc)
-    fit_sub = df_pool[mask_fit]
-    if not fit_sub.empty:
-        max_p = pd.to_numeric(fit_sub["Valor de Venda"], errors="coerce").max()
-        return fit_sub[
-            pd.to_numeric(fit_sub["Valor de Venda"], errors="coerce") == max_p
-        ]
-    pool_pos = df_pool[vv > 0]
-    if pool_pos.empty:
+    fit_sub = df_pool[df_pool["Unidade_Compativel"] == True].copy()
+    if fit_sub.empty:
         return pd.DataFrame()
-    min_v = pd.to_numeric(pool_pos["Valor de Venda"], errors="coerce").min()
-    return pool_pos[pd.to_numeric(pool_pos["Valor de Venda"], errors="coerce") == min_v]
+    fit_sub["Lucro_Recomendacao"] = pd.to_numeric(fit_sub["Lucro_Recomendacao"], errors="coerce").fillna(-1e18)
+    max_l = fit_sub["Lucro_Recomendacao"].max()
+    return fit_sub[fit_sub["Lucro_Recomendacao"] == max_l]
 
 
 def ids_unidades_recomendadas_empreendimento(
@@ -3901,7 +3937,7 @@ def configurar_layout():
             display: block;
             width: 100%;
             text-align: center !important;
-            opacity: 1;
+            opacity: 0.72;
         }}
 
         .metric-label {{ color: {COR_AZUL_ESC} !important; opacity: 0.7; font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.15em; margin-bottom: 8px; }}
@@ -3966,7 +4002,8 @@ def gerar_resumo_pdf(d, volta_caixa_val: float = 0.0):
             vc_apl = max(0.0, float(volta_caixa_val or 0))
         except (TypeError, ValueError):
             vc_apl = 0.0
-        v_emp = max(0.0, float(d.get("imovel_valor", 0) or 0) - vc_apl)
+        v_total = max(0.0, float(d.get("imovel_valor", 0) or 0))
+        v_prop = max(0.0, v_total - vc_apl)
         rendas_pdf = list(d.get("rendas_lista") or [])
         while len(rendas_pdf) < 4:
             rendas_pdf.append(0.0)
@@ -4045,9 +4082,13 @@ def gerar_resumo_pdf(d, volta_caixa_val: float = 0.0):
 
         pdf.ln(2)
         secao("Dados do imóvel")
+        if d.get("nome_imobiliaria"):
+            linha("Imobiliária", _pdf_text_seguro(d.get("nome_imobiliaria")))
         linha("Empreendimento", _pdf_text_seguro(d.get("empreendimento_nome")))
         linha("Unidade", _pdf_text_seguro(d.get("unidade_id")))
-        linha("Valor do empreendimento", f"R$ {fmt_br(v_emp)}", True)
+        linha("Valor total", f"R$ {fmt_br(v_total)}", True)
+        linha("Desconto (VCX usado)", f"R$ {fmt_br(vc_apl)}")
+        linha("Valor com desconto (proposta)", f"R$ {fmt_br(v_prop)}", True)
         if d.get("unid_entrega"):
             linha("Previsão de entrega", _pdf_text_seguro(d.get("unid_entrega")))
         if d.get("unid_area"):
@@ -4076,7 +4117,6 @@ def gerar_resumo_pdf(d, volta_caixa_val: float = 0.0):
         linha("Pro Soluto (valor)", f"R$ {fmt_br(d.get('ps_usado', 0))}")
         linha("Número de parcelas do Pro Soluto", _pdf_text_seguro(d.get("ps_parcelas")))
         linha("Mensalidade do Pro Soluto", f"R$ {fmt_br(d.get('ps_mensal', 0))}")
-        linha("Total em atos (Ato 1 (Entrada Imediata) e parcelados)", f"R$ {fmt_br(d.get('entrada_total', 0))}")
         linha("Ato 1 (Entrada Imediata)", f"R$ {fmt_br(d.get('ato_final', 0))}")
         linha("Ato 30", f"R$ {fmt_br(d.get('ato_30', 0))}")
         linha("Ato 60", f"R$ {fmt_br(d.get('ato_60', 0))}")
@@ -4554,6 +4594,18 @@ def aba_simulador_automacao(
             "Os blocos abaixo atualizam automaticamente ao alterar estes campos.</p>",
             unsafe_allow_html=True,
         )
+        _nome_cli = st.text_input(
+            "Nome do cliente (opcional)",
+            value=str(st.session_state.dados_cliente.get("nome", "") or ""),
+            key="nome_cliente_opt_v1",
+            placeholder="Exemplo: João da Silva",
+        )
+        _nome_imob = st.text_input(
+            "Nome da imobiliária (opcional)",
+            value=str(st.session_state.dados_cliente.get("nome_imobiliaria", "") or ""),
+            key="nome_imobiliaria_opt_v1",
+            placeholder="Exemplo: Imobiliária Exemplo",
+        )
 
         rendas_anteriores = st.session_state.dados_cliente.get('rendas_lista', [])
         _dc_in = st.session_state.dados_cliente
@@ -4585,7 +4637,8 @@ def aba_simulador_automacao(
         renda_total_calc = sum(lista_rendas_input)
         prazo_ps_max = 84 if politica_ps == "Emcash" else 84
         st.session_state.dados_cliente.update({
-            'nome': 'Simulação',
+            'nome': str(_nome_cli or "").strip() or "Simulação",
+            'nome_imobiliaria': str(_nome_imob or "").strip(),
             'cpf': '',
             'data_nascimento': None,
             'renda': renda_total_calc,
@@ -4672,7 +4725,7 @@ def aba_simulador_automacao(
             unsafe_allow_html=True,
         )
         st.markdown(
-            f'<p style="font-size:0.8rem;color:#111111;margin:0.5rem 0 1rem 0;">Subsídios da curva inferiores a '
+            f'<p style="font-size:0.8rem;color:#111111;margin:0.5rem 0 1rem 0;opacity:0.72;">Subsídios da curva inferiores a '
             f"{reais_streamlit_html(fmt_br(SUBSIDIO_MINIMO_CURVA))} são desconsiderados (tratados como "
             f"{reais_streamlit_html('0,00')}), alinhado à regra da planilha comercial. "
             f"A tabela acima é só referência; financiamento e subsídio aprovados podem ser outros valores.</p>",
@@ -4773,6 +4826,22 @@ def aba_simulador_automacao(
             f"""<div style="margin-top: -8px; margin-bottom: 15px; font-size: 0.85rem; color: #111111; text-align: center;"><b>{_n_sac}:</b> {reais_streamlit_html(fmt_br(sac_details['primeira']))} a {reais_streamlit_html(fmt_br(sac_details['ultima']))} (juros totais: {reais_streamlit_html(fmt_br(sac_details['juros']))}) &nbsp;|&nbsp; <b>{_n_price}:</b> {reais_streamlit_html(fmt_br(price_details['parcela']))} parcelas fixas (juros totais: {reais_streamlit_html(fmt_br(price_details['juros']))})</div>""",
             unsafe_allow_html=True,
         )
+        _parc_fin_ref = calcular_parcela_financiamento(f_u, int(prazo_sel), taxa_fin_vigente(d), sist_sel)
+        if "parcela_fin_edit_key" not in st.session_state:
+            st.session_state["parcela_fin_edit_key"] = float_para_campo_texto(_parc_fin_ref, vazio_se_zero=True)
+        st.text_input(
+            "Parcela estimada do financiamento (editável)",
+            key="parcela_fin_edit_key",
+            placeholder="0,00",
+        )
+        _parc_fin_ui = clamp_moeda_positiva(texto_moeda_para_float(st.session_state.get("parcela_fin_edit_key")), None)
+        if _parc_fin_ui <= 0:
+            _parc_fin_ui = _parc_fin_ref
+        st.session_state.dados_cliente["parcela_financiamento"] = float(_parc_fin_ui)
+        st.markdown(
+            f'<span class="inline-ref">Referência automática: {reais_streamlit_html(fmt_br(_parc_fin_ref))}</span>',
+            unsafe_allow_html=True,
+        )
 
         st.markdown("---")
         # --- ETAPA 3: RECOMENDAÇÃO (filtro empreendimento + cards; sem abas) ---
@@ -4800,23 +4869,17 @@ def aba_simulador_automacao(
             else:
                 final_cards = []
                 cand_rec = candidatos_df_recomendados(df_pool)
-                vv_l = pd.to_numeric(df_pool["Valor de Venda"], errors="coerce").fillna(0.0)
-                pc_l = pd.to_numeric(df_pool["Poder_Compra"], errors="coerce").fillna(0.0)
-                alguma_cabe = ((vv_l > 0) & (vv_l <= pc_l)).any()
-                if alguma_cabe:
-                    label_rec, css_rec = "IDEAL", "badge-ideal"
-                elif (vv_l > 0).any():
-                    label_rec, css_rec = "MENOR PREÇO", "badge-seguro"
-                else:
-                    label_rec, css_rec = "IDEAL", "badge-ideal"
+                comp_col = pd.to_numeric(df_pool.get("Unidade_Compativel", pd.Series(dtype=float)), errors="coerce").fillna(0.0)
+                alguma_cabe = (comp_col > 0).any()
+                label_rec, css_rec = ("MAIOR LUCRO", "badge-ideal") if alguma_cabe else ("SEM COMPATIBILIDADE", "badge-seguro")
 
                 def add_cards_group(label, df_group, css_class):
                     if df_group is None or df_group.empty:
                         return
                     df_u = df_group.drop_duplicates(subset=["Empreendimento", "Identificador"])
                     df_u = df_u.sort_values(
-                        ["Empreendimento", "Identificador"],
-                        ascending=[True, True],
+                        ["Lucro_Recomendacao", "Valor de Venda", "Empreendimento", "Identificador"],
+                        ascending=[False, False, True, True],
                     )
                     for _, row in df_u.iterrows():
                         final_cards.append({"label": label, "row": row, "css": css_class})
@@ -4834,6 +4897,9 @@ def aba_simulador_automacao(
                          unid_name = row['Identificador']
                          val_fmt = fmt_br(row['Valor de Venda'])
                          aval_fmt = fmt_br(row['Valor de Avaliação Bancária'])
+                         lucro_fmt = fmt_br(float(row.get("Lucro_Recomendacao", 0) or 0))
+                         vcx_usado_fmt = fmt_br(float(row.get("VCX_Usado_Fechamento", 0) or 0))
+                         vcx_pres_fmt = fmt_br(float(row.get("VCX_Preservado", 0) or 0))
                          label = card['label']
                          css_badge = card['css']
                          
@@ -4851,6 +4917,11 @@ def aba_simulador_automacao(
                                     <div style="font-weight:bold; color:#111111;">{reais_streamlit_html(aval_fmt)}</div>
                                     <div style="font-size:0.8rem; color:#111111; margin-top:5px;">Valor de venda</div>
                                     <div class="price-tag" style="font-size:1.3rem; margin-top:0;">{reais_streamlit_html(val_fmt)}</div>
+                                    <div style="font-size:0.8rem; color:#111111; margin-top:8px;">Lucro recomendado</div>
+                                    <div style="font-weight:800; color:#111111;">{reais_streamlit_html(lucro_fmt)}</div>
+                                    <div style="font-size:0.75rem; color:#111111; opacity:0.75; margin-top:5px;">
+                                      VCX usado: {reais_streamlit_html(vcx_usado_fmt)} | VCX preservado: {reais_streamlit_html(vcx_pres_fmt)}
+                                    </div>
                                 </div>
                             </div>
                          </div>"""
@@ -4867,13 +4938,34 @@ def aba_simulador_automacao(
             st.warning("Sem estoque disponível.")
         else:
             emp_names = sorted(df_disponiveis['Empreendimento'].unique())
+            meses_entrega_emp: dict[str, int] = {}
+            for _emp in emp_names:
+                _sub_emp = df_disponiveis[df_disponiveis["Empreendimento"] == _emp]
+                _meses_validos: list[int] = []
+                for _dt in _sub_emp.get("Data Entrega", pd.Series(dtype=object)).tolist():
+                    _m = meses_ate_entrega(_dt)
+                    _meses_validos.append(_m)
+                if _meses_validos:
+                    meses_entrega_emp[_emp] = min(_meses_validos)
             idx_emp = 0
             if 'empreendimento_nome' in st.session_state.dados_cliente:
                 try:
                     idx_emp = emp_names.index(st.session_state.dados_cliente['empreendimento_nome'])
                 except Exception:
                     idx_emp = 0
-            emp_escolhido = st.selectbox("Escolha o Empreendimento:", options=emp_names, index=idx_emp, key="sel_emp_new_v3")
+            def _fmt_emp_com_prazo(nome_emp: str) -> str:
+                m = meses_entrega_emp.get(nome_emp)
+                if m is None:
+                    return f"{nome_emp} - prazo de entrega: n/d"
+                return f"{nome_emp} - prazo de entrega: {m} mes(es)"
+
+            emp_escolhido = st.selectbox(
+                "Escolha o Empreendimento:",
+                options=emp_names,
+                index=idx_emp,
+                key="sel_emp_new_v3",
+                format_func=_fmt_emp_com_prazo,
+            )
             st.session_state.dados_cliente['empreendimento_nome'] = emp_escolhido
             unidades_disp = df_disponiveis[(df_disponiveis['Empreendimento'] == emp_escolhido)].copy()
             unidades_disp = unidades_disp.sort_values(['Valor de Venda', 'Identificador'], ascending=[True, True])
@@ -5044,7 +5136,7 @@ def aba_simulador_automacao(
 
         if 'parc_ps_key' not in st.session_state:
             try:
-                _p0 = int(d.get('ps_parcelas', min(60, parc_max_ui)) or 1)
+                _p0 = int(d.get('ps_parcelas', min(84, parc_max_ui)) or 1)
             except (TypeError, ValueError):
                 _p0 = 1
             _p0 = max(1, min(_p0, parc_max_ui))
@@ -5284,7 +5376,7 @@ def aba_simulador_automacao(
             st.session_state.dados_cliente['ps_usado'] = ps_input_val
             ref_text_ps = f"Limite máximo de Pro Soluto: {reais_streamlit_html(fmt_br(ps_limite_ui2))}"
             st.markdown(
-                f'<div class="inline-ref" style="color:#111111;opacity:1;">{ref_text_ps}</div>',
+                f'<div class="inline-ref" style="color:#111111;opacity:0.72;">{ref_text_ps}</div>',
                 unsafe_allow_html=True,
             )
 
@@ -5309,6 +5401,16 @@ def aba_simulador_automacao(
             f'<span class="inline-ref">Parcela máx. (J8): {reais_streamlit_html(fmt_br(j8_ui))}</span>',
             unsafe_allow_html=True,
         )
+        ps_capacidade = max(0.0, float(v_parc) * float(parc))
+        ps_efetivo = min(float(ps_input_val or 0.0), ps_capacidade)
+        if ps_efetivo + 0.01 < float(ps_input_val or 0.0):
+            st.warning(
+                f"O valor de Pro Soluto informado é {reais_streamlit_html(fmt_br(ps_input_val))}, "
+                f"mas com {parc} parcelas e mensalidade {reais_streamlit_html(fmt_br(v_parc))} "
+                f"a arrecadação máxima é {reais_streamlit_html(fmt_br(ps_capacidade))}.",
+                icon="⚠️",
+            )
+        st.session_state.dados_cliente["ps_usado"] = ps_efetivo
         
         # --- INPUT VOLTA AO CAIXA (NOVO) ---
         st.markdown("<hr style='margin: 10px 0;'>", unsafe_allow_html=True)
@@ -5319,7 +5421,7 @@ def aba_simulador_automacao(
 
         ref_text_vc = f"Folga Volta ao Caixa: {reais_streamlit_html(fmt_br(vc_ref))}"
         st.markdown(
-            f'<div class="inline-ref" style="color:#111111;opacity:1;">{ref_text_vc}</div>',
+            f'<div class="inline-ref" style="color:#111111;opacity:0.72;">{ref_text_vc}</div>',
             unsafe_allow_html=True,
         )
         
@@ -5328,7 +5430,7 @@ def aba_simulador_automacao(
         r2_val = max(0.0, texto_moeda_para_float(st.session_state.get("ato_2_key")))
         r3_val = max(0.0, texto_moeda_para_float(st.session_state.get("ato_3_key")))
         r4_val = max(0.0, texto_moeda_para_float(st.session_state.get("ato_4_key"))) if not is_emcash else 0.0
-        cap_entrada_final = max(0.0, u_valor - f_u_input - fgts_u_input - ps_input_val - vc_input_val)
+        cap_entrada_final = max(0.0, u_valor - f_u_input - fgts_u_input - ps_efetivo - vc_input_val)
         sum_ent = r1_val + r2_val + r3_val + r4_val
         if sum_ent > cap_entrada_final + 0.01:
             if sum_ent > 0 and cap_entrada_final >= 0:
@@ -5348,13 +5450,16 @@ def aba_simulador_automacao(
         st.session_state.dados_cliente['entrada_total'] = total_entrada_cash
 
         # Inclui o Volta ao Caixa na dedução do GAP FINAL
-        gap_final = u_valor - f_u_input - fgts_u_input - ps_input_val - total_entrada_cash - vc_input_val
+        gap_final = u_valor - f_u_input - fgts_u_input - ps_efetivo - total_entrada_cash - vc_input_val
         if abs(gap_final) > 1.0:
             st.error(
                 f"Atenção: {'Falta cobrir' if gap_final > 0 else 'Valor excedente de'} R$ {fmt_br(abs(gap_final))}."
             )
-        parcela_fin = calcular_parcela_financiamento(f_u_input, prazo_finan, taxa_fin_vigente(d), tab_fin)
-        st.session_state.dados_cliente['parcela_financiamento'] = parcela_fin
+        parcela_fin_auto = calcular_parcela_financiamento(f_u_input, prazo_finan, taxa_fin_vigente(d), tab_fin)
+        _parc_fin_ui_raw = clamp_moeda_positiva(texto_moeda_para_float(st.session_state.get("parcela_fin_edit_key")), None)
+        st.session_state.dados_cliente['parcela_financiamento'] = (
+            _parc_fin_ui_raw if _parc_fin_ui_raw > 0 else parcela_fin_auto
+        )
         st.markdown("---")
         if st.button("Avançar para Resumo da Simulação", type="primary", use_container_width=True):
             if abs(gap_final) <= 1.0: st.session_state.passo_simulacao = 'summary'; scroll_to_top(); st.rerun()
@@ -5363,12 +5468,22 @@ def aba_simulador_automacao(
     elif passo == 'summary':
         d = st.session_state.dados_cliente
         _vc_sum = texto_moeda_para_float(st.session_state.get("volta_caixa_key"))
-        v_emp_sum = max(0.0, float(d.get("imovel_valor", 0) or 0) - max(0.0, _vc_sum))
+        _vc_sum = max(0.0, _vc_sum)
+        _vc_ref_sum = max(0.0, float(d.get("volta_caixa_ref", 0) or 0))
+        _vc_preservado_sum = max(0.0, _vc_ref_sum - _vc_sum)
+        v_emp_total = max(0.0, float(d.get("imovel_valor", 0) or 0))
+        v_emp_desc = max(0.0, v_emp_total - _vc_sum)
         rendas_sum = list(d.get("rendas_lista") or [])
         while len(rendas_sum) < 4:
             rendas_sum.append(0.0)
 
         st.markdown(f"### Resumo da Simulação - {d.get('nome', 'Cliente')}")
+        if d.get("nome_imobiliaria"):
+            st.markdown(
+                f'<p style="text-align:center;margin:0 0 0.5rem 0;font-weight:600;color:{COR_AZUL_ESC};">'
+                f"Imobiliária: {html_std.escape(str(d.get('nome_imobiliaria')))}</p>",
+                unsafe_allow_html=True,
+            )
         st.markdown('<div class="summary-header">Renda</div>', unsafe_allow_html=True)
         _ren_html = (
             f"<b>Renda familiar total:</b> {reais_streamlit_html(fmt_br(d.get('renda', 0)))}<br>"
@@ -5385,8 +5500,12 @@ def aba_simulador_automacao(
         _dim = (
             f"<div class=\"summary-body\"><b>Empreendimento:</b> {d.get('empreendimento_nome')}<br>"
             f"<b>Unidade:</b> {d.get('unidade_id')}<br>"
-            f"<b>Valor do empreendimento:</b> <span style=\"color: #111111; font-weight: 700;\">"
-            f"{reais_streamlit_html(fmt_br(v_emp_sum))}</span><br>"
+            f"<b>Valor total:</b> <span style=\"color: #111111; font-weight: 700;\">"
+            f"{reais_streamlit_html(fmt_br(v_emp_total))}</span><br>"
+            f"<b>Desconto:</b> {reais_streamlit_html(fmt_br(_vc_sum))}<br>"
+            f"<b>Valor com desconto:</b> <span style=\"color: #111111; font-weight: 700;\">"
+            f"{reais_streamlit_html(fmt_br(v_emp_desc))}</span><br>"
+            f"<b>Volta ao caixa preservado:</b> {reais_streamlit_html(fmt_br(_vc_preservado_sum))}<br>"
         )
         if d.get("unid_entrega"):
             _dim += f"<b>Previsão de entrega:</b> {d.get('unid_entrega')}<br>"
@@ -5421,7 +5540,6 @@ def aba_simulador_automacao(
             f"""<b>Número de parcelas do Pro Soluto:</b> {d.get('ps_parcelas')}<br>"""
             f"""<b>Mensalidade do Pro Soluto:</b> {reais_streamlit_html(fmt_br(d.get('ps_mensal', 0)))}<br>"""
             f"""<hr style="border: 0; border-top: 1px solid #e2e8f0; margin: 10px 0;">"""
-            f"""<b>Total em atos (Ato 1 (Entrada Imediata) e parcelados):</b> {reais_streamlit_html(fmt_br(d.get('entrada_total', 0)))}<br>"""
             f"""<b>Ato 1 (Entrada Imediata):</b> {reais_streamlit_html(fmt_br(d.get('ato_final', 0)))}<br>"""
             f"""<b>Ato 30:</b> {reais_streamlit_html(fmt_br(d.get('ato_30', 0)))}<br>"""
             f"""<b>Ato 60:</b> {reais_streamlit_html(fmt_br(d.get('ato_60', 0)))}{_linha_resumo_ato_90}<br>"""
