@@ -2449,7 +2449,18 @@ def candidatos_df_recomendados(df_pool: pd.DataFrame) -> pd.DataFrame:
         return pd.DataFrame()
     fit_sub = df_pool[df_pool["Unidade_Compativel"] == True].copy()
     if fit_sub.empty:
-        return pd.DataFrame()
+        if "Valor de Venda" not in df_pool.columns:
+            return pd.DataFrame()
+        pool_pos = df_pool.copy()
+        pool_pos["Valor de Venda"] = pd.to_numeric(pool_pos["Valor de Venda"], errors="coerce").fillna(0.0)
+        pool_pos = pool_pos[pool_pos["Valor de Venda"] > 0].copy()
+        if pool_pos.empty:
+            return pd.DataFrame()
+        min_v = pool_pos["Valor de Venda"].min()
+        rec = pool_pos[pool_pos["Valor de Venda"] == min_v].copy()
+        rec["Lucro_Recomendacao"] = rec["Valor de Venda"] * 0.019
+        rec["Unidade_Compativel"] = False
+        return rec
     fit_sub["Lucro_Recomendacao"] = pd.to_numeric(fit_sub["Lucro_Recomendacao"], errors="coerce").fillna(-1e18)
     max_l = fit_sub["Lucro_Recomendacao"].max()
     return fit_sub[fit_sub["Lucro_Recomendacao"] == max_l]
@@ -5484,13 +5495,17 @@ def aba_simulador_automacao(
         # --- INPUT VOLTA AO CAIXA (NOVO) ---
         st.markdown("<hr style='margin: 10px 0;'>", unsafe_allow_html=True)
         vc_ref = float(d.get('volta_caixa_ref', 0.0) or 0.0)
-        if "valor_proposta_final_key" not in st.session_state:
+        _pf_seed_raw = texto_moeda_para_float(st.session_state.get("valor_proposta_final_key"))
+        if _pf_seed_raw <= 0 and u_valor > 0:
             _vc_boot = texto_moeda_para_float(st.session_state.get("volta_caixa_key"))
             _vc_boot = max(0.0, min(_vc_boot, vc_ref)) if vc_ref > 0 else max(0.0, _vc_boot)
-            st.session_state["valor_proposta_final_key"] = float_para_campo_texto(
-                max(0.0, u_valor - _vc_boot),
-                vazio_se_zero=False,
-            )
+            _pf_seed_raw = max(0.0, u_valor - _vc_boot)
+        _pf_seed = clamp_moeda_positiva(_pf_seed_raw, u_valor if u_valor > 0 else None)
+        if vc_ref > 0:
+            _vc_seed = max(0.0, u_valor - _pf_seed)
+            if _vc_seed > vc_ref:
+                _pf_seed = max(0.0, u_valor - vc_ref)
+        st.session_state["valor_proposta_final_key"] = float_para_campo_texto(_pf_seed, vazio_se_zero=False)
         st.text_input("Valor Final da Proposta", key="valor_proposta_final_key", placeholder="0,00")
         proposta_final = clamp_moeda_positiva(texto_moeda_para_float(st.session_state.get("valor_proposta_final_key")), u_valor if u_valor > 0 else None)
         if u_valor > 0 and proposta_final > u_valor:
@@ -5499,7 +5514,6 @@ def aba_simulador_automacao(
         if vc_ref > 0:
             vc_input_val = min(vc_input_val, vc_ref)
             proposta_final = max(0.0, u_valor - vc_input_val)
-        st.session_state["valor_proposta_final_key"] = float_para_campo_texto(proposta_final, vazio_se_zero=False)
         st.session_state["volta_caixa_key"] = float_para_campo_texto(vc_input_val, vazio_se_zero=True)
 
         vc_preservado = max(0.0, vc_ref - vc_input_val)
