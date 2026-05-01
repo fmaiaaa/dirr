@@ -858,6 +858,22 @@ import altair as alt
 import urllib.parse
 import html as html_std
 
+# Bloco [salesforce] no secrets.toml: USER / PASSWORD / TOKEN → variáveis SALESFORCE_* (mesma pasta, sem import circular)
+_SF_SECRETS_TOML_ALIAS: dict[str, str] = {
+    "USER": "SALESFORCE_USER",
+    "PASSWORD": "SALESFORCE_PASSWORD",
+    "TOKEN": "SALESFORCE_TOKEN",
+    "CPF_FIELD": "SALESFORCE_CPF_FIELD",
+    "RANKING_FIELD": "SALESFORCE_RANKING_FIELD",
+}
+
+
+def _chave_env_salesforce_desde_toml(k: str) -> str:
+    k0 = str(k).strip()
+    if not k0:
+        return k0
+    return _SF_SECRETS_TOML_ALIAS.get(k0.upper(), k0)
+
 
 def _injetar_secrets_salesforce_no_env() -> None:
     try:
@@ -880,11 +896,9 @@ def _injetar_secrets_salesforce_no_env() -> None:
                 _set(key, sec.get(key))
         blk = sec.get("salesforce") if hasattr(sec, "get") else None
         if isinstance(blk, dict):
-            from salesforce_api import chave_env_desde_salesforce_toml
-
             for k, v in blk.items():
                 if str(k).strip():
-                    _set(chave_env_desde_salesforce_toml(str(k).strip()), v)
+                    _set(_chave_env_salesforce_desde_toml(str(k).strip()), v)
     except Exception:
         pass
 
