@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 from __future__ import annotations
 # =============================================================================
-# SIMULADOR STREAMLIT — FICHEIRO ÚNICO (gerado automaticamente)
+# SIMULADOR STREAMLIT - FICHEIRO ÚNICO (gerado automaticamente)
 # =============================================================================
 # Gerado por: python scripts/build_streamlit_monolith.py
 # NÃO editar este ficheiro à mão. Altere simulador_dv/*.py e regenere.
@@ -202,7 +202,7 @@ def _parse_float_cell_pol(v: Any, default: float = 0.0) -> float:
 def politicas_from_dataframe(df: Optional[pd.DataFrame]) -> List[PoliticaPSRow]:
     """
     Interpreta aba POLITICAS: prioriza colunas nomeadas; senão A–F posicionais.
-    Ignora classificações repetidas (mantém a primeira — evita bloco histórico duplicado).
+    Ignora classificações repetidas (mantém a primeira - evita bloco histórico duplicado).
     """
     if df is None or df.empty:
         return _default_rows_list()
@@ -309,8 +309,8 @@ DEFAULT_PREMISSAS: Dict[str, float] = {
     "renda_f3": 8600.0,
     "renda_f4": 12000.0,
     "vv_f2": 275000.0,
-    "vv_f3": 350000.0,
-    "vv_f4": 500000.0,
+    "vv_f3": 400000.0,
+    "vv_f4": 600000.0,
     "dire_fin_aa_f1_min": 4.0,
     "dire_fin_aa_f1_max": 5.0,
     "dire_fin_aa_f2_min": 4.75,
@@ -429,7 +429,7 @@ def cap_valor_unidade(valor_unidade: float, row: PoliticaPSRow) -> float:
 
 
 def valor_max_ps_g15(l_comparador: float, cap_politica_vu: float) -> float:
-    """MIN(L, cap) — Excel usa int(L) no comparador; usamos floor para valores positivos."""
+    """MIN(L, cap) - Excel usa int(L) no comparador; usamos floor para valores positivos."""
     lc = float(l_comparador)
     if lc > 0:
         lc = float(int(lc))
@@ -589,7 +589,7 @@ def parcela_ps_pmt(
     meses_entrega: Optional[int] = None,
 ) -> float:
     """
-    Emcash (UI): I5 — (PMT(E2, n, B41) × -1) × (1+E1).
+    Emcash (UI): I5 - (PMT(E2, n, B41) × -1) × (1+E1).
     Direcional: PMT com principal B3 ajustado e taxa efetiva pré/pós conforme tempo até entrega.
     """
     p = dict(DEFAULT_PREMISSAS)
@@ -742,6 +742,13 @@ from typing import Any, Mapping, Optional
 def _politica_emcash(politica: Any) -> bool:
     s = str(politica or "").strip().upper()
     return "EMCASH" in s
+
+
+# Aviso Emcash (parcelas 30/60): UI, PDF, e-mail, WhatsApp (hífen ASCII)
+_EMCASH_NOTA_PARCELAS = (
+    "Emcash - parcelas incluem correção monetária (+IPCA) além dos juros; "
+    "não equivalem a parcelas apenas com juros sobre saldo."
+)
 
 
 def _renda_cliente_financiamento(dados_cliente: Mapping[str, Any]) -> Optional[float]:
@@ -1011,7 +1018,7 @@ def montar_mensagem_whatsapp_resumo(
     )
 
     linhas = [
-        "*Resumo da simulação — Direcional*",
+        "*Resumo da simulação - Direcional*",
         f"*Cliente / Imobiliária:* {_nome_cli_imob}",
         "",
         "*Renda*",
@@ -1046,7 +1053,7 @@ def montar_mensagem_whatsapp_resumo(
             "",
             "*Financiamento*",
             item("Financiamento utilizado", brs("finan_usado", 0)),
-            item("Sistema de amortização e prazo", f"{amort} — {prazo} meses"),
+            item("Sistema de amortização e prazo", f"{amort} - {prazo} meses"),
             item("Parcela estimada do financiamento", brs("parcela_financiamento", 0)),
             item("FGTS + subsídio", brs("fgts_sub_usado", 0)),
             "",
@@ -1058,10 +1065,7 @@ def montar_mensagem_whatsapp_resumo(
         ]
     )
     if _politica_emcash(d.get("politica")):
-        linhas.append(
-            "• *Emcash — prestação da entrada (30 e 60 dias):* inclui *correção monetária (+IPCA)* além dos *juros*; "
-            "não equivale a parcela só com juros sobre saldo."
-        )
+        linhas.append(f"• *{_EMCASH_NOTA_PARCELAS}*")
         linhas.append(
             item(
                 "Ato 30 (prestação entrada; juros + correção +IPCA)",
@@ -1523,7 +1527,7 @@ def inject_home_banner_dialog_modal():
 
 
 def inject_modern_ui_runtime():
-    """Marca o documento com preferências de movimento para CSS; JS vanilla no parent (Streamlit usa React internamente — não há runtime React app embutível neste ficheiro)."""
+    """Marca o documento com preferências de movimento para CSS; JS vanilla no parent (Streamlit usa React internamente - não há runtime React app embutível neste ficheiro)."""
     js = r"""
 <script>
 (function () {
@@ -1761,7 +1765,7 @@ def dialog_adm_miniaturas_home_banners(df_home_banners: pd.DataFrame | None) -> 
                     st.error(f"Não foi possível excluir: {err_del}")
 
 
-@st.dialog("Textos — campanhas comerciais (administrador)")
+@st.dialog("Textos - campanhas comerciais (administrador)")
 def dialog_adm_textos_campanhas(df_campanhas_texto: pd.DataFrame) -> None:
     """Formulários admin para a aba de textos (lista pública abaixo das miniaturas)."""
     st.caption(
@@ -1927,7 +1931,7 @@ def render_secao_campanhas_comerciais(
                 dialog_adm_miniaturas_home_banners(df_banners)
         with bc2:
             if st.button(
-                "Textos — campanhas comerciais (administrador)",
+                "Textos - campanhas comerciais (administrador)",
                 key="dv_open_dialog_campanhas_textos",
                 type="secondary",
                 use_container_width=True,
@@ -2053,7 +2057,7 @@ def _rotulo_opcao_excluir_campanha_texto(df_ct: pd.DataFrame, i: int) -> str:
     tit = (tit[:48] + "…") if len(tit) > 49 else tit
     snip = str(r.get("Texto", "") or "").strip().replace("\n", " ")
     snip = (snip[:36] + "…") if len(snip) > 37 else snip
-    return f"Linha {i + 1} · {tit or '(sem título)'}{' — ' + snip if snip else ''}"
+    return f"Linha {i + 1} · {tit or '(sem título)'}{' - ' + snip if snip else ''}"
 
 
 _COLS_LOGINS = ["Email", "Senha", "Nome", "Cargo", "Imobiliaria", "Telefone", "Adm"]
@@ -2118,7 +2122,7 @@ def _diagnostico_secrets_gsheets() -> str | None:
     if t != "service_account":
         return (
             'No `secrets.toml`, em `[connections.gsheets]`, defina **type = "service_account"** '
-            "(valor literal do JSON da Google — não deixe vazio)."
+            "(valor literal do JSON da Google - não deixe vazio)."
         )
     pk = str(g.get("private_key", "") or "").strip()
     if not pk or "BEGIN PRIVATE KEY" not in pk:
@@ -2134,7 +2138,7 @@ def _diagnostico_secrets_gsheets() -> str | None:
 
 @st.cache_data(ttl=300, show_spinner=False)
 def carregar_apenas_logins() -> pd.DataFrame:
-    """Só BD Logins — tela de login sem carregar estoque/financiamentos (mais rápido)."""
+    """Só BD Logins - tela de login sem carregar estoque/financiamentos (mais rápido)."""
     empty = pd.DataFrame(columns=_COLS_LOGINS)
     try:
         if "connections" not in st.secrets:
@@ -2173,7 +2177,7 @@ def carregar_dados_sistema():
         # Histórico em BD Simulações não é mais carregado na UI (gravação no resumo mantida)
         df_cadastros = pd.DataFrame()
 
-        # 1. POLITICAS (Pro Soluto — comparador)
+        # 1. POLITICAS (Pro Soluto - comparador)
         df_politicas = pd.DataFrame()
         for ws_pol in ("POLITICAS", "BD Politicas", "BD Políticas"):
             try:
@@ -2355,9 +2359,10 @@ class MotorRecomendacao:
         """Lê a planilha BD Financiamentos: linha pela renda mais próxima; colunas Finan_* e Subsidio_*."""
         if self.df_finan.empty:
             return 0.0, 0.0, "N/A"
+        # Limites de avaliação para colunas F2/F3/F4 na BD Financiamentos (alinhado à curva comercial).
         if valor_avaliacao <= 275000:
             faixa = "F2"
-        elif valor_avaliacao <= 350000:
+        elif valor_avaliacao <= 400000:
             faixa = "F3"
         else:
             faixa = "F4"
@@ -2566,7 +2571,7 @@ def ids_unidades_recomendadas_empreendimento(
     df_politicas: pd.DataFrame,
     prem: dict,
 ) -> set[str]:
-    """Identificadores recomendados (normalizados em str) — mesma regra dos cards por empreendimento."""
+    """Identificadores recomendados (normalizados em str) - mesma regra dos cards por empreendimento."""
     sub = df_estoque[df_estoque["Empreendimento"] == nome_empreendimento].copy()
     if sub.empty or "Identificador" not in sub.columns:
         return set()
@@ -2750,7 +2755,7 @@ def configurar_layout():
         }}
         /*
          * Rerun / cálculos longos: o Streamlit aplica STALE_STYLES (opacity ~0.33 + transição)
-         * em cada wrapper [data-testid="stElementContainer"] — a UI parece “lavada”.
+         * em cada wrapper [data-testid="stElementContainer"] - a UI parece “lavada”.
          * Mantemos opacidade total para leitura e percepção estável durante o rerun.
          */
         [data-testid="stElementContainer"] {{
@@ -3068,7 +3073,7 @@ def configurar_layout():
         [data-testid="stWidgetLabel"] p {{
             color: {COR_TEXTO_LABEL} !important;
         }}
-        /* Parágrafos do markdown = textos de apoio / subtítulos — centralizados */
+        /* Parágrafos do markdown = textos de apoio / subtítulos - centralizados */
         div[data-testid="stMarkdown"] p {{
             color: #334155;
             line-height: 1.58;
@@ -3079,7 +3084,7 @@ def configurar_layout():
             text-wrap: balance;
         }}
 
-        /* Cartão de vidro — mesma linguagem da Ficha Credenciamento (max-width largo para o simulador) */
+        /* Cartão de vidro - mesma linguagem da Ficha Credenciamento (max-width largo para o simulador) */
         .block-container {{
             --dv-rhythm: 1.35rem;
             text-rendering: optimizeLegibility;
@@ -3119,7 +3124,7 @@ def configurar_layout():
             box-shadow: none !important;
         }}
 
-        /* Títulos de conteúdo — hierarquia clara, só Montserrat + Inter herdada */
+        /* Títulos de conteúdo - hierarquia clara, só Montserrat + Inter herdada */
         .stMarkdown h1 {{ font-size: clamp(1.5rem, 2.5vw, 1.85rem) !important; text-align: center !important; margin-bottom: 0.45rem !important; font-weight: 800 !important; }}
         .stMarkdown h1.header-title {{
             font-size: clamp(1.75rem, 4.8vw, 2.65rem) !important;
@@ -3386,7 +3391,7 @@ def configurar_layout():
         a[href*="wa.me"]:not([data-testid="stLinkButton"]):hover {{
             color: #075e54 !important;
         }}
-        /* Botão WhatsApp (link_button): mesmo padrão secundário — branco, texto escuro */
+        /* Botão WhatsApp (link_button): mesmo padrão secundário - branco, texto escuro */
         a[data-testid="stLinkButton"][href*="api.whatsapp.com"],
         a[data-testid="stLinkButton"][href*="whatsapp.com"],
         a[data-testid="stLinkButton"][href*="wa.me"] {{
@@ -3468,7 +3473,7 @@ def configurar_layout():
             border-color: #94a3b8 !important;
             box-shadow: 0 2px 8px rgba(15, 23, 42, 0.1) !important;
         }}
-        /* st.dialog: data-testid="stDialog" fica no ROOT do modal (full screen), não num filho — :has() no baseweb nunca casava */
+        /* st.dialog: data-testid="stDialog" fica no ROOT do modal (full screen), não num filho - :has() no baseweb nunca casava */
         [data-testid="stDialog"] {{
             position: fixed !important;
             inset: 0 !important;
@@ -4209,7 +4214,7 @@ def gerar_resumo_pdf(d, volta_caixa_val: float = 0.0):
             pdf.cell(0, 6, _pdf_text_seguro(_nome_topo_pdf), ln=True, align='C')
             pdf.ln(2)
         pdf.set_font("Helvetica", 'B', 20)
-        pdf.cell(0, 10, _pdf_text_seguro("Resumo da simulação — Direcional"), ln=True, align='C')
+        pdf.cell(0, 10, _pdf_text_seguro("Resumo da simulação - Direcional"), ln=True, align='C')
 
         pdf.set_font("Helvetica", '', 9)
         pdf.cell(0, 5, _pdf_text_seguro("Simulador imobiliário Direcional"), ln=True, align='C')
@@ -4302,10 +4307,7 @@ def gerar_resumo_pdf(d, volta_caixa_val: float = 0.0):
             pdf.multi_cell(
                 largura_util,
                 4,
-                _pdf_text_seguro(
-                    "Emcash — prestação da entrada: parcelas 30 e 60 dias incluem correção monetária (+IPCA) "
-                    "além dos juros; não são apenas parcelas com juros."
-                ),
+                _pdf_text_seguro(_EMCASH_NOTA_PARCELAS),
                 ln=True,
             )
             pdf.ln(1)
@@ -4449,8 +4451,7 @@ def enviar_email_smtp(destinatario, nome_cliente, pdf_bytes, dados_cliente, tipo
     )
     _html_nota_emcash_entrada = (
         '<p style="font-size:12px;color:#334155;margin:0 0 12px 0;line-height:1.45;">'
-        "<strong>Emcash — prestação da entrada:</strong> parcelas em <strong>30 e 60 dias</strong> incluem "
-        "<strong>correção monetária (+IPCA)</strong> além dos juros; não são apenas parcelas com juros sobre o saldo.</p>"
+        f"{html_std.escape(_EMCASH_NOTA_PARCELAS)}</p>"
         if _emcash_corretor
         else ""
     )
@@ -4469,15 +4470,14 @@ def enviar_email_smtp(destinatario, nome_cliente, pdf_bytes, dados_cliente, tipo
     URL_LOGO_BRANCA = "https://drive.google.com/uc?export=view&id=1m0iX6FCikIBIx4gtSX3Y_YMYxxND2wAh"
     _html_nota_emcash_cliente = (
         '<p style="font-size:12px;color:#475569;line-height:1.45;margin:0 0 16px 0;text-align:center;">'
-        "<strong>Emcash — prestação da entrada:</strong> parcelas em <strong>30 e 60 dias</strong> incluem "
-        "<strong>correção monetária (+IPCA)</strong> além dos juros (não são apenas parcelas com juros).</p>"
+        f"{html_std.escape(_EMCASH_NOTA_PARCELAS)}</p>"
         if _politica_emcash(dados_cliente.get("politica"))
         else ""
     )
 
     # TEMPLATE CLIENTE (Foco no sonho, design limpo, usando Tabelas para evitar sobreposição)
     if tipo == 'cliente':
-        msg['Subject'] = f"Simulação Direcional — {nome_cliente_fmt} — {produto_ref}"
+        msg['Subject'] = f"Simulação Direcional - {nome_cliente_fmt} - {produto_ref}"
         html_content = f"""
         <!DOCTYPE html>
         <html>
@@ -4549,7 +4549,7 @@ def enviar_email_smtp(destinatario, nome_cliente, pdf_bytes, dados_cliente, tipo
     
     # TEMPLATE CORRETOR (Foco técnico, dados completos, usando Tabelas)
     else:
-        msg['Subject'] = f"Simulação Direcional — {nome_cliente_fmt} — {produto_ref}"
+        msg['Subject'] = f"Simulação Direcional - {nome_cliente_fmt} - {produto_ref}"
         html_content = f"""
         <!DOCTYPE html>
         <html>
@@ -4892,20 +4892,71 @@ def aba_simulador_automacao(
         )
         cpf_digits = re.sub(r"\D", "", st.session_state.get("cpf_classificar_clientes_sf") or "")
         rank_opts = ["DIAMANTE", "OURO", "PRATA", "BRONZE", "AÇO"]
+        _sf_rs: str | None = None
+        _sf_code: str | None = None
         if len(cpf_digits) == 11:
-            rs, _code = _lookup_ranking_salesforce_cached(cpf_digits)
-            if rs and rs in rank_opts and st.session_state.get("_sf_rank_applied_cpf") != cpf_digits:
-                st.session_state["in_rank_v28"] = rs
+            _sf_rs, _sf_code = _lookup_ranking_salesforce_cached(cpf_digits)
+            if _sf_rs and _sf_rs in rank_opts and st.session_state.get("_sf_rank_applied_cpf") != cpf_digits:
+                st.session_state["in_rank_v28"] = _sf_rs
                 st.session_state["_sf_rank_applied_cpf"] = cpf_digits
                 if hasattr(st, "toast"):
                     try:
-                        st.toast(f"Ranking definido pelo Salesforce: {rs}", icon="✅")
+                        st.toast(f"Ranking definido pelo Salesforce: {_sf_rs}", icon="✅")
                     except Exception:
                         pass
         else:
             # CPF incompleto ou vazio: permite nova consulta ao voltar a 11 dígitos
             st.session_state["_sf_rank_applied_cpf"] = ""
-        curr_ranking = st.session_state.get("in_rank_v28", st.session_state.dados_cliente.get("ranking", "DIAMANTE"))
+        _rank_now = st.session_state.get("in_rank_v28", st.session_state.dados_cliente.get("ranking", "DIAMANTE"))
+        if not cpf_digits:
+            st.markdown(
+                f'<p class="inline-ref" style="margin-top:-6px;margin-bottom:10px;line-height:1.45;">'
+                f"Ranking atual no simulador: <strong>{html_std.escape(str(_rank_now))}</strong>. "
+                "Informe 11 dígitos do CPF para tentar buscar o ranking no Salesforce (credenciais em secrets).</p>",
+                unsafe_allow_html=True,
+            )
+        elif len(cpf_digits) < 11:
+            st.markdown(
+                f'<p class="inline-ref" style="margin-top:-6px;margin-bottom:10px;line-height:1.45;">'
+                f"Ranking atual: <strong>{html_std.escape(str(_rank_now))}</strong>. "
+                f"CPF incompleto ({len(cpf_digits)} dígitos) - são necessários 11 para consulta automática.</p>",
+                unsafe_allow_html=True,
+            )
+        else:
+            if _sf_rs and _sf_rs in rank_opts:
+                st.markdown(
+                    f'<p class="inline-ref" style="margin-top:-6px;margin-bottom:10px;line-height:1.45;">'
+                    "Ranking <strong>Salesforce</strong>: "
+                    f'<strong style="color:{COR_AZUL_ESC};">{html_std.escape(_sf_rs)}</strong> '
+                    "(refletido no seletor <em>Ranking do Cliente</em> logo abaixo).</p>",
+                    unsafe_allow_html=True,
+                )
+            elif _sf_code == "sem_registo":
+                st.markdown(
+                    f'<p class="inline-ref" style="margin-top:-6px;margin-bottom:10px;line-height:1.45;">'
+                    f"Salesforce: nenhum contato com este CPF. Ranking mantido: <strong>{html_std.escape(str(_rank_now))}</strong>.</p>",
+                    unsafe_allow_html=True,
+                )
+            elif _sf_code == "sem_conexao":
+                st.markdown(
+                    f'<p class="inline-ref" style="margin-top:-6px;margin-bottom:10px;line-height:1.45;">'
+                    "Salesforce: sem conexão (credenciais, token ou rede). "
+                    f'Ranking no simulador: <strong>{html_std.escape(str(_rank_now))}</strong>.</p>',
+                    unsafe_allow_html=True,
+                )
+            elif _sf_code == "pacote_ausente":
+                st.markdown(
+                    '<p class="inline-ref" style="margin-top:-6px;margin-bottom:10px;line-height:1.45;">'
+                    "Instale o pacote <code>simple-salesforce</code> para consultar o ranking pelo CPF.</p>",
+                    unsafe_allow_html=True,
+                )
+            else:
+                st.markdown(
+                    f'<p class="inline-ref" style="margin-top:-6px;margin-bottom:10px;line-height:1.45;">'
+                    f"Salesforce devolveu um ranking não mapeado. Ranking no simulador: <strong>{html_std.escape(str(_rank_now))}</strong>.</p>",
+                    unsafe_allow_html=True,
+                )
+        curr_ranking = _rank_now
         idx_ranking = rank_opts.index(curr_ranking) if curr_ranking in rank_opts else 0
         ranking = st.selectbox("Ranking do Cliente", options=rank_opts, index=idx_ranking, key="in_rank_v28")
         _pol_saved = st.session_state.dados_cliente.get("politica")
@@ -4936,20 +4987,18 @@ def aba_simulador_automacao(
         st.markdown("### Valores Aprovados (Fechamento Financeiro)")
 
         renda_cli = float(d.get("renda", 0) or 0)
+        _val_bruto_faixa = float(d.get("imovel_avaliacao") or 0) or 240000.0
+        if "sinal_com_key" not in st.session_state:
+            st.session_state["sinal_com_key"] = float_para_campo_texto(
+                max(0.0, float(d.get("sinal_com", 0) or 0)), vazio_se_zero=True
+            )
+
         _matriz_bd = motor.obter_quatro_combinacoes_f2_f3_f4(renda_cli)
         _ix_sim_sim = next(
             (i for i, rowq in enumerate(_matriz_bd) if rowq["social"] and rowq["cotista"]),
             max(0, len(_matriz_bd) - 1),
         )
         _row_sim_cot = _matriz_bd[_ix_sim_sim]
-        _val_aval_para_faixa = float(d.get("imovel_avaliacao") or 0) or 240000.0
-        _, _, _faixa_curva = motor.obter_enquadramento(
-            renda_cli, True, True, valor_avaliacao=_val_aval_para_faixa
-        )
-        if str(_faixa_curva) not in ("F2", "F3", "F4"):
-            _faixa_curva = "F2"
-        _fin_ref_sim_cot = float(_row_sim_cot.get(f"fin_{_faixa_curva}", 0) or 0)
-        _sub_ref_sim_cot = float(_row_sim_cot.get(f"sub_{_faixa_curva}", 0) or 0)
 
         def _sim_nao(v):
             return "Sim" if v else "Não"
@@ -4966,19 +5015,17 @@ def aba_simulador_automacao(
             f"<td style='{_fx_cell}'>{reais_streamlit_html(fmt_br(it['sub_F2']))}</td>"
             f"<td style='{_fx_cell}'>{reais_streamlit_html(fmt_br(it['fin_F3']))}</td>"
             f"<td style='{_fx_cell}'>{reais_streamlit_html(fmt_br(it['sub_F3']))}</td>"
-            f"<td style='{_fx_cell}'>{reais_streamlit_html(fmt_br(it['fin_F4']))}</td>"
-            f"<td style='{_fx_cell}'>{reais_streamlit_html(fmt_br(it['sub_F4']))}</td>"
             f"</tr>"
             for it in _matriz_bd
         )
         st.markdown(
             f"""<div class="finan-subsidios-table-bleed" style="width:100vw;max-width:100%;position:relative;left:50%;transform:translateX(-50%);margin:0.5rem 0 1rem;padding:0 clamp(10px,2.2vw,28px);box-sizing:border-box;overflow-x:auto;-webkit-overflow-scrolling:touch;">
 <table style="width:100%;min-width:min(100%,720px);border-collapse:collapse;font-size:clamp(0.72rem,1.6vw,0.85rem);color:#111111;table-layout:fixed;">
-<caption style="caption-side:top;padding-bottom:10px;font-weight:700;color:#111111;text-align:center;font-size:clamp(0.85rem,2vw,1rem);">Financiamentos e subsídios (base de dados — Financiamentos) — Faixas 2, 3 e 4</caption>
+<caption style="caption-side:top;padding-bottom:10px;font-weight:700;color:#111111;text-align:center;font-size:clamp(0.85rem,2vw,1rem);">Financiamentos e subsídios (base de dados - Financiamentos) - Faixas 2 e 3</caption>
 <colgroup>
 <col style="width:11%;" />
 <col style="width:13%;" />
-<col span="6" style="width:12.666666%;" />
+<col span="4" style="width:19%;" />
 </colgroup>
 <thead>
 <tr>
@@ -4986,11 +5033,8 @@ def aba_simulador_automacao(
 <th rowspan="2" style="text-align:center;vertical-align:middle;padding:8px 10px;border-bottom:2px solid #cbd5e1;">Cotista do Fundo de Garantia do Tempo de Serviço</th>
 <th colspan="2" style="text-align:center;padding:6px 8px;border-bottom:1px solid #cbd5e1;color:#000000;font-weight:700;">Faixa 2</th>
 <th colspan="2" style="text-align:center;padding:6px 8px;border-bottom:1px solid #cbd5e1;color:#000000;font-weight:700;">Faixa 3</th>
-<th colspan="2" style="text-align:center;padding:6px 8px;border-bottom:1px solid #cbd5e1;color:#000000;font-weight:700;">Faixa 4</th>
 </tr>
 <tr>
-<th style="text-align:right;padding:6px 8px;border-bottom:2px solid #cbd5e1;white-space:normal;line-height:1.25;color:#000000;font-weight:700;">Financiamento</th>
-<th style="text-align:right;padding:6px 8px;border-bottom:2px solid #cbd5e1;white-space:normal;line-height:1.25;color:#000000;font-weight:700;">Subsídios</th>
 <th style="text-align:right;padding:6px 8px;border-bottom:2px solid #cbd5e1;white-space:normal;line-height:1.25;color:#000000;font-weight:700;">Financiamento</th>
 <th style="text-align:right;padding:6px 8px;border-bottom:2px solid #cbd5e1;white-space:normal;line-height:1.25;color:#000000;font-weight:700;">Subsídios</th>
 <th style="text-align:right;padding:6px 8px;border-bottom:2px solid #cbd5e1;white-space:normal;line-height:1.25;color:#000000;font-weight:700;">Financiamento</th>
@@ -5008,6 +5052,70 @@ def aba_simulador_automacao(
             f"A tabela acima é só referência; financiamento e subsídio aprovados podem ser outros valores.</p>",
             unsafe_allow_html=True,
         )
+
+        st.markdown(
+            '<p style="font-size:0.82rem;color:#111111;margin:0.35rem 0 0.4rem 0;line-height:1.45;">'
+            "<strong>Sinal com</strong> abate da <strong>avaliação bancária</strong> só para definir a "
+            "<strong>faixa da curva</strong> (F2 até R$ 275 mil; F3 até R$ 400 mil; F4 acima de R$ 400 mil, referência até R$ 600 mil). "
+            "Os valores sugeridos de <strong>financiamento</strong> e <strong>subsídio</strong> logo abaixo seguem a "
+            "<em>avaliação efetiva</em> (após o sinal), não só o valor de tabela da unidade.</p>",
+            unsafe_allow_html=True,
+        )
+        st.text_input(
+            "Sinal com (R$)",
+            key="sinal_com_key",
+            placeholder="0,00",
+            help="Opcional. Reduz a avaliação usada na leitura da faixa F2/F3/F4 na base Financiamentos.",
+        )
+        _sinal_raw = texto_moeda_para_float(st.session_state.get("sinal_com_key"))
+        _sinal_apl = max(0.0, float(_sinal_raw or 0))
+        if _sinal_apl > _val_bruto_faixa:
+            _sinal_apl = float(_val_bruto_faixa)
+            st.session_state["sinal_com_key"] = float_para_campo_texto(_sinal_apl, vazio_se_zero=True)
+        _val_aval_para_faixa = max(0.0, _val_bruto_faixa - _sinal_apl)
+        st.session_state.dados_cliente["sinal_com"] = float(_sinal_apl)
+        st.session_state.dados_cliente["imovel_avaliacao_curva_efetiva"] = float(_val_aval_para_faixa)
+        _, _, _faixa_pre_sinal = motor.obter_enquadramento(
+            renda_cli, True, True, valor_avaliacao=_val_bruto_faixa
+        )
+        _, _, _faixa_curva = motor.obter_enquadramento(
+            renda_cli, True, True, valor_avaliacao=_val_aval_para_faixa
+        )
+        if _val_bruto_faixa > 400000.0:
+            _sug_sc = max(0.0, _val_bruto_faixa - 400000.0)
+            st.markdown(
+                f'<p class="inline-ref" style="margin-top:-4px;margin-bottom:8px;line-height:1.45;">'
+                f"Avaliação <strong>acima de R$ 400.000</strong> → curva em <strong>Faixa 4</strong>. "
+                f"Para usar financiamento/subsídio da <strong>Faixa 3</strong>, a avaliação efetiva deve ser ≤ 400 mil. "
+                f"Sinal com indicativo: <strong>{reais_streamlit_html(fmt_br(_sug_sc))}</strong>.</p>",
+                unsafe_allow_html=True,
+            )
+        elif _val_bruto_faixa > 275000.0:
+            _sug_sc = max(0.0, _val_bruto_faixa - 275000.0)
+            st.markdown(
+                f'<p class="inline-ref" style="margin-top:-4px;margin-bottom:8px;line-height:1.45;">'
+                f"Avaliação entre <strong>R$ 275 mil e 400 mil</strong> (Faixa 3 na avaliação cheia). "
+                f"Para usar a <strong>Faixa 2</strong>, a avaliação efetiva deve ser ≤ 275 mil. "
+                f"Sinal com indicativo: <strong>{reais_streamlit_html(fmt_br(_sug_sc))}</strong>.</p>",
+                unsafe_allow_html=True,
+            )
+        else:
+            st.caption(
+                "Avaliação na Faixa 2 (até R$ 275 mil). Sinal com opcional se quiser ajustar fino a referência da curva."
+            )
+        st.markdown(
+            f'<p class="inline-ref" style="margin-bottom:10px;line-height:1.45;">'
+            f"Avaliação na unidade: {reais_streamlit_html(fmt_br(_val_bruto_faixa))} "
+            f"· Efetiva na curva: {reais_streamlit_html(fmt_br(_val_aval_para_faixa))} "
+            f"· Faixa (cheia): <strong>{html_std.escape(str(_faixa_pre_sinal))}</strong> "
+            f"· Faixa (após sinal): <strong>{html_std.escape(str(_faixa_curva))}</strong></p>",
+            unsafe_allow_html=True,
+        )
+        if str(_faixa_curva) not in ("F2", "F3", "F4"):
+            _faixa_curva = "F2"
+        _fin_ref_sim_cot = float(_row_sim_cot.get(f"fin_{_faixa_curva}", 0) or 0)
+        _sub_ref_sim_cot = float(_row_sim_cot.get(f"sub_{_faixa_curva}", 0) or 0)
+
         st.session_state.dados_cliente["social"] = True
         st.session_state.dados_cliente["cotista"] = True
 
@@ -5542,12 +5650,6 @@ def aba_simulador_automacao(
         _teto_ps_btn = min(_opts_ps_btn) if _opts_ps_btn else 0.0
         st.session_state["_ps_teto_para_botao"] = float(_teto_ps_btn or 0)
 
-        if is_emcash:
-            st.info(
-                "Emcash — prestação da entrada: parcelas em 30 e 60 dias incluem correção monetária (+IPCA) "
-                "além dos juros; não equivalem a parcelas apenas com juros sobre saldo."
-            )
-
         def _preencher_ps_restante() -> None:
             du = st.session_state.dados_cliente
             try:
@@ -5652,7 +5754,7 @@ def aba_simulador_automacao(
             col_atos_rest1, col_atos_rest2 = st.columns(2)
             with col_atos_rest1:
                 st.text_input(
-                    "Ato 30 — prestação entrada (juros + correção +IPCA)",
+                    "Ato 30 - prestação entrada (juros + correção +IPCA)",
                     key="ato_2_key",
                     placeholder="0,00",
                 )
@@ -5661,7 +5763,7 @@ def aba_simulador_automacao(
                 )
             with col_atos_rest2:
                 st.text_input(
-                    "Ato 60 — prestação entrada (juros + correção +IPCA)",
+                    "Ato 60 - prestação entrada (juros + correção +IPCA)",
                     key="ato_3_key",
                     placeholder="0,00",
                 )
@@ -5761,7 +5863,7 @@ def aba_simulador_automacao(
                     f"Sugestão de intervalo: entre <strong>{n_min_j8}</strong> e <strong>{parc_max_ui}</strong> parcelas "
                     "a prestação calculada fica dentro do teto J8 "
                     f"({reais_streamlit_html(fmt_br(j8_ui))}/mês). "
-                    f"O mínimo <strong>{n_min_j8}x</strong> já respeita o teto — evite ir direto a <strong>{parc_max_ui}x</strong> sem necessidade."
+                    f"O mínimo <strong>{n_min_j8}x</strong> já respeita o teto - evite ir direto a <strong>{parc_max_ui}x</strong> sem necessidade."
                     "</p>",
                     unsafe_allow_html=True,
                 )
@@ -5776,10 +5878,7 @@ def aba_simulador_automacao(
                     "Reduza o PS ou ajuste o perfil."
                 )
         if is_emcash:
-            st.caption(
-                "Emcash — prestação da entrada (30 e 60 dias): correção monetária (+IPCA) integrada à parcela, "
-                "além dos juros da operação; não se trata apenas de parcela com juros sobre saldo."
-            )
+            st.caption(_EMCASH_NOTA_PARCELAS)
         ps_capacidade = max(0.0, float(v_parc) * float(parc))
         ps_efetivo = min(float(ps_input_val or 0.0), ps_capacidade)
         if ps_efetivo + 0.01 < float(ps_input_val or 0.0):
@@ -5978,7 +6077,7 @@ def aba_simulador_automacao(
         _amort_res = nome_sistema_amortizacao_completo(str(d.get("sistema_amortizacao", "SAC")))
         st.markdown(
             f"""<div class="summary-body"><b>Financiamento utilizado:</b> {reais_streamlit_html(fmt_br(d.get('finan_usado', 0)))}<br>"""
-            f"""<b>Sistema de amortização e prazo:</b> {_amort_res} — {prazo_txt} meses<br>"""
+            f"""<b>Sistema de amortização e prazo:</b> {_amort_res} - {prazo_txt} meses<br>"""
             f"""<b>Parcela estimada do financiamento:</b> {reais_streamlit_html(fmt_br(d.get('parcela_financiamento', 0)))}<br>"""
             f"""<b>FGTS + subsídio:</b> {reais_streamlit_html(fmt_br(d.get('fgts_sub_usado', 0)))}</div>""",
             unsafe_allow_html=True,
@@ -5989,8 +6088,7 @@ def aba_simulador_automacao(
         if _em_sum:
             st.markdown(
                 '<p style="font-size:0.85rem;color:#334155;margin:0 0 0.65rem 0;line-height:1.45;">'
-                "<strong>Emcash — prestação da entrada:</strong> parcelas em <strong>30 e 60 dias</strong> incluem "
-                "<strong>correção monetária (+IPCA)</strong> além dos juros; não são apenas parcelas com juros.</p>",
+                f"{html_std.escape(_EMCASH_NOTA_PARCELAS)}</p>",
                 unsafe_allow_html=True,
             )
         _lbl_a30_sum = (
@@ -6170,7 +6268,7 @@ def main():
         )
 
     st.markdown(
-        '<div class="footer">Direcional Engenharia — Rio de Janeiro<br><em>developed by Lucas Maia</em></div>',
+        '<div class="footer">Direcional Engenharia - Rio de Janeiro<br><em>developed by Lucas Maia</em></div>',
         unsafe_allow_html=True,
     )
 
