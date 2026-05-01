@@ -4943,8 +4943,13 @@ def aba_simulador_automacao(
             unsafe_allow_html=True,
         )
         _parc_fin_ref = calcular_parcela_financiamento(f_u, int(prazo_sel), taxa_fin_vigente(d), sist_sel)
-        if "parcela_fin_edit_key" not in st.session_state:
+        _parc_fin_amort_ant = st.session_state.get("_parc_fin_last_sistema")
+        if _parc_fin_amort_ant != sist_sel:
             st.session_state["parcela_fin_edit_key"] = float_para_campo_texto(_parc_fin_ref, vazio_se_zero=True)
+            st.session_state["_parc_fin_last_sistema"] = sist_sel
+        elif "parcela_fin_edit_key" not in st.session_state:
+            st.session_state["parcela_fin_edit_key"] = float_para_campo_texto(_parc_fin_ref, vazio_se_zero=True)
+            st.session_state["_parc_fin_last_sistema"] = sist_sel
         st.text_input(
             "Parcela estimada do financiamento (editável)",
             key="parcela_fin_edit_key",
@@ -5116,15 +5121,20 @@ def aba_simulador_automacao(
                     ["_vv_sort", "Identificador"], ascending=[True, True]
                 )
                 current_uni_ids = uo_rec["Identificador"].tolist() + uo_out["Identificador"].tolist()
-                idx_uni = 0
                 _str_current = [str(_cid).strip() for _cid in current_uni_ids]
-                if current_uni_ids and "unidade_id" in st.session_state.dados_cliente:
-                    try:
-                        _u_norm = str(st.session_state.dados_cliente["unidade_id"]).strip()
-                        if _u_norm in _str_current:
-                            idx_uni = _str_current.index(_u_norm)
-                    except Exception:
-                        pass
+                _last_emp_fe = st.session_state.get("_sim_fechar_last_emp")
+                if _last_emp_fe != emp_escolhido:
+                    idx_uni = 0
+                else:
+                    idx_uni = 0
+                    if current_uni_ids and "unidade_id" in st.session_state.dados_cliente:
+                        try:
+                            _u_norm = str(st.session_state.dados_cliente["unidade_id"]).strip()
+                            if _u_norm in _str_current:
+                                idx_uni = _str_current.index(_u_norm)
+                        except Exception:
+                            pass
+                st.session_state["_sim_fechar_last_emp"] = emp_escolhido
 
                 def label_uni(uid):
                     u = unidades_disp[unidades_disp["Identificador"] == uid].iloc[0]
@@ -5208,9 +5218,11 @@ def aba_simulador_automacao(
             )
             if abs(_vc_raw_top - vc_input_val) > 0.009:
                 st.session_state['volta_caixa_key'] = float_para_campo_texto(vc_input_val, vazio_se_zero=True)
+            _vc_pres_top = max(0.0, vc_ref_top - vc_input_val)
             st.markdown(
                 f'<div class="inline-ref" style="color:#111111;opacity:0.85;">'
                 f"Limite (folga Volta ao Caixa): {reais_streamlit_html(fmt_br(vc_ref_top))}"
+                f' &nbsp;|&nbsp; Volta ao Caixa preservado: {reais_streamlit_html(fmt_br(_vc_pres_top))}'
                 f"</div>",
                 unsafe_allow_html=True,
             )
@@ -5240,13 +5252,6 @@ def aba_simulador_automacao(
                 f'<div style="margin:4px 0 16px 0;font-size:0.9rem;font-weight:600;color:#111111;">'
                 f"Valor final da unidade (após todos os descontos): "
                 f"{reais_streamlit_html(fmt_br(v_liquido))}</div>",
-                unsafe_allow_html=True,
-            )
-            _vc_pres_top = max(0.0, vc_ref_top - vc_input_val)
-            st.markdown(
-                f'<div class="inline-ref" style="color:#111111;opacity:0.72;">'
-                f"Volta ao Caixa preservado: {reais_streamlit_html(fmt_br(_vc_pres_top))}"
-                f"</div>",
                 unsafe_allow_html=True,
             )
         st.session_state.dados_cliente["outros_descontos"] = outros_desc
@@ -5516,10 +5521,6 @@ def aba_simulador_automacao(
                 st.session_state.dados_cliente["ato_60"] = max(
                     0.0, texto_moeda_para_float(st.session_state.get("ato_3_key"))
                 )
-            st.caption(
-                "Política **Emcash**: nas parcelas de 30 e 60 dias da entrada há **correção pelo IPCA**, "
-                "além dos juros — não são apenas parcelas fixas com juros."
-            )
         else:
             col_atos_rest1, col_atos_rest2, col_atos_rest3 = st.columns(3)
             with col_atos_rest1:
@@ -5596,6 +5597,11 @@ def aba_simulador_automacao(
             f'<span class="inline-ref">Parcela máx. (J8): {reais_streamlit_html(fmt_br(j8_ui))}</span>',
             unsafe_allow_html=True,
         )
+        if is_emcash:
+            st.caption(
+                "Política **Emcash**: nas parcelas de 30 e 60 dias da entrada há **correção pelo IPCA**, "
+                "além dos juros — não são apenas parcelas fixas com juros."
+            )
         ps_capacidade = max(0.0, float(v_parc) * float(parc))
         ps_efetivo = min(float(ps_input_val or 0.0), ps_capacidade)
         if ps_efetivo + 0.01 < float(ps_input_val or 0.0):
