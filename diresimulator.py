@@ -938,15 +938,19 @@ def montar_mensagem_whatsapp_resumo(
     _pol_ps = str(d.get("politica", "Direcional") or "Direcional").strip()
     _pol_ps_label = "Emcash" if _politica_emcash(_pol_ps) else "Direcional"
 
+    _nome_cli_imob = _wa_escape_texto(
+        str(d.get("nome", "") or "").strip() or "Não informado"
+    )
+
     linhas = [
         "*Resumo da simulação — Direcional*",
+        f"*Cliente / Imobiliária:* {_nome_cli_imob}",
         "",
         "*Renda*",
         item("Renda familiar total", brs("renda", 0)),
     ]
 
     linhas.extend(["", "*Dados do imóvel*"])
-    linhas.append(item("Nome do Cliente ou Imobiliária", d.get("nome", "-")))
     linhas.append(item("Empreendimento", d.get("empreendimento_nome", "-")))
     linhas.append(item("Unidade", d.get("unidade_id", "-")))
     linhas.append(item("Valor de venda (lista)", f"R$ {fmt_br(v_total)}"))
@@ -4281,6 +4285,7 @@ def enviar_email_smtp(destinatario, nome_cliente, pdf_bytes, dados_cliente, tipo
     
     # Extrair dados para o email
     nome_cliente_fmt = str(nome_cliente or dados_cliente.get("nome") or "Cliente").strip() or "Cliente"
+    nome_cliente_html = html_std.escape(nome_cliente_fmt)
     emp = str(dados_cliente.get('empreendimento_nome', 'Seu Imóvel') or 'Seu Imóvel').strip()
     unid = str(dados_cliente.get('unidade_id', '') or '').strip()
     produto_ref = f"{emp} - Unidade {unid}" if unid else emp
@@ -4347,7 +4352,7 @@ def enviar_email_smtp(destinatario, nome_cliente, pdf_bytes, dados_cliente, tipo
 
     # TEMPLATE CLIENTE (Foco no sonho, design limpo, usando Tabelas para evitar sobreposição)
     if tipo == 'cliente':
-        msg['Subject'] = f"{nome_cliente_fmt}, sua simulação: {produto_ref}"
+        msg['Subject'] = f"Simulação Direcional — {nome_cliente_fmt} — {produto_ref}"
         html_content = f"""
         <!DOCTYPE html>
         <html>
@@ -4368,7 +4373,9 @@ def enviar_email_smtp(destinatario, nome_cliente, pdf_bytes, dados_cliente, tipo
                             <!-- Corpo -->
                             <tr>
                                 <td style="padding: 40px;">
-                                    <h2 style="color: #002c5d; margin: 0 0 20px 0; font-weight: 300; text-align: center;">Olá, {nome_cliente_fmt}!</h2>
+                                    <p style="text-align:center; margin:0 0 6px 0; font-size:11px; color:#64748b; text-transform:uppercase; letter-spacing:0.08em;">Cliente ou Imobiliária</p>
+                                    <p style="text-align:center; margin:0 0 22px 0; font-size:24px; font-weight:700; color:#002c5d; line-height:1.25;">{nome_cliente_html}</p>
+                                    <h2 style="color: #002c5d; margin: 0 0 20px 0; font-weight: 300; text-align: center;">Olá!</h2>
                                     <p style="font-size: 16px; line-height: 1.6; text-align: center; color: #555;">
                                         Foi ótimo apresentar as oportunidades da Direcional para você. Preparamos a condição para <strong>{produto_ref}</strong>.
                                     </p>
@@ -4416,7 +4423,7 @@ def enviar_email_smtp(destinatario, nome_cliente, pdf_bytes, dados_cliente, tipo
     
     # TEMPLATE CORRETOR (Foco técnico, dados completos, usando Tabelas)
     else:
-        msg['Subject'] = f"LEAD: {nome_cliente_fmt} | {produto_ref}"
+        msg['Subject'] = f"Simulação Direcional — {nome_cliente_fmt} — {produto_ref}"
         html_content = f"""
         <!DOCTYPE html>
         <html>
@@ -4436,14 +4443,16 @@ def enviar_email_smtp(destinatario, nome_cliente, pdf_bytes, dados_cliente, tipo
                             </tr>
                             <tr>
                                 <td style="padding: 30px;">
+                                    <p style="text-align:center; margin:0 0 6px 0; font-size:11px; color:#64748b; text-transform:uppercase; letter-spacing:0.08em;">Cliente ou Imobiliária</p>
+                                    <p style="text-align:center; margin:0 0 18px 0; font-size:24px; font-weight:700; color:#002c5d; line-height:1.25;">{nome_cliente_html}</p>
                                     <h3 style="color: #002c5d; border-bottom: 2px solid #e30613; padding-bottom: 10px; margin-top: 0;">RESUMO DE ATENDIMENTO</h3>
                                     
                                     <!-- Info Header -->
                                     <table width="100%" border="0" cellspacing="0" cellpadding="15" style="margin-bottom: 20px; background: #f9f9f9;">
                                         <tr>
                                             <td width="50%" valign="top">
-                                                <p style="margin: 0 0 5px 0; font-size: 12px; color: #666;">CLIENTE</p>
-                                                <p style="margin: 0; font-weight: bold; font-size: 16px;">{nome_cliente_fmt}</p>
+                                                <p style="margin: 0 0 5px 0; font-size: 12px; color: #666;">CLIENTE / IMOBILIÁRIA</p>
+                                                <p style="margin: 0; font-weight: bold; font-size: 16px;">{nome_cliente_html}</p>
                                                 <p style="margin: 5px 0 0 0; font-size: 14px;">Renda: R$ {renda_cli}</p>
                                             </td>
                                             <td width="50%" valign="top">
