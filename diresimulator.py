@@ -36,7 +36,7 @@ FUNDO_CADASTRO_ARQUIVO = "fundo_cadastrorh.jpg"
 # Paleta alinhada à ficha Credenciamento Vendas RJ (Streamlit)
 COR_AZUL_ESC = "#04428f"
 COR_VERMELHO = "#cb0935"
-COR_FUNDO = "#04428f"
+COR_FUNDO = "#ffffff"  # alinhado ao cartão principal (sem halo azul à volta)
 COR_BORDA = "#eef2f6"
 COR_TEXTO_MUTED = "#64748b"
 COR_INPUT_BG = "#ffffff"
@@ -2711,7 +2711,6 @@ def configurar_layout():
         initial_sidebar_state="collapsed",
     )
 
-    bg_url = _css_url_fundo_simulador().replace("&", "&amp;")
     st.markdown(f"""
         <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Montserrat:wght@400;600;700;800;900&display=swap');
@@ -2805,22 +2804,11 @@ def configurar_layout():
             background: transparent !important;
             background-color: transparent !important;
         }}
-        /* Fundo estilo Ficha Credenciamento Vendas RJ: degradê diagonal marca + foto */
+        /* Fundo da página: branco contínuo (sem degradê / foto por baixo do cartão) */
         .stApp,
         [data-testid="stApp"] {{
-            background-color: transparent !important;
-            background-image: linear-gradient(
-                    135deg,
-                    rgba({RGB_AZUL_CSS}, 0.82) 0%,
-                    rgba(30, 58, 95, 0.55) 38%,
-                    rgba({RGB_VERMELHO_CSS}, 0.22) 72%,
-                    rgba(15, 23, 42, 0.45) 100%
-                ),
-                url("{bg_url}") !important;
-            background-size: auto, cover !important;
-            background-position: center, center center !important;
-            background-attachment: scroll, scroll !important;
-            background-repeat: no-repeat, no-repeat !important;
+            background-color: #ffffff !important;
+            background-image: none !important;
             animation: none !important;
         }}
         /* SO em dark: mantém UI clara (inputs, texto, popovers Base Web) */
@@ -2865,10 +2853,6 @@ def configurar_layout():
         }}
         /* Mobile: fundo fixo custa desempenho; colunas empilham */
         @media (max-width: 768px) {{
-            .stApp,
-            [data-testid="stApp"] {{
-                background-attachment: scroll, scroll !important;
-            }}
             [data-testid="stMain"] {{
                 padding-left: max(clamp(10px, 4vw, 28px), env(safe-area-inset-left, 0px)) !important;
                 padding-right: max(clamp(10px, 4vw, 28px), env(safe-area-inset-right, 0px)) !important;
@@ -2884,14 +2868,11 @@ def configurar_layout():
                 margin-top: clamp(4px, 1.5vw, 10px) !important;
                 margin-bottom: clamp(4px, 1.5vw, 10px) !important;
                 border-radius: 20px !important;
-                background: rgba(255, 255, 255, 0.82) !important;
-                border: 1px solid rgba(255, 255, 255, 0.5) !important;
-                box-shadow:
-                    0 4px 6px -1px rgba({RGB_AZUL_CSS}, 0.05),
-                    0 16px 36px -10px rgba({RGB_AZUL_CSS}, 0.14),
-                    inset 0 1px 0 rgba(255, 255, 255, 0.5) !important;
-                backdrop-filter: blur(14px) saturate(1.1) !important;
-                -webkit-backdrop-filter: blur(14px) saturate(1.1) !important;
+                background: #ffffff !important;
+                border: 1px solid {COR_BORDA} !important;
+                box-shadow: 0 1px 3px rgba(15, 23, 42, 0.06) !important;
+                backdrop-filter: none !important;
+                -webkit-backdrop-filter: none !important;
             }}
             .header-brand-bar-wrap {{
                 width: 100%;
@@ -2931,8 +2912,8 @@ def configurar_layout():
             }}
         }}
         [data-testid="stAppViewContainer"] {{
-            background: transparent !important;
-            background-color: transparent !important;
+            background: #ffffff !important;
+            background-color: #ffffff !important;
             font-family: 'Inter', system-ui, sans-serif;
             color: {COR_TEXTO_LABEL};
         }}
@@ -2963,18 +2944,18 @@ def configurar_layout():
             border: none !important;
             border-bottom: none !important;
             box-shadow: none !important;
-            color: rgba(255, 255, 255, 0.92) !important;
+            color: {COR_TEXTO_LABEL} !important;
         }}
         [data-testid="stToolbar"] button,
         [data-testid="stToolbar"] a,
         [data-testid="stToolbar"] [data-testid] {{
-            color: rgba(255, 255, 255, 0.92) !important;
+            color: {COR_TEXTO_LABEL} !important;
             background: transparent !important;
             background-color: transparent !important;
         }}
         [data-testid="stHeader"] button,
         [data-testid="stHeader"] a {{
-            color: rgba(255, 255, 255, 0.92) !important;
+            color: {COR_TEXTO_LABEL} !important;
             background: transparent !important;
             background-color: transparent !important;
         }}
@@ -2990,7 +2971,7 @@ def configurar_layout():
         [data-testid="stToolbar"] button:hover,
         [data-testid="stToolbar"] a:hover,
         [data-testid="stHeader"] button:hover {{
-            background: rgba(255, 255, 255, 0.12) !important;
+            background: rgba(15, 23, 42, 0.06) !important;
         }}
         [data-testid="stMain"] {{
             padding-left: max(clamp(14px, 5vw, 56px), env(safe-area-inset-left, 0px)) !important;
@@ -2998,6 +2979,8 @@ def configurar_layout():
             padding-top: max(clamp(12px, 3.5vh, 40px), env(safe-area-inset-top, 0px)) !important;
             padding-bottom: max(clamp(14px, 4vh, 44px), env(safe-area-inset-bottom, 0px)) !important;
             box-sizing: border-box !important;
+            background: #ffffff !important;
+            background-color: #ffffff !important;
         }}
         section.main > div {{
             padding-top: 0.5rem !important;
@@ -3112,7 +3095,7 @@ def configurar_layout():
             text-wrap: balance;
         }}
 
-        /* Cartão de vidro - mesma linguagem da Ficha Credenciamento (max-width largo para o simulador) */
+        /* Cartão principal: branco opaco (sem “vidro” nem halo da cor de marca por baixo) */
         .block-container {{
             --dv-rhythm: 1.35rem;
             text-rendering: optimizeLegibility;
@@ -3122,15 +3105,12 @@ def configurar_layout():
             margin-top: clamp(4px, 1vh, 14px) !important;
             margin-bottom: clamp(4px, 1vh, 14px) !important;
             padding: 1.45rem clamp(1.1rem, 2.8vw, 2.25rem) 1.55rem clamp(1.1rem, 2.8vw, 2.25rem) !important;
-            background: rgba(255, 255, 255, 0.78) !important;
-            backdrop-filter: blur(18px) saturate(1.15) !important;
-            -webkit-backdrop-filter: blur(18px) saturate(1.15) !important;
+            background: #ffffff !important;
+            backdrop-filter: none !important;
+            -webkit-backdrop-filter: none !important;
             border-radius: 24px !important;
-            border: 1px solid rgba(255, 255, 255, 0.45) !important;
-            box-shadow:
-                0 4px 6px -1px rgba({RGB_AZUL_CSS}, 0.06),
-                0 24px 48px -12px rgba({RGB_AZUL_CSS}, 0.18),
-                inset 0 1px 0 rgba(255, 255, 255, 0.55) !important;
+            border: 1px solid {COR_BORDA} !important;
+            box-shadow: 0 1px 3px rgba(15, 23, 42, 0.06) !important;
         }}
         @media (prefers-reduced-motion: no-preference) {{
             .block-container {{
