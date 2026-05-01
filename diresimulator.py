@@ -837,7 +837,14 @@ def resolver_taxa_financiamento_anual_pct(
 
 import logging
 import streamlit as st
-import streamlit.components.v1 as components
+
+
+def _st_iframe_html_snippet(html: str, *, height: int = 0, width: int | None = None) -> None:
+    """Substitui st.components.v1.html (deprecado). Scripts devem usar window.parent como antes."""
+    if width is not None:
+        st.iframe(html, height=height, width=width)
+    else:
+        st.iframe(html, height=height)
 import pandas as pd
 import re
 from streamlit_gsheets import GSheetsConnection
@@ -1305,7 +1312,7 @@ def calcular_parcela_financiamento(valor_financiado, meses, taxa_anual_pct, sist
 
 def scroll_to_top():
     js = """<script>var body = window.parent.document.querySelector(".main"); if (body) { body.scrollTop = 0; } window.scrollTo(0, 0);</script>"""
-    st.components.v1.html(js, height=0)
+    _st_iframe_html_snippet(js, height=0)
 
 def inject_enter_confirma_campo():
     """Enter em campo de texto não submete o fluxo: apenas confirma o campo (blur)."""
@@ -1337,7 +1344,7 @@ def inject_enter_confirma_campo():
 })();
 </script>
 """
-    st.components.v1.html(js, height=0, width=0)
+    _st_iframe_html_snippet(js, height=0, width=0)
 
 
 def inject_login_password_manager_fields():
@@ -1377,7 +1384,7 @@ def inject_login_password_manager_fields():
 })();
 </script>
 """
-    st.components.v1.html(js, height=0, width=0)
+    _st_iframe_html_snippet(js, height=0, width=0)
 
 
 def inject_home_banner_dialog_modal():
@@ -1539,7 +1546,7 @@ def inject_home_banner_dialog_modal():
 })();
 </script>
 """
-    st.components.v1.html(js, height=0, width=0)
+    _st_iframe_html_snippet(js, height=0, width=0)
 
 
 def inject_modern_ui_runtime():
@@ -1566,7 +1573,7 @@ def inject_modern_ui_runtime():
 })();
 </script>
 """
-    st.components.v1.html(js, height=0, width=0)
+    _st_iframe_html_snippet(js, height=0, width=0)
 
 
 # =============================================================================
