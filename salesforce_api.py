@@ -3,12 +3,12 @@
 Integração Salesforce (simple_salesforce) para classificação de clientes.
 
 Variáveis de ambiente (ou secção [salesforce] no secrets.toml do Streamlit,
-injetada por salesforce_streamlit antes das consultas):
+injetada por diresimulator antes das consultas):
 
-  SALESFORCE_USER, SALESFORCE_PASSWORD
-  SALESFORCE_TOKEN (opcional — Security Token separado)
-  SALESFORCE_CPF_FIELD — API Name do campo CPF (default: CPF_Classificar_Clientes__c)
-  SALESFORCE_RANKING_FIELD — API Name do campo que devolve o ranking (default: Ranking_Cliente__c)
+  No TOML, pode usar chaves curtas: USER, PASSWORD, TOKEN (mapeiam para SALESFORCE_*)
+  ou os nomes completos: SALESFORCE_USER, SALESFORCE_PASSWORD,
+  SALESFORCE_TOKEN (opcional - Security Token separado),
+  SALESFORCE_CPF_FIELD, SALESFORCE_RANKING_FIELD.
 
 Requisito: pip install simple-salesforce
 """
@@ -34,6 +34,23 @@ def normalizar_cpf(cpf: str | None) -> str:
     if cpf is None:
         return ""
     return re.sub(r"\D", "", str(cpf).strip())
+
+
+_SALESFORCE_TOML_ALIAS: dict[str, str] = {
+    "USER": "SALESFORCE_USER",
+    "PASSWORD": "SALESFORCE_PASSWORD",
+    "TOKEN": "SALESFORCE_TOKEN",
+    "CPF_FIELD": "SALESFORCE_CPF_FIELD",
+    "RANKING_FIELD": "SALESFORCE_RANKING_FIELD",
+}
+
+
+def chave_env_desde_salesforce_toml(k: str) -> str:
+    """Mapeia chaves do bloco [salesforce] (USER, PASSWORD, …) para nomes em os.environ."""
+    k0 = str(k).strip()
+    if not k0:
+        return k0
+    return _SALESFORCE_TOML_ALIAS.get(k0.upper(), k0)
 
 
 def conectar_salesforce(verbose: bool = False) -> Optional[Any]:
