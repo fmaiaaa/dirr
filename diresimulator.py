@@ -703,6 +703,34 @@ def parcela_ps_para_valor(
         return raw
     return float(min(raw, j8v))
 
+
+def menor_prazo_parcelas_ps_respeitando_j8(
+    valor_ps: float,
+    parcela_max_j8: float,
+    politica_ui: str,
+    premissas: Optional[Mapping[str, float]] = None,
+    prazo_max: int = 84,
+    meses_entrega: Optional[int] = None,
+) -> Optional[int]:
+    """
+    Menor n em [1, prazo_max] tal que parcela_ps_pmt(n) ≤ J8 (PMT bruto, antes do cap na UI).
+    """
+    pv = float(valor_ps or 0.0)
+    cap = float(parcela_max_j8 or 0.0)
+    pmax = max(0, int(prazo_max or 0))
+    if pv <= 0.0 or cap <= 0.0 or pmax <= 0:
+        return None
+    eps = 1e-6
+    candidatos: list[int] = []
+    for n in range(1, pmax + 1):
+        raw = parcela_ps_pmt(
+            pv, n, premissas, politica_ui, meses_entrega=meses_entrega
+        )
+        if raw <= cap + eps:
+            candidatos.append(n)
+    return min(candidatos) if candidatos else None
+
+
 # ========================================================================
 # core/comparador_emcash.py
 # ========================================================================
@@ -815,12 +843,52 @@ from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from email.mime.application import MIMEApplication
 import os
+import hashlib
 from pathlib import Path
 import json
 import pytz
 import altair as alt
 import urllib.parse
 import html as html_std
+
+
+def _injetar_secrets_salesforce_no_env() -> None:
+    try:
+        sec = getattr(st, "secrets", None)
+        if sec is None:
+            return
+
+        def _set(key: str, val) -> None:
+            if val is not None and str(val).strip():
+                os.environ.setdefault(key, str(val).strip())
+
+        for key in (
+            "SALESFORCE_USER",
+            "SALESFORCE_PASSWORD",
+            "SALESFORCE_TOKEN",
+            "SALESFORCE_CPF_FIELD",
+            "SALESFORCE_RANKING_FIELD",
+        ):
+            if hasattr(sec, "get"):
+                _set(key, sec.get(key))
+        blk = sec.get("salesforce") if hasattr(sec, "get") else None
+        if isinstance(blk, dict):
+            for k, v in blk.items():
+                if str(k).strip():
+                    _set(str(k).strip(), v)
+    except Exception:
+        pass
+
+
+@st.cache_data(ttl=300, show_spinner=False)
+def _lookup_ranking_salesforce_cached(cpf11: str) -> tuple[str | None, str | None]:
+    _injetar_secrets_salesforce_no_env()
+    try:
+        from salesforce_api import classificar_ranking_cpf_11
+
+        return classificar_ranking_cpf_11(cpf11)
+    except ImportError:
+        return (None, "pacote_ausente")
 
 
 # Tenta importar fpdf e PIL
@@ -956,6 +1024,9 @@ def montar_mensagem_whatsapp_resumo(
     linhas.append(item("Valor de venda (lista)", f"R$ {fmt_br(v_total)}"))
     linhas.append(item("Desconto Volta ao Caixa", f"R$ {fmt_br(vc_apl)}"))
     linhas.append(item("Outros descontos", f"R$ {fmt_br(outros_apl_wa)}"))
+    _mot_wa = str(d.get("outros_descontos_motivo") or "").strip()
+    if _mot_wa:
+        linhas.append(item("Origem dos outros descontos", _mot_wa))
     linhas.append(item("Valor final da unidade", f"R$ {fmt_br(v_final_wa)}"))
     if d.get("unid_entrega"):
         linhas.append(item("Previsão de entrega", d.get("unid_entrega")))
@@ -988,14 +1059,18 @@ def montar_mensagem_whatsapp_resumo(
     )
     if _politica_emcash(d.get("politica")):
         linhas.append(
+            "• *Emcash — prestação da entrada (30 e 60 dias):* inclui *correção monetária (+IPCA)* além dos *juros*; "
+            "não equivale a parcela só com juros sobre saldo."
+        )
+        linhas.append(
             item(
-                "Ato 30 (entrada; parcela com juros + correção IPCA)",
+                "Ato 30 (prestação entrada; juros + correção +IPCA)",
                 brs("ato_30", 0),
             )
         )
         linhas.append(
             item(
-                "Ato 60 (entrada; parcela com juros + correção IPCA)",
+                "Ato 60 (prestação entrada; juros + correção +IPCA)",
                 brs("ato_60", 0),
             )
         )
@@ -4179,6 +4254,18 @@ def gerar_resumo_pdf(d, volta_caixa_val: float = 0.0):
         linha("Valor de venda (lista)", f"R$ {fmt_br(v_total)}", True)
         linha("Desconto Volta ao Caixa", f"R$ {fmt_br(vc_apl)}")
         linha("Outros descontos", f"R$ {fmt_br(outros_pdf)}")
+        _mot_pdf = str(d.get("outros_descontos_motivo") or "").strip()
+        if _mot_pdf:
+            pdf.set_font("Helvetica", "", 9)
+            pdf.set_text_color(70, 80, 95)
+            pdf.multi_cell(
+                largura_util,
+                4,
+                _pdf_text_seguro(f"Origem dos outros descontos: {_mot_pdf}"),
+                ln=True,
+            )
+            pdf.ln(1)
+            pdf.set_text_color(*AZUL)
         linha("Valor final da unidade", f"R$ {fmt_br(v_prop)}", True)
         if d.get("unid_entrega"):
             linha("Previsão de entrega", _pdf_text_seguro(d.get("unid_entrega")))
@@ -4209,17 +4296,31 @@ def gerar_resumo_pdf(d, volta_caixa_val: float = 0.0):
 
         pdf.ln(2)
         secao("Entrada e Pro Soluto")
+        if _politica_emcash(d.get("politica")):
+            pdf.set_font("Helvetica", "I", 8)
+            pdf.set_text_color(70, 80, 95)
+            pdf.multi_cell(
+                largura_util,
+                4,
+                _pdf_text_seguro(
+                    "Emcash — prestação da entrada: parcelas 30 e 60 dias incluem correção monetária (+IPCA) "
+                    "além dos juros; não são apenas parcelas com juros."
+                ),
+                ln=True,
+            )
+            pdf.ln(1)
+            pdf.set_text_color(*AZUL)
         linha("Pro Soluto (valor)", f"R$ {fmt_br(d.get('ps_usado', 0))}")
         linha("Número de parcelas do Pro Soluto", _pdf_text_seguro(d.get("ps_parcelas")))
         linha("Mensalidade do Pro Soluto", f"R$ {fmt_br(d.get('ps_mensal', 0))}")
         linha("Ato 1 (Entrada Imediata)", f"R$ {fmt_br(d.get('ato_final', 0))}")
         if _politica_emcash(d.get("politica")):
             linha(
-                "Ato 30 (entrada; juros + correção IPCA)",
+                "Ato 30 (prestação entrada; juros + correção +IPCA)",
                 f"R$ {fmt_br(d.get('ato_30', 0))}",
             )
             linha(
-                "Ato 60 (entrada; juros + correção IPCA)",
+                "Ato 60 (prestação entrada; juros + correção +IPCA)",
                 f"R$ {fmt_br(d.get('ato_60', 0))}",
             )
         else:
@@ -4304,6 +4405,16 @@ def enviar_email_smtp(destinatario, nome_cliente, pdf_bytes, dados_cliente, tipo
     except (TypeError, ValueError):
         _vf_num = max(0.0, _v_raw - _vc_mail - _out_mail)
     val_venda = fmt_br(max(0.0, _vf_num))
+    _out_fmt_mail = fmt_br(_out_mail)
+    _mot_mail_raw = str(dados_cliente.get("outros_descontos_motivo") or "").strip()
+    _mot_mail_esc = html_std.escape(_mot_mail_raw)
+    _html_outros_corretor = (
+        f'<tr><td>Outros descontos</td><td align="right">R$ {_out_fmt_mail}</td></tr>\n'
+        f'<tr><td colspan="2" style="font-size:12px;color:#475569;padding-top:4px;">'
+        f"<strong>Origem dos outros descontos:</strong> {_mot_mail_esc}</td></tr>\n"
+        if _mot_mail_raw
+        else f'<tr><td>Outros descontos</td><td align="right">R$ {_out_fmt_mail}</td></tr>\n'
+    )
     val_aval = fmt_br(dados_cliente.get('imovel_avaliacao', 0))
     entrada = fmt_br(dados_cliente.get('entrada_total', 0))
     finan = fmt_br(dados_cliente.get('finan_usado', 0))
@@ -4327,14 +4438,21 @@ def enviar_email_smtp(destinatario, nome_cliente, pdf_bytes, dados_cliente, tipo
         )
     )
     _lbl_cor_ato30 = (
-        "&nbsp;&nbsp;↳ Ato 30 (entrada; juros + correção IPCA)"
+        "&nbsp;&nbsp;↳ Ato 30 (prestação entrada; juros + correção +IPCA)"
         if _emcash_corretor
         else "&nbsp;&nbsp;↳ Ato 30"
     )
     _lbl_cor_ato60 = (
-        "&nbsp;&nbsp;↳ Ato 60 (entrada; juros + correção IPCA)"
+        "&nbsp;&nbsp;↳ Ato 60 (prestação entrada; juros + correção +IPCA)"
         if _emcash_corretor
         else "&nbsp;&nbsp;↳ Ato 60"
+    )
+    _html_nota_emcash_entrada = (
+        '<p style="font-size:12px;color:#334155;margin:0 0 12px 0;line-height:1.45;">'
+        "<strong>Emcash — prestação da entrada:</strong> parcelas em <strong>30 e 60 dias</strong> incluem "
+        "<strong>correção monetária (+IPCA)</strong> além dos juros; não são apenas parcelas com juros sobre o saldo.</p>"
+        if _emcash_corretor
+        else ""
     )
 
     corretor_nome = dados_cliente.get('corretor_nome', 'Direcional')
@@ -4349,6 +4467,13 @@ def enviar_email_smtp(destinatario, nome_cliente, pdf_bytes, dados_cliente, tipo
     wa_link = f"https://wa.me/{corretor_tel_clean}?text={urllib.parse.quote(wa_msg)}"
     
     URL_LOGO_BRANCA = "https://drive.google.com/uc?export=view&id=1m0iX6FCikIBIx4gtSX3Y_YMYxxND2wAh"
+    _html_nota_emcash_cliente = (
+        '<p style="font-size:12px;color:#475569;line-height:1.45;margin:0 0 16px 0;text-align:center;">'
+        "<strong>Emcash — prestação da entrada:</strong> parcelas em <strong>30 e 60 dias</strong> incluem "
+        "<strong>correção monetária (+IPCA)</strong> além dos juros (não são apenas parcelas com juros).</p>"
+        if _politica_emcash(dados_cliente.get("politica"))
+        else ""
+    )
 
     # TEMPLATE CLIENTE (Foco no sonho, design limpo, usando Tabelas para evitar sobreposição)
     if tipo == 'cliente':
@@ -4379,6 +4504,7 @@ def enviar_email_smtp(destinatario, nome_cliente, pdf_bytes, dados_cliente, tipo
                                     <p style="font-size: 16px; line-height: 1.6; text-align: center; color: #555;">
                                         Foi ótimo apresentar as oportunidades da Direcional para você. Preparamos a condição para <strong>{produto_ref}</strong>.
                                     </p>
+                                    {_html_nota_emcash_cliente}
                                     
                                     <!-- Card Destaque -->
                                     <table width="100%" border="0" cellspacing="0" cellpadding="20" style="background-color: #f0f4f8; border-left: 5px solid #e30613; margin: 30px 0; border-radius: 4px;">
@@ -4465,6 +4591,7 @@ def enviar_email_smtp(destinatario, nome_cliente, pdf_bytes, dados_cliente, tipo
 
                                     <h4 style="color: #002c5d; margin-top: 0;">Valores do Imóvel</h4>
                                     <table width="100%" border="1" cellspacing="0" cellpadding="8" style="border-collapse: collapse; border-color: #ddd; margin-bottom: 20px; font-size: 14px;">
+                                        {_html_outros_corretor}
                                         <tr style="background-color: #f2f2f2;">
                                             <td>Valor final da unidade (após descontos)</td>
                                             <td align="right" style="color: #e30613;"><b>R$ {val_venda}</b></td>
@@ -4476,6 +4603,7 @@ def enviar_email_smtp(destinatario, nome_cliente, pdf_bytes, dados_cliente, tipo
                                     </table>
 
                                     <h4 style="color: #002c5d;">Plano de Pagamento</h4>
+                                    {_html_nota_emcash_entrada}
                                     <table width="100%" border="1" cellspacing="0" cellpadding="8" style="border-collapse: collapse; border-color: #ddd; margin-bottom: 20px; font-size: 14px;">
                                         <tr style="background-color: #f2f2f2;">
                                             <td>Entrada Total</td>
@@ -4752,8 +4880,32 @@ def aba_simulador_automacao(
             placeholder="R$ 0,00",
         )
         renda_total_calc = max(0.0, texto_moeda_para_float(st.session_state.get("renda_familiar_total_v1")))
+        if "cpf_classificar_clientes_sf" not in st.session_state:
+            st.session_state["cpf_classificar_clientes_sf"] = str(
+                st.session_state.dados_cliente.get("cpf") or ""
+            ).strip()
+        st.text_input(
+            "CPF - Classificar Clientes (opcional)",
+            key="cpf_classificar_clientes_sf",
+            placeholder="000.000.000-00",
+            help="Com 11 dígitos e credenciais Salesforce, o ranking é ajustado conforme o Contact (campo API configurável; padrão CPF_Classificar_Clientes__c).",
+        )
+        cpf_digits = re.sub(r"\D", "", st.session_state.get("cpf_classificar_clientes_sf") or "")
         rank_opts = ["DIAMANTE", "OURO", "PRATA", "BRONZE", "AÇO"]
-        curr_ranking = st.session_state.dados_cliente.get('ranking', "DIAMANTE")
+        if len(cpf_digits) == 11:
+            rs, _code = _lookup_ranking_salesforce_cached(cpf_digits)
+            if rs and rs in rank_opts and st.session_state.get("_sf_rank_applied_cpf") != cpf_digits:
+                st.session_state["in_rank_v28"] = rs
+                st.session_state["_sf_rank_applied_cpf"] = cpf_digits
+                if hasattr(st, "toast"):
+                    try:
+                        st.toast(f"Ranking definido pelo Salesforce: {rs}", icon="✅")
+                    except Exception:
+                        pass
+        else:
+            # CPF incompleto ou vazio: permite nova consulta ao voltar a 11 dígitos
+            st.session_state["_sf_rank_applied_cpf"] = ""
+        curr_ranking = st.session_state.get("in_rank_v28", st.session_state.dados_cliente.get("ranking", "DIAMANTE"))
         idx_ranking = rank_opts.index(curr_ranking) if curr_ranking in rank_opts else 0
         ranking = st.selectbox("Ranking do Cliente", options=rank_opts, index=idx_ranking, key="in_rank_v28")
         _pol_saved = st.session_state.dados_cliente.get("politica")
@@ -4764,7 +4916,7 @@ def aba_simulador_automacao(
         st.session_state.dados_cliente.update({
             'nome': str(_nome_ref or "").strip() or "Simulação",
             'nome_imobiliaria': "",
-            'cpf': '',
+            'cpf': cpf_digits,
             'data_nascimento': None,
             'renda': renda_total_calc,
             'rendas_lista': [renda_total_calc, 0.0, 0.0, 0.0],
@@ -5144,6 +5296,12 @@ def aba_simulador_automacao(
                         except Exception:
                             pass
                 st.session_state["_sim_fechar_last_emp"] = emp_escolhido
+                # Chave do widget por empreendimento (não pelo índice na lista ordenada):
+                # índices podem coincidir entre empreendimentos e o Streamlit reutilizava o estado
+                # da unidade anterior quando ambos tinham o mesmo Identificador.
+                _emp_widget_slug = hashlib.sha1(
+                    str(emp_escolhido).encode("utf-8", errors="replace")
+                ).hexdigest()[:14]
 
                 def label_uni(uid):
                     u = unidades_disp[unidades_disp["Identificador"] == uid].iloc[0]
@@ -5165,13 +5323,12 @@ def aba_simulador_automacao(
                         return f"RECOMENDADA: {corpo}"
                     return corpo
 
-                _emp_idx_key = emp_names.index(emp_escolhido)
                 uni_escolhida_id = st.selectbox(
                     "Escolha a Unidade (recomendadas primeiro; depois por preço crescente):",
                     options=current_uni_ids,
                     index=min(idx_uni, len(current_uni_ids) - 1) if current_uni_ids else 0,
                     format_func=label_uni,
-                    key=f"sel_uni_empidx_{_emp_idx_key}",
+                    key=f"sel_uni_emp_{_emp_widget_slug}",
                 )
                 if uni_escolhida_id:
                     u_row = unidades_disp[unidades_disp['Identificador'] == uni_escolhida_id].iloc[0]
@@ -5208,46 +5365,24 @@ def aba_simulador_automacao(
         # Valores da unidade vêm do cadastro (Valor de Venda); demais valores do fluxo anterior
         u_valor = float(d.get('imovel_valor', 0) or 0)
         vc_ref_top = float(d.get('volta_caixa_ref', 0) or 0)
+        if 'volta_caixa_key' not in st.session_state:
+            st.session_state['volta_caixa_key'] = ""
         if 'outros_descontos_key' not in st.session_state:
             st.session_state['outros_descontos_key'] = ""
+        if "outros_descontos_motivo_key" not in st.session_state:
+            st.session_state["outros_descontos_motivo_key"] = str(
+                st.session_state.dados_cliente.get("outros_descontos_motivo") or ""
+            )
         vc_input_val = 0.0
         outros_desc = 0.0
         v_liquido = 0.0
         if u_valor > 0:
-            st.markdown("#### Descontos sobre o valor de venda")
-            st.text_input(
-                "Desconto Volta ao Caixa",
-                key="volta_caixa_key",
-                placeholder="0,00",
-                help="Limitado à folga Volta ao Caixa cadastrada na unidade.",
-            )
             _vc_raw_top = texto_moeda_para_float(st.session_state.get('volta_caixa_key'))
             vc_input_val = (
                 max(0.0, min(_vc_raw_top, vc_ref_top)) if vc_ref_top > 0 else max(0.0, _vc_raw_top)
             )
             if abs(_vc_raw_top - vc_input_val) > 0.009:
                 st.session_state['volta_caixa_key'] = float_para_campo_texto(vc_input_val, vazio_se_zero=True)
-            _vc_pres_top = max(0.0, vc_ref_top - vc_input_val)
-            st.markdown(
-                f'<div class="inline-ref" style="color:#111111;opacity:0.85;">'
-                f"Limite (folga Volta ao Caixa): {reais_streamlit_html(fmt_br(vc_ref_top))}"
-                f' &nbsp;|&nbsp; Volta ao Caixa preservado: {reais_streamlit_html(fmt_br(_vc_pres_top))}'
-                f"</div>",
-                unsafe_allow_html=True,
-            )
-            _v_pos_vcx = max(0.0, u_valor - vc_input_val)
-            st.markdown(
-                f'<div style="margin:4px 0 12px 0;font-size:0.9rem;font-weight:600;color:#111111;">'
-                f"Valor final da unidade (Valor de Venda − Desconto Volta ao Caixa): "
-                f"{reais_streamlit_html(fmt_br(_v_pos_vcx))}</div>",
-                unsafe_allow_html=True,
-            )
-            st.text_input(
-                "Outros descontos",
-                key="outros_descontos_key",
-                placeholder="0,00",
-                help="Descontos adicionais sem teto no sistema; limitados ao saldo após o Volta ao Caixa.",
-            )
             _out_raw_top = texto_moeda_para_float(st.session_state.get("outros_descontos_key"))
             outros_desc = max(0.0, _out_raw_top)
             _max_out_top = max(0.0, u_valor - vc_input_val)
@@ -5257,13 +5392,10 @@ def aba_simulador_automacao(
                     outros_desc, vazio_se_zero=True
                 )
             v_liquido = max(0.0, u_valor - vc_input_val - outros_desc)
-            st.markdown(
-                f'<div style="margin:4px 0 16px 0;font-size:0.9rem;font-weight:600;color:#111111;">'
-                f"Valor final da unidade (após todos os descontos): "
-                f"{reais_streamlit_html(fmt_br(v_liquido))}</div>",
-                unsafe_allow_html=True,
-            )
         st.session_state.dados_cliente["outros_descontos"] = outros_desc
+        st.session_state.dados_cliente["outros_descontos_motivo"] = str(
+            st.session_state.get("outros_descontos_motivo_key") or ""
+        ).strip()
         st.session_state.dados_cliente["valor_final_unidade"] = v_liquido
         st.session_state.dados_cliente["volta_caixa_aplicado"] = vc_input_val
 
@@ -5410,6 +5542,12 @@ def aba_simulador_automacao(
         _teto_ps_btn = min(_opts_ps_btn) if _opts_ps_btn else 0.0
         st.session_state["_ps_teto_para_botao"] = float(_teto_ps_btn or 0)
 
+        if is_emcash:
+            st.info(
+                "Emcash — prestação da entrada: parcelas em 30 e 60 dias incluem correção monetária (+IPCA) "
+                "além dos juros; não equivalem a parcelas apenas com juros sobre saldo."
+            )
+
         def _preencher_ps_restante() -> None:
             du = st.session_state.dados_cliente
             try:
@@ -5514,7 +5652,7 @@ def aba_simulador_automacao(
             col_atos_rest1, col_atos_rest2 = st.columns(2)
             with col_atos_rest1:
                 st.text_input(
-                    "Ato 30 (parcela com juros + correção IPCA)",
+                    "Ato 30 — prestação entrada (juros + correção +IPCA)",
                     key="ato_2_key",
                     placeholder="0,00",
                 )
@@ -5523,7 +5661,7 @@ def aba_simulador_automacao(
                 )
             with col_atos_rest2:
                 st.text_input(
-                    "Ato 60 (parcela com juros + correção IPCA)",
+                    "Ato 60 — prestação entrada (juros + correção +IPCA)",
                     key="ato_3_key",
                     placeholder="0,00",
                 )
@@ -5587,6 +5725,16 @@ def aba_simulador_automacao(
 
         meses_entrega_unid = meses_ate_entrega(d.get("unid_entrega", ""))
         st.session_state.dados_cliente["meses_ate_entrega"] = meses_entrega_unid
+        n_min_j8 = None
+        if float(ps_input_val or 0) > 0 and j8_ui > 0:
+            n_min_j8 = menor_prazo_parcelas_ps_respeitando_j8(
+                float(ps_input_val or 0),
+                j8_ui,
+                pol_ui,
+                _prem,
+                prazo_max=parc_max_ui,
+                meses_entrega=meses_entrega_unid,
+            )
         v_parc = parcela_ps_para_valor(
             float(ps_input_val or 0),
             parc,
@@ -5606,10 +5754,31 @@ def aba_simulador_automacao(
             f'<span class="inline-ref">Parcela máx. (J8): {reais_streamlit_html(fmt_br(j8_ui))}</span>',
             unsafe_allow_html=True,
         )
+        if float(ps_input_val or 0) > 0 and j8_ui > 0:
+            if n_min_j8 is not None:
+                st.markdown(
+                    "<p class=\"inline-ref\" style=\"margin-top:6px;line-height:1.45;\">"
+                    f"Sugestão de intervalo: entre <strong>{n_min_j8}</strong> e <strong>{parc_max_ui}</strong> parcelas "
+                    "a prestação calculada fica dentro do teto J8 "
+                    f"({reais_streamlit_html(fmt_br(j8_ui))}/mês). "
+                    f"O mínimo <strong>{n_min_j8}x</strong> já respeita o teto — evite ir direto a <strong>{parc_max_ui}x</strong> sem necessidade."
+                    "</p>",
+                    unsafe_allow_html=True,
+                )
+                if parc < n_min_j8:
+                    st.warning(
+                        f"Com **{parc}** parcelas a prestação tende a ultrapassar o teto J8. "
+                        f"Use pelo menos **{n_min_j8}** parcelas (ou reduza o valor do Pro Soluto)."
+                    )
+            else:
+                st.warning(
+                    "Com este valor de Pro Soluto e o prazo máximo permitido, a prestação pode **ultrapassar** o teto J8. "
+                    "Reduza o PS ou ajuste o perfil."
+                )
         if is_emcash:
             st.caption(
-                "Política **Emcash**: nas parcelas de 30 e 60 dias da entrada há **correção pelo IPCA**, "
-                "além dos juros — não são apenas parcelas fixas com juros."
+                "Emcash — prestação da entrada (30 e 60 dias): correção monetária (+IPCA) integrada à parcela, "
+                "além dos juros da operação; não se trata apenas de parcela com juros sobre saldo."
             )
         ps_capacidade = max(0.0, float(v_parc) * float(parc))
         ps_efetivo = min(float(ps_input_val or 0.0), ps_capacidade)
@@ -5621,6 +5790,79 @@ def aba_simulador_automacao(
                 icon="⚠️",
             )
         st.session_state.dados_cliente["ps_usado"] = ps_efetivo
+
+        if u_valor > 0:
+            st.markdown("---")
+            st.markdown("### Condição comercial: Volta ao Caixa")
+            st.caption(
+                "Valor de desconto negociado dentro da **folga Volta ao Caixa** cadastrada na unidade (teto automático)."
+            )
+            st.text_input(
+                "Desconto Volta ao Caixa (R$)",
+                key="volta_caixa_key",
+                placeholder="0,00",
+                help="Limitado à folga Volta ao Caixa cadastrada na unidade.",
+            )
+            _vc_raw_ui = texto_moeda_para_float(st.session_state.get("volta_caixa_key"))
+            vc_input_val = (
+                max(0.0, min(_vc_raw_ui, vc_ref_top)) if vc_ref_top > 0 else max(0.0, _vc_raw_ui)
+            )
+            if abs(_vc_raw_ui - vc_input_val) > 0.009:
+                st.session_state["volta_caixa_key"] = float_para_campo_texto(vc_input_val, vazio_se_zero=True)
+            _vc_pres_ui = max(0.0, vc_ref_top - vc_input_val)
+            st.markdown(
+                f'<div class="inline-ref" style="color:#111111;opacity:0.85;">'
+                f"Limite (folga Volta ao Caixa): {reais_streamlit_html(fmt_br(vc_ref_top))}"
+                f' &nbsp;|&nbsp; Volta ao Caixa preservado: {reais_streamlit_html(fmt_br(_vc_pres_ui))}'
+                f"</div>",
+                unsafe_allow_html=True,
+            )
+            _v_pos_vcx_ui = max(0.0, u_valor - vc_input_val)
+            st.markdown(
+                f'<div style="margin:4px 0 18px 0;font-size:0.9rem;font-weight:600;color:#111111;">'
+                f"Valor da unidade após este desconto: "
+                f"{reais_streamlit_html(fmt_br(_v_pos_vcx_ui))}</div>",
+                unsafe_allow_html=True,
+            )
+
+            st.markdown("### Condição comercial: demais descontos")
+            st.caption(
+                "Outros abatimentos sobre o preço de lista **sem teto** no simulador; limitados ao saldo após o Volta ao Caixa."
+            )
+            st.text_input(
+                "Outros descontos (R$)",
+                key="outros_descontos_key",
+                placeholder="0,00",
+                help="Descontos adicionais; limitados ao saldo após o Volta ao Caixa.",
+            )
+            st.text_area(
+                "Origem / justificativa dos outros descontos (opcional)",
+                key="outros_descontos_motivo_key",
+                height=88,
+                placeholder="Ex.: campanha comercial X, ajuste de tabela, condição especial aprovada por…",
+                help="Aparece nos resumos (tela, PDF, WhatsApp) para documentar a origem do valor.",
+            )
+            _out_raw_ui = texto_moeda_para_float(st.session_state.get("outros_descontos_key"))
+            outros_desc = max(0.0, _out_raw_ui)
+            _max_out_ui = max(0.0, u_valor - vc_input_val)
+            if outros_desc > _max_out_ui + 0.009:
+                outros_desc = _max_out_ui
+                st.session_state["outros_descontos_key"] = float_para_campo_texto(
+                    outros_desc, vazio_se_zero=True
+                )
+            v_liquido = max(0.0, u_valor - vc_input_val - outros_desc)
+            st.markdown(
+                f'<div style="margin:4px 0 8px 0;font-size:0.9rem;font-weight:600;color:#111111;">'
+                f"Valor final da unidade (após todos os descontos): "
+                f"{reais_streamlit_html(fmt_br(v_liquido))}</div>",
+                unsafe_allow_html=True,
+            )
+            st.session_state.dados_cliente["outros_descontos"] = outros_desc
+            st.session_state.dados_cliente["outros_descontos_motivo"] = str(
+                st.session_state.get("outros_descontos_motivo_key") or ""
+            ).strip()
+            st.session_state.dados_cliente["valor_final_unidade"] = v_liquido
+            st.session_state.dados_cliente["volta_caixa_aplicado"] = vc_input_val
         
         # Recalcular entrada: quando houver excedente, reduzir primeiro o Pro Soluto.
         # Só ajustar atos se o excedente remanescente continuar positivo após reduzir PS.
@@ -5708,6 +5950,14 @@ def aba_simulador_automacao(
             f"{reais_streamlit_html(fmt_br(v_emp_total))}</span><br>"
             f"<b>Desconto Volta ao Caixa:</b> {reais_streamlit_html(fmt_br(_vc_sum))}<br>"
             f"<b>Outros descontos:</b> {reais_streamlit_html(fmt_br(_out_sum))}<br>"
+        )
+        _mot_sum = str(d.get("outros_descontos_motivo") or "").strip()
+        if _mot_sum:
+            _dim += (
+                f"<b>Origem dos outros descontos:</b> "
+                f"<span style=\"color:#334155;\">{html_std.escape(_mot_sum)}</span><br>"
+            )
+        _dim += (
             f"<b>Valor final da unidade:</b> <span style=\"color: #111111; font-weight: 700;\">"
             f"{reais_streamlit_html(fmt_br(v_final_sum))}</span><br>"
             f"<b>Volta ao caixa preservado:</b> {reais_streamlit_html(fmt_br(_vc_preservado_sum))}<br>"
@@ -5736,13 +5986,20 @@ def aba_simulador_automacao(
         _ent_resumo = float(d.get("entrada_total", 0) or 0) + float(d.get("ps_usado", 0) or 0)
         st.markdown('<div class="summary-header">Entrada e Pro Soluto</div>', unsafe_allow_html=True)
         _em_sum = _politica_emcash(d.get("politica"))
+        if _em_sum:
+            st.markdown(
+                '<p style="font-size:0.85rem;color:#334155;margin:0 0 0.65rem 0;line-height:1.45;">'
+                "<strong>Emcash — prestação da entrada:</strong> parcelas em <strong>30 e 60 dias</strong> incluem "
+                "<strong>correção monetária (+IPCA)</strong> além dos juros; não são apenas parcelas com juros.</p>",
+                unsafe_allow_html=True,
+            )
         _lbl_a30_sum = (
-            "Ato 30 (entrada; juros + correção IPCA — Emcash)"
+            "Ato 30 (prestação entrada; juros + correção +IPCA)"
             if _em_sum
             else "Ato 30"
         )
         _lbl_a60_sum = (
-            "Ato 60 (entrada; juros + correção IPCA — Emcash)"
+            "Ato 60 (prestação entrada; juros + correção +IPCA)"
             if _em_sum
             else "Ato 60"
         )
