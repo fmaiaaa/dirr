@@ -15,7 +15,8 @@ numpy>=1.26.4,<3
 openpyxl>=3.1.0,<4
 
 # --- Google Sheets / auth ---
-gspread>=6.0.0,<7
+# st-gsheets-connection 0.0.x/0.1.x exige gspread>=5.8,<6 (não usar gspread 6 até o pacote Streamlit suportar)
+gspread>=5.8.0,<6
 google-auth>=2.27.0,<3
 
 # --- Web API (Flask legado + FastAPI) ---
