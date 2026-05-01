@@ -880,9 +880,11 @@ def _injetar_secrets_salesforce_no_env() -> None:
                 _set(key, sec.get(key))
         blk = sec.get("salesforce") if hasattr(sec, "get") else None
         if isinstance(blk, dict):
+            from salesforce_api import chave_env_desde_salesforce_toml
+
             for k, v in blk.items():
                 if str(k).strip():
-                    _set(str(k).strip(), v)
+                    _set(chave_env_desde_salesforce_toml(str(k).strip()), v)
     except Exception:
         pass
 
