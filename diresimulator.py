@@ -2868,11 +2868,14 @@ def configurar_layout():
                 margin-top: clamp(4px, 1.5vw, 10px) !important;
                 margin-bottom: clamp(4px, 1.5vw, 10px) !important;
                 border-radius: 20px !important;
-                background: #ffffff !important;
-                border: 1px solid {COR_BORDA} !important;
-                box-shadow: 0 1px 3px rgba(15, 23, 42, 0.06) !important;
-                backdrop-filter: none !important;
-                -webkit-backdrop-filter: none !important;
+                background: rgba(255, 255, 255, 0.82) !important;
+                border: 1px solid rgba(255, 255, 255, 0.5) !important;
+                box-shadow:
+                    0 4px 6px -1px rgba({RGB_AZUL_CSS}, 0.05),
+                    0 16px 36px -10px rgba({RGB_AZUL_CSS}, 0.14),
+                    inset 0 1px 0 rgba(255, 255, 255, 0.5) !important;
+                backdrop-filter: blur(14px) saturate(1.1) !important;
+                -webkit-backdrop-filter: blur(14px) saturate(1.1) !important;
             }}
             .header-brand-bar-wrap {{
                 width: 100%;
@@ -3095,7 +3098,7 @@ def configurar_layout():
             text-wrap: balance;
         }}
 
-        /* Cartão principal: branco opaco (sem “vidro” nem halo da cor de marca por baixo) */
+        /* Cartão “vidro”: transparência + blur como antes; fundo da app (.stApp) segue branco (sem halo azul) */
         .block-container {{
             --dv-rhythm: 1.35rem;
             text-rendering: optimizeLegibility;
@@ -3105,12 +3108,15 @@ def configurar_layout():
             margin-top: clamp(4px, 1vh, 14px) !important;
             margin-bottom: clamp(4px, 1vh, 14px) !important;
             padding: 1.45rem clamp(1.1rem, 2.8vw, 2.25rem) 1.55rem clamp(1.1rem, 2.8vw, 2.25rem) !important;
-            background: #ffffff !important;
-            backdrop-filter: none !important;
-            -webkit-backdrop-filter: none !important;
+            background: rgba(255, 255, 255, 0.78) !important;
+            backdrop-filter: blur(18px) saturate(1.15) !important;
+            -webkit-backdrop-filter: blur(18px) saturate(1.15) !important;
             border-radius: 24px !important;
-            border: 1px solid {COR_BORDA} !important;
-            box-shadow: 0 1px 3px rgba(15, 23, 42, 0.06) !important;
+            border: 1px solid rgba(255, 255, 255, 0.45) !important;
+            box-shadow:
+                0 4px 6px -1px rgba({RGB_AZUL_CSS}, 0.06),
+                0 24px 48px -12px rgba({RGB_AZUL_CSS}, 0.18),
+                inset 0 1px 0 rgba(255, 255, 255, 0.55) !important;
         }}
         @media (prefers-reduced-motion: no-preference) {{
             .block-container {{
