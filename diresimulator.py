@@ -2370,47 +2370,45 @@ def _render_login_section(df_logins: pd.DataFrame) -> None:
 <h2 class="dv-login-acesso-h2">Acesso</h2>
 </div>"""
 
-    _lc_l, _lc_m, _lc_r = st.columns([1, 2.35, 1])
-    with _lc_m:
-        st.markdown(_login_head, unsafe_allow_html=True)
-        if df_logins is None or df_logins.empty:
-            st.warning(
-                "Não foi possível carregar a folha **BD Logins** (ou não há ligação ao Google Sheets). "
-                "Configure a aba na base ou as credenciais em *Secrets*."
-            )
-            if st.button(
-                "Continuar em modo demonstração",
-                type="primary",
-                use_container_width=True,
-                key="login_demo_fallback",
-            ):
-                _sessao_sem_login_defaults()
+    st.markdown(_login_head, unsafe_allow_html=True)
+    if df_logins is None or df_logins.empty:
+        st.warning(
+            "Não foi possível carregar a folha **BD Logins** (ou não há ligação ao Google Sheets). "
+            "Configure a aba na base ou as credenciais em *Secrets*."
+        )
+        if st.button(
+            "Continuar em modo demonstração",
+            type="primary",
+            use_container_width=True,
+            key="login_demo_fallback",
+        ):
+            _sessao_sem_login_defaults()
+            st.rerun()
+        return
+    with st.form("dv_login_form", clear_on_submit=False):
+        st.text_input("E-mail", key="dv_login_email_in")
+        st.text_input("Senha", type="password", key="dv_login_senha_in")
+        submitted = st.form_submit_button(
+            "Entrar",
+            type="primary",
+            use_container_width=True,
+        )
+        if submitted:
+            _em = st.session_state.get("dv_login_email_in", "")
+            _pw = st.session_state.get("dv_login_senha_in", "")
+            row = _validar_login_planilha(df_logins, str(_em), str(_pw))
+            if not row:
+                st.error("E-mail ou senha inválidos.")
+            else:
+                st.session_state["logged_in"] = True
+                st.session_state["user_name"] = row.get("Nome") or ""
+                st.session_state["user_email"] = row.get("Email") or ""
+                st.session_state["user_phone"] = row.get("Telefone") or ""
+                st.session_state["user_imobiliaria"] = row.get("Imobiliaria") or "Geral"
+                st.session_state["user_cargo"] = row.get("Cargo") or ""
+                adm_raw = _secret_opt("SIMULADOR_ADM").lower()
+                st.session_state["user_is_adm"] = adm_raw in ("1", "true", "yes", "sim")
                 st.rerun()
-            return
-        with st.form("dv_login_form", clear_on_submit=False):
-            st.text_input("E-mail", key="dv_login_email_in")
-            st.text_input("Senha", type="password", key="dv_login_senha_in")
-            submitted = st.form_submit_button(
-                "Entrar",
-                type="primary",
-                use_container_width=True,
-            )
-            if submitted:
-                _em = st.session_state.get("dv_login_email_in", "")
-                _pw = st.session_state.get("dv_login_senha_in", "")
-                row = _validar_login_planilha(df_logins, str(_em), str(_pw))
-                if not row:
-                    st.error("E-mail ou senha inválidos.")
-                else:
-                    st.session_state["logged_in"] = True
-                    st.session_state["user_name"] = row.get("Nome") or ""
-                    st.session_state["user_email"] = row.get("Email") or ""
-                    st.session_state["user_phone"] = row.get("Telefone") or ""
-                    st.session_state["user_imobiliaria"] = row.get("Imobiliaria") or "Geral"
-                    st.session_state["user_cargo"] = row.get("Cargo") or ""
-                    adm_raw = _secret_opt("SIMULADOR_ADM").lower()
-                    st.session_state["user_is_adm"] = adm_raw in ("1", "true", "yes", "sim")
-                    st.rerun()
 
 
 @st.cache_data(ttl=300, show_spinner=False)
@@ -4871,9 +4869,17 @@ def configurar_layout():
             text-transform: none !important;
             letter-spacing: -0.03em !important;
         }}
-        /* Login: mesmo cabeçalho + barra; conteúdo centrado na coluna */
+        /* Login: mesmo cabeçalho + barra; largura = área útil do simulador */
+        .dv-login-page {{
+            width: 100% !important;
+            max-width: 100% !important;
+            margin-left: auto !important;
+            margin-right: auto !important;
+            box-sizing: border-box !important;
+        }}
         .dv-login-page .header-container {{
             margin-bottom: 0.35rem;
+            max-width: 100% !important;
         }}
         .dv-login-page .header-brand-bar-wrap {{
             margin-bottom: clamp(0.85rem, 2vw, 1.45rem);
@@ -4887,6 +4893,24 @@ def configurar_layout():
             margin: 0 0 clamp(0.75rem, 2vw, 1.1rem) 0 !important;
             letter-spacing: -0.02em !important;
             line-height: 1.25 !important;
+        }}
+        /* Centrar o bloco de login no viewport; mesma lateralidade que o resto (padding do .block-container) */
+        .block-container:has(.dv-login-page) > div > [data-testid="stVerticalBlock"],
+        .block-container:has(.dv-login-page) > [data-testid="stVerticalBlock"] {{
+            min-height: calc(100dvh - clamp(4.5rem, 12vh, 8rem)) !important;
+            justify-content: center !important;
+        }}
+        .block-container:has(.dv-login-page) [data-testid="stVerticalBlock"] > div[data-testid="stElementContainer"]:nth-child(-n+2) {{
+            margin-bottom: 0 !important;
+        }}
+        .block-container:has(.dv-login-page) [data-testid="stVerticalBlock"] > div[data-testid="stElementContainer"]:nth-child(-n+3) {{
+            margin-bottom: 0 !important;
+            padding-top: 0 !important;
+            padding-bottom: 0 !important;
+            min-height: 0 !important;
+        }}
+        .block-container:has(.dv-login-page) .footer.dv-login-page-footer {{
+            margin-top: clamp(1.25rem, 4vh, 2.5rem) !important;
         }}
 
         .card, .fin-box, .recommendation-card, .login-card {{
@@ -7506,7 +7530,7 @@ def main():
     if not st.session_state.get("logged_in"):
         _render_login_section(df_logins)
         st.markdown(
-            '<div class="footer">Direcional Engenharia - Rio de Janeiro<br><em>developed by Lucas Maia</em></div>',
+            '<div class="footer dv-login-page-footer">Direcional Engenharia - Rio de Janeiro<br><em>developed by Lucas Maia</em></div>',
             unsafe_allow_html=True,
         )
         return
