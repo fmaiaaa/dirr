@@ -56,6 +56,15 @@ def _hex_rgb_triplet(hex_color: str) -> str:
 RGB_AZUL_CSS = _hex_rgb_triplet(COR_AZUL_ESC)
 RGB_VERMELHO_CSS = _hex_rgb_triplet(COR_VERMELHO)
 
+
+def _hex_para_rgb_uint8(hex_color: str) -> tuple[int, int, int]:
+    """Converte #RRGGBB em (R, G, B) 0–255 para FPDF."""
+    x = (hex_color or "").strip().lstrip("#")
+    if len(x) != 6:
+        return (4, 66, 143)
+    return (int(x[0:2], 16), int(x[2:4], 16), int(x[4:6], 16))
+
+
 # ========================================================================
 # config/taxas_comparador.py
 # ========================================================================
@@ -5190,7 +5199,7 @@ def gerar_resumo_pdf(d, volta_caixa_val: float = 0.0):
 
         largura_util = pdf.w - pdf.l_margin - pdf.r_margin
 
-        AZUL = (0, 44, 93)
+        AZUL = _hex_para_rgb_uint8(COR_AZUL_ESC)
         VERMELHO = (227, 6, 19)
         BRANCO = (255, 255, 255)
         FUNDO_SECAO = (248, 250, 252)
@@ -5199,11 +5208,17 @@ def gerar_resumo_pdf(d, volta_caixa_val: float = 0.0):
         pdf.set_fill_color(*AZUL)
         pdf.rect(0, 0, pdf.w, 3, 'F')
 
-        # Logo
-        if os.path.exists("favicon.png"):
+        # Logo (mesmo ficheiro do favicon da página)
+        _ico_pdf = None
+        _p_fav = _resolver_png_raiz(FAVICON_ARQUIVO)
+        if _p_fav and _p_fav.is_file():
+            _ico_pdf = str(_p_fav)
+        elif os.path.exists("favicon.png"):
+            _ico_pdf = "favicon.png"
+        if _ico_pdf:
             try:
-                pdf.image("favicon.png", pdf.l_margin, 8, 10)
-            except:
+                pdf.image(_ico_pdf, pdf.l_margin, 8, 10)
+            except Exception:
                 pass
 
         # Título
@@ -5468,7 +5483,7 @@ def enviar_email_smtp(destinatario, nome_cliente, pdf_bytes, dados_cliente, tipo
     wa_msg = f"Olá {corretor_nome}, sou {nome_cliente_fmt}. Realizei uma simulação para {produto_ref} e gostaria de saber mais detalhes."
     wa_link = f"https://wa.me/{corretor_tel_clean}?text={urllib.parse.quote(wa_msg)}"
     
-    URL_LOGO_BRANCA = "https://drive.google.com/uc?export=view&id=1m0iX6FCikIBIx4gtSX3Y_YMYxxND2wAh"
+    _logo_resumo_email = URL_FAVICON_RESERVA
     _html_nota_emcash_cliente = (
         '<p style="font-size:12px;color:#475569;line-height:1.45;margin:0 0 16px 0;text-align:center;">'
         f"{html_std.escape(_EMCASH_NOTA_PARCELAS)}</p>"
@@ -5492,16 +5507,16 @@ def enviar_email_smtp(destinatario, nome_cliente, pdf_bytes, dados_cliente, tipo
                         <table width="600" border="0" cellspacing="0" cellpadding="0" style="background-color: #fff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 15px rgba(0,0,0,0.05);">
                             <!-- Cabeçalho -->
                             <tr>
-                                <td align="center" style="background-color: #002c5d; padding: 30px; border-bottom: 4px solid #e30613;">
-                                    <img src="{URL_LOGO_BRANCA}" width="150" style="display: block;">
+                                <td align="center" style="background-color: {COR_AZUL_ESC}; padding: 30px; border-bottom: 4px solid #e30613;">
+                                    <img src="{_logo_resumo_email}" width="48" height="48" alt="Direcional" style="display: block;">
                                 </td>
                             </tr>
                             <!-- Corpo -->
                             <tr>
                                 <td style="padding: 40px;">
                                     <p style="text-align:center; margin:0 0 6px 0; font-size:11px; color:#64748b; text-transform:uppercase; letter-spacing:0.08em;">Cliente ou Imobiliária</p>
-                                    <p style="text-align:center; margin:0 0 22px 0; font-size:24px; font-weight:700; color:#002c5d; line-height:1.25;">{nome_cliente_html}</p>
-                                    <h2 style="color: #002c5d; margin: 0 0 20px 0; font-weight: 300; text-align: center;">Olá!</h2>
+                                    <p style="text-align:center; margin:0 0 22px 0; font-size:24px; font-weight:700; color:{COR_AZUL_ESC}; line-height:1.25;">{nome_cliente_html}</p>
+                                    <h2 style="color: {COR_AZUL_ESC}; margin: 0 0 20px 0; font-weight: 300; text-align: center;">Olá!</h2>
                                     <p style="font-size: 16px; line-height: 1.6; text-align: center; color: #555;">
                                         Foi ótimo apresentar as oportunidades da Direcional para você. Preparamos a condição para <strong>{produto_ref}</strong>.
                                     </p>
@@ -5511,7 +5526,7 @@ def enviar_email_smtp(destinatario, nome_cliente, pdf_bytes, dados_cliente, tipo
                                     <table width="100%" border="0" cellspacing="0" cellpadding="20" style="background-color: #f0f4f8; border-left: 5px solid #e30613; margin: 30px 0; border-radius: 4px;">
                                         <tr>
                                             <td>
-                                                <p style="margin: 0; font-weight: bold; color: #002c5d; font-size: 18px;">{emp}</p>
+                                                <p style="margin: 0; font-weight: bold; color: {COR_AZUL_ESC}; font-size: 18px;">{emp}</p>
                                                 <p style="margin: 5px 0 0 0; color: #777;">{('Unidade: ' + unid) if unid else ''}</p>
                                                 <p style="margin: 15px 0 0 0; font-size: 24px; font-weight: bold; color: #e30613;">Valor final da unidade: R$ {val_venda}</p>
                                             </td>
@@ -5524,7 +5539,7 @@ def enviar_email_smtp(destinatario, nome_cliente, pdf_bytes, dados_cliente, tipo
                                     </div>
                                     
                                     <!-- Rodapé Interno -->
-                                    <table width="100%" border="0" cellspacing="0" cellpadding="20" style="margin-top: 40px; background-color: #002c5d; color: #ffffff;">
+                                    <table width="100%" border="0" cellspacing="0" cellpadding="20" style="margin-top: 40px; background-color: {COR_AZUL_ESC}; color: #ffffff;">
                                         <tr>
                                             <td align="center">
                                                 <p style="margin: 0; font-size: 16px; font-weight: bold; color: #ffffff;">{corretor_nome}</p>
@@ -5564,15 +5579,15 @@ def enviar_email_smtp(destinatario, nome_cliente, pdf_bytes, dados_cliente, tipo
                         <table width="650" border="0" cellspacing="0" cellpadding="0" style="background-color: #fff; border: 1px solid #ccc;">
                             <!-- Header Azul com Logo Branca -->
                             <tr>
-                                <td align="center" style="background-color: #002c5d; padding: 20px; border-bottom: 4px solid #e30613;">
-                                    <img src="{URL_LOGO_BRANCA}" width="150" style="display: block;">
+                                <td align="center" style="background-color: {COR_AZUL_ESC}; padding: 20px; border-bottom: 4px solid #e30613;">
+                                    <img src="{_logo_resumo_email}" width="48" height="48" alt="Direcional" style="display: block;">
                                 </td>
                             </tr>
                             <tr>
                                 <td style="padding: 30px;">
                                     <p style="text-align:center; margin:0 0 6px 0; font-size:11px; color:#64748b; text-transform:uppercase; letter-spacing:0.08em;">Cliente ou Imobiliária</p>
-                                    <p style="text-align:center; margin:0 0 18px 0; font-size:24px; font-weight:700; color:#002c5d; line-height:1.25;">{nome_cliente_html}</p>
-                                    <h3 style="color: #002c5d; border-bottom: 2px solid #e30613; padding-bottom: 10px; margin-top: 0;">RESUMO DE ATENDIMENTO</h3>
+                                    <p style="text-align:center; margin:0 0 18px 0; font-size:24px; font-weight:700; color:{COR_AZUL_ESC}; line-height:1.25;">{nome_cliente_html}</p>
+                                    <h3 style="color: {COR_AZUL_ESC}; border-bottom: 2px solid #e30613; padding-bottom: 10px; margin-top: 0;">RESUMO DE ATENDIMENTO</h3>
                                     
                                     <!-- Info Header -->
                                     <table width="100%" border="0" cellspacing="0" cellpadding="15" style="margin-bottom: 20px; background: #f9f9f9;">
@@ -5590,7 +5605,7 @@ def enviar_email_smtp(destinatario, nome_cliente, pdf_bytes, dados_cliente, tipo
                                         </tr>
                                     </table>
 
-                                    <h4 style="color: #002c5d; margin-top: 0;">Valores do Imóvel</h4>
+                                    <h4 style="color: {COR_AZUL_ESC}; margin-top: 0;">Valores do Imóvel</h4>
                                     <table width="100%" border="1" cellspacing="0" cellpadding="8" style="border-collapse: collapse; border-color: #ddd; margin-bottom: 20px; font-size: 14px;">
                                         {_html_outros_corretor}
                                         <tr style="background-color: #f2f2f2;">
@@ -5603,12 +5618,12 @@ def enviar_email_smtp(destinatario, nome_cliente, pdf_bytes, dados_cliente, tipo
                                         </tr>
                                     </table>
 
-                                    <h4 style="color: #002c5d;">Plano de Pagamento</h4>
+                                    <h4 style="color: {COR_AZUL_ESC};">Plano de Pagamento</h4>
                                     {_html_nota_emcash_entrada}
                                     <table width="100%" border="1" cellspacing="0" cellpadding="8" style="border-collapse: collapse; border-color: #ddd; margin-bottom: 20px; font-size: 14px;">
                                         <tr style="background-color: #f2f2f2;">
                                             <td>Entrada Total</td>
-                                            <td align="right" style="color: #002c5d;"><b>R$ {entrada}</b></td>
+                                            <td align="right" style="color: {COR_AZUL_ESC};"><b>R$ {entrada}</b></td>
                                         </tr>
                                         <tr>
                                              <td>&nbsp;&nbsp;↳ Ato 1 (Entrada Imediata)</td>
@@ -5865,15 +5880,6 @@ def aba_simulador_automacao(
             # CPF incompleto ou vazio: permite nova consulta ao voltar a 11 dígitos
             st.session_state["_sf_rank_applied_cpf"] = ""
             st.session_state["_sf_rank_naoencontrado_toast_cpf"] = ""
-        _rank_now = st.session_state.get("in_rank_v28", st.session_state.dados_cliente.get("ranking", "DIAMANTE"))
-        curr_ranking = _rank_now
-        idx_ranking = rank_opts.index(curr_ranking) if curr_ranking in rank_opts else 0
-        ranking = st.selectbox(
-            "Ranking do Cliente (lista)",
-            options=rank_opts,
-            index=idx_ranking,
-            key="in_rank_v28",
-        )
         if len(cpf_digits) == 11:
             if _sf_rs:
                 st.markdown(
@@ -5887,6 +5893,15 @@ def aba_simulador_automacao(
                     "CPF não encontrado. Um novo contato deve ser criado no salesforce</p>",
                     unsafe_allow_html=True,
                 )
+        _rank_now = st.session_state.get("in_rank_v28", st.session_state.dados_cliente.get("ranking", "DIAMANTE"))
+        curr_ranking = _rank_now
+        idx_ranking = rank_opts.index(curr_ranking) if curr_ranking in rank_opts else 0
+        ranking = st.selectbox(
+            "Ranking do Cliente (lista)",
+            options=rank_opts,
+            index=idx_ranking,
+            key="in_rank_v28",
+        )
         _pol_saved = st.session_state.dados_cliente.get("politica")
         _pol_idx = 0 if _pol_saved == "Direcional" else 1
         politica_ps = st.selectbox(
