@@ -36,7 +36,7 @@ FUNDO_CADASTRO_ARQUIVO = "fundo_cadastrorh.jpg"
 # Paleta alinhada à ficha Credenciamento Vendas RJ (Streamlit)
 COR_AZUL_ESC = "#04428f"
 COR_VERMELHO = "#cb0935"
-COR_FUNDO = "#ffffff"  # alinhado ao cartão principal (sem halo azul à volta)
+COR_FUNDO = "#04428f"
 COR_BORDA = "#eef2f6"
 COR_TEXTO_MUTED = "#64748b"
 COR_INPUT_BG = "#ffffff"
@@ -1352,46 +1352,6 @@ def inject_enter_confirma_campo():
     _st_iframe_html_snippet(js, height=0)
 
 
-def inject_login_password_manager_fields():
-    """Garante atributos que gestores de palavras-passe e o navegador usam para o par e-mail + senha."""
-    js = r"""
-<script>
-(function () {
-  var doc = window.parent.document;
-  function patchLoginInputs() {
-    var forms = doc.querySelectorAll('[data-testid="stForm"]');
-    for (var fi = 0; fi < forms.length; fi++) {
-      var form = forms[fi];
-      var inputs = form.querySelectorAll("input");
-      var passEl = null;
-      var i;
-      for (i = 0; i < inputs.length; i++) {
-        if (inputs[i].type === "password") { passEl = inputs[i]; break; }
-      }
-      if (!passEl) continue;
-      var userEl = null;
-      for (i = 0; i < inputs.length; i++) {
-        var el = inputs[i];
-        if (el === passEl) continue;
-        var t = (el.type || "").toLowerCase();
-        if (t === "text" || t === "email" || t === "") { userEl = el; break; }
-      }
-      if (!userEl) continue;
-      userEl.setAttribute("autocomplete", "username");
-      userEl.setAttribute("name", "username");
-      passEl.setAttribute("autocomplete", "current-password");
-      passEl.setAttribute("name", "password");
-    }
-  }
-  patchLoginInputs();
-  setTimeout(patchLoginInputs, 150);
-  setTimeout(patchLoginInputs, 600);
-})();
-</script>
-"""
-    _st_iframe_html_snippet(js, height=0)
-
-
 def inject_home_banner_dialog_modal():
     """Popup de campanha: overlay criado em JS (o Streamlit sanitiza o markdown e costuma remover <dialog>).
 
@@ -1658,13 +1618,6 @@ def normalizar_df_home_banners(df: pd.DataFrame | None) -> pd.DataFrame:
         if c not in out.columns:
             out[c] = None if c == "Ordem" else ""
     return out[list(_COLS_HOME_BANNERS)].copy()
-
-
-def login_row_is_adm(row: pd.Series) -> bool:
-    v = row.get("Adm")
-    if v is None or (isinstance(v, float) and pd.isna(v)):
-        return False
-    return str(v).strip().upper() == "SIM"
 
 
 def _img_url_seguro_https(url: str) -> str | None:
@@ -2086,104 +2039,6 @@ def _rotulo_opcao_excluir_campanha_texto(df_ct: pd.DataFrame, i: int) -> str:
     snip = str(r.get("Texto", "") or "").strip().replace("\n", " ")
     snip = (snip[:36] + "…") if len(snip) > 37 else snip
     return f"Linha {i + 1} · {tit or '(sem título)'}{' - ' + snip if snip else ''}"
-
-
-_COLS_LOGINS = ["Email", "Senha", "Nome", "Cargo", "Imobiliaria", "Telefone", "Adm"]
-
-_MAPA_LOGINS = {
-    "Imobiliária/Canal IMOB": "Imobiliaria",
-    "Cargo": "Cargo",
-    "Nome": "Nome",
-    "Email": "Email",
-    "E-mail": "Email",
-    "Escolha uma senha para o simulador": "Senha",
-    "Senha": "Senha",
-    "Número de telefone": "Telefone",
-    "Telefone": "Telefone",
-    "ADM?": "Adm",
-}
-
-
-def _normalizar_df_logins_raw(df_logins: pd.DataFrame) -> pd.DataFrame:
-    df_logins = df_logins.copy()
-    df_logins.columns = [str(c).strip() for c in df_logins.columns]
-    df_logins = df_logins.rename(columns=_MAPA_LOGINS)
-    if "Email" in df_logins.columns:
-        df_logins["Email"] = df_logins["Email"].astype(str).str.strip().str.lower()
-    if "Senha" in df_logins.columns:
-        df_logins["Senha"] = df_logins["Senha"].astype(str).str.strip()
-    return df_logins
-
-
-def _candidatos_planilha_logins() -> list:
-    """Prioriza `spreadsheet` em secrets; depois `ID_GERAL` do código."""
-    out: list = []
-    try:
-        sp = str(st.secrets["connections"]["gsheets"].get("spreadsheet", "") or "").strip()
-        if sp:
-            out.append(sp)
-    except Exception:
-        pass
-    if ID_GERAL and ID_GERAL not in out:
-        out.append(ID_GERAL)
-    return out
-
-
-def _candidatos_aba_logins() -> list:
-    names: list = []
-    env_ws = (os.environ.get("SIMULADOR_LOGINS_WORKSHEET") or "").strip()
-    if env_ws:
-        names.append(env_ws)
-    for w in ("BD Logins", "Logins"):
-        if w not in names:
-            names.append(w)
-    return names
-
-
-def _diagnostico_secrets_gsheets() -> str | None:
-    """Mensagem curta se secrets do Google Sheets estão incompletos (ex.: type vazio)."""
-    try:
-        g = dict(st.secrets["connections"]["gsheets"])
-    except Exception:
-        return None
-    t = str(g.get("type", "") or "").strip()
-    if t != "service_account":
-        return (
-            'No `secrets.toml`, em `[connections.gsheets]`, defina **type = "service_account"** '
-            "(valor literal do JSON da Google - não deixe vazio)."
-        )
-    pk = str(g.get("private_key", "") or "").strip()
-    if not pk or "BEGIN PRIVATE KEY" not in pk:
-        return (
-            "Preencha **private_key** com o bloco PEM completo do JSON da conta de serviço "
-            '(entre """ ... """ como no exemplo).'
-        )
-    ce = str(g.get("client_email", "") or "").strip()
-    if not ce:
-        return "Preencha **client_email** do JSON e partilhe a planilha com esse e-mail (leitor ou editor)."
-    return None
-
-
-@st.cache_data(ttl=300, show_spinner=False)
-def carregar_apenas_logins() -> pd.DataFrame:
-    """Só BD Logins - tela de login sem carregar estoque/financiamentos (mais rápido)."""
-    empty = pd.DataFrame(columns=_COLS_LOGINS)
-    try:
-        if "connections" not in st.secrets:
-            return empty
-        conn = st.connection("gsheets", type=GSheetsConnection)
-        for spread in _candidatos_planilha_logins():
-            for ws in _candidatos_aba_logins():
-                try:
-                    df_raw = conn.read(spreadsheet=spread, worksheet=ws, ttl=120)
-                    df_logins = _normalizar_df_logins_raw(df_raw)
-                    if not df_logins.empty or len(df_logins.columns) > 0:
-                        return df_logins
-                except Exception:
-                    continue
-        return empty
-    except Exception:
-        return empty
 
 
 @st.cache_data(ttl=300, show_spinner=False)
@@ -2711,6 +2566,7 @@ def configurar_layout():
         initial_sidebar_state="collapsed",
     )
 
+    bg_url = _css_url_fundo_simulador().replace("&", "&amp;")
     st.markdown(f"""
         <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Montserrat:wght@400;600;700;800;900&display=swap');
@@ -2804,11 +2660,22 @@ def configurar_layout():
             background: transparent !important;
             background-color: transparent !important;
         }}
-        /* Fundo da página: branco contínuo (sem degradê / foto por baixo do cartão) */
+        /* Fundo: degradê marca + foto (imagem local ou fallback) */
         .stApp,
         [data-testid="stApp"] {{
-            background-color: #ffffff !important;
-            background-image: none !important;
+            background-color: transparent !important;
+            background-image: linear-gradient(
+                    135deg,
+                    rgba({RGB_AZUL_CSS}, 0.82) 0%,
+                    rgba(30, 58, 95, 0.55) 38%,
+                    rgba({RGB_VERMELHO_CSS}, 0.22) 72%,
+                    rgba(15, 23, 42, 0.45) 100%
+                ),
+                url("{bg_url}") !important;
+            background-size: auto, cover !important;
+            background-position: center, center center !important;
+            background-attachment: scroll, scroll !important;
+            background-repeat: no-repeat, no-repeat !important;
             animation: none !important;
         }}
         /* SO em dark: mantém UI clara (inputs, texto, popovers Base Web) */
@@ -2853,22 +2720,26 @@ def configurar_layout():
         }}
         /* Mobile: fundo fixo custa desempenho; colunas empilham */
         @media (max-width: 768px) {{
+            .stApp,
+            [data-testid="stApp"] {{
+                background-attachment: scroll, scroll !important;
+            }}
             [data-testid="stMain"] {{
-                padding-left: max(clamp(10px, 4vw, 28px), env(safe-area-inset-left, 0px)) !important;
-                padding-right: max(clamp(10px, 4vw, 28px), env(safe-area-inset-right, 0px)) !important;
+                padding-left: max(clamp(6px, 2.5vw, 16px), env(safe-area-inset-left, 0px)) !important;
+                padding-right: max(clamp(6px, 2.5vw, 16px), env(safe-area-inset-right, 0px)) !important;
                 padding-top: max(clamp(8px, 2.5vh, 24px), env(safe-area-inset-top, 0px)) !important;
                 padding-bottom: max(clamp(10px, 3vh, 28px), env(safe-area-inset-bottom, 0px)) !important;
             }}
             .block-container {{
                 max-width: 100% !important;
                 width: 100% !important;
-                padding: 1.1rem clamp(0.75rem, 3.5vw, 1.15rem) !important;
+                padding: 1rem clamp(0.55rem, 2.8vw, 1rem) !important;
                 margin-left: auto !important;
                 margin-right: auto !important;
                 margin-top: clamp(4px, 1.5vw, 10px) !important;
                 margin-bottom: clamp(4px, 1.5vw, 10px) !important;
                 border-radius: 20px !important;
-                background: rgba(255, 255, 255, 0.82) !important;
+                background: rgba(255, 255, 255, 0.72) !important;
                 border: 1px solid rgba(255, 255, 255, 0.5) !important;
                 box-shadow:
                     0 4px 6px -1px rgba({RGB_AZUL_CSS}, 0.05),
@@ -2914,9 +2785,10 @@ def configurar_layout():
                 max-height: 58px;
             }}
         }}
+        /* Véu muito leve: deixa ver o fundo com “uma pequena transparência” na página */
         [data-testid="stAppViewContainer"] {{
-            background: #ffffff !important;
-            background-color: #ffffff !important;
+            background: rgba(255, 255, 255, 0.1) !important;
+            background-color: rgba(255, 255, 255, 0.1) !important;
             font-family: 'Inter', system-ui, sans-serif;
             color: {COR_TEXTO_LABEL};
         }}
@@ -2947,18 +2819,18 @@ def configurar_layout():
             border: none !important;
             border-bottom: none !important;
             box-shadow: none !important;
-            color: {COR_TEXTO_LABEL} !important;
+            color: rgba(255, 255, 255, 0.92) !important;
         }}
         [data-testid="stToolbar"] button,
         [data-testid="stToolbar"] a,
         [data-testid="stToolbar"] [data-testid] {{
-            color: {COR_TEXTO_LABEL} !important;
+            color: rgba(255, 255, 255, 0.92) !important;
             background: transparent !important;
             background-color: transparent !important;
         }}
         [data-testid="stHeader"] button,
         [data-testid="stHeader"] a {{
-            color: {COR_TEXTO_LABEL} !important;
+            color: rgba(255, 255, 255, 0.92) !important;
             background: transparent !important;
             background-color: transparent !important;
         }}
@@ -2974,16 +2846,16 @@ def configurar_layout():
         [data-testid="stToolbar"] button:hover,
         [data-testid="stToolbar"] a:hover,
         [data-testid="stHeader"] button:hover {{
-            background: rgba(15, 23, 42, 0.06) !important;
+            background: rgba(255, 255, 255, 0.12) !important;
         }}
         [data-testid="stMain"] {{
-            padding-left: max(clamp(14px, 5vw, 56px), env(safe-area-inset-left, 0px)) !important;
-            padding-right: max(clamp(14px, 5vw, 56px), env(safe-area-inset-right, 0px)) !important;
-            padding-top: max(clamp(12px, 3.5vh, 40px), env(safe-area-inset-top, 0px)) !important;
-            padding-bottom: max(clamp(14px, 4vh, 44px), env(safe-area-inset-bottom, 0px)) !important;
+            padding-left: max(clamp(6px, 1.8vw, 22px), env(safe-area-inset-left, 0px)) !important;
+            padding-right: max(clamp(6px, 1.8vw, 22px), env(safe-area-inset-right, 0px)) !important;
+            padding-top: max(clamp(8px, 2.5vh, 28px), env(safe-area-inset-top, 0px)) !important;
+            padding-bottom: max(clamp(10px, 3vh, 32px), env(safe-area-inset-bottom, 0px)) !important;
             box-sizing: border-box !important;
-            background: #ffffff !important;
-            background-color: #ffffff !important;
+            background: transparent !important;
+            background-color: transparent !important;
         }}
         section.main > div {{
             padding-top: 0.5rem !important;
@@ -3098,7 +2970,7 @@ def configurar_layout():
             text-wrap: balance;
         }}
 
-        /* Cartão “vidro”: transparência + blur como antes; fundo da app (.stApp) segue branco (sem halo azul) */
+        /* Cartão “vidro”: levemente mais transparente para combinar com o fundo */
         .block-container {{
             --dv-rhythm: 1.35rem;
             text-rendering: optimizeLegibility;
@@ -3107,8 +2979,8 @@ def configurar_layout():
             margin-right: auto !important;
             margin-top: clamp(4px, 1vh, 14px) !important;
             margin-bottom: clamp(4px, 1vh, 14px) !important;
-            padding: 1.45rem clamp(1.1rem, 2.8vw, 2.25rem) 1.55rem clamp(1.1rem, 2.8vw, 2.25rem) !important;
-            background: rgba(255, 255, 255, 0.78) !important;
+            padding: 1.35rem clamp(0.7rem, 1.6vw, 1.35rem) 1.45rem clamp(0.7rem, 1.6vw, 1.35rem) !important;
+            background: rgba(255, 255, 255, 0.72) !important;
             backdrop-filter: blur(18px) saturate(1.15) !important;
             -webkit-backdrop-filter: blur(18px) saturate(1.15) !important;
             border-radius: 24px !important;
@@ -4041,7 +3913,7 @@ def configurar_layout():
             line-height: 1.18 !important;
         }}
 
-        .card, .fin-box, .recommendation-card, .login-card {{
+        .card, .fin-box, .recommendation-card {{
             background: #ffffff;
             padding: clamp(1rem, 2.5vw, 1.35rem);
             border-radius: var(--dv-radius-md);
@@ -4058,7 +3930,6 @@ def configurar_layout():
         }}
         @media (hover: hover) and (prefers-reduced-motion: no-preference) {{
             .recommendation-card:hover,
-            .login-card:hover,
             .card:hover,
             .fin-box:hover {{
                 transform: translateY(-3px);
@@ -4675,71 +4546,6 @@ def enviar_email_smtp(destinatario, nome_cliente, pdf_bytes, dados_cliente, tipo
     except Exception as e: return False, f"Erro envio: {e}"
 
 
-def tela_login(df_logins: pd.DataFrame) -> None:
-    c1, c2, c3 = st.columns([1, 1.5, 1])
-    with c2:
-        st.markdown(
-            "<h3 style='text-align:center;margin:0 0 0.35rem 0;'>Acesso ao simulador</h3>",
-            unsafe_allow_html=True,
-        )
-        st.caption("Utilize o e-mail e a senha cadastrados na planilha **Logins** da base de dados.")
-        with st.form("login_form"):
-            email = st.text_input(
-                "Endereço de e-mail",
-                key="login_email",
-                autocomplete="username",
-            )
-            senha = st.text_input(
-                "Senha",
-                type="password",
-                key="login_pass",
-                autocomplete="current-password",
-            )
-            submitted = st.form_submit_button("Entrar", type="primary", use_container_width=True)
-
-        if submitted:
-            if df_logins.empty:
-                st.error("Base de usuários vazia ou indisponível. Verifique a conexão com a planilha.")
-                tip = _diagnostico_secrets_gsheets()
-                if tip:
-                    st.warning(tip)
-                elif "connections" not in st.secrets:
-                    st.info(
-                        "Falta a secção `[connections.gsheets]` no `.streamlit/secrets.toml`. "
-                        "Copie `secrets.toml.example` e preencha com o JSON da conta de serviço."
-                    )
-                else:
-                    with st.expander("Checklist da planilha"):
-                        st.markdown(
-                            "- Opcional mas recomendado: **spreadsheet** = URL da planilha (como no exemplo).\n"
-                            "- Partilhe o ficheiro Google Sheets com o **client_email** da conta de serviço.\n"
-                            "- Aba de utilizadores: **BD Logins** (ou env `SIMULADOR_LOGINS_WORKSHEET`).\n"
-                            "- Depois de corrigir: menu Streamlit → **Clear cache** ou reinicie."
-                        )
-            else:
-                em = email.strip().lower()
-                user = df_logins[
-                    (df_logins["Email"] == em) & (df_logins["Senha"] == senha.strip())
-                ]
-                if not user.empty:
-                    data = user.iloc[0]
-                    st.session_state.update(
-                        {
-                            "logged_in": True,
-                            "user_email": em,
-                            "user_name": str(data.get("Nome", "")).strip(),
-                            "user_imobiliaria": str(data.get("Imobiliaria", "Geral")).strip(),
-                            "user_cargo": str(data.get("Cargo", "")).strip(),
-                            "user_phone": str(data.get("Telefone", "")).strip(),
-                            "user_is_adm": login_row_is_adm(data),
-                        }
-                    )
-                    st.rerun()
-                else:
-                    st.error("Credenciais inválidas.")
-        inject_login_password_manager_fields()
-
-
 try:
     _dialog_export_deco = st.dialog("Resumo: PDF, e-mail e WhatsApp", width="large")
 except TypeError:
@@ -4857,7 +4663,7 @@ def aba_simulador_automacao(
     render_secao_campanhas_comerciais(
         df_home_banners if df_home_banners is not None else pd.DataFrame(),
         df_campanhas_texto if df_campanhas_texto is not None else pd.DataFrame(),
-        user_is_adm=bool(st.session_state.get("user_is_adm")),
+        user_is_adm=True,
     )
     inject_home_banner_dialog_modal()
 
@@ -6215,47 +6021,12 @@ def aba_simulador_automacao(
             st.rerun()
 
     st.markdown("<br><br>", unsafe_allow_html=True)
-    if st.button("Sair do sistema", key="btn_logout_bottom", use_container_width=True):
-        st.session_state["logged_in"] = False
-        st.session_state["user_is_adm"] = False
-        st.rerun()
-
-def _inject_login_vertical_center_css() -> None:
-    """Centraliza o bloco principal na altura da viewport (login). Só quando não autenticado."""
-    st.markdown(
-        """
-        <style id="diresim-login-vert-center">
-        html body [data-testid="stAppViewContainer"] {
-            min-height: 100dvh !important;
-            display: flex !important;
-            flex-direction: column !important;
-        }
-        html body [data-testid="stAppViewContainer"] > section[data-testid="stMain"],
-        html body section[data-testid="stMain"] {
-            flex: 1 1 auto !important;
-            min-height: calc(100dvh - 5.5rem) !important;
-            display: flex !important;
-            flex-direction: column !important;
-            justify-content: center !important;
-            padding-top: max(6px, env(safe-area-inset-top, 0px)) !important;
-            padding-bottom: max(10px, env(safe-area-inset-bottom, 0px)) !important;
-            box-sizing: border-box !important;
-        }
-        </style>
-        """,
-        unsafe_allow_html=True,
-    )
 
 
 def main():
     configurar_layout()
     inject_modern_ui_runtime()
     inject_enter_confirma_campo()
-    if "logged_in" not in st.session_state:
-        st.session_state["logged_in"] = False
-
-    if not st.session_state["logged_in"]:
-        _inject_login_vertical_center_css()
 
     logo_src = html_std.escape(_src_logo_topo_header(), quote=True)
     st.markdown(
@@ -6268,27 +6039,24 @@ def main():
         unsafe_allow_html=True,
     )
 
-    if not st.session_state["logged_in"]:
-        tela_login(carregar_apenas_logins())
-    else:
-        with st.spinner("A carregar o simulador…"):
-            (
-                df_finan,
-                df_estoque,
-                df_politicas,
-                _df_cad_hist,
-                df_home_banners,
-                premissas_dict,
-                df_campanhas_texto,
-            ) = carregar_dados_sistema()
-        aba_simulador_automacao(
+    with st.spinner("A carregar o simulador…"):
+        (
             df_finan,
             df_estoque,
             df_politicas,
+            _df_cad_hist,
+            df_home_banners,
             premissas_dict,
-            df_home_banners=df_home_banners,
-            df_campanhas_texto=df_campanhas_texto,
-        )
+            df_campanhas_texto,
+        ) = carregar_dados_sistema()
+    aba_simulador_automacao(
+        df_finan,
+        df_estoque,
+        df_politicas,
+        premissas_dict,
+        df_home_banners=df_home_banners,
+        df_campanhas_texto=df_campanhas_texto,
+    )
 
     st.markdown(
         '<div class="footer">Direcional Engenharia - Rio de Janeiro<br><em>developed by Lucas Maia</em></div>',
