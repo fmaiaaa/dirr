@@ -2572,8 +2572,11 @@ def configurar_layout():
     )
 
     bg_url = _css_url_fundo_simulador().replace("&", "&amp;")
-    # st.html: sem parser Markdown (st.markdown interpreta * # _ no CSS e quebra <style>, vazando CSS como texto).
-    st.html(f"""
+    # st.html evita o parser Markdown de st.markdown (* # _ no CSS quebravam o <style>).
+    # unsafe_allow_javascript=True: no frontend o sanitize de st.html sem isto remove <style>
+    # (DOMPurify só inclui style no perfil “amplo”; não há <script> nosso aqui).
+    st.html(
+        f"""
         <div class="dv-style-slot" aria-hidden="true"></div>
         <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Montserrat:wght@400;600;700;800;900&display=swap');
@@ -4088,7 +4091,9 @@ def configurar_layout():
             outline-offset: 2px !important;
         }}
         </style>
-    """)
+    """,
+        unsafe_allow_javascript=True,
+    )
 
 def gerar_resumo_pdf(d, volta_caixa_val: float = 0.0):
     if not PDF_ENABLED:
