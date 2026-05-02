@@ -2572,7 +2572,8 @@ def configurar_layout():
     )
 
     bg_url = _css_url_fundo_simulador().replace("&", "&amp;")
-    st.markdown(f"""
+    # st.html: sem parser Markdown (st.markdown interpreta * # _ no CSS e quebra <style>, vazando CSS como texto).
+    st.html(f"""
         <div class="dv-style-slot" aria-hidden="true"></div>
         <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Montserrat:wght@400;600;700;800;900&display=swap');
@@ -4056,7 +4057,7 @@ def configurar_layout():
             .badge-ideal:hover, .badge-seguro:hover, .badge-multi:hover {{
                 transform: scale(1.04);
                 box-shadow: 0 6px 18px -4px rgba({RGB_VERMELHO_CSS}, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.22);
-            }}a
+            }}
         }}
         
         [data-testid="stSidebar"] {{ background-color: #fff; border-right: 1px solid {COR_BORDA}; }}
@@ -4087,7 +4088,7 @@ def configurar_layout():
             outline-offset: 2px !important;
         }}
         </style>
-    """, unsafe_allow_html=True)
+    """)
 
 def gerar_resumo_pdf(d, volta_caixa_val: float = 0.0):
     if not PDF_ENABLED:
