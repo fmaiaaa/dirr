@@ -755,7 +755,7 @@ def _politica_emcash(politica: Any) -> bool:
 
 # Aviso Emcash (parcelas 30/60): UI, PDF, e-mail, WhatsApp (hífen ASCII)
 _EMCASH_NOTA_PARCELAS = (
-    "parcelas incluem correção monetária (+IPCA) além dos juros"
+    "As parcelas EMCASH incluem correção monetária (+IPCA) além dos juros"
     "."
 )
 
@@ -6215,7 +6215,7 @@ def aba_simulador_automacao(
         # --- ETAPA 2: VALORES APROVADOS (FECHAMENTO FINANCEIRO) ---
         d = st.session_state.dados_cliente
         st.markdown(
-            '<h3 class="dv-titulo-secao">Valores Aprovados (Fechamento Financeiro)</h3>',
+            '<h3 class="dv-titulo-secao">Valores Aprovados</h3>',
             unsafe_allow_html=True,
         )
 
@@ -7366,7 +7366,40 @@ def aba_simulador_automacao(
             ).strip()
             st.session_state.dados_cliente["valor_final_unidade"] = v_liquido
             st.session_state.dados_cliente["volta_caixa_aplicado"] = vc_input_val
-        
+
+        # Desconto comercial no final: se o fechamento já cobria o líquido anterior, baixar o PS pelo delta do desconto.
+        if u_valor > 0:
+            _uid_fe = (str(d.get("unidade_id") or ""), round(float(u_valor or 0), 2))
+            if st.session_state.get("_dv_vliq_trace_uid") != _uid_fe:
+                st.session_state.pop("_dv_v_liquido_fechamento_prev", None)
+            st.session_state["_dv_vliq_trace_uid"] = _uid_fe
+            _ra_fe = max(0.0, texto_moeda_para_float(st.session_state.get("ato_1_key")))
+            _rb_fe = max(0.0, texto_moeda_para_float(st.session_state.get("ato_2_key")))
+            _rc_fe = max(0.0, texto_moeda_para_float(st.session_state.get("ato_3_key")))
+            _rd_fe = (
+                max(0.0, texto_moeda_para_float(st.session_state.get("ato_4_key")))
+                if not is_emcash
+                else 0.0
+            )
+            _sum_atos_fe = _ra_fe + _rb_fe + _rc_fe + _rd_fe
+            _vl_prev_fe = st.session_state.get("_dv_v_liquido_fechamento_prev")
+            if _vl_prev_fe is not None:
+                try:
+                    _vlp = float(_vl_prev_fe)
+                except (TypeError, ValueError):
+                    _vlp = None
+                if _vlp is not None and _vlp > float(v_liquido) + 0.01:
+                    _delta_desc_fe = _vlp - float(v_liquido)
+                    _T_fe = float(f_u_input) + float(fgts_u_input) + float(ps_efetivo) + _sum_atos_fe
+                    if _T_fe >= _vlp - 0.01 and _delta_desc_fe > 0.01:
+                        _cut_ps_desc = min(float(ps_efetivo), float(_delta_desc_fe))
+                        if _cut_ps_desc > 0.01:
+                            ps_efetivo = max(0.0, float(ps_efetivo) - float(_cut_ps_desc))
+            st.session_state["_dv_v_liquido_fechamento_prev"] = float(v_liquido)
+        else:
+            st.session_state.pop("_dv_v_liquido_fechamento_prev", None)
+            st.session_state.pop("_dv_vliq_trace_uid", None)
+
         # Recalcular entrada: quando houver excedente, reduzir primeiro o Pro Soluto.
         # Só ajustar atos se o excedente remanescente continuar positivo após reduzir PS.
         r1_val = max(0.0, texto_moeda_para_float(st.session_state.get("ato_1_key")))
