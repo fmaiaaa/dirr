@@ -33,16 +33,16 @@ URL_LOGO_DIRECIONAL_BIG = "https://logodownload.org/wp-content/uploads/2021/04/d
 LOGO_TOPO_ARQUIVO = "502.57_LOGO DIRECIONAL_V2F-01.png"
 FAVICON_ARQUIVO = "502.57_LOGO D_COR_V3F.png"
 FUNDO_CADASTRO_ARQUIVO = "fundo_cadastrorh.jpg"
-# Paleta alinhada à ficha Credenciamento Vendas RJ (Streamlit)
+# Paleta Streamlit: azul credenciamento; vermelho marca Direcional (#e30613)
 COR_AZUL_ESC = "#04428f"
-COR_VERMELHO = "#cb0935"
+COR_VERMELHO = "#e30613"
 COR_FUNDO = "#04428f"
 COR_BORDA = "#eef2f6"
 COR_TEXTO_MUTED = "#64748b"
 COR_INPUT_BG = "#ffffff"
 COR_INPUT_TEXTO = "#000000"
 COR_TEXTO_LABEL = "#1e293b"
-COR_VERMELHO_ESCURO = "#9e0828"
+COR_VERMELHO_ESCURO = "#c40510"
 
 
 def _hex_rgb_triplet(hex_color: str) -> str:
@@ -4169,16 +4169,18 @@ def configurar_layout():
             a[data-testid="stLinkButton"][href*="api.whatsapp.com"]:hover {{
                 transform: translateY(-1px) !important;
             }}
-            .block-container .stFormSubmitButton > button[kind="primary"]:hover,
-            .block-container .stFormSubmitButton > button[data-testid="baseButton-primary"]:hover {{
+            .block-container .stFormSubmitButton > button:hover,
+            .block-container [data-testid="stFormSubmitButton"] > button:hover {{
                 transform: translateY(-2px) scale(1.01) !important;
             }}
         }}
 
-        /* st.form_submit_button type=primary: mesmo estilo do botão Avançar (vermelho, sombra, hover) */
-        .block-container .stFormSubmitButton > button[kind="primary"],
-        .block-container .stFormSubmitButton > button[data-testid="baseButton-primary"] {{
+        /* st.form_submit_button: vermelho Direcional + texto branco (inclui variantes sem kind no DOM) */
+        .block-container .stFormSubmitButton > button,
+        .block-container [data-testid="stFormSubmitButton"] > button {{
             background: linear-gradient(180deg, {COR_VERMELHO} 0%, {COR_VERMELHO_ESCURO} 100%) !important;
+            background-color: {COR_VERMELHO} !important;
+            background-image: linear-gradient(180deg, {COR_VERMELHO} 0%, {COR_VERMELHO_ESCURO} 100%) !important;
             color: #ffffff !important;
             -webkit-text-fill-color: #ffffff !important;
             border: none !important;
@@ -4196,36 +4198,41 @@ def configurar_layout():
                 transform 0.12s var(--dv-ease-out),
                 color var(--dv-duration) var(--dv-ease-out) !important;
         }}
-        .block-container .stFormSubmitButton > button[kind="primary"] *,
-        .block-container .stFormSubmitButton > button[kind="primary"] span,
-        .block-container .stFormSubmitButton > button[kind="primary"] p,
-        .block-container .stFormSubmitButton > button[data-testid="baseButton-primary"] *,
-        .block-container .stFormSubmitButton > button[data-testid="baseButton-primary"] span,
-        .block-container .stFormSubmitButton > button[data-testid="baseButton-primary"] p {{
+        .block-container .stFormSubmitButton > button *,
+        .block-container .stFormSubmitButton > button span,
+        .block-container .stFormSubmitButton > button p,
+        .block-container .stFormSubmitButton > button div,
+        .block-container [data-testid="stFormSubmitButton"] > button *,
+        .block-container [data-testid="stFormSubmitButton"] > button span,
+        .block-container [data-testid="stFormSubmitButton"] > button p,
+        .block-container [data-testid="stFormSubmitButton"] > button div {{
             color: #ffffff !important;
             -webkit-text-fill-color: #ffffff !important;
         }}
-        .block-container .stFormSubmitButton > button[kind="primary"]:hover,
-        .block-container .stFormSubmitButton > button[data-testid="baseButton-primary"]:hover {{
+        .block-container .stFormSubmitButton > button:hover,
+        .block-container [data-testid="stFormSubmitButton"] > button:hover {{
             background: linear-gradient(180deg, {COR_VERMELHO} 0%, {COR_VERMELHO_ESCURO} 100%) !important;
+            background-color: {COR_VERMELHO} !important;
             color: #ffffff !important;
             -webkit-text-fill-color: #ffffff !important;
             box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.22),
                 0 10px 28px -6px rgba({RGB_VERMELHO_CSS}, 0.48) !important;
         }}
-        .block-container .stFormSubmitButton > button[kind="primary"]:hover *,
-        .block-container .stFormSubmitButton > button[kind="primary"]:hover span,
-        .block-container .stFormSubmitButton > button[kind="primary"]:hover p,
-        .block-container .stFormSubmitButton > button[data-testid="baseButton-primary"]:hover *,
-        .block-container .stFormSubmitButton > button[data-testid="baseButton-primary"]:hover span,
-        .block-container .stFormSubmitButton > button[data-testid="baseButton-primary"]:hover p {{
+        .block-container .stFormSubmitButton > button:hover *,
+        .block-container .stFormSubmitButton > button:hover span,
+        .block-container .stFormSubmitButton > button:hover p,
+        .block-container .stFormSubmitButton > button:hover div,
+        .block-container [data-testid="stFormSubmitButton"] > button:hover *,
+        .block-container [data-testid="stFormSubmitButton"] > button:hover span,
+        .block-container [data-testid="stFormSubmitButton"] > button:hover p,
+        .block-container [data-testid="stFormSubmitButton"] > button:hover div {{
             color: #ffffff !important;
             -webkit-text-fill-color: #ffffff !important;
         }}
-        .block-container .stFormSubmitButton > button[kind="primary"] svg,
-        .block-container .stFormSubmitButton > button[kind="primary"]:hover svg,
-        .block-container .stFormSubmitButton > button[data-testid="baseButton-primary"] svg,
-        .block-container .stFormSubmitButton > button[data-testid="baseButton-primary"]:hover svg {{
+        .block-container .stFormSubmitButton > button svg,
+        .block-container .stFormSubmitButton > button:hover svg,
+        .block-container [data-testid="stFormSubmitButton"] > button svg,
+        .block-container [data-testid="stFormSubmitButton"] > button:hover svg {{
             fill: #ffffff !important;
             color: #ffffff !important;
         }}
