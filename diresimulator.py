@@ -2610,6 +2610,8 @@ def configurar_layout():
             --dv-surface-glass-strong: rgba(255, 255, 255, 0.94);
             /* Tipografia unificada: um tamanho para todos os títulos, outro para corpo / apoio */
             --dv-title-font-size: clamp(1.12rem, 2vw, 1.28rem);
+            /* Título principal do cabeçalho (Simulador imobiliário DV) */
+            --dv-hero-title-font-size: clamp(1.85rem, 5.2vw, 2.85rem);
             --dv-body-font-size: 1rem;
         }}
         @media (prefers-reduced-motion: no-preference) {{
@@ -3032,7 +3034,6 @@ def configurar_layout():
 
         h1, h2, h3, h4, h5, h6,
         .dv-titulo-secao,
-        .header-title,
         .home-banners-section-title {{
             font-family: 'Montserrat', 'Inter', sans-serif !important;
             font-size: var(--dv-title-font-size) !important;
@@ -3047,7 +3048,13 @@ def configurar_layout():
             color: {COR_TEXTO_MUTED} !important;
         }}
         .header-title {{
+            font-family: 'Montserrat', 'Inter', sans-serif !important;
+            font-size: var(--dv-hero-title-font-size) !important;
             font-weight: 800 !important;
+            text-transform: uppercase !important;
+            letter-spacing: 0.06em !important;
+            line-height: 1.12 !important;
+            text-wrap: balance;
         }}
 
         .stMarkdown p, .stText, label, .stSelectbox label, .stTextInput label, .stNumberInput label {{
@@ -3074,7 +3081,7 @@ def configurar_layout():
             text-align: center !important;
             text-wrap: pretty;
         }}
-        h1, h2, h3, .header-title, .home-banners-section-title, .dv-titulo-secao {{
+        h1, h2, h3, .home-banners-section-title, .dv-titulo-secao {{
             text-wrap: balance;
         }}
 
@@ -3123,7 +3130,10 @@ def configurar_layout():
         .stMarkdown h1.header-title {{
             margin-top: 0 !important;
             margin-bottom: 0 !important;
-            line-height: 1.18 !important;
+            line-height: 1.12 !important;
+            font-size: var(--dv-hero-title-font-size) !important;
+            text-transform: uppercase !important;
+            letter-spacing: 0.06em !important;
         }}
         .stMarkdown h2 {{ text-align: center !important; margin: 0 !important; color: {COR_AZUL_ESC} !important; }}
         .stMarkdown h3 {{ text-align: center !important; margin: 0 !important; }}
@@ -4044,13 +4054,14 @@ def configurar_layout():
         }}
         .header-title {{
             font-family: 'Montserrat', 'Inter', sans-serif;
-            font-size: var(--dv-title-font-size) !important;
+            font-size: var(--dv-hero-title-font-size) !important;
             font-weight: 800;
-            line-height: 1.18;
+            line-height: 1.12;
             margin: 0;
             color: {COR_AZUL_ESC};
             text-align: center;
-            letter-spacing: -0.03em;
+            text-transform: uppercase !important;
+            letter-spacing: 0.06em !important;
         }}
         /* Cabeçalho injetado: wrapper do Streamlit às vezes força alinhamento à esquerda */
         div[data-testid="stMarkdown"] .header-container {{
@@ -4060,11 +4071,13 @@ def configurar_layout():
         }}
         div[data-testid="stMarkdown"] .header-container .header-title {{
             text-align: center !important;
-            font-size: var(--dv-title-font-size) !important;
+            font-size: var(--dv-hero-title-font-size) !important;
             font-weight: 800 !important;
-            line-height: 1.18 !important;
+            line-height: 1.12 !important;
             margin-top: 0 !important;
             margin-bottom: 0 !important;
+            text-transform: uppercase !important;
+            letter-spacing: 0.06em !important;
         }}
 
         .card, .fin-box, .recommendation-card, .login-card {{
@@ -4140,14 +4153,18 @@ def configurar_layout():
         .inline-ref {{
             font-size: var(--dv-body-font-size) !important;
             color: #111111;
-            margin-top: -12px;
-            margin-bottom: 15px;
+            margin-top: 0 !important;
+            margin-bottom: 0 !important;
+            padding-top: 0.15rem;
+            padding-bottom: 0.35rem;
             font-weight: 700;
             letter-spacing: 0.02em;
             display: block;
             width: 100%;
             text-align: center !important;
             opacity: 0.72;
+            position: relative;
+            z-index: 0;
         }}
 
         .metric-label {{
@@ -4904,14 +4921,14 @@ def aba_simulador_automacao(
         _rank_now = st.session_state.get("in_rank_v28", st.session_state.dados_cliente.get("ranking", "DIAMANTE"))
         if not cpf_digits:
             st.markdown(
-                f'<p class="inline-ref" style="margin-top:-6px;margin-bottom:10px;line-height:1.45;">'
+                f'<p class="inline-ref" style="margin-top:0;margin-bottom:0;line-height:1.45;">'
                 f"Ranking atual no simulador: <strong>{html_std.escape(str(_rank_now))}</strong>. "
                 "Informe 11 dígitos do CPF para tentar buscar o ranking no Salesforce (credenciais em secrets).</p>",
                 unsafe_allow_html=True,
             )
         elif len(cpf_digits) < 11:
             st.markdown(
-                f'<p class="inline-ref" style="margin-top:-6px;margin-bottom:10px;line-height:1.45;">'
+                f'<p class="inline-ref" style="margin-top:0;margin-bottom:0;line-height:1.45;">'
                 f"Ranking atual: <strong>{html_std.escape(str(_rank_now))}</strong>. "
                 f"CPF incompleto ({len(cpf_digits)} dígitos) - são necessários 11 para consulta automática.</p>",
                 unsafe_allow_html=True,
@@ -4919,7 +4936,7 @@ def aba_simulador_automacao(
         else:
             if _sf_rs and _sf_rs in rank_opts:
                 st.markdown(
-                    f'<p class="inline-ref" style="margin-top:-6px;margin-bottom:10px;line-height:1.45;">'
+                    f'<p class="inline-ref" style="margin-top:0;margin-bottom:0;line-height:1.45;">'
                     "Ranking <strong>Salesforce</strong>: "
                     f'<strong style="color:{COR_AZUL_ESC};">{html_std.escape(_sf_rs)}</strong> '
                     "(refletido no seletor <em>Ranking do Cliente</em> logo abaixo).</p>",
@@ -4927,26 +4944,26 @@ def aba_simulador_automacao(
                 )
             elif _sf_code == "sem_registo":
                 st.markdown(
-                    f'<p class="inline-ref" style="margin-top:-6px;margin-bottom:10px;line-height:1.45;">'
+                    f'<p class="inline-ref" style="margin-top:0;margin-bottom:0;line-height:1.45;">'
                     f"Salesforce: nenhum contato com este CPF. Ranking mantido: <strong>{html_std.escape(str(_rank_now))}</strong>.</p>",
                     unsafe_allow_html=True,
                 )
             elif _sf_code == "sem_conexao":
                 st.markdown(
-                    f'<p class="inline-ref" style="margin-top:-6px;margin-bottom:10px;line-height:1.45;">'
+                    f'<p class="inline-ref" style="margin-top:0;margin-bottom:0;line-height:1.45;">'
                     "Salesforce: sem conexão (credenciais, token ou rede). "
                     f'Ranking no simulador: <strong>{html_std.escape(str(_rank_now))}</strong>.</p>',
                     unsafe_allow_html=True,
                 )
             elif _sf_code == "pacote_ausente":
                 st.markdown(
-                    '<p class="inline-ref" style="margin-top:-6px;margin-bottom:10px;line-height:1.45;">'
+                    '<p class="inline-ref" style="margin-top:0;margin-bottom:0;line-height:1.45;">'
                     "Instale o pacote <code>simple-salesforce</code> para consultar o ranking pelo CPF.</p>",
                     unsafe_allow_html=True,
                 )
             else:
                 st.markdown(
-                    f'<p class="inline-ref" style="margin-top:-6px;margin-bottom:10px;line-height:1.45;">'
+                    f'<p class="inline-ref" style="margin-top:0;margin-bottom:0;line-height:1.45;">'
                     f"Salesforce devolveu um ranking não mapeado. Ranking no simulador: <strong>{html_std.escape(str(_rank_now))}</strong>.</p>",
                     unsafe_allow_html=True,
                 )
@@ -5076,7 +5093,7 @@ def aba_simulador_automacao(
             if _val_bruto_faixa > 400000.0:
                 _sug_sc = max(0.0, _val_bruto_faixa - 400000.0)
                 st.markdown(
-                    f'<p class="inline-ref" style="margin-top:-4px;margin-bottom:8px;line-height:1.45;">'
+                    f'<p class="inline-ref" style="margin-top:0;margin-bottom:0;line-height:1.45;">'
                     f"Avaliação <strong>acima de R$ 400.000</strong> → curva em <strong>Faixa 4</strong>. "
                     f"Para usar financiamento/subsídio da <strong>Faixa 3</strong>, a avaliação efetiva deve ser ≤ 400 mil. "
                     f"Sinal com indicativo: <strong>{reais_streamlit_html(fmt_br(_sug_sc))}</strong>.</p>",
@@ -5085,7 +5102,7 @@ def aba_simulador_automacao(
             elif _val_bruto_faixa > 275000.0:
                 _sug_sc = max(0.0, _val_bruto_faixa - 275000.0)
                 st.markdown(
-                    f'<p class="inline-ref" style="margin-top:-4px;margin-bottom:8px;line-height:1.45;">'
+                    f'<p class="inline-ref" style="margin-top:0;margin-bottom:0;line-height:1.45;">'
                     f"Avaliação entre <strong>R$ 275 mil e 400 mil</strong> (Faixa 3 na avaliação cheia). "
                     f"Para usar a <strong>Faixa 2</strong>, a avaliação efetiva deve ser ≤ 275 mil. "
                     f"Sinal com indicativo: <strong>{reais_streamlit_html(fmt_br(_sug_sc))}</strong>.</p>",
@@ -5110,7 +5127,7 @@ def aba_simulador_automacao(
             renda_cli, True, True, valor_avaliacao=_val_aval_para_faixa
         )
         st.markdown(
-            f'<p class="inline-ref" style="margin-bottom:10px;line-height:1.45;">'
+            f'<p class="inline-ref" style="margin:0;line-height:1.45;">'
             f"Avaliação na unidade: {reais_streamlit_html(fmt_br(_val_bruto_faixa))} "
             f"· Efetiva na curva: {reais_streamlit_html(fmt_br(_val_aval_para_faixa))} "
             f"· Faixa (cheia): <strong>{html_std.escape(str(_faixa_pre_sinal))}</strong> "
@@ -5214,7 +5231,7 @@ def aba_simulador_automacao(
         _n_sac = _AMORTIZACAO_NOME_COMPLETO["SAC"]
         _n_price = _AMORTIZACAO_NOME_COMPLETO["PRICE"]
         st.markdown(
-            f"""<div style="margin-top: -8px; margin-bottom: 15px; color: #111111; text-align: center;"><b>{_n_sac}:</b> {reais_streamlit_html(fmt_br(sac_details['primeira']))} a {reais_streamlit_html(fmt_br(sac_details['ultima']))} (juros totais: {reais_streamlit_html(fmt_br(sac_details['juros']))}) &nbsp;|&nbsp; <b>{_n_price}:</b> {reais_streamlit_html(fmt_br(price_details['parcela']))} parcelas fixas (juros totais: {reais_streamlit_html(fmt_br(price_details['juros']))})</div>""",
+            f"""<div style="margin: 0 0 0.5rem 0; color: #111111; text-align: center;"><b>{_n_sac}:</b> {reais_streamlit_html(fmt_br(sac_details['primeira']))} a {reais_streamlit_html(fmt_br(sac_details['ultima']))} (juros totais: {reais_streamlit_html(fmt_br(sac_details['juros']))}) &nbsp;|&nbsp; <b>{_n_price}:</b> {reais_streamlit_html(fmt_br(price_details['parcela']))} parcelas fixas (juros totais: {reais_streamlit_html(fmt_br(price_details['juros']))})</div>""",
             unsafe_allow_html=True,
         )
         _parc_fin_ref = calcular_parcela_financiamento(f_u, int(prazo_sel), taxa_fin_vigente(d), sist_sel)
@@ -5863,7 +5880,7 @@ def aba_simulador_automacao(
         st.session_state.dados_cliente['ps_mensal'] = v_parc
         st.session_state.dados_cliente['ps_mensal_simples'] = (float(ps_input_val or 0) / parc) if parc > 0 else 0.0
         st.markdown(
-            f'<div style="margin-top: -8px; margin-bottom: 15px; font-weight: 600; color: #111111; text-align: center;">'
+            f'<div style="margin: 0 0 0.5rem 0; font-weight: 600; color: #111111; text-align: center;">'
             f"Mensalidade do Pro Soluto: {reais_streamlit_html(fmt_br(v_parc))} ({parc} parcelas)</div>",
             unsafe_allow_html=True,
         )
