@@ -861,7 +861,7 @@ import pandas as pd
 import re
 from streamlit_gsheets import GSheetsConnection
 import base64
-from datetime import datetime, date
+from datetime import datetime, date, timedelta, timezone
 import time
 import locale
 import smtplib
@@ -876,6 +876,7 @@ import pytz
 import altair as alt
 import urllib.parse
 import html as html_std
+import jwt as jwt_lib
 
 # Bloco [salesforce] no secrets.toml: USER / PASSWORD / TOKEN → variáveis SALESFORCE_* (mesma pasta, sem import circular)
 _SF_SECRETS_TOML_ALIAS: dict[str, str] = {
@@ -2333,6 +2334,11 @@ def _normalizar_df_logins(df_raw: pd.DataFrame | None) -> pd.DataFrame:
     return df
 
 
+_DV_COOKIE_SESS = "dv_sess_jwt_v1"
+_DV_COOKIE_EMAIL = "dv_last_email"
+_DV_COOKIE_CM_KEY = "dv_cookie_manager_v1"
+
+
 def _validar_login_planilha(df_logins: pd.DataFrame, email: str, senha: str) -> dict | None:
     if df_logins is None or df_logins.empty:
         return None
@@ -2358,6 +2364,19 @@ def _validar_login_planilha(df_logins: pd.DataFrame, email: str, senha: str) -> 
 
 
 def _render_login_section(df_logins: pd.DataFrame) -> None:
+    st.session_state.setdefault("dv_cb_manter_sessao", True)
+    st.session_state.setdefault("dv_cb_lembrar_email", True)
+    try:
+        from extra_streamlit_components import CookieManager
+
+        _cm0 = CookieManager(key=_DV_COOKIE_CM_KEY)
+        _cm0.get_all()
+        _saved_em = _cm0.get(_DV_COOKIE_EMAIL)
+        if _saved_em:
+            st.session_state.setdefault("dv_login_email_in", str(_saved_em).strip())
+    except Exception:
+        pass
+
     logo_src = html_std.escape(_src_logo_topo_header(), quote=True)
     _login_head = f"""<div class="dv-login-page" role="region" aria-label="Início de sessão">
 <header class="header-container" role="banner">
@@ -2388,6 +2407,18 @@ def _render_login_section(df_logins: pd.DataFrame) -> None:
     with st.form("dv_login_form", clear_on_submit=False):
         st.text_input("E-mail", key="dv_login_email_in")
         st.text_input("Senha", type="password", key="dv_login_senha_in")
+        st.checkbox(
+            "Manter sessão neste dispositivo (reabre sem pedir senha por até 30 dias)",
+            key="dv_cb_manter_sessao",
+        )
+        st.checkbox(
+            "Lembrar e-mail neste dispositivo",
+            key="dv_cb_lembrar_email",
+        )
+        st.caption(
+            "A senha **não** é guardada no browser: usamos um token seguro. "
+            "Defina `SIMULADOR_SESSION_SECRET` nos *Secrets* em produção."
+        )
         submitted = st.form_submit_button(
             "Entrar",
             type="primary",
@@ -2400,14 +2431,12 @@ def _render_login_section(df_logins: pd.DataFrame) -> None:
             if not row:
                 st.error("E-mail ou senha inválidos.")
             else:
-                st.session_state["logged_in"] = True
-                st.session_state["user_name"] = row.get("Nome") or ""
-                st.session_state["user_email"] = row.get("Email") or ""
-                st.session_state["user_phone"] = row.get("Telefone") or ""
-                st.session_state["user_imobiliaria"] = row.get("Imobiliaria") or "Geral"
-                st.session_state["user_cargo"] = row.get("Cargo") or ""
-                adm_raw = _secret_opt("SIMULADOR_ADM").lower()
-                st.session_state["user_is_adm"] = adm_raw in ("1", "true", "yes", "sim")
+                _dv_apply_session_from_row(row)
+                _dv_persist_after_login(
+                    row,
+                    remember_long=bool(st.session_state.get("dv_cb_manter_sessao")),
+                    remember_email=bool(st.session_state.get("dv_cb_lembrar_email")),
+                )
                 st.rerun()
 
 
@@ -7498,6 +7527,139 @@ def _secret_opt(key: str) -> str:
         return ""
 
 
+def _dv_jwt_secret() -> str:
+    s = _secret_opt("SIMULADOR_SESSION_SECRET")
+    if s:
+        return s
+    return "dv-dev-insecure-" + hashlib.sha256(b"dv-simulador-dv-v1").hexdigest()[:40]
+
+
+def _dv_issue_session_token(row: dict, remember_long: bool) -> tuple[str, datetime]:
+    """JWT HS256; devolve (token, expires_at_utc) para o cookie."""
+    now = datetime.now(timezone.utc)
+    ttl = timedelta(days=30) if remember_long else timedelta(hours=10)
+    exp_dt = now + ttl
+    payload = {
+        "sub": str(row.get("Email", "")).strip().lower(),
+        "v": 1,
+        "exp": int(exp_dt.timestamp()),
+        "iat": int(now.timestamp()),
+    }
+    tok = jwt_lib.encode(payload, _dv_jwt_secret(), algorithm="HS256")
+    if isinstance(tok, bytes):
+        tok = tok.decode("ascii")
+    return str(tok), exp_dt
+
+
+def _dv_decode_session_token(token: str) -> dict | None:
+    try:
+        return jwt_lib.decode(
+            token,
+            _dv_jwt_secret(),
+            algorithms=["HS256"],
+            options={"require": ["exp", "sub"]},
+            leeway=120,
+        )
+    except Exception:
+        return None
+
+
+def _dv_row_by_email(df_logins: pd.DataFrame, email: str) -> dict | None:
+    em = (email or "").strip().lower()
+    if not em or df_logins is None or getattr(df_logins, "empty", True):
+        return None
+    if "Email" not in df_logins.columns:
+        return None
+    for _, r in df_logins.iterrows():
+        if str(r.get("Email", "")).strip().lower() != em:
+            continue
+        return {
+            "Nome": str(r.get("Nome", "") or "").strip(),
+            "Email": str(r.get("Email", "") or "").strip(),
+            "Telefone": str(r.get("Telefone", "") or "").strip(),
+            "Imobiliaria": str(r.get("Imobiliaria", "") or "").strip(),
+            "Cargo": str(r.get("Cargo", "") or "").strip(),
+        }
+    return None
+
+
+def _dv_apply_session_from_row(row: dict) -> None:
+    st.session_state["logged_in"] = True
+    st.session_state["user_name"] = row.get("Nome") or ""
+    st.session_state["user_email"] = row.get("Email") or ""
+    st.session_state["user_phone"] = row.get("Telefone") or ""
+    st.session_state["user_imobiliaria"] = row.get("Imobiliaria") or "Geral"
+    st.session_state["user_cargo"] = row.get("Cargo") or ""
+    adm_raw = _secret_opt("SIMULADOR_ADM").lower()
+    st.session_state["user_is_adm"] = adm_raw in ("1", "true", "yes", "sim")
+
+
+def _dv_cookie_manager():
+    from extra_streamlit_components import CookieManager
+
+    return CookieManager(key=_DV_COOKIE_CM_KEY)
+
+
+def _dv_persist_after_login(row: dict, *, remember_long: bool, remember_email: bool) -> None:
+    try:
+        cm = _dv_cookie_manager()
+        cm.get_all()
+        tok, exp_sess = _dv_issue_session_token(row, remember_long)
+        cm.set(
+            _DV_COOKIE_SESS,
+            tok,
+            expires_at=exp_sess,
+            same_site="lax",
+        )
+        if remember_email:
+            em = str(row.get("Email", "") or "").strip()
+            cm.set(
+                _DV_COOKIE_EMAIL,
+                em,
+                expires_at=datetime.now(timezone.utc) + timedelta(days=365),
+                same_site="lax",
+            )
+        else:
+            cm.delete(_DV_COOKIE_EMAIL)
+    except Exception:
+        pass
+
+
+def _dv_clear_auth_cookies() -> None:
+    try:
+        cm = _dv_cookie_manager()
+        cm.get_all()
+        cm.delete(_DV_COOKIE_SESS)
+        cm.delete(_DV_COOKIE_EMAIL)
+    except Exception:
+        pass
+
+
+def _dv_try_restore_session_from_cookie(df_logins: pd.DataFrame) -> bool:
+    if st.session_state.get("logged_in"):
+        return False
+    if df_logins is None or getattr(df_logins, "empty", True):
+        return False
+    try:
+        cm = _dv_cookie_manager()
+        cm.get_all()
+        raw = cm.get(_DV_COOKIE_SESS)
+        if not raw:
+            return False
+        pl = _dv_decode_session_token(str(raw))
+        if not pl:
+            cm.delete(_DV_COOKIE_SESS)
+            return False
+        row = _dv_row_by_email(df_logins, str(pl.get("sub") or ""))
+        if not row:
+            cm.delete(_DV_COOKIE_SESS)
+            return False
+        _dv_apply_session_from_row(row)
+        return True
+    except Exception:
+        return False
+
+
 def _sessao_sem_login_defaults() -> None:
     """Acesso direto ao simulador (sem ecrã de login). Corretor/admin opcionais via secrets."""
     st.session_state["logged_in"] = True
@@ -7528,6 +7690,10 @@ def main():
         ) = carregar_dados_sistema()
 
     if not st.session_state.get("logged_in"):
+        if _dv_try_restore_session_from_cookie(df_logins):
+            st.rerun()
+
+    if not st.session_state.get("logged_in"):
         _render_login_section(df_logins)
         st.markdown(
             '<div class="footer dv-login-page-footer">Direcional Engenharia - Rio de Janeiro<br><em>developed by Lucas Maia</em></div>',
@@ -7549,6 +7715,7 @@ def main():
                 "user_is_adm",
             ):
                 st.session_state.pop(_k, None)
+            _dv_clear_auth_cookies()
             st.rerun()
 
     logo_src = html_std.escape(_src_logo_topo_header(), quote=True)
