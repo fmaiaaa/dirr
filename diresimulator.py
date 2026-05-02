@@ -5262,14 +5262,27 @@ def aba_simulador_automacao(
             if _sf_rs and _sf_rs in rank_opts and st.session_state.get("_sf_rank_applied_cpf") != cpf_digits:
                 st.session_state["in_rank_v28"] = _sf_rs
                 st.session_state["_sf_rank_applied_cpf"] = cpf_digits
+                st.session_state["_sf_rank_naoencontrado_toast_cpf"] = ""
                 if hasattr(st, "toast"):
                     try:
                         st.toast(f"Ranking encontrado: {_sf_rs}", icon="✅")
                     except Exception:
                         pass
+            elif (
+                not _sf_rs
+                and _sf_code == "sem_registo"
+                and st.session_state.get("_sf_rank_naoencontrado_toast_cpf") != cpf_digits
+            ):
+                st.session_state["_sf_rank_naoencontrado_toast_cpf"] = cpf_digits
+                if hasattr(st, "toast"):
+                    try:
+                        st.toast("Ranking não encontrado.", icon="❌")
+                    except Exception:
+                        pass
         else:
             # CPF incompleto ou vazio: permite nova consulta ao voltar a 11 dígitos
             st.session_state["_sf_rank_applied_cpf"] = ""
+            st.session_state["_sf_rank_naoencontrado_toast_cpf"] = ""
         _rank_now = st.session_state.get("in_rank_v28", st.session_state.dados_cliente.get("ranking", "DIAMANTE"))
         if len(cpf_digits) == 11:
             if _sf_rs:
