@@ -3434,11 +3434,15 @@ def configurar_layout():
             margin-right: 0 !important;
             max-width: 100% !important;
         }}
-        /* "Avançar para Resumo": linhas iguais às de ---, margem simétrica (botão à largura total entre as duas) */
+        /* "Avançar para Resumo": mesma linha que ---; margens no hr = 0 para o ritmo vir só do gap do bloco (espaço igual acima/abaixo do botão) */
+        .block-container div[data-testid="stElementContainer"]:has(hr.dv-avancar-rule) {{
+            margin-top: 0 !important;
+            margin-bottom: 0 !important;
+        }}
         .block-container hr.dv-avancar-rule {{
             border: none !important;
             height: 1px !important;
-            margin: clamp(0.65rem, 1.6vw, 1.05rem) 0 !important;
+            margin: 0 !important;
             background: linear-gradient(
                 90deg,
                 transparent 0%,
@@ -7194,6 +7198,12 @@ def aba_simulador_automacao(
             texto_moeda_para_float(st.session_state.get("ps_u_key")), _teto_ps_final
         )
         st.session_state.dados_cliente["ps_usado"] = ps_input_val
+        st.markdown(
+            '<p class="inline-ref" style="margin-top:0;margin-bottom:0;line-height:1.45;">'
+            "Limite máximo de Pro Soluto: "
+            f"<strong>{reais_streamlit_html(fmt_br(ps_limite_ui2))}</strong></p>",
+            unsafe_allow_html=True,
+        )
         n_min_j8 = None
         if float(ps_input_val or 0) > 0 and j8_ui > 0:
             n_min_j8 = menor_prazo_parcelas_ps_respeitando_j8(
@@ -7228,16 +7238,6 @@ def aba_simulador_automacao(
         _parc_i = texto_inteiro(st.session_state.get("parc_ps_key"), default=1, min_v=1, max_v=parc_max_ui)
         parc = _parc_i if _parc_i is not None else 1
         st.session_state.dados_cliente["ps_parcelas"] = parc
-        st.markdown(
-            '<p class="inline-ref" style="margin-top:0;margin-bottom:0;line-height:1.45;">'
-            f"Prazo máximo de parcelas do Pro Soluto: {parc_max_ui} meses</p>",
-            unsafe_allow_html=True,
-        )
-        ref_text_ps = f"Limite máximo de Pro Soluto: {reais_streamlit_html(fmt_br(ps_limite_ui2))}"
-        st.markdown(
-            f'<p class="inline-ref" style="margin-top:0;margin-bottom:0;line-height:1.45;">{ref_text_ps}</p>',
-            unsafe_allow_html=True,
-        )
         v_parc = parcela_ps_para_valor(
             float(ps_input_val or 0),
             parc,
@@ -7250,20 +7250,38 @@ def aba_simulador_automacao(
         st.session_state.dados_cliente['ps_mensal_simples'] = (float(ps_input_val or 0) / parc) if parc > 0 else 0.0
         _ps_parc_fmt = reais_streamlit_html(fmt_br(v_parc))
         _ps_j8_fmt = reais_streamlit_html(fmt_br(j8_ui))
+        _pmin_par = int(n_min_j8) if n_min_j8 is not None else 1
+        _pmax_par = int(parc_max_ui)
+        _combo_par_ref: list[str] = [
+            "Deve ter, no mínimo, ",
+            f"<strong>{html_std.escape(str(_pmin_par))}</strong>",
+            " parcelas e, no máximo, ",
+            f"<strong>{html_std.escape(str(_pmax_par))}</strong>",
+            " parcelas.",
+        ]
+        if j8_ui > 0:
+            _combo_par_ref.extend(
+                [
+                    " As parcelas devem ser limitadas em ",
+                    f"<strong>{_ps_j8_fmt}</strong>",
+                    ".",
+                ]
+            )
+        _combo_par_ref.extend(
+            [
+                " Atualmente, está sendo dividido em ",
+                f"<strong>{html_std.escape(str(int(parc)))}x</strong>",
+                " de ",
+                f"<strong>{_ps_parc_fmt}</strong>",
+                ".",
+            ]
+        )
         st.markdown(
-            f'<p class="inline-ref" style="margin:0;line-height:1.45;">Está sendo dividido em {int(parc)}x de '
-            f"{_ps_parc_fmt}. As parcelas são limitadas em {_ps_j8_fmt}.</p>",
+            f'<p class="inline-ref" style="margin:0;line-height:1.45;">{"".join(_combo_par_ref)}</p>',
             unsafe_allow_html=True,
         )
         if float(ps_input_val or 0) > 0 and j8_ui > 0:
-            if n_min_j8 is not None:
-                _nmj = int(n_min_j8)
-                st.markdown(
-                    '<p class="inline-ref" style="margin-top:0;margin-bottom:0;line-height:1.45;">'
-                    f"Parcelas mínimas necessárias: <strong>{html_std.escape(str(_nmj))}</strong>.</p>",
-                    unsafe_allow_html=True,
-                )
-            else:
+            if n_min_j8 is None:
                 _dv_alerta_vermelho(
                     "Com este valor de Pro Soluto e o prazo máximo permitido, a prestação pode "
                     "<strong>ultrapassar</strong> o teto J8. Reduza o PS ou ajuste o perfil."
@@ -7334,12 +7352,20 @@ def aba_simulador_automacao(
             _vcx_pres = reais_streamlit_html(fmt_br(_vc_pres_ui))
             _vcx_preco = reais_streamlit_html(fmt_br(u_valor))
             _vcx_pos = reais_streamlit_html(fmt_br(_v_pos_vcx_ui))
-            st.markdown(
-                f'<p class="inline-ref" style="margin:0;line-height:1.45;">Há um limite de Volta ao Caixa de '
-                f"{_vcx_lim} e está sendo preservado {_vcx_pres}. Além disso, a unidade custa {_vcx_preco} e, "
-                f"então, seu valor após o Volta ao Caixa é de {_vcx_pos}.</p>",
-                unsafe_allow_html=True,
-            )
+            if vc_input_val <= 0.009 and vc_ref_top > 0.009:
+                st.markdown(
+                    f'<p class="inline-ref" style="margin:0;line-height:1.45;">'
+                    f"Foi preservado todo o Volta ao Caixa, no total de <strong>{_vcx_lim}</strong>, "
+                    f"gerando um valor final de <strong>{_vcx_pos}</strong>.</p>",
+                    unsafe_allow_html=True,
+                )
+            else:
+                st.markdown(
+                    f'<p class="inline-ref" style="margin:0;line-height:1.45;">Há um limite de Volta ao Caixa de '
+                    f"{_vcx_lim} e está sendo preservado {_vcx_pres}. Além disso, a unidade custa {_vcx_preco} e, "
+                    f"então, seu valor após o Volta ao Caixa é de {_vcx_pos}.</p>",
+                    unsafe_allow_html=True,
+                )
 
             st.markdown("---")
             st.markdown(
