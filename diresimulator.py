@@ -7028,6 +7028,18 @@ def aba_simulador_automacao(
         _renda_cli = max(0.0, float(d.get("renda", 0) or 0))
         _sug_min_ato1 = 2.0 * _renda_cli
         _sug_min_meio = _renda_cli / 2.0
+        _dv_sug_min_style = (
+            "margin:2px 0 0.35rem 0;padding:0;font-size:0.8125rem;line-height:1.35;"
+            "color:var(--gray-70, rgba(49,51,63,0.72));"
+        )
+
+        def _dv_linha_sug_min_apos_campo(val_fmt: str) -> None:
+            st.markdown(
+                f'<p style="{_dv_sug_min_style}">Tente pegar no mínimo R$ '
+                f"{html_std.escape(val_fmt)}.</p>",
+                unsafe_allow_html=True,
+            )
+
         # --- Ato 1 (Entrada Imediata): só key + session_state (evita conflito value/key) ---
         st.text_input(
             "Ato 1 (Entrada Imediata) (R$)",
@@ -7037,7 +7049,7 @@ def aba_simulador_automacao(
         r1 = max(0.0, texto_moeda_para_float(st.session_state.get("ato_1_key")))
         st.session_state.dados_cliente['ato_final'] = r1
         if _renda_cli > 0:
-            st.caption(f"Tente pegar no mínimo R$ {fmt_br(_sug_min_ato1)}.")
+            _dv_linha_sug_min_apos_campo(fmt_br(_sug_min_ato1))
         
         # Função para distribuir o restante (usa PS atual da session)
         def distribuir_restante(n_parcelas):
@@ -7121,7 +7133,7 @@ def aba_simulador_automacao(
                 0.0, texto_moeda_para_float(st.session_state.get("ato_2_key"))
             )
             if _renda_cli > 0:
-                st.caption(f"Tente pegar no mínimo R$ {fmt_br(_sug_min_meio)}.")
+                _dv_linha_sug_min_apos_campo(fmt_br(_sug_min_meio))
             st.text_input(
                 "Ato 60 (R$)",
                 key="ato_3_key",
@@ -7131,26 +7143,26 @@ def aba_simulador_automacao(
                 0.0, texto_moeda_para_float(st.session_state.get("ato_3_key"))
             )
             if _renda_cli > 0:
-                st.caption(f"Tente pegar no mínimo R$ {fmt_br(_sug_min_meio)}.")
+                _dv_linha_sug_min_apos_campo(fmt_br(_sug_min_meio))
         else:
             st.text_input("Ato 30 (R$)", key="ato_2_key", placeholder="0,00")
             st.session_state.dados_cliente["ato_30"] = max(
                 0.0, texto_moeda_para_float(st.session_state.get("ato_2_key"))
             )
             if _renda_cli > 0:
-                st.caption(f"Tente pegar no mínimo R$ {fmt_br(_sug_min_meio)}.")
+                _dv_linha_sug_min_apos_campo(fmt_br(_sug_min_meio))
             st.text_input("Ato 60 (R$)", key="ato_3_key", placeholder="0,00")
             st.session_state.dados_cliente["ato_60"] = max(
                 0.0, texto_moeda_para_float(st.session_state.get("ato_3_key"))
             )
             if _renda_cli > 0:
-                st.caption(f"Tente pegar no mínimo R$ {fmt_br(_sug_min_meio)}.")
+                _dv_linha_sug_min_apos_campo(fmt_br(_sug_min_meio))
             st.text_input("Ato 90 (R$)", key="ato_4_key", placeholder="0,00")
             st.session_state.dados_cliente["ato_90"] = max(
                 0.0, texto_moeda_para_float(st.session_state.get("ato_4_key"))
             )
             if _renda_cli > 0:
-                st.caption(f"Tente pegar no mínimo R$ {fmt_br(_sug_min_meio)}.")
+                _dv_linha_sug_min_apos_campo(fmt_br(_sug_min_meio))
 
         st.write("")
         st.button(
