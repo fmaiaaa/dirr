@@ -2611,7 +2611,9 @@ def configurar_layout():
             /* Tipografia unificada: um tamanho para todos os títulos, outro para corpo / apoio */
             --dv-title-font-size: clamp(1.12rem, 2vw, 1.28rem);
             /* Título principal do cabeçalho (Simulador imobiliário DV) */
-            --dv-hero-title-font-size: clamp(1.85rem, 5.2vw, 2.85rem);
+            --dv-hero-title-font-size: clamp(1.72rem, 4.75vw, 2.62rem);
+            /* Espaçamento fixo entre cada bloco/campo na coluna principal */
+            --dv-stack-gap: 1.25rem;
             --dv-body-font-size: 1rem;
         }}
         @media (prefers-reduced-motion: no-preference) {{
@@ -2759,12 +2761,12 @@ def configurar_layout():
                 max-width: 100%;
                 margin-left: 0;
                 margin-right: 0;
-                margin-bottom: var(--dv-rhythm, 1.35rem);
+                margin-bottom: var(--dv-stack-gap);
             }}
             [data-testid="stHorizontalBlock"] {{
                 flex-direction: column !important;
                 align-items: stretch !important;
-                gap: var(--dv-rhythm, 1.35rem) !important;
+                gap: var(--dv-stack-gap) !important;
             }}
             [data-testid="stHorizontalBlock"] > div[data-testid="column"] {{
                 width: 100% !important;
@@ -2874,25 +2876,25 @@ def configurar_layout():
             }}
         }}
 
-        /* Ritmo vertical uniforme: um único espaçamento entre linhas (campos / blocos) */
+        /* Espaçamento fixo entre cada conteúdo (blocos / campos) */
         .block-container [data-testid="stVerticalBlock"] {{
             display: flex !important;
             flex-direction: column !important;
-            gap: var(--dv-rhythm) !important;
-            row-gap: var(--dv-rhythm) !important;
-            column-gap: var(--dv-rhythm) !important;
+            gap: var(--dv-stack-gap) !important;
+            row-gap: var(--dv-stack-gap) !important;
+            column-gap: var(--dv-stack-gap) !important;
             align-items: stretch !important;
         }}
         .block-container [data-testid="column"] [data-testid="stVerticalBlock"] {{
             display: flex !important;
             flex-direction: column !important;
-            gap: var(--dv-rhythm) !important;
-            row-gap: var(--dv-rhythm) !important;
+            gap: var(--dv-stack-gap) !important;
+            row-gap: var(--dv-stack-gap) !important;
             align-items: stretch !important;
         }}
         .block-container [data-testid="stVerticalBlock"] [data-testid="stVerticalBlock"] {{
-            gap: var(--dv-rhythm) !important;
-            row-gap: var(--dv-rhythm) !important;
+            gap: var(--dv-stack-gap) !important;
+            row-gap: var(--dv-stack-gap) !important;
         }}
         /* Evita somar margem do Streamlit ao gap do bloco vertical */
         .block-container [data-testid="stVerticalBlock"] > div[data-testid="stElementContainer"] {{
@@ -2935,7 +2937,7 @@ def configurar_layout():
             margin-top: 0 !important;
         }}
         .block-container [data-testid="stVerticalBlock"] > div[data-testid="stElementContainer"]:nth-child(-n+2) {{
-            margin-bottom: calc(-1 * var(--dv-rhythm)) !important;
+            margin-bottom: calc(-1 * var(--dv-stack-gap)) !important;
         }}
         .block-container [data-testid="stVerticalBlock"] > div[data-testid="stElementContainer"]:nth-child(-n+3) {{
             padding-top: 0 !important;
@@ -2973,12 +2975,12 @@ def configurar_layout():
             padding-top: 0 !important;
         }}
         .block-container [data-testid="stHorizontalBlock"] {{
-            gap: var(--dv-rhythm) !important;
+            gap: var(--dv-stack-gap) !important;
             align-items: flex-start !important;
         }}
         .block-container div[data-testid="stMarkdownContainer"] hr,
         .block-container hr {{
-            margin: var(--dv-rhythm) 0 !important;
+            margin: var(--dv-stack-gap) 0 !important;
             border: none !important;
             height: 1px !important;
             background: linear-gradient(
@@ -3051,9 +3053,9 @@ def configurar_layout():
             font-family: 'Montserrat', 'Inter', sans-serif !important;
             font-size: var(--dv-hero-title-font-size) !important;
             font-weight: 800 !important;
-            text-transform: uppercase !important;
-            letter-spacing: 0.06em !important;
-            line-height: 1.12 !important;
+            text-transform: none !important;
+            letter-spacing: -0.03em !important;
+            line-height: 1.15 !important;
             text-wrap: balance;
         }}
 
@@ -3088,6 +3090,7 @@ def configurar_layout():
         /* Cartão de vidro - mesma linguagem da Ficha Credenciamento (max-width largo para o simulador) */
         .block-container {{
             --dv-rhythm: 1.35rem;
+            --dv-stack-gap: 1.25rem;
             text-rendering: optimizeLegibility;
             max-width: min(1680px, 100%) !important;
             margin-left: auto !important;
@@ -3130,10 +3133,10 @@ def configurar_layout():
         .stMarkdown h1.header-title {{
             margin-top: 0 !important;
             margin-bottom: 0 !important;
-            line-height: 1.12 !important;
+            line-height: 1.15 !important;
             font-size: var(--dv-hero-title-font-size) !important;
-            text-transform: uppercase !important;
-            letter-spacing: 0.06em !important;
+            text-transform: none !important;
+            letter-spacing: -0.03em !important;
         }}
         .stMarkdown h2 {{ text-align: center !important; margin: 0 !important; color: {COR_AZUL_ESC} !important; }}
         .stMarkdown h3 {{ text-align: center !important; margin: 0 !important; }}
@@ -3689,11 +3692,11 @@ def configurar_layout():
             flex-direction: column;
             align-items: center;
             justify-content: flex-start;
-            gap: var(--dv-rhythm);
+            gap: var(--dv-stack-gap);
             text-align: center;
             width: 100%;
             max-width: 1100px;
-            margin: 0 auto var(--dv-rhythm);
+            margin: 0 auto var(--dv-stack-gap);
             padding: 0 clamp(0.75rem, 2vw, 1rem) 0;
             position: relative;
             box-sizing: border-box;
@@ -3707,7 +3710,7 @@ def configurar_layout():
             position: relative;
             left: auto;
             transform: none;
-            margin-bottom: var(--dv-rhythm);
+            margin-bottom: var(--dv-stack-gap);
             margin-top: 0;
             box-sizing: border-box;
             height: 4px;
@@ -3769,8 +3772,8 @@ def configurar_layout():
         .block-container [data-testid="stVerticalBlock"] > div[data-testid="stElementContainer"]:has(
             + div[data-testid="stElementContainer"] .dv-perfil-simulacao-anchor
         ) {{
-            margin-top: calc(-0.5 * var(--dv-rhythm)) !important;
-            margin-bottom: calc(-0.85 * var(--dv-rhythm)) !important;
+            margin-top: calc(-0.5 * var(--dv-stack-gap)) !important;
+            margin-bottom: calc(-0.85 * var(--dv-stack-gap)) !important;
             padding-top: 0 !important;
             padding-bottom: 0 !important;
             min-height: 0 !important;
@@ -3795,7 +3798,7 @@ def configurar_layout():
             overflow: hidden !important;
         }}
         .block-container [data-testid="stVerticalBlock"] > div[data-testid="stElementContainer"]:has(.dv-perfil-simulacao-anchor) {{
-            margin-top: calc(-0.65 * var(--dv-rhythm)) !important;
+            margin-top: calc(-0.65 * var(--dv-stack-gap)) !important;
         }}
         .home-campanhas-copy {{
             width: 100%;
@@ -4056,12 +4059,12 @@ def configurar_layout():
             font-family: 'Montserrat', 'Inter', sans-serif;
             font-size: var(--dv-hero-title-font-size) !important;
             font-weight: 800;
-            line-height: 1.12;
+            line-height: 1.15;
             margin: 0;
             color: {COR_AZUL_ESC};
             text-align: center;
-            text-transform: uppercase !important;
-            letter-spacing: 0.06em !important;
+            text-transform: none !important;
+            letter-spacing: -0.03em !important;
         }}
         /* Cabeçalho injetado: wrapper do Streamlit às vezes força alinhamento à esquerda */
         div[data-testid="stMarkdown"] .header-container {{
@@ -4073,11 +4076,11 @@ def configurar_layout():
             text-align: center !important;
             font-size: var(--dv-hero-title-font-size) !important;
             font-weight: 800 !important;
-            line-height: 1.12 !important;
+            line-height: 1.15 !important;
             margin-top: 0 !important;
             margin-bottom: 0 !important;
-            text-transform: uppercase !important;
-            letter-spacing: 0.06em !important;
+            text-transform: none !important;
+            letter-spacing: -0.03em !important;
         }}
 
         .card, .fin-box, .recommendation-card, .login-card {{
@@ -4207,8 +4210,8 @@ def configurar_layout():
 
         .footer {{
             text-align: center;
-            margin-top: var(--dv-rhythm, 1.35rem) !important;
-            padding: var(--dv-rhythm, 1.35rem) 1rem calc(var(--dv-rhythm, 1.35rem) + 0.25rem);
+            margin-top: var(--dv-stack-gap) !important;
+            padding: var(--dv-stack-gap) 1rem calc(var(--dv-stack-gap) + 0.25rem);
             font-family: 'Inter', system-ui, sans-serif;
             color: #64748b !important;
             font-size: var(--dv-body-font-size) !important;
