@@ -746,7 +746,7 @@ def _politica_emcash(politica: Any) -> bool:
 
 # Aviso Emcash (parcelas 30/60): UI, PDF, e-mail, WhatsApp (hífen ASCII)
 _EMCASH_NOTA_PARCELAS = (
-    "Emcash - parcelas incluem correção monetária (+IPCA) além dos juros; "
+    "Emcash - parcelas incluem correção monetária (+IPCA) além dos juros, então "
     "não equivalem a parcelas apenas com juros sobre saldo."
 )
 
@@ -4434,10 +4434,10 @@ def configurar_layout():
         .custom-alert {{
             background: linear-gradient(135deg, {COR_AZUL_ESC} 0%, #033061 100%);
             box-sizing: border-box !important;
-            width: calc(100% + 2 * var(--dv-block-pad-x)) !important;
-            max-width: none !important;
-            margin-left: calc(-1 * var(--dv-block-pad-x)) !important;
-            margin-right: calc(-1 * var(--dv-block-pad-x)) !important;
+            width: 100% !important;
+            max-width: 100% !important;
+            margin-left: 0 !important;
+            margin-right: 0 !important;
             margin-bottom: var(--dv-stack-gap) !important;
             padding: 0.4rem 0.85rem !important;
             border-radius: var(--dv-input-radius) !important;
@@ -4455,10 +4455,10 @@ def configurar_layout():
             background: linear-gradient(135deg, {COR_VERMELHO} 0%, {COR_VERMELHO_ESCURO} 100%);
             color: #ffffff !important;
             box-sizing: border-box !important;
-            width: calc(100% + 2 * var(--dv-block-pad-x)) !important;
-            max-width: none !important;
-            margin-left: calc(-1 * var(--dv-block-pad-x)) !important;
-            margin-right: calc(-1 * var(--dv-block-pad-x)) !important;
+            width: 100% !important;
+            max-width: 100% !important;
+            margin-left: 0 !important;
+            margin-right: 0 !important;
             margin-bottom: var(--dv-stack-gap) !important;
             border-radius: var(--dv-input-radius) !important;
             padding: 0.4rem 0.85rem !important;
@@ -5397,7 +5397,7 @@ def aba_simulador_automacao(
         st.markdown(
             f'<p class="finan-subsidios-note">Subsídios da curva inferiores a '
             f"{reais_streamlit_html(fmt_br(SUBSIDIO_MINIMO_CURVA))} são desconsiderados (tratados como "
-            f"{reais_streamlit_html('0,00')}), alinhado à regra da planilha comercial. "
+            f"{reais_streamlit_html('0,00')}). "
             f"A tabela acima é só referência; financiamento e subsídio aprovados podem ser outros valores.</p>",
             unsafe_allow_html=True,
         )
@@ -5474,7 +5474,7 @@ def aba_simulador_automacao(
             _f_ok = clamp_moeda_positiva(_f_raw, None)
             if abs(_f_raw - _f_ok) > 0.009:
                 st.session_state["fin_aprovado_key"] = float_para_campo_texto(_f_ok, vazio_se_zero=True)
-        st.text_input("Financiamento aprovado (reais)", key="fin_aprovado_key", placeholder="Exemplo: 250000 ou 250.000,00")
+        st.text_input("Financiamento aprovado", key="fin_aprovado_key", placeholder="Exemplo: 250000 ou 250.000,00")
         f_u = clamp_moeda_positiva(texto_moeda_para_float(st.session_state.get("fin_aprovado_key")), None)
         st.session_state.dados_cliente['finan_usado'] = f_u
 
@@ -5489,7 +5489,7 @@ def aba_simulador_automacao(
             if abs(_s_raw - _s_ok) > 0.009:
                 st.session_state["sub_aprovado_key"] = float_para_campo_texto(_s_ok, vazio_se_zero=True)
         st.text_input(
-            "Subsídio aprovado e Fundo de Garantia do Tempo de Serviço (reais)",
+            "FGTS e subsídio aprovados",
             key="sub_aprovado_key",
             placeholder="Exemplo: 50000 ou 50.000,00",
         )
@@ -5501,7 +5501,7 @@ def aba_simulador_automacao(
         except: prazo_atual = 360
         if "prazo_aprovado_key" not in st.session_state:
             st.session_state["prazo_aprovado_key"] = str(int(prazo_atual))
-        st.text_input("Prazo do financiamento (meses)", key="prazo_aprovado_key", placeholder="360")
+        st.text_input("Prazo do financiamento", key="prazo_aprovado_key", placeholder="360")
         _pz = texto_inteiro(st.session_state.get("prazo_aprovado_key"), default=360, min_v=12, max_v=600)
         prazo_sel = _pz if _pz is not None else 360
         st.session_state.dados_cliente['prazo_financiamento'] = int(prazo_sel)
@@ -5653,10 +5653,10 @@ def aba_simulador_automacao(
                                     <div style="font-weight:bold; color:#111111;">{reais_streamlit_html(aval_fmt)}</div>
                                     <div style="color:#111111; margin-top:5px;">Valor de venda</div>
                                     <div class="price-tag" style="margin-top:0;">{reais_streamlit_html(val_fmt)}</div>
-                                    <div style="color:#111111; margin-top:8px;">Lucro recomendado</div>
+                                    <div style="color:#111111; margin-top:8px;">Retorno estimado</div>
                                     <div style="font-weight:800; color:#111111;">{reais_streamlit_html(lucro_fmt)}</div>
                                     <div style="color:#111111; opacity:0.75; margin-top:5px;">
-                                      VCX usado: {reais_streamlit_html(vcx_usado_fmt)} | VCX preservado: {reais_streamlit_html(vcx_pres_fmt)}
+                                      VCX a ser usado: {reais_streamlit_html(vcx_usado_fmt)} | VCX preservado: {reais_streamlit_html(vcx_pres_fmt)}
                                     </div>
                                 </div>
                             </div>
@@ -5770,7 +5770,7 @@ def aba_simulador_automacao(
                     return corpo
 
                 uni_escolhida_id = st.selectbox(
-                    "Escolha a Unidade (recomendadas primeiro; depois por preço crescente):",
+                    "Escolha a Unidade:",
                     options=current_uni_ids,
                     index=min(idx_uni, len(current_uni_ids) - 1) if current_uni_ids else 0,
                     format_func=label_uni,
@@ -5873,7 +5873,7 @@ def aba_simulador_automacao(
         # --- ETAPA 5: DISTRIBUIÇÃO DA ENTRADA (FECHAMENTO) ---
         d = st.session_state.dados_cliente
         st.markdown(
-            '<h3 class="dv-titulo-secao">Distribuição da Entrada (Fechamento)</h3>',
+            '<h3 class="dv-titulo-secao">Distribuição da Entrada</h3>',
             unsafe_allow_html=True,
         )
         if float(d.get('imovel_valor', 0) or 0) <= 0 or not d.get('unidade_id'):
@@ -6167,7 +6167,7 @@ def aba_simulador_automacao(
             col_atos_rest1, col_atos_rest2 = st.columns(2)
             with col_atos_rest1:
                 st.text_input(
-                    "Ato 30 - prestação entrada (juros + correção +IPCA)",
+                    "Ato 30",
                     key="ato_2_key",
                     placeholder="0,00",
                 )
@@ -6176,7 +6176,7 @@ def aba_simulador_automacao(
                 )
             with col_atos_rest2:
                 st.text_input(
-                    "Ato 60 - prestação entrada (juros + correção +IPCA)",
+                    "Ato 60",
                     key="ato_3_key",
                     placeholder="0,00",
                 )
@@ -6359,11 +6359,11 @@ def aba_simulador_automacao(
         if u_valor > 0:
             st.markdown("---")
             st.markdown(
-                '<h3 class="dv-titulo-secao">Condição comercial: Volta ao Caixa</h3>',
+                '<h3 class="dv-titulo-secao">Condições comerciais: Volta ao Caixa</h3>',
                 unsafe_allow_html=True,
             )
             st.caption(
-                "Valor de desconto negociado dentro da **folga Volta ao Caixa** cadastrada na unidade (teto automático)."
+                "Valor de desconto negociado dentro do **limite de Volta ao Caixa** da unidade."
             )
             st.text_input(
                 "Desconto Volta ao Caixa (R$)",
@@ -6380,7 +6380,7 @@ def aba_simulador_automacao(
             _vc_pres_ui = max(0.0, vc_ref_top - vc_input_val)
             st.markdown(
                 f'<div class="inline-ref" style="color:#111111;opacity:0.85;">'
-                f"Limite (folga Volta ao Caixa): {reais_streamlit_html(fmt_br(vc_ref_top))}"
+                f"Limite Volta ao Caixa: {reais_streamlit_html(fmt_br(vc_ref_top))}"
                 f' &nbsp;|&nbsp; Volta ao Caixa preservado: {reais_streamlit_html(fmt_br(_vc_pres_ui))}'
                 f"</div>",
                 unsafe_allow_html=True,
@@ -6388,17 +6388,17 @@ def aba_simulador_automacao(
             _v_pos_vcx_ui = max(0.0, u_valor - vc_input_val)
             st.markdown(
                 '<div style="margin:4px 0 18px 0;font-weight:600;color:#111111;text-align:center;line-height:1.45;">'
-                f"Valor da unidade após este desconto: "
+                f"Valor da unidade (após volta ao caixa): "
                 f"{reais_streamlit_html(fmt_br(_v_pos_vcx_ui))}</div>",
                 unsafe_allow_html=True,
             )
 
             st.markdown(
-                '<h3 class="dv-titulo-secao">Condição comercial: demais descontos</h3>',
+                '<h3 class="dv-titulo-secao">Condições comerciais: demais descontos</h3>',
                 unsafe_allow_html=True,
             )
             st.caption(
-                "Outros abatimentos sobre o preço de lista **sem teto** no simulador; limitados ao saldo após o Volta ao Caixa."
+                "Outros abatimentos sobre o preço."
             )
             st.text_input(
                 "Outros descontos (R$)",
