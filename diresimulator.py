@@ -841,8 +841,10 @@ import streamlit as st
 
 def _st_iframe_html_snippet(html: str, *, height: int = 0, width: int | None = None) -> None:
     """Substitui st.components.v1.html (deprecado). Scripts devem usar window.parent como antes."""
-    # st.iframe rejeita width=0 (StreamlitInvalidWidthError).
-    kw: dict = {"height": height}
+    # st.iframe rejeita height=0 e width=0 (StreamlitInvalidHeightError / StreamlitInvalidWidthError).
+    kw: dict = {}
+    hi = int(height or 0)
+    kw["height"] = hi if hi > 0 else "content"
     if width is not None and int(width) > 0:
         kw["width"] = int(width)
     st.iframe(html, **kw)
