@@ -3022,16 +3022,6 @@ def configurar_layout():
                 margin-right: 0;
                 margin-bottom: var(--dv-stack-gap);
             }}
-            [data-testid="stHorizontalBlock"] {{
-                flex-direction: column !important;
-                align-items: stretch !important;
-                gap: var(--dv-stack-gap) !important;
-            }}
-            [data-testid="stHorizontalBlock"] > div[data-testid="column"] {{
-                width: 100% !important;
-                min-width: 0 !important;
-                flex: 1 1 auto !important;
-            }}
             .scrolling-wrapper .card-item {{
                 width: min(300px, 88vw);
             }}
@@ -3251,9 +3241,17 @@ def configurar_layout():
             margin-top: 0 !important;
             padding-top: 0 !important;
         }}
+        /* Um campo por linha: st.columns vira coluna única (valor + referência logo abaixo no mesmo “bloco”). */
         .block-container [data-testid="stHorizontalBlock"] {{
+            display: flex !important;
+            flex-direction: column !important;
+            align-items: stretch !important;
             gap: var(--dv-stack-gap) !important;
-            align-items: flex-start !important;
+        }}
+        .block-container [data-testid="stHorizontalBlock"] > div[data-testid="column"] {{
+            width: 100% !important;
+            min-width: 0 !important;
+            flex: 1 1 auto !important;
         }}
         .block-container div[data-testid="stMarkdownContainer"] hr,
         .block-container hr {{
@@ -4865,31 +4863,24 @@ def configurar_layout():
             letter-spacing: 0.02em;
             display: block;
             width: 100%;
-            text-align: center !important;
+            text-align: left !important;
             opacity: 0.72;
             position: relative;
             z-index: 0;
         }}
-        /* Telemóvel: uma coluna — referências alinhadas ao campo (esquerda), não duas linhas “centralizadas” */
-        @media (max-width: 768px) {{
-            .inline-ref,
-            .inline-ref p,
-            p.inline-ref {{
-                text-align: left !important;
-            }}
-            .dv-campo-resumo-movel {{
-                text-align: left !important;
-            }}
-            .inline-ref-vcx-linhas {{
-                display: flex !important;
-                flex-direction: column !important;
-                align-items: flex-start !important;
-                gap: 0.35rem !important;
-                text-align: left !important;
-            }}
-            .inline-ref-vcx-sep {{
-                display: none !important;
-            }}
+        .dv-campo-resumo-movel {{
+            text-align: left !important;
+        }}
+        /* Volta ao Caixa: duas referências empilhadas (sem barra no meio) em qualquer largura */
+        .inline-ref-vcx-linhas {{
+            display: flex !important;
+            flex-direction: column !important;
+            align-items: flex-start !important;
+            gap: 0.35rem !important;
+            text-align: left !important;
+        }}
+        .inline-ref-vcx-sep {{
+            display: none !important;
         }}
 
         .metric-label {{
@@ -6732,7 +6723,7 @@ def aba_simulador_automacao(
         st.session_state.dados_cliente['ps_mensal'] = v_parc
         st.session_state.dados_cliente['ps_mensal_simples'] = (float(ps_input_val or 0) / parc) if parc > 0 else 0.0
         st.markdown(
-            f'<div class="dv-campo-resumo-movel" style="margin: 0 0 0.5rem 0; font-weight: 600; color: #111111; text-align: center;">'
+            f'<div class="dv-campo-resumo-movel" style="margin: 0 0 0.5rem 0; font-weight: 600; color: #111111; text-align: left;">'
             f"Mensalidade do Pro Soluto: {reais_streamlit_html(fmt_br(v_parc))} ({parc} parcelas)</div>",
             unsafe_allow_html=True,
         )
@@ -6835,7 +6826,7 @@ def aba_simulador_automacao(
             )
             _v_pos_vcx_ui = max(0.0, u_valor - vc_input_val)
             st.markdown(
-                '<div class="dv-campo-resumo-movel" style="margin:4px 0 18px 0;font-weight:600;color:#111111;text-align:center;line-height:1.45;">'
+                '<div class="dv-campo-resumo-movel" style="margin:4px 0 18px 0;font-weight:600;color:#111111;text-align:left;line-height:1.45;">'
                 f"Valor da unidade (após volta ao caixa): "
                 f"{reais_streamlit_html(fmt_br(_v_pos_vcx_ui))}</div>",
                 unsafe_allow_html=True,
@@ -6871,7 +6862,7 @@ def aba_simulador_automacao(
                 )
             v_liquido = max(0.0, u_valor - vc_input_val - outros_desc)
             st.markdown(
-                f'<div class="dv-campo-resumo-movel" style="margin:0 0 var(--dv-stack-gap) 0;font-weight:600;color:#111111;text-align:center;line-height:1.45;">'
+                f'<div class="dv-campo-resumo-movel" style="margin:0 0 var(--dv-stack-gap) 0;font-weight:600;color:#111111;text-align:left;line-height:1.45;">'
                 f"Valor final da unidade (após todos os descontos): "
                 f"{reais_streamlit_html(fmt_br(v_liquido))}</div>",
                 unsafe_allow_html=True,
