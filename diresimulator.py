@@ -6469,10 +6469,12 @@ def aba_simulador_automacao(
                 )
             st.markdown(
                 '<p class="dv-sinal-com-prosa">'
-                "<strong>Sinal com</strong> abate da <strong>avaliação bancária</strong> só para definir a "
-                "<strong>faixa da curva</strong> (F2 até R$ 275 mil; F3 até R$ 400 mil; F4 acima de R$ 400 mil, referência até R$ 600 mil). "
-                "Os valores sugeridos de <strong>financiamento</strong> e <strong>subsídio</strong> na secção acima seguem a "
-                "<em>avaliação efetiva</em> (após o sinal), não só o valor de tabela da unidade.</p>",
+                "O campo <strong>Sinal com</strong> tem a finalidade de abater da <strong>avaliação bancária</strong> "
+                "unidades pouco acima do limite da faixa anterior, a fim de que o cliente possa pegar maior financiamento. "
+                "Os valores de <strong>financiamento automáticos</strong> seguirão o valor da unidade após abatimento "
+                "(caso seja feito), não só o valor da unidade cheio. "
+                "<strong>Faixa 2:</strong> imóveis até 275 mil; <strong>Faixa 3:</strong> imóveis até 400 mil. "
+                "Caso o valor seja pouco acima disso, use o campo para abater.</p>",
                 unsafe_allow_html=True,
             )
             st.text_input(
@@ -6486,29 +6488,41 @@ def aba_simulador_automacao(
             if _sinal_apl_pos > _val_bruto_sinal:
                 _sinal_apl_pos = float(_val_bruto_sinal)
                 st.session_state["sinal_com_key"] = float_para_campo_texto(_sinal_apl_pos, vazio_se_zero=True)
+            _val_ef_sinal = max(0.0, _val_bruto_sinal - _sinal_apl_pos)
             if _val_bruto_sinal > 400000.0:
                 _sug_sinal = max(0.0, _val_bruto_sinal - 400000.0)
                 st.markdown(
-                    f'<p class="inline-ref" style="margin-top:0;margin-bottom:0;line-height:1.45;">'
-                    f"Avaliação <strong>acima de R$ 400.000</strong> → curva em <strong>Faixa 4</strong>. "
-                    f"Para usar financiamento/subsídio da <strong>Faixa 3</strong>, a avaliação efetiva deve ser ≤ 400 mil. "
-                    f"Sinal com indicativo: <strong>{reais_streamlit_html(fmt_br(_sug_sinal))}</strong>.</p>",
+                    f'<p class="inline-ref" style="margin-top:0;margin-bottom:0.35rem;line-height:1.45;">'
+                    f"Imóvel na <strong>faixa 4</strong> na avaliação cheia (acima de 400 mil). "
+                    f"É necessário <strong>{reais_streamlit_html(fmt_br(_sug_sinal))}</strong> de abatimento "
+                    f"para que a avaliação efetiva fique na <strong>faixa 3</strong> (limite 400 mil).</p>"
+                    f'<p class="inline-ref" style="margin:0;line-height:1.45;">'
+                    f"<strong>Valor de Avaliação com Sinal Com:</strong> "
+                    f"{reais_streamlit_html(fmt_br(_val_ef_sinal))}</p>",
                     unsafe_allow_html=True,
                 )
             elif _val_bruto_sinal > 275000.0:
                 _sug_sinal = max(0.0, _val_bruto_sinal - 275000.0)
                 st.markdown(
-                    f'<p class="inline-ref" style="margin-top:0;margin-bottom:0;line-height:1.45;">'
-                    f"Avaliação entre <strong>R$ 275 mil e 400 mil</strong> (Faixa 3 na avaliação cheia). "
-                    f"Para usar a <strong>Faixa 2</strong>, a avaliação efetiva deve ser ≤ 275 mil. "
-                    f"Sinal com indicativo: <strong>{reais_streamlit_html(fmt_br(_sug_sinal))}</strong>.</p>",
+                    f'<p class="inline-ref" style="margin-top:0;margin-bottom:0.35rem;line-height:1.45;">'
+                    f"Imóvel <strong>faixa 3</strong> no preço cheio. "
+                    f"É necessário <strong>{reais_streamlit_html(fmt_br(_sug_sinal))}</strong> de abatimento "
+                    f"para que seja classificado como <strong>faixa 2</strong>.</p>"
+                    f'<p class="inline-ref" style="margin:0;line-height:1.45;">'
+                    f"<strong>Valor de Avaliação com Sinal Com:</strong> "
+                    f"{reais_streamlit_html(fmt_br(_val_ef_sinal))}</p>",
                     unsafe_allow_html=True,
                 )
             else:
-                st.caption(
-                    "Avaliação na Faixa 2 (até R$ 275 mil). Sinal com opcional se quiser ajustar fino a referência da curva."
+                st.markdown(
+                    f'<p class="inline-ref" style="margin-top:0;margin-bottom:0.35rem;line-height:1.45;">'
+                    "Avaliação na <strong>faixa 2</strong> (até 275 mil). O <strong>Sinal com</strong> é opcional "
+                    "se quiser ajuste fino da referência da curva.</p>"
+                    f'<p class="inline-ref" style="margin:0;line-height:1.45;">'
+                    f"<strong>Valor de Avaliação com Sinal Com:</strong> "
+                    f"{reais_streamlit_html(fmt_br(_val_ef_sinal))}</p>",
+                    unsafe_allow_html=True,
                 )
-            _val_ef_sinal = max(0.0, _val_bruto_sinal - _sinal_apl_pos)
             _, _, _faixa_pre_sinal_pos = motor.obter_enquadramento(
                 _renda_sinal_pos, True, True, valor_avaliacao=_val_bruto_sinal
             )
