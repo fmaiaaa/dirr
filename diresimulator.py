@@ -1818,7 +1818,10 @@ def dialog_visualizar_campanha(campanha: dict[str, str]) -> None:
     if src:
         st.image(src, use_container_width=True)
     if titulo:
-        st.markdown(f"### {html_std.escape(titulo)}")
+        st.markdown(
+            f'<h3 class="dv-titulo-secao">{html_std.escape(titulo)}</h3>',
+            unsafe_allow_html=True,
+        )
     if descricao:
         st.write(descricao)
     else:
@@ -2605,6 +2608,9 @@ def configurar_layout():
             --dv-shadow-glow: 0 0 0 1px rgba({RGB_AZUL_CSS}, 0.06), 0 8px 32px -8px rgba({RGB_AZUL_CSS}, 0.12);
             --dv-surface-glass: rgba(255, 255, 255, 0.82);
             --dv-surface-glass-strong: rgba(255, 255, 255, 0.94);
+            /* Tipografia unificada: um tamanho para todos os títulos, outro para corpo / apoio */
+            --dv-title-font-size: clamp(1.12rem, 2vw, 1.28rem);
+            --dv-body-font-size: 1rem;
         }}
         @media (prefers-reduced-motion: no-preference) {{
             html {{
@@ -2983,26 +2989,42 @@ def configurar_layout():
             }}
         }}
 
-        h1, h2, h3, h4, h5, h6 {{
+        h1, h2, h3, h4, h5, h6,
+        .dv-titulo-secao,
+        .header-title,
+        .home-banners-section-title {{
             font-family: 'Montserrat', 'Inter', sans-serif !important;
+            font-size: var(--dv-title-font-size) !important;
             text-align: center !important;
             color: {COR_AZUL_ESC} !important;
             font-weight: 700;
             letter-spacing: -0.02em;
-            line-height: 1.25;
+            line-height: 1.28;
         }}
         h5, h6 {{
             font-weight: 600 !important;
-            font-size: 0.98rem !important;
             color: {COR_TEXTO_MUTED} !important;
+        }}
+        .header-title {{
+            font-weight: 800 !important;
         }}
 
         .stMarkdown p, .stText, label, .stSelectbox label, .stTextInput label, .stNumberInput label {{
             color: {COR_TEXTO_LABEL} !important;
+            font-size: var(--dv-body-font-size) !important;
         }}
         [data-testid="stWidgetLabel"] label,
         [data-testid="stWidgetLabel"] p {{
             color: {COR_TEXTO_LABEL} !important;
+            font-size: var(--dv-body-font-size) !important;
+        }}
+        /* Corpo: mesmo tamanho em markdown, alertas e texto de apoio */
+        div[data-testid="stMarkdown"] p,
+        div[data-testid="stMarkdownContainer"] p,
+        .block-container .custom-alert,
+        .block-container .summary-body,
+        .block-container .summary-body b {{
+            font-size: var(--dv-body-font-size) !important;
         }}
         /* Parágrafos do markdown = textos de apoio / subtítulos - centralizados */
         div[data-testid="stMarkdown"] p {{
@@ -3011,7 +3033,7 @@ def configurar_layout():
             text-align: center !important;
             text-wrap: pretty;
         }}
-        h1, h2, h3, .header-title, .home-banners-section-title {{
+        h1, h2, h3, .header-title, .home-banners-section-title, .dv-titulo-secao {{
             text-wrap: balance;
         }}
 
@@ -3055,28 +3077,29 @@ def configurar_layout():
             box-shadow: none !important;
         }}
 
-        /* Títulos de conteúdo - hierarquia clara, só Montserrat + Inter herdada */
-        .stMarkdown h1 {{ font-size: clamp(1.5rem, 2.5vw, 1.85rem) !important; text-align: center !important; margin-bottom: 0.45rem !important; font-weight: 800 !important; }}
+        /* Títulos em markdown: margens (tamanho = regra global h1–h6 / .dv-titulo-secao) */
+        .stMarkdown h1 {{ text-align: center !important; margin-bottom: 0.45rem !important; font-weight: 800 !important; }}
         .stMarkdown h1.header-title {{
-            font-size: clamp(1.75rem, 4.8vw, 2.65rem) !important;
             margin-top: 0 !important;
             margin-bottom: 0 !important;
             line-height: 1.18 !important;
         }}
-        .stMarkdown h2 {{ font-size: clamp(1.28rem, 2vw, 1.5rem) !important; text-align: center !important; margin-bottom: 0.45rem !important; font-weight: 700 !important; color: {COR_AZUL_ESC} !important; }}
-        .stMarkdown h3 {{ font-size: clamp(1.12rem, 1.8vw, 1.28rem) !important; text-align: center !important; margin-bottom: 0.4rem !important; font-weight: 700 !important; }}
-        .stMarkdown h4 {{ font-size: 1.05rem !important; text-align: center !important; margin-bottom: 0.35rem !important; font-weight: 700 !important; }}
+        .stMarkdown h2 {{ text-align: center !important; margin-bottom: 0.45rem !important; color: {COR_AZUL_ESC} !important; }}
+        .stMarkdown h3 {{ text-align: center !important; margin-bottom: 0.4rem !important; }}
+        .stMarkdown h4 {{ text-align: center !important; margin-bottom: 0.35rem !important; }}
         .stMarkdown h5, .stMarkdown h6 {{
-            font-size: 0.95rem !important;
             text-align: center !important;
             margin-bottom: 0.3rem !important;
             font-weight: 600 !important;
             color: {COR_TEXTO_MUTED} !important;
         }}
+        .dv-titulo-secao {{
+            margin: 0 0 0.4rem 0 !important;
+        }}
         [data-testid="stCaption"] {{
             font-family: 'Inter', sans-serif !important;
             color: #475569 !important;
-            font-size: 0.9rem !important;
+            font-size: var(--dv-body-font-size) !important;
             line-height: 1.5 !important;
             text-align: center !important;
             justify-content: center !important;
@@ -3146,7 +3169,7 @@ def configurar_layout():
             padding: 0 15px !important;
             color: {COR_INPUT_TEXTO} !important;
             -webkit-text-fill-color: {COR_INPUT_TEXTO} !important;
-            font-size: 1rem !important;
+            font-size: var(--dv-body-font-size) !important;
             line-height: var(--dv-input-height) !important;
             text-align: left !important;
             display: flex !important;
@@ -3212,7 +3235,7 @@ def configurar_layout():
             background-color: {COR_INPUT_BG} !important;
             color: {COR_INPUT_TEXTO} !important;
             -webkit-text-fill-color: {COR_INPUT_TEXTO} !important;
-            font-size: 1rem !important;
+            font-size: var(--dv-body-font-size) !important;
             line-height: 1.45 !important;
         }}
         [data-testid="stTextArea"] div[data-baseweb="textarea"],
@@ -3238,7 +3261,7 @@ def configurar_layout():
             min-height: 44px !important;
             height: auto !important;
             font-weight: 600 !important;
-            font-size: 0.95rem !important;
+            font-size: var(--dv-body-font-size) !important;
             transition: background-color var(--dv-duration) var(--dv-ease-out),
                 border-color var(--dv-duration) var(--dv-ease-out),
                 box-shadow var(--dv-duration) var(--dv-ease-out),
@@ -3254,7 +3277,7 @@ def configurar_layout():
         div[data-testid="column"] .stButton button, [data-testid="stSidebar"] .stButton button {{
              min-height: 48px !important;
              height: 48px !important;
-             font-size: 0.9rem !important;
+             font-size: var(--dv-body-font-size) !important;
         }}
 
         /* Botões primários = gradiente vermelho (ficha Vendas RJ) */
@@ -3577,7 +3600,7 @@ def configurar_layout():
 
         [data-testid="stSidebar"] .stButton button {{
             padding: 8px 12px !important;
-            font-size: 0.75rem !important;
+            font-size: var(--dv-body-font-size) !important;
             margin-bottom: 2px !important;
             height: auto !important;
             min-height: 30px !important;
@@ -3599,6 +3622,7 @@ def configurar_layout():
             box-shadow: var(--dv-shadow-sm) !important;
         }}
         [data-testid="stExpander"] summary {{
+            font-size: var(--dv-body-font-size) !important;
             font-weight: 600 !important;
             letter-spacing: -0.02em !important;
             cursor: pointer !important;
@@ -3672,23 +3696,55 @@ def configurar_layout():
             width: 100%;
             max-width: 100vw;
             position: relative;
-            margin: 0 auto var(--dv-rhythm);
+            margin: 0 auto 0 !important;
             padding: 0 0.75rem;
             box-sizing: border-box;
             text-align: center;
         }}
         .home-banners-section-title {{
             font-family: 'Montserrat', 'Inter', sans-serif !important;
-            font-size: clamp(1.12rem, 2.2vw, 1.42rem) !important;
+            font-size: var(--dv-title-font-size) !important;
             font-weight: 700 !important;
             color: {COR_AZUL_ESC} !important;
             text-align: center !important;
-            margin: 0 0 var(--dv-rhythm) 0 !important;
+            margin: 0 0 0.35rem 0 !important;
             padding: 0 0.25rem !important;
             letter-spacing: -0.02em !important;
             line-height: 1.25 !important;
             width: 100%;
             order: 0;
+        }}
+        /* Campanhas comerciais → iframe popup → Perfil: cola ao bloco seguinte */
+        .block-container [data-testid="stVerticalBlock"] > div[data-testid="stElementContainer"]:has(
+            + div[data-testid="stElementContainer"] .dv-perfil-simulacao-anchor
+        ) {{
+            margin-top: calc(-0.5 * var(--dv-rhythm)) !important;
+            margin-bottom: calc(-0.85 * var(--dv-rhythm)) !important;
+            padding-top: 0 !important;
+            padding-bottom: 0 !important;
+            min-height: 0 !important;
+        }}
+        .block-container [data-testid="stVerticalBlock"] > div[data-testid="stElementContainer"]:has(
+            + div[data-testid="stElementContainer"] .dv-perfil-simulacao-anchor
+        ) > div {{
+            min-height: 0 !important;
+        }}
+        .block-container [data-testid="stVerticalBlock"] > div[data-testid="stElementContainer"]:has(
+            + div[data-testid="stElementContainer"] .dv-perfil-simulacao-anchor
+        ) [data-testid="stIFrame"],
+        .block-container [data-testid="stVerticalBlock"] > div[data-testid="stElementContainer"]:has(
+            + div[data-testid="stElementContainer"] .dv-perfil-simulacao-anchor
+        ) iframe {{
+            height: 0 !important;
+            min-height: 0 !important;
+            max-height: 0 !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            border: 0 !important;
+            overflow: hidden !important;
+        }}
+        .block-container [data-testid="stVerticalBlock"] > div[data-testid="stElementContainer"]:has(.dv-perfil-simulacao-anchor) {{
+            margin-top: calc(-0.65 * var(--dv-rhythm)) !important;
         }}
         .home-campanhas-copy {{
             width: 100%;
@@ -3697,6 +3753,7 @@ def configurar_layout():
             padding: 0 clamp(1.25rem, 6vw, 3.25rem) 0.5rem;
             box-sizing: border-box;
             text-align: left;
+            font-size: var(--dv-body-font-size);
             order: 2;
         }}
         .home-campanhas-copy-list {{
@@ -3704,7 +3761,7 @@ def configurar_layout():
             padding: 0 clamp(0.5rem, 2vw, 1.25rem) 0 clamp(1.35rem, 3.5vw, 2rem);
             list-style: disc;
             color: {COR_TEXTO_LABEL};
-            font-size: 0.9rem;
+            font-size: var(--dv-body-font-size);
             line-height: 1.5;
         }}
         .home-campanhas-copy-list li {{
@@ -3901,7 +3958,7 @@ def configurar_layout():
         }}
         .dv-campanha-overlay-text {{
             color: #1e293b !important;
-            font-size: 0.95rem !important;
+            font-size: var(--dv-body-font-size) !important;
             line-height: 1.55 !important;
             text-align: left !important;
             margin-top: 10px !important;
@@ -3910,7 +3967,7 @@ def configurar_layout():
         }}
         .dv-campanha-overlay-title {{
             margin: 0 0 0.5rem 0 !important;
-            font-size: 1.1rem !important;
+            font-size: var(--dv-title-font-size) !important;
             font-weight: 700 !important;
             color: {COR_AZUL_ESC} !important;
             font-family: 'Montserrat', 'Inter', sans-serif !important;
@@ -3946,7 +4003,7 @@ def configurar_layout():
         }}
         .header-title {{
             font-family: 'Montserrat', 'Inter', sans-serif;
-            font-size: clamp(1.75rem, 4.8vw, 2.65rem);
+            font-size: var(--dv-title-font-size) !important;
             font-weight: 800;
             line-height: 1.18;
             margin: 0;
@@ -3962,7 +4019,7 @@ def configurar_layout():
         }}
         div[data-testid="stMarkdown"] .header-container .header-title {{
             text-align: center !important;
-            font-size: clamp(1.75rem, 4.8vw, 2.65rem) !important;
+            font-size: var(--dv-title-font-size) !important;
             font-weight: 800 !important;
             line-height: 1.18 !important;
             margin-top: 0 !important;
@@ -3971,6 +4028,7 @@ def configurar_layout():
 
         .card, .fin-box, .recommendation-card, .login-card {{
             background: #ffffff;
+            font-size: var(--dv-body-font-size);
             padding: clamp(1rem, 2.5vw, 1.35rem);
             border-radius: var(--dv-radius-md);
             border: 1px solid rgba(226, 232, 240, 0.98);
@@ -4005,7 +4063,7 @@ def configurar_layout():
             text-align: center;
             text-transform: uppercase;
             letter-spacing: 0.15em;
-            font-size: 0.9rem;
+            font-size: var(--dv-title-font-size) !important;
         }}
         .summary-body {{
             background: #ffffff;
@@ -4035,11 +4093,11 @@ def configurar_layout():
         .price-tag {{
             color: {COR_VERMELHO};
             font-weight: 900;
-            font-size: 1.5rem;
+            font-size: var(--dv-body-font-size) !important;
             margin-top: 5px;
         }}
         .inline-ref {{
-            font-size: 0.72rem;
+            font-size: var(--dv-body-font-size) !important;
             color: #111111;
             margin-top: -12px;
             margin-bottom: 15px;
@@ -4051,8 +4109,21 @@ def configurar_layout():
             opacity: 0.72;
         }}
 
-        .metric-label {{ color: {COR_AZUL_ESC} !important; opacity: 0.7; font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.15em; margin-bottom: 8px; }}
-        .metric-value {{ color: {COR_AZUL_ESC} !important; font-size: 1.8rem; font-weight: 800; font-family: 'Montserrat', 'Inter', sans-serif; }}
+        .metric-label {{
+            color: {COR_AZUL_ESC} !important;
+            opacity: 0.7;
+            font-size: var(--dv-body-font-size) !important;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.15em;
+            margin-bottom: 8px;
+        }}
+        .metric-value {{
+            color: {COR_AZUL_ESC} !important;
+            font-size: var(--dv-body-font-size) !important;
+            font-weight: 800;
+            font-family: 'Montserrat', 'Inter', sans-serif;
+        }}
 
         .badge-ideal, .badge-seguro, .badge-multi {{
             background: linear-gradient(135deg, {COR_VERMELHO} 0%, {COR_VERMELHO_ESCURO} 100%) !important;
@@ -4060,7 +4131,7 @@ def configurar_layout():
             padding: 6px 14px;
             border-radius: 999px;
             font-weight: bold;
-            font-size: 0.82rem;
+            font-size: var(--dv-body-font-size) !important;
             margin-top: 10px;
             letter-spacing: 0.02em;
             line-height: 1.25;
@@ -4071,7 +4142,7 @@ def configurar_layout():
             .badge-ideal:hover, .badge-seguro:hover, .badge-multi:hover {{
                 transform: scale(1.04);
                 box-shadow: 0 6px 18px -4px rgba({RGB_VERMELHO_CSS}, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.22);
-            }}a
+            }}
         }}
         
         [data-testid="stSidebar"] {{ background-color: #fff; border-right: 1px solid {COR_BORDA}; }}
@@ -4082,7 +4153,7 @@ def configurar_layout():
             padding: var(--dv-rhythm, 1.35rem) 1rem calc(var(--dv-rhythm, 1.35rem) + 0.25rem);
             font-family: 'Inter', system-ui, sans-serif;
             color: #64748b !important;
-            font-size: 0.8rem;
+            font-size: var(--dv-body-font-size) !important;
             line-height: 1.5;
             border-top: 1px solid transparent;
             border-image: linear-gradient(90deg, transparent, rgba(148, 163, 184, 0.45), transparent) 1;
@@ -4726,9 +4797,12 @@ def aba_simulador_automacao(
 
     # --- PÁGINA ÚNICA: perfil → valores → recomendações → unidade → distribuição (ordem fixa) ---
     if passo == 'sim':
-        st.markdown("### Perfil da simulação")
         st.markdown(
-            '<p style="font-size:0.8rem;color:#111111;margin:0 0 0.75rem 0;">Informe renda e perfil de crédito. '
+            '<div class="dv-perfil-simulacao-anchor"><h3 class="dv-titulo-secao">Perfil da simulação</h3></div>',
+            unsafe_allow_html=True,
+        )
+        st.markdown(
+            '<p style="color:#111111;margin:0 0 0.75rem 0;">Informe renda e perfil de crédito. '
             "Os blocos abaixo atualizam automaticamente ao alterar estes campos.</p>",
             unsafe_allow_html=True,
         )
@@ -4861,7 +4935,10 @@ def aba_simulador_automacao(
         st.markdown("---")
         # --- ETAPA 2: VALORES APROVADOS (FECHAMENTO FINANCEIRO) ---
         d = st.session_state.dados_cliente
-        st.markdown("### Valores Aprovados (Fechamento Financeiro)")
+        st.markdown(
+            '<h3 class="dv-titulo-secao">Valores Aprovados (Fechamento Financeiro)</h3>',
+            unsafe_allow_html=True,
+        )
 
         renda_cli = float(d.get("renda", 0) or 0)
         _val_bruto_faixa = float(d.get("imovel_avaliacao") or 0) or 240000.0
@@ -4922,7 +4999,7 @@ def aba_simulador_automacao(
             unsafe_allow_html=True,
         )
         st.markdown(
-            f'<p style="font-size:0.8rem;color:#111111;margin:0.5rem 0 1rem 0;opacity:0.72;">Subsídios da curva inferiores a '
+            f'<p style="color:#111111;margin:0.5rem 0 1rem 0;opacity:0.72;">Subsídios da curva inferiores a '
             f"{reais_streamlit_html(fmt_br(SUBSIDIO_MINIMO_CURVA))} são desconsiderados (tratados como "
             f"{reais_streamlit_html('0,00')}), alinhado à regra da planilha comercial. "
             f"A tabela acima é só referência; financiamento e subsídio aprovados podem ser outros valores.</p>",
@@ -4935,7 +5012,7 @@ def aba_simulador_automacao(
                     max(0.0, float(d.get("sinal_com", 0) or 0)), vazio_se_zero=True
                 )
             st.markdown(
-                '<p style="font-size:0.82rem;color:#111111;margin:0.35rem 0 0.4rem 0;line-height:1.45;">'
+                '<p style="color:#111111;margin:0.35rem 0 0.4rem 0;line-height:1.45;">'
                 "<strong>Sinal com</strong> abate da <strong>avaliação bancária</strong> só para definir a "
                 "<strong>faixa da curva</strong> (F2 até R$ 275 mil; F3 até R$ 400 mil; F4 acima de R$ 400 mil, referência até R$ 600 mil). "
                 "Os valores sugeridos de <strong>financiamento</strong> e <strong>subsídio</strong> logo abaixo seguem a "
@@ -5094,7 +5171,7 @@ def aba_simulador_automacao(
         _n_sac = _AMORTIZACAO_NOME_COMPLETO["SAC"]
         _n_price = _AMORTIZACAO_NOME_COMPLETO["PRICE"]
         st.markdown(
-            f"""<div style="margin-top: -8px; margin-bottom: 15px; font-size: 0.85rem; color: #111111; text-align: center;"><b>{_n_sac}:</b> {reais_streamlit_html(fmt_br(sac_details['primeira']))} a {reais_streamlit_html(fmt_br(sac_details['ultima']))} (juros totais: {reais_streamlit_html(fmt_br(sac_details['juros']))}) &nbsp;|&nbsp; <b>{_n_price}:</b> {reais_streamlit_html(fmt_br(price_details['parcela']))} parcelas fixas (juros totais: {reais_streamlit_html(fmt_br(price_details['juros']))})</div>""",
+            f"""<div style="margin-top: -8px; margin-bottom: 15px; color: #111111; text-align: center;"><b>{_n_sac}:</b> {reais_streamlit_html(fmt_br(sac_details['primeira']))} a {reais_streamlit_html(fmt_br(sac_details['ultima']))} (juros totais: {reais_streamlit_html(fmt_br(sac_details['juros']))}) &nbsp;|&nbsp; <b>{_n_price}:</b> {reais_streamlit_html(fmt_br(price_details['parcela']))} parcelas fixas (juros totais: {reais_streamlit_html(fmt_br(price_details['juros']))})</div>""",
             unsafe_allow_html=True,
         )
         _parc_fin_ref = calcular_parcela_financiamento(f_u, int(prazo_sel), taxa_fin_vigente(d), sist_sel)
@@ -5122,7 +5199,10 @@ def aba_simulador_automacao(
         st.markdown("---")
         # --- ETAPA 3: RECOMENDAÇÃO (filtro empreendimento + cards; sem abas) ---
         d = st.session_state.dados_cliente
-        st.markdown("### Recomendação de Imóveis")
+        st.markdown(
+            '<h3 class="dv-titulo-secao">Recomendação de Imóveis</h3>',
+            unsafe_allow_html=True,
+        )
 
         df_disp_total = df_estoque_com_poder_compra(df_estoque.copy(), d, df_politicas, _prem)
 
@@ -5193,20 +5273,20 @@ def aba_simulador_automacao(
                          cards_html += f"""
                          <div class="card-item">
                             <div class="recommendation-card" style="border-top: 4px solid {COR_AZUL_ESC}; height: 100%; justify-content: flex-start;">
-                                <span style="font-size:0.65rem; color:#111111; opacity:0.95;">Perfil</span><br>
+                                <span style="color:#111111; opacity:0.95;">Perfil</span><br>
                                 <div style="margin-top:5px; margin-bottom:15px;"><span class="{css_badge}">{label}</span></div>
-                                <b style="color:#111111; font-size:1.1rem;">{emp_name}</b><br>
-                                <div style="font-size:0.85rem; color:#111111; text-align:center; border-top:1px solid #eee; padding-top:10px; width:100%;">
+                                <b style="color:#111111;">{emp_name}</b><br>
+                                <div style="color:#111111; text-align:center; border-top:1px solid #eee; padding-top:10px; width:100%;">
                                     <b>Unidade: {unid_name}</b>
                                 </div>
                                 <div style="margin: 10px 0; width: 100%;">
-                                    <div style="font-size:0.8rem; color:#111111;">Avaliação</div>
+                                    <div style="color:#111111;">Avaliação</div>
                                     <div style="font-weight:bold; color:#111111;">{reais_streamlit_html(aval_fmt)}</div>
-                                    <div style="font-size:0.8rem; color:#111111; margin-top:5px;">Valor de venda</div>
-                                    <div class="price-tag" style="font-size:1.3rem; margin-top:0;">{reais_streamlit_html(val_fmt)}</div>
-                                    <div style="font-size:0.8rem; color:#111111; margin-top:8px;">Lucro recomendado</div>
+                                    <div style="color:#111111; margin-top:5px;">Valor de venda</div>
+                                    <div class="price-tag" style="margin-top:0;">{reais_streamlit_html(val_fmt)}</div>
+                                    <div style="color:#111111; margin-top:8px;">Lucro recomendado</div>
                                     <div style="font-weight:800; color:#111111;">{reais_streamlit_html(lucro_fmt)}</div>
-                                    <div style="font-size:0.75rem; color:#111111; opacity:0.75; margin-top:5px;">
+                                    <div style="color:#111111; opacity:0.75; margin-top:5px;">
                                       VCX usado: {reais_streamlit_html(vcx_usado_fmt)} | VCX preservado: {reais_streamlit_html(vcx_pres_fmt)}
                                     </div>
                                 </div>
@@ -5218,7 +5298,10 @@ def aba_simulador_automacao(
         st.markdown("---")
         # --- ETAPA 4: ESCOLHA DE UNIDADE (lista por preço crescente) ---
         d = st.session_state.dados_cliente
-        st.markdown("### Escolha de Unidade")
+        st.markdown(
+            '<h3 class="dv-titulo-secao">Escolha de Unidade</h3>',
+            unsafe_allow_html=True,
+        )
         uni_escolhida_id = None
         df_disponiveis = df_estoque.copy()
         if df_disponiveis.empty:
@@ -5349,10 +5432,13 @@ def aba_simulador_automacao(
         st.markdown("---")
         # --- ETAPA 5: DISTRIBUIÇÃO DA ENTRADA (FECHAMENTO) ---
         d = st.session_state.dados_cliente
-        st.markdown("### Distribuição da Entrada (Fechamento)")
+        st.markdown(
+            '<h3 class="dv-titulo-secao">Distribuição da Entrada (Fechamento)</h3>',
+            unsafe_allow_html=True,
+        )
         if float(d.get('imovel_valor', 0) or 0) <= 0 or not d.get('unidade_id'):
             st.markdown(
-                '<p style="font-size:0.8rem;color:#111111;margin:0 0 0.5rem 0;">Selecione <strong>empreendimento</strong> e '
+                '<p style="color:#111111;margin:0 0 0.5rem 0;">Selecione <strong>empreendimento</strong> e '
                 "<strong>unidade</strong> na seção acima para calcular a distribuição da entrada.</p>",
                 unsafe_allow_html=True,
             )
@@ -5734,7 +5820,7 @@ def aba_simulador_automacao(
         st.session_state.dados_cliente['ps_mensal'] = v_parc
         st.session_state.dados_cliente['ps_mensal_simples'] = (float(ps_input_val or 0) / parc) if parc > 0 else 0.0
         st.markdown(
-            f'<div style="margin-top: -8px; margin-bottom: 15px; font-size: 0.9rem; font-weight: 600; color: #111111; text-align: center;">'
+            f'<div style="margin-top: -8px; margin-bottom: 15px; font-weight: 600; color: #111111; text-align: center;">'
             f"Mensalidade do Pro Soluto: {reais_streamlit_html(fmt_br(v_parc))} ({parc} parcelas)</div>",
             unsafe_allow_html=True,
         )
@@ -5778,7 +5864,10 @@ def aba_simulador_automacao(
 
         if u_valor > 0:
             st.markdown("---")
-            st.markdown("### Condição comercial: Volta ao Caixa")
+            st.markdown(
+                '<h3 class="dv-titulo-secao">Condição comercial: Volta ao Caixa</h3>',
+                unsafe_allow_html=True,
+            )
             st.caption(
                 "Valor de desconto negociado dentro da **folga Volta ao Caixa** cadastrada na unidade (teto automático)."
             )
@@ -5804,13 +5893,16 @@ def aba_simulador_automacao(
             )
             _v_pos_vcx_ui = max(0.0, u_valor - vc_input_val)
             st.markdown(
-                f'<div style="margin:4px 0 18px 0;font-size:0.9rem;font-weight:600;color:#111111;">'
+                '<div style="margin:4px 0 18px 0;font-weight:600;color:#111111;">'
                 f"Valor da unidade após este desconto: "
                 f"{reais_streamlit_html(fmt_br(_v_pos_vcx_ui))}</div>",
                 unsafe_allow_html=True,
             )
 
-            st.markdown("### Condição comercial: demais descontos")
+            st.markdown(
+                '<h3 class="dv-titulo-secao">Condição comercial: demais descontos</h3>',
+                unsafe_allow_html=True,
+            )
             st.caption(
                 "Outros abatimentos sobre o preço de lista **sem teto** no simulador; limitados ao saldo após o Volta ao Caixa."
             )
@@ -5837,7 +5929,7 @@ def aba_simulador_automacao(
                 )
             v_liquido = max(0.0, u_valor - vc_input_val - outros_desc)
             st.markdown(
-                f'<div style="margin:4px 0 8px 0;font-size:0.9rem;font-weight:600;color:#111111;">'
+                f'<div style="margin:4px 0 8px 0;font-weight:600;color:#111111;">'
                 f"Valor final da unidade (após todos os descontos): "
                 f"{reais_streamlit_html(fmt_br(v_liquido))}</div>",
                 unsafe_allow_html=True,
@@ -5914,7 +6006,10 @@ def aba_simulador_automacao(
             v_final_sum = max(0.0, v_emp_total - _vc_sum - _out_sum)
         _pol_sum_label = "Emcash" if _politica_emcash(d.get("politica")) else "Direcional"
 
-        st.markdown(f"### Resumo da Simulação - {d.get('nome', 'Cliente')}")
+        st.markdown(
+            f'<h3 class="dv-titulo-secao">Resumo da Simulação - {html_std.escape(str(d.get("nome", "Cliente")))}</h3>',
+            unsafe_allow_html=True,
+        )
         st.markdown(
             f'<p style="text-align:center;margin:0 0 0.5rem 0;font-weight:600;color:{COR_AZUL_ESC};">'
             f"Nome do Cliente ou Imobiliária: {html_std.escape(str(d.get('nome', '-')))}</p>",
@@ -5973,7 +6068,7 @@ def aba_simulador_automacao(
         _em_sum = _politica_emcash(d.get("politica"))
         if _em_sum:
             st.markdown(
-                '<p style="font-size:0.85rem;color:#334155;margin:0 0 0.65rem 0;line-height:1.45;">'
+                '<p style="color:#334155;margin:0 0 0.65rem 0;line-height:1.45;">'
                 f"{html_std.escape(_EMCASH_NOTA_PARCELAS)}</p>",
                 unsafe_allow_html=True,
             )
@@ -6012,7 +6107,7 @@ def aba_simulador_automacao(
                 unsafe_allow_html=True,
             )
         st.markdown(
-            f'<p style="text-align:center;margin:0;font-size:0.9rem;color:#64748b;font-style:italic;">'
+            f'<p style="text-align:center;margin:0;color:#64748b;font-style:italic;">'
             f"Simulação em {d.get('data_simulacao', date.today().strftime('%d/%m/%Y'))}</p>",
             unsafe_allow_html=True,
         )
