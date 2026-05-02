@@ -755,8 +755,8 @@ def _politica_emcash(politica: Any) -> bool:
 
 # Aviso Emcash (parcelas 30/60): UI, PDF, e-mail, WhatsApp (hífen ASCII)
 _EMCASH_NOTA_PARCELAS = (
-    "Emcash - parcelas incluem correção monetária (+IPCA) além dos juros, então "
-    "não equivalem a parcelas apenas com juros sobre saldo."
+    "parcelas incluem correção monetária (+IPCA) além dos juros"
+    "."
 )
 
 
@@ -1299,17 +1299,23 @@ def montar_mensagem_whatsapp_resumo(
     _pol_ps = str(d.get("politica", "Direcional") or "Direcional").strip()
     _pol_ps_label = "Emcash" if _politica_emcash(_pol_ps) else "Direcional"
 
-    _nome_cli_imob = _wa_escape_texto(
-        str(d.get("nome", "") or "").strip() or "Não informado"
-    )
+    _nome_cli_raw = str(d.get("nome", "") or "").strip()
 
     linhas = [
         "*Resumo da simulação - Direcional*",
-        f"*Cliente / Imobiliária:* {_nome_cli_imob}",
-        "",
-        "*Renda*",
-        item("Renda familiar total", brs("renda", 0)),
     ]
+    if _nome_cli_raw:
+        linhas.append(f"*Cliente / Imobiliária:* {_wa_escape_texto(_nome_cli_raw)}")
+    linhas.extend(["", "*Renda*"])
+    _cpf_wa_d = re.sub(r"\D", "", str(d.get("cpf") or ""))
+    if len(_cpf_wa_d) == 11:
+        linhas.append(item("CPF", _sf_cpf_mascarado_br(_cpf_wa_d)))
+    elif str(d.get("cpf") or "").strip():
+        linhas.append(item("CPF", _wa_escape_texto(str(d.get("cpf") or "").strip())))
+    _rank_wa_s = str(d.get("ranking") or "").strip()
+    if _rank_wa_s:
+        linhas.append(item("Ranking do cliente", _wa_escape_texto(_rank_wa_s)))
+    linhas.append(item("Renda familiar total", brs("renda", 0)))
 
     linhas.extend(["", "*Dados do imóvel*"])
     linhas.append(item("Empreendimento", d.get("empreendimento_nome", "-")))
@@ -2306,11 +2312,88 @@ def _rotulo_opcao_excluir_campanha_texto(df_ct: pd.DataFrame, i: int) -> str:
     return f"Linha {i + 1} · {tit or '(sem título)'}{' - ' + snip if snip else ''}"
 
 
+def _normalizar_df_logins(df_raw: pd.DataFrame | None) -> pd.DataFrame:
+    if df_raw is None or df_raw.empty:
+        return pd.DataFrame()
+    df = df_raw.copy()
+    df.columns = [str(c).strip() for c in df.columns]
+    mapa_logins = {
+        "Imobiliária/Canal IMOB": "Imobiliaria",
+        "Cargo": "Cargo",
+        "Nome": "Nome",
+        "Email": "Email",
+        "Escolha uma senha para o simulador": "Senha",
+        "Número de telefone": "Telefone",
+    }
+    df = df.rename(columns=mapa_logins)
+    if "Email" in df.columns:
+        df["Email"] = df["Email"].astype(str).str.strip().str.lower()
+    if "Senha" in df.columns:
+        df["Senha"] = df["Senha"].astype(str).str.strip()
+    return df
+
+
+def _validar_login_planilha(df_logins: pd.DataFrame, email: str, senha: str) -> dict | None:
+    if df_logins is None or df_logins.empty:
+        return None
+    em = (email or "").strip().lower()
+    sp = (senha or "").strip()
+    if not em or not sp:
+        return None
+    if "Email" not in df_logins.columns or "Senha" not in df_logins.columns:
+        return None
+    for _, row in df_logins.iterrows():
+        if str(row.get("Email", "")).strip().lower() != em:
+            continue
+        if str(row.get("Senha", "")).strip() != sp:
+            continue
+        return {
+            "Nome": str(row.get("Nome", "") or "").strip(),
+            "Email": str(row.get("Email", "") or "").strip(),
+            "Telefone": str(row.get("Telefone", "") or "").strip(),
+            "Imobiliaria": str(row.get("Imobiliaria", "") or "").strip(),
+            "Cargo": str(row.get("Cargo", "") or "").strip(),
+        }
+    return None
+
+
+def _render_login_section(df_logins: pd.DataFrame) -> None:
+    st.title("Simulador imobiliário DV")
+    st.subheader("Acesso")
+    if df_logins is None or df_logins.empty:
+        st.warning(
+            "Não foi possível carregar a folha **BD Logins** (ou não há ligação ao Google Sheets). "
+            "Configure a aba na base ou as credenciais em *Secrets*."
+        )
+        if st.button("Continuar em modo demonstração", type="primary", key="login_demo_fallback"):
+            _sessao_sem_login_defaults()
+            st.rerun()
+        return
+    with st.form("dv_login_form", clear_on_submit=False):
+        _em = st.text_input("E-mail", key="dv_login_email_in")
+        _pw = st.text_input("Senha", type="password", key="dv_login_senha_in")
+        if st.form_submit_button("Entrar"):
+            row = _validar_login_planilha(df_logins, _em, _pw)
+            if not row:
+                st.error("E-mail ou senha inválidos.")
+            else:
+                st.session_state["logged_in"] = True
+                st.session_state["user_name"] = row.get("Nome") or ""
+                st.session_state["user_email"] = row.get("Email") or ""
+                st.session_state["user_phone"] = row.get("Telefone") or ""
+                st.session_state["user_imobiliaria"] = row.get("Imobiliaria") or "Geral"
+                st.session_state["user_cargo"] = row.get("Cargo") or ""
+                adm_raw = _secret_opt("SIMULADOR_ADM").lower()
+                st.session_state["user_is_adm"] = adm_raw in ("1", "true", "yes", "sim")
+                st.rerun()
+
+
 @st.cache_data(ttl=300, show_spinner=False)
 def carregar_dados_sistema():
     try:
         if "connections" not in st.secrets:
             return (
+                pd.DataFrame(),
                 pd.DataFrame(),
                 pd.DataFrame(),
                 pd.DataFrame(),
@@ -2472,10 +2555,17 @@ def carregar_dados_sistema():
         except Exception:
             df_campanhas_texto = pd.DataFrame(columns=list(_COLS_CAMPANHAS_TEXTO))
 
+        try:
+            df_logins_raw = conn.read(spreadsheet=ID_GERAL, worksheet="BD Logins")
+            df_logins = _normalizar_df_logins(df_logins_raw)
+        except Exception:
+            df_logins = pd.DataFrame()
+
         return (
             df_finan,
             df_estoque,
             df_politicas,
+            df_logins,
             df_cadastros,
             df_home_banners,
             premissas_dict,
@@ -2484,6 +2574,7 @@ def carregar_dados_sistema():
     except Exception as e:
         _dv_alerta_vermelho_texto(f"Erro dados: {e}")
         return (
+            pd.DataFrame(),
             pd.DataFrame(),
             pd.DataFrame(),
             pd.DataFrame(),
@@ -5267,6 +5358,14 @@ def gerar_resumo_pdf(d, volta_caixa_val: float = 0.0):
         # ===============================
         secao("Renda")
         linha("Renda familiar total", f"R$ {fmt_br(d.get('renda', 0))}")
+        _cpf_pdf_d = re.sub(r"\D", "", str(d.get("cpf") or ""))
+        if len(_cpf_pdf_d) == 11:
+            linha("CPF", _sf_cpf_mascarado_br(_cpf_pdf_d))
+        elif str(d.get("cpf") or "").strip():
+            linha("CPF", _pdf_text_seguro(str(d.get("cpf") or "").strip()))
+        _rank_pdf_s = str(d.get("ranking") or "").strip()
+        if _rank_pdf_s:
+            linha("Ranking do cliente", _pdf_text_seguro(_rank_pdf_s))
 
         pdf.ln(2)
         secao("Dados do imóvel")
@@ -5391,7 +5490,6 @@ def enviar_email_smtp(destinatario, nome_cliente, pdf_bytes, dados_cliente, tipo
     
     # Extrair dados para o email
     nome_cliente_fmt = str(nome_cliente or dados_cliente.get("nome") or "Cliente").strip() or "Cliente"
-    nome_cliente_html = html_std.escape(nome_cliente_fmt)
     emp = str(dados_cliente.get('empreendimento_nome', 'Seu Imóvel') or 'Seu Imóvel').strip()
     unid = str(dados_cliente.get('unidade_id', '') or '').strip()
     produto_ref = f"{emp} - Unidade {unid}" if unid else emp
@@ -5444,12 +5542,7 @@ def enviar_email_smtp(destinatario, nome_cliente, pdf_bytes, dados_cliente, tipo
     )
     _lbl_cor_ato30 = "&nbsp;&nbsp;↳ Ato 30"
     _lbl_cor_ato60 = "&nbsp;&nbsp;↳ Ato 60"
-    _html_nota_emcash_entrada = (
-        '<p style="font-size:12px;color:#334155;margin:0 0 12px 0;line-height:1.45;">'
-        f"{html_std.escape(_EMCASH_NOTA_PARCELAS)}</p>"
-        if _emcash_corretor
-        else ""
-    )
+    _html_nota_emcash_entrada = ""
 
     corretor_nome = dados_cliente.get('corretor_nome', 'Direcional')
     corretor_tel = dados_cliente.get('corretor_telefone', '')
@@ -5461,14 +5554,40 @@ def enviar_email_smtp(destinatario, nome_cliente, pdf_bytes, dados_cliente, tipo
 
     wa_msg = f"Olá {corretor_nome}, sou {nome_cliente_fmt}. Realizei uma simulação para {produto_ref} e gostaria de saber mais detalhes."
     wa_link = f"https://wa.me/{corretor_tel_clean}?text={urllib.parse.quote(wa_msg)}"
-    
-    _logo_resumo_email = URL_FAVICON_RESERVA
-    _html_nota_emcash_cliente = (
-        '<p style="font-size:12px;color:#475569;line-height:1.45;margin:0 0 16px 0;text-align:center;">'
-        f"{html_std.escape(_EMCASH_NOTA_PARCELAS)}</p>"
-        if _politica_emcash(dados_cliente.get("politica"))
-        else ""
-    )
+
+    _nm_mail_show = str(dados_cliente.get("nome") or "").strip()
+    _html_mail_nome = ""
+    if _nm_mail_show:
+        _html_mail_nome = (
+            '<p style="text-align:center; margin:0 0 6px 0; font-size:11px; color:#64748b; text-transform:uppercase; letter-spacing:0.08em;">Cliente ou Imobiliária</p>'
+            f'<p style="text-align:center; margin:0 0 18px 0; font-size:24px; font-weight:700; color:{COR_AZUL_ESC}; line-height:1.25;">{html_std.escape(_nm_mail_show)}</p>'
+        )
+    _cpf_mail_d2 = re.sub(r"\D", "", str(dados_cliente.get("cpf") or ""))
+    _linhas_id_mail: list[str] = []
+    if len(_cpf_mail_d2) == 11:
+        _linhas_id_mail.append(f"CPF: {html_std.escape(_sf_cpf_mascarado_br(_cpf_mail_d2))}")
+    elif str(dados_cliente.get("cpf") or "").strip():
+        _linhas_id_mail.append(
+            f"CPF: {html_std.escape(str(dados_cliente.get('cpf') or '').strip())}"
+        )
+    _rk_m = str(dados_cliente.get("ranking") or "").strip()
+    if _rk_m:
+        _linhas_id_mail.append(f"Ranking: {html_std.escape(_rk_m)}")
+    _html_mail_ident = ""
+    if _linhas_id_mail:
+        _html_mail_ident = (
+            '<p style="text-align:center;margin:0 0 22px 0;font-size:14px;color:#334155;line-height:1.55;">'
+            + "<br>".join(_linhas_id_mail)
+            + "</p>"
+        )
+    _nome_cor_td = html_std.escape(_nm_mail_show) if _nm_mail_show else ""
+    _html_cor_extras = ""
+    if _linhas_id_mail:
+        _html_cor_extras = (
+            '<p style="margin:6px 0 0 0;font-size:13px;color:#475569;line-height:1.45;">'
+            + "<br>".join(_linhas_id_mail)
+            + "</p>"
+        )
 
     # TEMPLATE CLIENTE (Foco no sonho, design limpo, usando Tabelas para evitar sobreposição)
     if tipo == 'cliente':
@@ -5484,22 +5603,19 @@ def enviar_email_smtp(destinatario, nome_cliente, pdf_bytes, dados_cliente, tipo
                 <tr>
                     <td align="center">
                         <table width="600" border="0" cellspacing="0" cellpadding="0" style="background-color: #fff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 15px rgba(0,0,0,0.05);">
-                            <!-- Cabeçalho -->
+                            <!-- Cabeçalho (sem imagem) -->
                             <tr>
-                                <td align="center" style="background-color: {COR_AZUL_ESC}; padding: 30px; border-bottom: 4px solid #e30613;">
-                                    <img src="{_logo_resumo_email}" width="48" height="48" alt="Direcional" style="display: block;">
-                                </td>
+                                <td align="center" style="background-color: {COR_AZUL_ESC}; padding: 14px 30px; border-bottom: 4px solid #e30613;">&nbsp;</td>
                             </tr>
                             <!-- Corpo -->
                             <tr>
                                 <td style="padding: 40px;">
-                                    <p style="text-align:center; margin:0 0 6px 0; font-size:11px; color:#64748b; text-transform:uppercase; letter-spacing:0.08em;">Cliente ou Imobiliária</p>
-                                    <p style="text-align:center; margin:0 0 22px 0; font-size:24px; font-weight:700; color:{COR_AZUL_ESC}; line-height:1.25;">{nome_cliente_html}</p>
+                                    {_html_mail_nome}
+                                    {_html_mail_ident}
                                     <h2 style="color: {COR_AZUL_ESC}; margin: 0 0 20px 0; font-weight: 300; text-align: center;">Olá!</h2>
                                     <p style="font-size: 16px; line-height: 1.6; text-align: center; color: #555;">
                                         Foi ótimo apresentar as oportunidades da Direcional para você. Preparamos a condição para <strong>{produto_ref}</strong>.
                                     </p>
-                                    {_html_nota_emcash_cliente}
                                     
                                     <!-- Card Destaque -->
                                     <table width="100%" border="0" cellspacing="0" cellpadding="20" style="background-color: #f0f4f8; border-left: 5px solid #e30613; margin: 30px 0; border-radius: 4px;">
@@ -5556,16 +5672,14 @@ def enviar_email_smtp(destinatario, nome_cliente, pdf_bytes, dados_cliente, tipo
                 <tr>
                     <td align="center">
                         <table width="650" border="0" cellspacing="0" cellpadding="0" style="background-color: #fff; border: 1px solid #ccc;">
-                            <!-- Header Azul com Logo Branca -->
+                            <!-- Cabeçalho (sem imagem) -->
                             <tr>
-                                <td align="center" style="background-color: {COR_AZUL_ESC}; padding: 20px; border-bottom: 4px solid #e30613;">
-                                    <img src="{_logo_resumo_email}" width="48" height="48" alt="Direcional" style="display: block;">
-                                </td>
+                                <td align="center" style="background-color: {COR_AZUL_ESC}; padding: 14px 30px; border-bottom: 4px solid #e30613;">&nbsp;</td>
                             </tr>
                             <tr>
                                 <td style="padding: 30px;">
-                                    <p style="text-align:center; margin:0 0 6px 0; font-size:11px; color:#64748b; text-transform:uppercase; letter-spacing:0.08em;">Cliente ou Imobiliária</p>
-                                    <p style="text-align:center; margin:0 0 18px 0; font-size:24px; font-weight:700; color:{COR_AZUL_ESC}; line-height:1.25;">{nome_cliente_html}</p>
+                                    {_html_mail_nome}
+                                    {_html_mail_ident}
                                     <h3 style="color: {COR_AZUL_ESC}; border-bottom: 2px solid #e30613; padding-bottom: 10px; margin-top: 0;">RESUMO DE ATENDIMENTO</h3>
                                     
                                     <!-- Info Header -->
@@ -5573,7 +5687,8 @@ def enviar_email_smtp(destinatario, nome_cliente, pdf_bytes, dados_cliente, tipo
                                         <tr>
                                             <td width="50%" valign="top">
                                                 <p style="margin: 0 0 5px 0; font-size: 12px; color: #666;">CLIENTE / IMOBILIÁRIA</p>
-                                                <p style="margin: 0; font-weight: bold; font-size: 16px;">{nome_cliente_html}</p>
+                                                <p style="margin: 0; font-weight: bold; font-size: 16px;">{_nome_cor_td if _nome_cor_td else "&nbsp;"}</p>
+                                                {_html_cor_extras}
                                                 <p style="margin: 5px 0 0 0; font-size: 14px;">Renda: R$ {renda_cli}</p>
                                             </td>
                                             <td width="50%" valign="top">
@@ -5598,7 +5713,6 @@ def enviar_email_smtp(destinatario, nome_cliente, pdf_bytes, dados_cliente, tipo
                                     </table>
 
                                     <h4 style="color: {COR_AZUL_ESC};">Plano de Pagamento</h4>
-                                    {_html_nota_emcash_entrada}
                                     <table width="100%" border="1" cellspacing="0" cellpadding="8" style="border-collapse: collapse; border-color: #ddd; margin-bottom: 20px; font-size: 14px;">
                                         <tr style="background-color: #f2f2f2;">
                                             <td>Entrada Total</td>
@@ -6848,26 +6962,37 @@ def aba_simulador_automacao(
         j8_ui = float(mps.get("parcela_max_j8") or 0)
         pol_ui = str(d.get("politica", "Direcional"))
         ps_limite_ui2 = float(mps.get("ps_max_efetivo", 0) or 0)
-        _ps_opts_pre: list[float] = []
+        meses_entrega_unid = meses_ate_entrega(d.get("unid_entrega", ""))
+        st.session_state.dados_cliente["meses_ate_entrega"] = meses_entrega_unid
+        _ps_opts_f: list[float] = []
         if ps_limite_ui2 > 0:
-            _ps_opts_pre.append(ps_limite_ui2)
+            _ps_opts_f.append(ps_limite_ui2)
         if u_valor > 0:
-            _ps_opts_pre.append(max(0.0, v_liquido - f_u_input - fgts_u_input))
-        _teto_ps_pre = min(_ps_opts_pre) if _ps_opts_pre else None
-        ps_input_pre = clamp_moeda_positiva(
-            texto_moeda_para_float(st.session_state.get("ps_u_key")), _teto_ps_pre
+            _ps_opts_f.append(max(0.0, v_liquido - f_u_input - fgts_u_input))
+        _teto_ps_final = min(_ps_opts_f) if _ps_opts_f else None
+
+        st.text_input("Valor do Pro Soluto (R$)", key="ps_u_key", placeholder="0,00")
+        ps_input_val = clamp_moeda_positiva(
+            texto_moeda_para_float(st.session_state.get("ps_u_key")), _teto_ps_final
         )
-        meses_pre = meses_ate_entrega(d.get("unid_entrega", ""))
+        st.session_state.dados_cliente["ps_usado"] = ps_input_val
         n_min_j8 = None
-        if float(ps_input_pre or 0) > 0 and j8_ui > 0:
+        if float(ps_input_val or 0) > 0 and j8_ui > 0:
             n_min_j8 = menor_prazo_parcelas_ps_respeitando_j8(
-                float(ps_input_pre or 0),
+                float(ps_input_val or 0),
                 j8_ui,
                 pol_ui,
                 _prem,
                 prazo_max=parc_max_ui,
-                meses_entrega=meses_pre,
+                meses_entrega=meses_entrega_unid,
             )
+        _ps_cmp = round(float(ps_input_val or 0), 2)
+        _prev_ps = st.session_state.get("_ps_val_sync_parc_prev")
+        if _prev_ps is None or abs(float(_prev_ps) - _ps_cmp) > 0.009:
+            st.session_state["_ps_val_sync_parc_prev"] = _ps_cmp
+            if n_min_j8 is not None:
+                _nm_sync = int(max(1, min(int(n_min_j8), parc_max_ui)))
+                st.session_state["parc_ps_key"] = str(_nm_sync)
         if n_min_j8 is not None:
             _n_need = int(max(1, min(int(n_min_j8), parc_max_ui)))
             _cur_pq = texto_inteiro(
@@ -6884,30 +7009,17 @@ def aba_simulador_automacao(
         )
         _parc_i = texto_inteiro(st.session_state.get("parc_ps_key"), default=1, min_v=1, max_v=parc_max_ui)
         parc = _parc_i if _parc_i is not None else 1
-        st.session_state.dados_cliente['ps_parcelas'] = parc
+        st.session_state.dados_cliente["ps_parcelas"] = parc
         st.markdown(
             '<p class="inline-ref" style="margin-top:0;margin-bottom:0;line-height:1.45;">'
             f"Prazo máximo de parcelas do Pro Soluto: {parc_max_ui} meses</p>",
             unsafe_allow_html=True,
         )
-
-        st.text_input("Valor do Pro Soluto (R$)", key="ps_u_key", placeholder="0,00")
-        _ps_opts_f = []
-        if ps_limite_ui2 > 0:
-            _ps_opts_f.append(ps_limite_ui2)
-        if u_valor > 0:
-            _ps_opts_f.append(max(0.0, v_liquido - f_u_input - fgts_u_input))
-        _teto_ps_final = min(_ps_opts_f) if _ps_opts_f else None
-        ps_input_val = clamp_moeda_positiva(texto_moeda_para_float(st.session_state.get("ps_u_key")), _teto_ps_final)
-        st.session_state.dados_cliente['ps_usado'] = ps_input_val
         ref_text_ps = f"Limite máximo de Pro Soluto: {reais_streamlit_html(fmt_br(ps_limite_ui2))}"
         st.markdown(
             f'<p class="inline-ref" style="margin-top:0;margin-bottom:0;line-height:1.45;">{ref_text_ps}</p>',
             unsafe_allow_html=True,
         )
-
-        meses_entrega_unid = meses_ate_entrega(d.get("unid_entrega", ""))
-        st.session_state.dados_cliente["meses_ate_entrega"] = meses_entrega_unid
         v_parc = parcela_ps_para_valor(
             float(ps_input_val or 0),
             parc,
@@ -6930,8 +7042,7 @@ def aba_simulador_automacao(
                 _nmj = int(n_min_j8)
                 st.markdown(
                     '<p class="inline-ref" style="margin-top:0;margin-bottom:0;line-height:1.45;">'
-                    f"Parcelas mínimas necessárias: <strong>{html_std.escape(str(_nmj))}</strong> "
-                    f"(teto J8 {reais_streamlit_html(fmt_br(j8_ui))}/mês).</p>",
+                    f"Parcelas mínimas necessárias: <strong>{html_std.escape(str(_nmj))}</strong>.</p>",
                     unsafe_allow_html=True,
                 )
             else:
@@ -7124,12 +7235,13 @@ def aba_simulador_automacao(
             '<h3 class="dv-titulo-secao">Resumo da simulação</h3>',
             unsafe_allow_html=True,
         )
-        _nome_cli = str(d.get("nome", "") or "").strip() or "—"
-        st.markdown(
-            f'<p style="text-align:center;margin:0 0 var(--dv-stack-gap) 0;line-height:1.5;color:#111;font-weight:600;">'
-            f"<b>Nome do Cliente ou Imobiliária:</b> {html_std.escape(_nome_cli)}</p>",
-            unsafe_allow_html=True,
-        )
+        _nome_cli = str(d.get("nome", "") or "").strip()
+        if _nome_cli:
+            st.markdown(
+                f'<p style="text-align:center;margin:0 0 var(--dv-stack-gap) 0;line-height:1.5;color:#111;font-weight:600;">'
+                f"<b>Nome do Cliente ou Imobiliária:</b> {html_std.escape(_nome_cli)}</p>",
+                unsafe_allow_html=True,
+            )
         _cpf_d = re.sub(r"\D", "", str(d.get("cpf") or ""))
         _cpf_linha = ""
         if len(_cpf_d) == 11:
@@ -7336,7 +7448,42 @@ def main():
     configurar_layout()
     inject_modern_ui_runtime()
     inject_enter_confirma_campo()
-    _sessao_sem_login_defaults()
+
+    with st.spinner("A carregar o simulador…"):
+        (
+            df_finan,
+            df_estoque,
+            df_politicas,
+            df_logins,
+            _df_cad_hist,
+            df_home_banners,
+            premissas_dict,
+            df_campanhas_texto,
+        ) = carregar_dados_sistema()
+
+    if not st.session_state.get("logged_in"):
+        _render_login_section(df_logins)
+        st.markdown(
+            '<div class="footer">Direcional Engenharia - Rio de Janeiro<br><em>developed by Lucas Maia</em></div>',
+            unsafe_allow_html=True,
+        )
+        return
+
+    with st.sidebar:
+        st.caption("Sessão")
+        st.caption(str(st.session_state.get("user_email") or ""))
+        if st.button("Sair", key="dv_logout_btn"):
+            st.session_state["logged_in"] = False
+            for _k in (
+                "user_name",
+                "user_email",
+                "user_imobiliaria",
+                "user_cargo",
+                "user_phone",
+                "user_is_adm",
+            ):
+                st.session_state.pop(_k, None)
+            st.rerun()
 
     logo_src = html_std.escape(_src_logo_topo_header(), quote=True)
     st.markdown(
@@ -7349,16 +7496,6 @@ def main():
         unsafe_allow_html=True,
     )
 
-    with st.spinner("A carregar o simulador…"):
-        (
-            df_finan,
-            df_estoque,
-            df_politicas,
-            _df_cad_hist,
-            df_home_banners,
-            premissas_dict,
-            df_campanhas_texto,
-        ) = carregar_dados_sistema()
     aba_simulador_automacao(
         df_finan,
         df_estoque,
