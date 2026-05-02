@@ -1318,36 +1318,9 @@ def scroll_to_top():
     _st_iframe_html_snippet(js, height=0)
 
 def inject_enter_confirma_campo():
-    """Enter em campo de texto não submete o fluxo: apenas confirma o campo (blur)."""
-    js = r"""
-<script>
-(function () {
-  function isTextLike(el) {
-    if (!el || !el.closest) return false;
-    return el.closest('[data-testid="stTextInput"]') != null
-      || el.closest('[data-testid="stNumberInput"]') != null
-      || el.closest('[data-baseweb="input"]') != null;
-  }
-  document.addEventListener("keydown", function (e) {
-    if (e.key !== "Enter" || e.isComposing) return;
-    var t = e.target;
-    if (!t || (t.tagName !== "INPUT" && t.tagName !== "TEXTAREA")) return;
-    if (t.type === "submit" || t.type === "button" || t.type === "file") return;
-    if (t.closest("form[data-testid=\"stForm\"]")) {
-      e.preventDefault();
-      e.stopPropagation();
-      t.blur();
-      return;
-    }
-    if (isTextLike(t)) {
-      e.preventDefault();
-      t.blur();
-    }
-  }, true);
-})();
-</script>
-"""
-    _st_iframe_html_snippet(js, height=0, width=0)
+    """Enter em campo de texto não submete o fluxo (unificado em `inject_modern_ui_runtime`)."""
+    # Mantido para compatibilidade de chamadas; lógica no iframe único de inject_modern_ui_runtime.
+    return
 
 
 def inject_home_banner_dialog_modal():
@@ -1513,7 +1486,7 @@ def inject_home_banner_dialog_modal():
 
 
 def inject_modern_ui_runtime():
-    """Marca o documento com preferências de movimento para CSS; JS vanilla no parent (Streamlit usa React internamente - não há runtime React app embutível neste ficheiro)."""
+    """Um único iframe: preferências de movimento (documento pai) + Enter/blur em campos de texto."""
     js = r"""
 <script>
 (function () {
@@ -1533,6 +1506,40 @@ def inject_modern_ui_runtime():
       root.setAttribute("data-dv-reduced-motion", "1");
     }
   } catch (e2) {}
+})();
+</script>
+<script>
+(function () {
+  var doc = document;
+  try {
+    if (window.parent && window.parent !== window && window.parent.document) {
+      doc = window.parent.document;
+    }
+  } catch (e0) {
+    doc = document;
+  }
+  function isTextLike(el) {
+    if (!el || !el.closest) return false;
+    return el.closest('[data-testid="stTextInput"]') != null
+      || el.closest('[data-testid="stNumberInput"]') != null
+      || el.closest('[data-baseweb="input"]') != null;
+  }
+  doc.addEventListener("keydown", function (e) {
+    if (e.key !== "Enter" || e.isComposing) return;
+    var t = e.target;
+    if (!t || (t.tagName !== "INPUT" && t.tagName !== "TEXTAREA")) return;
+    if (t.type === "submit" || t.type === "button" || t.type === "file") return;
+    if (t.closest('form[data-testid="stForm"]')) {
+      e.preventDefault();
+      e.stopPropagation();
+      t.blur();
+      return;
+    }
+    if (isTextLike(t)) {
+      e.preventDefault();
+      t.blur();
+    }
+  }, true);
 })();
 </script>
 """
@@ -2566,6 +2573,7 @@ def configurar_layout():
 
     bg_url = _css_url_fundo_simulador().replace("&", "&amp;")
     st.markdown(f"""
+        <div class="dv-style-slot" aria-hidden="true"></div>
         <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Montserrat:wght@400;600;700;800;900&display=swap');
         /* Barra superior: alterna azul ↔ vermelho marca, sempre opaca (sem “esvair”) */
@@ -2848,7 +2856,7 @@ def configurar_layout():
         [data-testid="stMain"] {{
             padding-left: max(clamp(14px, 5vw, 56px), env(safe-area-inset-left, 0px)) !important;
             padding-right: max(clamp(14px, 5vw, 56px), env(safe-area-inset-right, 0px)) !important;
-            padding-top: max(clamp(12px, 3.5vh, 40px), env(safe-area-inset-top, 0px)) !important;
+            padding-top: max(6px, env(safe-area-inset-top, 0px)) !important;
             padding-bottom: max(clamp(14px, 4vh, 44px), env(safe-area-inset-bottom, 0px)) !important;
             box-sizing: border-box !important;
         }}
@@ -2881,6 +2889,24 @@ def configurar_layout():
         .block-container [data-testid="stMarkdownContainer"]:has(.header-container) {{
             margin-top: 0 !important;
             padding-top: 0 !important;
+        }}
+        /* Bloco só de <style>: não “empurra” a logo (cancela um gap do flex) */
+        .block-container [data-testid="stVerticalBlock"] > div[data-testid="stElementContainer"]:has(.dv-style-slot) {{
+            margin-bottom: calc(-1 * var(--dv-rhythm)) !important;
+        }}
+        .block-container [data-testid="stVerticalBlock"] > div[data-testid="stElementContainer"]:has(.dv-style-slot) [data-testid="stMarkdownContainer"] {{
+            padding-top: 0 !important;
+            padding-bottom: 0 !important;
+            margin: 0 !important;
+            min-height: 0 !important;
+        }}
+        .block-container [data-testid="stVerticalBlock"] > div[data-testid="stElementContainer"]:has(.dv-style-slot) .dv-style-slot {{
+            display: none !important;
+        }}
+        /* Iframe único de scripts logo após o header: não duplica o ritmo vertical */
+        .block-container [data-testid="stVerticalBlock"] > div[data-testid="stElementContainer"]:has(.header-container) + div[data-testid="stElementContainer"]:has([data-testid="stIFrame"]) {{
+            margin-top: calc(-1 * var(--dv-rhythm)) !important;
+            margin-bottom: calc(-1 * var(--dv-rhythm)) !important;
         }}
         .block-container [data-testid="stHorizontalBlock"] {{
             gap: var(--dv-rhythm) !important;
@@ -6060,8 +6086,6 @@ def _sessao_sem_login_defaults() -> None:
 
 def main():
     configurar_layout()
-    inject_modern_ui_runtime()
-    inject_enter_confirma_campo()
     _sessao_sem_login_defaults()
 
     logo_src = html_std.escape(_src_logo_topo_header(), quote=True)
@@ -6074,6 +6098,7 @@ def main():
 </header>''',
         unsafe_allow_html=True,
     )
+    inject_modern_ui_runtime()
 
     with st.spinner("A carregar o simulador…"):
         (
