@@ -2607,6 +2607,8 @@ def configurar_layout():
             --dv-shadow-glow: 0 0 0 1px rgba({RGB_AZUL_CSS}, 0.06), 0 8px 32px -8px rgba({RGB_AZUL_CSS}, 0.12);
             --dv-surface-glass: rgba(255, 255, 255, 0.82);
             --dv-surface-glass-strong: rgba(255, 255, 255, 0.94);
+            /* Ritmo único entre secções, cabeçalho, campanhas e widgets Streamlit */
+            --dv-rhythm: 1.25rem;
         }}
         @media (prefers-reduced-motion: no-preference) {{
             html {{
@@ -2644,6 +2646,11 @@ def configurar_layout():
         [data-testid="stElementContainer"] {{
             opacity: 1 !important;
             transition: none !important;
+        }}
+        /* Evita somar margem do Streamlit com o gap dos blocos verticais (espaçamento = só --dv-rhythm) */
+        .block-container [data-testid="stElementContainer"],
+        section.main [data-testid="stElementContainer"] {{
+            margin-bottom: 0 !important;
         }}
         /* Sidebar oculta (navegação/galeria/histórico removidos da UI) */
         section[data-testid="stSidebar"] {{ display: none !important; }}
@@ -2727,16 +2734,16 @@ def configurar_layout():
             [data-testid="stMain"] {{
                 padding-left: max(clamp(6px, 2.5vw, 16px), env(safe-area-inset-left, 0px)) !important;
                 padding-right: max(clamp(6px, 2.5vw, 16px), env(safe-area-inset-right, 0px)) !important;
-                padding-top: max(clamp(8px, 2.5vh, 24px), env(safe-area-inset-top, 0px)) !important;
-                padding-bottom: max(clamp(10px, 3vh, 28px), env(safe-area-inset-bottom, 0px)) !important;
+                padding-top: max(calc(var(--dv-rhythm) * 0.45), env(safe-area-inset-top, 0px)) !important;
+                padding-bottom: max(var(--dv-rhythm), env(safe-area-inset-bottom, 0px)) !important;
             }}
             .block-container {{
                 max-width: 100% !important;
                 width: 100% !important;
-                padding: 1rem clamp(0.55rem, 2.8vw, 1rem) !important;
+                padding: var(--dv-rhythm) clamp(0.55rem, 2.8vw, 1rem) var(--dv-rhythm) clamp(0.55rem, 2.8vw, 1rem) !important;
                 margin-left: auto !important;
                 margin-right: auto !important;
-                margin-top: clamp(4px, 1.5vw, 10px) !important;
+                margin-top: clamp(2px, 1vw, 6px) !important;
                 margin-bottom: clamp(4px, 1.5vw, 10px) !important;
                 border-radius: 20px !important;
                 background: rgba(255, 255, 255, 0.72) !important;
@@ -2753,12 +2760,12 @@ def configurar_layout():
                 max-width: 100%;
                 margin-left: 0;
                 margin-right: 0;
-                margin-bottom: 1.5rem;
+                margin-bottom: var(--dv-rhythm);
             }}
             [data-testid="stHorizontalBlock"] {{
                 flex-direction: column !important;
                 align-items: stretch !important;
-                gap: 0.65rem !important;
+                gap: var(--dv-rhythm) !important;
             }}
             [data-testid="stHorizontalBlock"] > div[data-testid="column"] {{
                 width: 100% !important;
@@ -2851,15 +2858,15 @@ def configurar_layout():
         [data-testid="stMain"] {{
             padding-left: max(clamp(6px, 1.8vw, 22px), env(safe-area-inset-left, 0px)) !important;
             padding-right: max(clamp(6px, 1.8vw, 22px), env(safe-area-inset-right, 0px)) !important;
-            padding-top: max(clamp(8px, 2.5vh, 28px), env(safe-area-inset-top, 0px)) !important;
-            padding-bottom: max(clamp(10px, 3vh, 32px), env(safe-area-inset-bottom, 0px)) !important;
+            padding-top: max(calc(var(--dv-rhythm) * 0.45), env(safe-area-inset-top, 0px)) !important;
+            padding-bottom: max(var(--dv-rhythm), env(safe-area-inset-bottom, 0px)) !important;
             box-sizing: border-box !important;
             background: transparent !important;
             background-color: transparent !important;
         }}
         section.main > div {{
-            padding-top: 0.5rem !important;
-            padding-bottom: 0.5rem !important;
+            padding-top: calc(var(--dv-rhythm) * 0.35) !important;
+            padding-bottom: calc(var(--dv-rhythm) * 0.35) !important;
         }}
 
         @media (prefers-reduced-motion: no-preference) {{
@@ -2872,13 +2879,15 @@ def configurar_layout():
         }}
 
         /* Ritmo vertical uniforme entre secções, widgets e colunas */
-        .block-container [data-testid="stVerticalBlock"] {{
+        .block-container [data-testid="stVerticalBlock"],
+        section.main [data-testid="stVerticalBlock"] {{
             display: flex !important;
             flex-direction: column !important;
             gap: var(--dv-rhythm) !important;
             align-items: stretch !important;
         }}
-        .block-container [data-testid="stHorizontalBlock"] {{
+        .block-container [data-testid="stHorizontalBlock"],
+        section.main [data-testid="stHorizontalBlock"] {{
             gap: var(--dv-rhythm) !important;
             align-items: flex-start !important;
         }}
@@ -2909,9 +2918,9 @@ def configurar_layout():
             flex-wrap: nowrap;
             overflow-x: auto;
             -webkit-overflow-scrolling: touch;
-            gap: 20px;
-            padding-bottom: 20px;
-            margin-bottom: 20px;
+            gap: var(--dv-rhythm);
+            padding-bottom: var(--dv-rhythm);
+            margin-bottom: var(--dv-rhythm);
             width: max-content;
             max-width: 100%;
             box-sizing: border-box;
@@ -2965,21 +2974,22 @@ def configurar_layout():
             line-height: 1.58;
             text-align: center !important;
             text-wrap: pretty;
+            margin-top: 0;
+            margin-bottom: calc(var(--dv-rhythm) * 0.65);
         }}
         h1, h2, h3, .header-title, .home-banners-section-title {{
             text-wrap: balance;
         }}
 
-        /* Cartão “vidro”: levemente mais transparente para combinar com o fundo */
+        /* Cartão “vidro”: padding vertical = mesmo ritmo que o gap entre widgets */
         .block-container {{
-            --dv-rhythm: 1.35rem;
             text-rendering: optimizeLegibility;
             max-width: min(1680px, 100%) !important;
             margin-left: auto !important;
             margin-right: auto !important;
-            margin-top: clamp(4px, 1vh, 14px) !important;
+            margin-top: clamp(2px, 0.5vh, 8px) !important;
             margin-bottom: clamp(4px, 1vh, 14px) !important;
-            padding: 1.35rem clamp(0.7rem, 1.6vw, 1.35rem) 1.45rem clamp(0.7rem, 1.6vw, 1.35rem) !important;
+            padding: var(--dv-rhythm) clamp(0.7rem, 1.6vw, 1.35rem) var(--dv-rhythm) clamp(0.7rem, 1.6vw, 1.35rem) !important;
             background: rgba(255, 255, 255, 0.72) !important;
             backdrop-filter: blur(18px) saturate(1.15) !important;
             -webkit-backdrop-filter: blur(18px) saturate(1.15) !important;
@@ -3011,19 +3021,21 @@ def configurar_layout():
         }}
 
         /* Títulos de conteúdo - hierarquia clara, só Montserrat + Inter herdada */
-        .stMarkdown h1 {{ font-size: clamp(1.5rem, 2.5vw, 1.85rem) !important; text-align: center !important; margin-bottom: 0.45rem !important; font-weight: 800 !important; }}
+        .stMarkdown h1 {{ font-size: clamp(1.5rem, 2.5vw, 1.85rem) !important; text-align: center !important; margin-top: 0 !important; margin-bottom: calc(var(--dv-rhythm) * 0.65) !important; font-weight: 800 !important; }}
         .stMarkdown h1.header-title {{
             font-size: clamp(1.75rem, 4.8vw, 2.65rem) !important;
-            margin-bottom: 0.55rem !important;
+            margin-top: 0 !important;
+            margin-bottom: calc(var(--dv-rhythm) * 0.5) !important;
             line-height: 1.18 !important;
         }}
-        .stMarkdown h2 {{ font-size: clamp(1.28rem, 2vw, 1.5rem) !important; text-align: center !important; margin-bottom: 0.45rem !important; font-weight: 700 !important; color: {COR_AZUL_ESC} !important; }}
-        .stMarkdown h3 {{ font-size: clamp(1.12rem, 1.8vw, 1.28rem) !important; text-align: center !important; margin-bottom: 0.4rem !important; font-weight: 700 !important; }}
-        .stMarkdown h4 {{ font-size: 1.05rem !important; text-align: center !important; margin-bottom: 0.35rem !important; font-weight: 700 !important; }}
+        .stMarkdown h2 {{ font-size: clamp(1.28rem, 2vw, 1.5rem) !important; text-align: center !important; margin-top: 0 !important; margin-bottom: calc(var(--dv-rhythm) * 0.65) !important; font-weight: 700 !important; color: {COR_AZUL_ESC} !important; }}
+        .stMarkdown h3 {{ font-size: clamp(1.12rem, 1.8vw, 1.28rem) !important; text-align: center !important; margin-top: 0 !important; margin-bottom: calc(var(--dv-rhythm) * 0.65) !important; font-weight: 700 !important; }}
+        .stMarkdown h4 {{ font-size: 1.05rem !important; text-align: center !important; margin-top: 0 !important; margin-bottom: calc(var(--dv-rhythm) * 0.55) !important; font-weight: 700 !important; }}
         .stMarkdown h5, .stMarkdown h6 {{
             font-size: 0.95rem !important;
             text-align: center !important;
-            margin-bottom: 0.3rem !important;
+            margin-top: 0 !important;
+            margin-bottom: calc(var(--dv-rhythm) * 0.5) !important;
             font-weight: 600 !important;
             color: {COR_TEXTO_MUTED} !important;
         }}
@@ -3565,8 +3577,8 @@ def configurar_layout():
 
         .header-container {{
             text-align: center;
-            padding: 0.85rem 1rem 1.1rem;
-            margin: 0 auto 1rem;
+            padding: calc(var(--dv-rhythm) * 0.45) 0.75rem calc(var(--dv-rhythm) * 0.35);
+            margin: 0 auto var(--dv-rhythm);
             max-width: 1100px;
             position: relative;
         }}
@@ -3579,7 +3591,7 @@ def configurar_layout():
             position: relative;
             left: auto;
             transform: none;
-            margin-bottom: 1.75rem;
+            margin-bottom: var(--dv-rhythm);
             margin-top: 0;
             box-sizing: border-box;
             height: 4px;
@@ -3619,7 +3631,7 @@ def configurar_layout():
             width: 100%;
             max-width: 100vw;
             position: relative;
-            margin: 0 auto 1.25rem;
+            margin: 0 auto var(--dv-rhythm);
             padding: 0 0.75rem;
             box-sizing: border-box;
             text-align: center;
@@ -3630,7 +3642,7 @@ def configurar_layout():
             font-weight: 700 !important;
             color: {COR_AZUL_ESC} !important;
             text-align: center !important;
-            margin: 0 0 0.85rem 0 !important;
+            margin: 0 0 var(--dv-rhythm) 0 !important;
             padding: 0 0.25rem !important;
             letter-spacing: -0.02em !important;
             line-height: 1.25 !important;
@@ -3640,8 +3652,8 @@ def configurar_layout():
         .home-campanhas-copy {{
             width: 100%;
             max-width: min(920px, calc(100vw - clamp(1.5rem, 8vw, 4rem)));
-            margin: 0.5rem auto 0;
-            padding: 0 clamp(1.25rem, 6vw, 3.25rem) 0.5rem;
+            margin: var(--dv-rhythm) auto 0;
+            padding: 0 clamp(1.25rem, 6vw, 3.25rem) var(--dv-rhythm);
             box-sizing: border-box;
             text-align: left;
             order: 2;
@@ -3678,8 +3690,8 @@ def configurar_layout():
             display: flex;
             flex-direction: row;
             flex-wrap: nowrap;
-            gap: 1rem;
-            padding: 0.35rem 0.25rem 0.75rem;
+            gap: var(--dv-rhythm);
+            padding: calc(var(--dv-rhythm) * 0.35) 0.25rem calc(var(--dv-rhythm) * 0.65);
             scroll-snap-type: x proximity;
             margin-left: auto;
             margin-right: auto;
@@ -3871,7 +3883,7 @@ def configurar_layout():
             display: flex;
             justify-content: center;
             align-items: center;
-            margin: 0 auto 0.85rem;
+            margin: 0 auto calc(var(--dv-rhythm) * 0.45);
         }}
         .header-logo-wrap img {{
             display: block;
@@ -3895,7 +3907,7 @@ def configurar_layout():
             font-size: clamp(1.75rem, 4.8vw, 2.65rem);
             font-weight: 800;
             line-height: 1.18;
-            margin: 0.2rem 0 0.55rem 0;
+            margin: calc(var(--dv-rhythm) * 0.2) 0 calc(var(--dv-rhythm) * 0.35) 0;
             color: {COR_AZUL_ESC};
             text-align: center;
             letter-spacing: -0.03em;
@@ -3952,10 +3964,10 @@ def configurar_layout():
         }}
         .summary-body {{
             background: #ffffff;
-            padding: 40px;
+            padding: calc(var(--dv-rhythm) * 1.75);
             border: 1px solid {COR_BORDA};
             border-radius: 0 0 var(--dv-radius-md) var(--dv-radius-md);
-            margin-bottom: 40px;
+            margin-bottom: var(--dv-rhythm);
             color: #111111;
             text-align: center !important;
             box-shadow: var(--dv-shadow-xs);
@@ -3964,7 +3976,7 @@ def configurar_layout():
             background: linear-gradient(135deg, {COR_AZUL_ESC} 0%, #033061 100%);
             padding: clamp(1.1rem, 3vw, 1.5rem);
             border-radius: var(--dv-radius-md);
-            margin-bottom: 30px;
+            margin-bottom: var(--dv-rhythm);
             text-align: center;
             font-weight: 600;
             color: #ffffff !important;
@@ -4014,15 +4026,15 @@ def configurar_layout():
             .badge-ideal:hover, .badge-seguro:hover, .badge-multi:hover {{
                 transform: scale(1.04);
                 box-shadow: 0 6px 18px -4px rgba({RGB_VERMELHO_CSS}, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.22);
-            }}a
+            }}
         }}
         
         [data-testid="stSidebar"] {{ background-color: #fff; border-right: 1px solid {COR_BORDA}; }}
 
         .footer {{
             text-align: center;
-            margin-top: var(--dv-rhythm, 1.35rem) !important;
-            padding: var(--dv-rhythm, 1.35rem) 1rem calc(var(--dv-rhythm, 1.35rem) + 0.25rem);
+            margin-top: var(--dv-rhythm) !important;
+            padding: var(--dv-rhythm) 1rem calc(var(--dv-rhythm) + 0.25rem);
             font-family: 'Inter', system-ui, sans-serif;
             color: #64748b !important;
             font-size: 0.8rem;
