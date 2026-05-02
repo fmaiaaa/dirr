@@ -2339,6 +2339,18 @@ _DV_COOKIE_EMAIL = "dv_last_email"
 _DV_COOKIE_CM_KEY = "dv_cookie_manager_v1"
 
 
+def _dv_try_init_auth_cookie_manager():
+    """Uma instância por rerun: vários CookieManager com a mesma key quebram o set/get de cookies."""
+    try:
+        from extra_streamlit_components import CookieManager
+
+        cm = CookieManager(key=_DV_COOKIE_CM_KEY)
+        cm.get_all()
+        return cm
+    except Exception:
+        return None
+
+
 def _validar_login_planilha(df_logins: pd.DataFrame, email: str, senha: str) -> dict | None:
     if df_logins is None or df_logins.empty:
         return None
@@ -2363,19 +2375,16 @@ def _validar_login_planilha(df_logins: pd.DataFrame, email: str, senha: str) -> 
     return None
 
 
-def _render_login_section(df_logins: pd.DataFrame) -> None:
+def _render_login_section(df_logins: pd.DataFrame, cookie_manager=None) -> None:
     st.session_state.setdefault("dv_cb_manter_sessao", True)
     st.session_state.setdefault("dv_cb_lembrar_email", True)
-    try:
-        from extra_streamlit_components import CookieManager
-
-        _cm0 = CookieManager(key=_DV_COOKIE_CM_KEY)
-        _cm0.get_all()
-        _saved_em = _cm0.get(_DV_COOKIE_EMAIL)
-        if _saved_em:
-            st.session_state.setdefault("dv_login_email_in", str(_saved_em).strip())
-    except Exception:
-        pass
+    if cookie_manager is not None:
+        try:
+            _saved_em = cookie_manager.get(_DV_COOKIE_EMAIL)
+            if _saved_em:
+                st.session_state.setdefault("dv_login_email_in", str(_saved_em).strip())
+        except Exception:
+            pass
 
     logo_src = html_std.escape(_src_logo_topo_header(), quote=True)
     _login_head = f"""<div class="dv-login-page" role="region" aria-label="Início de sessão">
@@ -2404,17 +2413,17 @@ def _render_login_section(df_logins: pd.DataFrame) -> None:
             _sessao_sem_login_defaults()
             st.rerun()
         return
+    st.checkbox(
+        "Manter sessão neste dispositivo (reabre sem pedir senha por até 30 dias)",
+        key="dv_cb_manter_sessao",
+    )
+    st.checkbox(
+        "Lembrar e-mail neste dispositivo",
+        key="dv_cb_lembrar_email",
+    )
     with st.form("dv_login_form", clear_on_submit=False):
         st.text_input("E-mail", key="dv_login_email_in")
         st.text_input("Senha", type="password", key="dv_login_senha_in")
-        st.checkbox(
-            "Manter sessão neste dispositivo (reabre sem pedir senha por até 30 dias)",
-            key="dv_cb_manter_sessao",
-        )
-        st.checkbox(
-            "Lembrar e-mail neste dispositivo",
-            key="dv_cb_lembrar_email",
-        )
         st.caption(
             "A senha **não** é guardada no browser: usamos um token seguro. "
             "Defina `SIMULADOR_SESSION_SECRET` nos *Secrets* em produção."
@@ -2436,6 +2445,7 @@ def _render_login_section(df_logins: pd.DataFrame) -> None:
                     row,
                     remember_long=bool(st.session_state.get("dv_cb_manter_sessao")),
                     remember_email=bool(st.session_state.get("dv_cb_lembrar_email")),
+                    cookie_manager=cookie_manager,
                 )
                 st.rerun()
 
@@ -4173,6 +4183,65 @@ def configurar_layout():
             a[data-testid="stLinkButton"][href*="api.whatsapp.com"]:hover {{
                 transform: translateY(-1px) !important;
             }}
+            .block-container .stFormSubmitButton > button[kind="primary"]:hover,
+            .block-container .stFormSubmitButton > button[data-testid="baseButton-primary"]:hover {{
+                transform: translateY(-2px) scale(1.01) !important;
+            }}
+        }}
+
+        /* st.form_submit_button type=primary: mesmo estilo do botão Avançar (vermelho, sombra, hover) */
+        .block-container .stFormSubmitButton > button[kind="primary"],
+        .block-container .stFormSubmitButton > button[data-testid="baseButton-primary"] {{
+            background: linear-gradient(180deg, {COR_VERMELHO} 0%, {COR_VERMELHO_ESCURO} 100%) !important;
+            color: #ffffff !important;
+            -webkit-text-fill-color: #ffffff !important;
+            border: none !important;
+            box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.2),
+                0 4px 20px -4px rgba({RGB_VERMELHO_CSS}, 0.42) !important;
+            border-radius: var(--dv-radius-sm) !important;
+            width: 100% !important;
+            min-height: var(--dv-input-height) !important;
+            height: var(--dv-input-height) !important;
+            font-weight: 600 !important;
+            font-size: var(--dv-body-font-size) !important;
+            transition: background-color var(--dv-duration) var(--dv-ease-out),
+                border-color var(--dv-duration) var(--dv-ease-out),
+                box-shadow var(--dv-duration) var(--dv-ease-out),
+                transform 0.12s var(--dv-ease-out),
+                color var(--dv-duration) var(--dv-ease-out) !important;
+        }}
+        .block-container .stFormSubmitButton > button[kind="primary"] *,
+        .block-container .stFormSubmitButton > button[kind="primary"] span,
+        .block-container .stFormSubmitButton > button[kind="primary"] p,
+        .block-container .stFormSubmitButton > button[data-testid="baseButton-primary"] *,
+        .block-container .stFormSubmitButton > button[data-testid="baseButton-primary"] span,
+        .block-container .stFormSubmitButton > button[data-testid="baseButton-primary"] p {{
+            color: #ffffff !important;
+            -webkit-text-fill-color: #ffffff !important;
+        }}
+        .block-container .stFormSubmitButton > button[kind="primary"]:hover,
+        .block-container .stFormSubmitButton > button[data-testid="baseButton-primary"]:hover {{
+            background: linear-gradient(180deg, {COR_VERMELHO} 0%, {COR_VERMELHO_ESCURO} 100%) !important;
+            color: #ffffff !important;
+            -webkit-text-fill-color: #ffffff !important;
+            box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.22),
+                0 10px 28px -6px rgba({RGB_VERMELHO_CSS}, 0.48) !important;
+        }}
+        .block-container .stFormSubmitButton > button[kind="primary"]:hover *,
+        .block-container .stFormSubmitButton > button[kind="primary"]:hover span,
+        .block-container .stFormSubmitButton > button[kind="primary"]:hover p,
+        .block-container .stFormSubmitButton > button[data-testid="baseButton-primary"]:hover *,
+        .block-container .stFormSubmitButton > button[data-testid="baseButton-primary"]:hover span,
+        .block-container .stFormSubmitButton > button[data-testid="baseButton-primary"]:hover p {{
+            color: #ffffff !important;
+            -webkit-text-fill-color: #ffffff !important;
+        }}
+        .block-container .stFormSubmitButton > button[kind="primary"] svg,
+        .block-container .stFormSubmitButton > button[kind="primary"]:hover svg,
+        .block-container .stFormSubmitButton > button[data-testid="baseButton-primary"] svg,
+        .block-container .stFormSubmitButton > button[data-testid="baseButton-primary"]:hover svg {{
+            fill: #ffffff !important;
+            color: #ffffff !important;
         }}
 
         /* Botões secundários = branco, texto escuro (primários continuam vermelhos) */
@@ -4374,69 +4443,110 @@ def configurar_layout():
         [data-testid="stDialog"] button[aria-label="Close"]:focus-visible svg {{
             transform: rotate(90deg) !important;
         }}
-        div[data-testid="stAlert"] {{
-            border-radius: 14px !important;
-            border: 1px solid rgba(226, 232, 240, 0.95) !important;
-            background: linear-gradient(135deg, rgba(248, 250, 252, 0.98) 0%, rgba(241, 245, 249, 0.95) 100%) !important;
-            box-shadow: var(--dv-shadow-xs) !important;
+        /* stAlert: mesma largura dos inputs; avisos/erros/info = vermelho Direcional + texto branco */
+        .block-container div[data-testid="stAlert"] {{
+            width: 100% !important;
+            max-width: 100% !important;
+            box-sizing: border-box !important;
+            margin-left: 0 !important;
+            margin-right: 0 !important;
+            border-radius: var(--dv-input-radius) !important;
             transition: box-shadow var(--dv-duration) var(--dv-ease-out), transform var(--dv-duration) var(--dv-ease-out) !important;
         }}
+        .block-container div[data-testid="stAlert"][kind="warning"],
+        .block-container div[data-testid="stAlert"][kind="error"],
+        .block-container div[data-testid="stAlert"][kind="info"],
+        .block-container div[data-testid="stAlert"]:has([data-baseweb="notification"][kind="warning"]),
+        .block-container div[data-testid="stAlert"]:has([data-baseweb="notification"][kind="negative"]),
+        .block-container div[data-testid="stAlert"]:has([data-baseweb="notification"][kind="info"]) {{
+            border: 1px solid rgba(255, 255, 255, 0.14) !important;
+            background: linear-gradient(135deg, {COR_VERMELHO} 0%, {COR_VERMELHO_ESCURO} 100%) !important;
+            box-shadow: var(--dv-shadow-sm), inset 0 1px 0 rgba(255, 255, 255, 0.12) !important;
+        }}
         @media (hover: hover) {{
-            div[data-testid="stAlert"]:hover {{
-                box-shadow: var(--dv-shadow-sm) !important;
+            .block-container div[data-testid="stAlert"][kind="warning"]:hover,
+            .block-container div[data-testid="stAlert"][kind="error"]:hover,
+            .block-container div[data-testid="stAlert"][kind="info"]:hover,
+            .block-container div[data-testid="stAlert"]:has([data-baseweb="notification"][kind="warning"]):hover,
+            .block-container div[data-testid="stAlert"]:has([data-baseweb="notification"][kind="negative"]):hover,
+            .block-container div[data-testid="stAlert"]:has([data-baseweb="notification"][kind="info"]):hover {{
+                box-shadow: 0 10px 28px -6px rgba({RGB_VERMELHO_CSS}, 0.38), inset 0 1px 0 rgba(255, 255, 255, 0.14) !important;
             }}
         }}
-        div[data-testid="stAlert"] p,
-        div[data-testid="stAlert"] span,
-        div[data-testid="stAlert"] div[data-testid="stMarkdownContainer"],
-        div[data-testid="stAlert"] div[data-testid="stMarkdownContainer"] * {{
-            color: {COR_AZUL_ESC} !important;
+        .block-container div[data-testid="stAlert"][kind="warning"] p,
+        .block-container div[data-testid="stAlert"][kind="warning"] span,
+        .block-container div[data-testid="stAlert"][kind="warning"] div[data-testid="stMarkdownContainer"],
+        .block-container div[data-testid="stAlert"][kind="warning"] div[data-testid="stMarkdownContainer"] *,
+        .block-container div[data-testid="stAlert"][kind="error"] p,
+        .block-container div[data-testid="stAlert"][kind="error"] span,
+        .block-container div[data-testid="stAlert"][kind="error"] div[data-testid="stMarkdownContainer"],
+        .block-container div[data-testid="stAlert"][kind="error"] div[data-testid="stMarkdownContainer"] *,
+        .block-container div[data-testid="stAlert"][kind="info"] p,
+        .block-container div[data-testid="stAlert"][kind="info"] span,
+        .block-container div[data-testid="stAlert"][kind="info"] div[data-testid="stMarkdownContainer"],
+        .block-container div[data-testid="stAlert"][kind="info"] div[data-testid="stMarkdownContainer"] *,
+        .block-container div[data-testid="stAlert"]:has([data-baseweb="notification"][kind="warning"]) p,
+        .block-container div[data-testid="stAlert"]:has([data-baseweb="notification"][kind="warning"]) span,
+        .block-container div[data-testid="stAlert"]:has([data-baseweb="notification"][kind="warning"]) div[data-testid="stMarkdownContainer"],
+        .block-container div[data-testid="stAlert"]:has([data-baseweb="notification"][kind="warning"]) div[data-testid="stMarkdownContainer"] *,
+        .block-container div[data-testid="stAlert"]:has([data-baseweb="notification"][kind="negative"]) p,
+        .block-container div[data-testid="stAlert"]:has([data-baseweb="notification"][kind="negative"]) span,
+        .block-container div[data-testid="stAlert"]:has([data-baseweb="notification"][kind="negative"]) div[data-testid="stMarkdownContainer"],
+        .block-container div[data-testid="stAlert"]:has([data-baseweb="notification"][kind="negative"]) div[data-testid="stMarkdownContainer"] *,
+        .block-container div[data-testid="stAlert"]:has([data-baseweb="notification"][kind="info"]) p,
+        .block-container div[data-testid="stAlert"]:has([data-baseweb="notification"][kind="info"]) span,
+        .block-container div[data-testid="stAlert"]:has([data-baseweb="notification"][kind="info"]) div[data-testid="stMarkdownContainer"],
+        .block-container div[data-testid="stAlert"]:has([data-baseweb="notification"][kind="info"]) div[data-testid="stMarkdownContainer"] * {{
+            color: #ffffff !important;
+            -webkit-text-fill-color: #ffffff !important;
         }}
-        div[data-testid="stAlert"] svg {{
-            fill: {COR_AZUL_ESC} !important;
-            color: {COR_AZUL_ESC} !important;
+        .block-container div[data-testid="stAlert"][kind="warning"] svg,
+        .block-container div[data-testid="stAlert"][kind="error"] svg,
+        .block-container div[data-testid="stAlert"][kind="info"] svg,
+        .block-container div[data-testid="stAlert"]:has([data-baseweb="notification"][kind="warning"]) svg,
+        .block-container div[data-testid="stAlert"]:has([data-baseweb="notification"][kind="negative"]) svg,
+        .block-container div[data-testid="stAlert"]:has([data-baseweb="notification"][kind="info"]) svg {{
+            fill: #ffffff !important;
+            color: #ffffff !important;
         }}
-        /* Avisos por severidade na paleta Direcional */
-        div[data-testid="stAlert"][kind="warning"],
-        div[data-testid="stAlert"]:has([data-baseweb="notification"][kind="warning"]) {{
-            border-color: rgba({RGB_AZUL_CSS}, 0.42) !important;
-            background: linear-gradient(135deg, rgba({RGB_AZUL_CSS}, 0.10) 0%, rgba({RGB_AZUL_CSS}, 0.05) 100%) !important;
+        .block-container div[data-testid="stAlert"][kind="warning"] [data-baseweb="notification"],
+        .block-container div[data-testid="stAlert"][kind="error"] [data-baseweb="notification"],
+        .block-container div[data-testid="stAlert"][kind="info"] [data-baseweb="notification"],
+        .block-container div[data-testid="stAlert"]:has([data-baseweb="notification"][kind="warning"]) [data-baseweb="notification"],
+        .block-container div[data-testid="stAlert"]:has([data-baseweb="notification"][kind="negative"]) [data-baseweb="notification"],
+        .block-container div[data-testid="stAlert"]:has([data-baseweb="notification"][kind="info"]) [data-baseweb="notification"] {{
+            background: transparent !important;
+            border: none !important;
+            box-shadow: none !important;
         }}
-        div[data-testid="stAlert"][kind="warning"] p,
-        div[data-testid="stAlert"][kind="warning"] span,
-        div[data-testid="stAlert"][kind="warning"] div[data-testid="stMarkdownContainer"],
-        div[data-testid="stAlert"][kind="warning"] div[data-testid="stMarkdownContainer"] *,
-        div[data-testid="stAlert"]:has([data-baseweb="notification"][kind="warning"]) p,
-        div[data-testid="stAlert"]:has([data-baseweb="notification"][kind="warning"]) span,
-        div[data-testid="stAlert"]:has([data-baseweb="notification"][kind="warning"]) div[data-testid="stMarkdownContainer"],
-        div[data-testid="stAlert"]:has([data-baseweb="notification"][kind="warning"]) div[data-testid="stMarkdownContainer"] * {{
-            color: {COR_AZUL_ESC} !important;
+        /* st.success: mantém verde (feedback positivo), texto branco */
+        .block-container div[data-testid="stAlert"][kind="success"],
+        .block-container div[data-testid="stAlert"]:has([data-baseweb="notification"][kind="positive"]) {{
+            border: 1px solid rgba(255, 255, 255, 0.16) !important;
+            background: linear-gradient(135deg, #059669 0%, #047857 100%) !important;
+            box-shadow: var(--dv-shadow-sm), inset 0 1px 0 rgba(255, 255, 255, 0.12) !important;
         }}
-        div[data-testid="stAlert"][kind="warning"] svg,
-        div[data-testid="stAlert"]:has([data-baseweb="notification"][kind="warning"]) svg {{
-            fill: {COR_AZUL_ESC} !important;
-            color: {COR_AZUL_ESC} !important;
+        .block-container div[data-testid="stAlert"][kind="success"] p,
+        .block-container div[data-testid="stAlert"][kind="success"] span,
+        .block-container div[data-testid="stAlert"][kind="success"] div[data-testid="stMarkdownContainer"],
+        .block-container div[data-testid="stAlert"][kind="success"] div[data-testid="stMarkdownContainer"] *,
+        .block-container div[data-testid="stAlert"]:has([data-baseweb="notification"][kind="positive"]) p,
+        .block-container div[data-testid="stAlert"]:has([data-baseweb="notification"][kind="positive"]) span,
+        .block-container div[data-testid="stAlert"]:has([data-baseweb="notification"][kind="positive"]) div[data-testid="stMarkdownContainer"],
+        .block-container div[data-testid="stAlert"]:has([data-baseweb="notification"][kind="positive"]) div[data-testid="stMarkdownContainer"] * {{
+            color: #ffffff !important;
+            -webkit-text-fill-color: #ffffff !important;
         }}
-
-        div[data-testid="stAlert"][kind="error"],
-        div[data-testid="stAlert"]:has([data-baseweb="notification"][kind="negative"]) {{
-            border-color: rgba({RGB_VERMELHO_CSS}, 0.45) !important;
-            background: linear-gradient(135deg, rgba({RGB_VERMELHO_CSS}, 0.12) 0%, rgba({RGB_VERMELHO_CSS}, 0.05) 100%) !important;
+        .block-container div[data-testid="stAlert"][kind="success"] svg,
+        .block-container div[data-testid="stAlert"]:has([data-baseweb="notification"][kind="positive"]) svg {{
+            fill: #ffffff !important;
+            color: #ffffff !important;
         }}
-        div[data-testid="stAlert"][kind="error"] p,
-        div[data-testid="stAlert"][kind="error"] span,
-        div[data-testid="stAlert"][kind="error"] div[data-testid="stMarkdownContainer"],
-        div[data-testid="stAlert"][kind="error"] div[data-testid="stMarkdownContainer"] *,
-        div[data-testid="stAlert"]:has([data-baseweb="notification"][kind="negative"]) p,
-        div[data-testid="stAlert"]:has([data-baseweb="notification"][kind="negative"]) span,
-        div[data-testid="stAlert"]:has([data-baseweb="notification"][kind="negative"]) div[data-testid="stMarkdownContainer"],
-        div[data-testid="stAlert"]:has([data-baseweb="notification"][kind="negative"]) div[data-testid="stMarkdownContainer"] * {{
-            color: {COR_VERMELHO} !important;
-        }}
-        div[data-testid="stAlert"][kind="error"] svg,
-        div[data-testid="stAlert"]:has([data-baseweb="notification"][kind="negative"]) svg {{
-            fill: {COR_VERMELHO} !important;
-            color: {COR_VERMELHO} !important;
+        .block-container div[data-testid="stAlert"][kind="success"] [data-baseweb="notification"],
+        .block-container div[data-testid="stAlert"]:has([data-baseweb="notification"][kind="positive"]) [data-baseweb="notification"] {{
+            background: transparent !important;
+            border: none !important;
+            box-shadow: none !important;
         }}
 
         .stDownloadButton button {{
@@ -5130,14 +5240,14 @@ def configurar_layout():
             pointer-events: none;
         }}
         .custom-alert {{
-            background: linear-gradient(135deg, {COR_AZUL_ESC} 0%, #033061 100%);
+            background: linear-gradient(135deg, {COR_VERMELHO} 0%, {COR_VERMELHO_ESCURO} 100%);
             box-sizing: border-box !important;
             width: 100% !important;
             max-width: 100% !important;
             margin-left: 0 !important;
             margin-right: 0 !important;
             margin-bottom: var(--dv-stack-gap) !important;
-            padding: 0 0.75rem !important;
+            padding: 0.65rem 0.85rem !important;
             border-radius: var(--dv-input-radius) !important;
             text-align: center;
             font-weight: 600;
@@ -5146,13 +5256,10 @@ def configurar_layout():
             align-items: center;
             justify-content: center;
             min-height: var(--dv-input-height) !important;
-            height: var(--dv-input-height) !important;
-            max-height: var(--dv-input-height) !important;
-            overflow: hidden !important;
-            white-space: nowrap;
-            text-overflow: ellipsis;
+            overflow: visible !important;
+            line-height: 1.35 !important;
             box-shadow: var(--dv-shadow-sm), inset 0 1px 0 rgba(255, 255, 255, 0.12);
-            border: 1px solid rgba(255, 255, 255, 0.12);
+            border: 1px solid rgba(255, 255, 255, 0.14);
         }}
         .dv-alert-direcional {{
             background: linear-gradient(135deg, {COR_VERMELHO} 0%, {COR_VERMELHO_ESCURO} 100%);
@@ -5164,15 +5271,13 @@ def configurar_layout():
             margin-right: 0 !important;
             margin-bottom: var(--dv-stack-gap) !important;
             border-radius: var(--dv-input-radius) !important;
-            padding: 0 0.75rem !important;
+            padding: 0.65rem 0.85rem !important;
             min-height: var(--dv-input-height) !important;
-            height: var(--dv-input-height) !important;
-            max-height: var(--dv-input-height) !important;
             display: flex;
             align-items: center;
             justify-content: center;
             text-align: center;
-            overflow: hidden !important;
+            overflow: visible !important;
             box-shadow: var(--dv-shadow-sm), inset 0 1px 0 rgba(255, 255, 255, 0.12);
             border: 1px solid rgba(255, 255, 255, 0.14);
         }}
@@ -5180,14 +5285,10 @@ def configurar_layout():
             font-weight: 600;
             font-size: var(--dv-body-font-size) !important;
             color: #ffffff !important;
-            line-height: 1.25 !important;
+            line-height: 1.35 !important;
             width: 100%;
-            max-height: 100%;
-            overflow: hidden;
-            display: -webkit-box;
-            -webkit-box-orient: vertical;
-            -webkit-line-clamp: 2;
-            text-overflow: ellipsis;
+            overflow: visible;
+            text-align: center;
         }}
         .dv-alert-direcional-inner strong {{
             color: #ffffff !important;
@@ -7616,14 +7717,23 @@ def _dv_cookie_manager():
     return CookieManager(key=_DV_COOKIE_CM_KEY)
 
 
-def _dv_persist_after_login(row: dict, *, remember_long: bool, remember_email: bool) -> None:
+def _dv_persist_after_login(
+    row: dict,
+    *,
+    remember_long: bool,
+    remember_email: bool,
+    cookie_manager,
+) -> None:
+    if cookie_manager is None:
+        return
     try:
-        cm = _dv_cookie_manager()
+        cm = cookie_manager
         cm.get_all()
         tok, exp_sess = _dv_issue_session_token(row, remember_long)
         cm.set(
             _DV_COOKIE_SESS,
             tok,
+            key="dv_ck_set_sess",
             expires_at=exp_sess,
             same_site="lax",
         )
@@ -7632,11 +7742,12 @@ def _dv_persist_after_login(row: dict, *, remember_long: bool, remember_email: b
             cm.set(
                 _DV_COOKIE_EMAIL,
                 em,
+                key="dv_ck_set_email",
                 expires_at=datetime.now(timezone.utc) + timedelta(days=365),
                 same_site="lax",
             )
         else:
-            cm.delete(_DV_COOKIE_EMAIL)
+            cm.delete(_DV_COOKIE_EMAIL, key="dv_ck_del_email")
     except Exception:
         pass
 
@@ -7651,24 +7762,26 @@ def _dv_clear_auth_cookies() -> None:
         pass
 
 
-def _dv_try_restore_session_from_cookie(df_logins: pd.DataFrame) -> bool:
+def _dv_try_restore_session_from_cookie(df_logins: pd.DataFrame, cookie_manager) -> bool:
     if st.session_state.get("logged_in"):
+        return False
+    if cookie_manager is None:
         return False
     if df_logins is None or getattr(df_logins, "empty", True):
         return False
     try:
-        cm = _dv_cookie_manager()
+        cm = cookie_manager
         cm.get_all()
         raw = cm.get(_DV_COOKIE_SESS)
         if not raw:
             return False
         pl = _dv_decode_session_token(str(raw))
         if not pl:
-            cm.delete(_DV_COOKIE_SESS)
+            cm.delete(_DV_COOKIE_SESS, key="dv_ck_del_sess_bad")
             return False
         row = _dv_row_by_email(df_logins, str(pl.get("sub") or ""))
         if not row:
-            cm.delete(_DV_COOKIE_SESS)
+            cm.delete(_DV_COOKIE_SESS, key="dv_ck_del_sess_user")
             return False
         _dv_apply_session_from_row(row)
         return True
@@ -7705,12 +7818,14 @@ def main():
             df_campanhas_texto,
         ) = carregar_dados_sistema()
 
+    _dv_auth_cm = None
     if not st.session_state.get("logged_in"):
-        if _dv_try_restore_session_from_cookie(df_logins):
+        _dv_auth_cm = _dv_try_init_auth_cookie_manager()
+        if _dv_try_restore_session_from_cookie(df_logins, _dv_auth_cm):
             st.rerun()
 
     if not st.session_state.get("logged_in"):
-        _render_login_section(df_logins)
+        _render_login_section(df_logins, cookie_manager=_dv_auth_cm)
         st.markdown(
             '<div class="footer dv-login-page-footer">Direcional Engenharia - Rio de Janeiro<br><em>developed by Lucas Maia</em></div>',
             unsafe_allow_html=True,
