@@ -2878,6 +2878,47 @@ def configurar_layout():
             margin-top: 0 !important;
             margin-bottom: 0 !important;
         }}
+        /*
+         * Injeção no topo (st.html do tema + st.iframe de scripts): o gap do flex soma faixa vazia.
+         * margin-bottom negativo nos dois primeiros anula o gap até ao 3.º; o 3.º mantém distância ao cabeçalho.
+         */
+        .block-container [data-testid="stVerticalBlock"] > div[data-testid="stElementContainer"]:nth-child(1) {{
+            margin-top: 0 !important;
+        }}
+        .block-container [data-testid="stVerticalBlock"] > div[data-testid="stElementContainer"]:nth-child(-n+2) {{
+            margin-bottom: calc(-1 * var(--dv-rhythm)) !important;
+        }}
+        .block-container [data-testid="stVerticalBlock"] > div[data-testid="stElementContainer"]:nth-child(-n+3) {{
+            padding-top: 0 !important;
+            padding-bottom: 0 !important;
+            min-height: 0 !important;
+        }}
+        .block-container [data-testid="stVerticalBlock"] > div[data-testid="stElementContainer"]:nth-child(-n+3) > div {{
+            min-height: 0 !important;
+        }}
+        .block-container [data-testid="stVerticalBlock"] > div[data-testid="stElementContainer"]:nth-child(-n+3) [data-testid="stHtml"],
+        .block-container [data-testid="stVerticalBlock"] > div[data-testid="stElementContainer"]:nth-child(-n+3) [data-testid="stIFrame"] {{
+            display: block !important;
+            height: 0 !important;
+            min-height: 0 !important;
+            max-height: 0 !important;
+            overflow: hidden !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            line-height: 0 !important;
+            border: 0 !important;
+            box-shadow: none !important;
+        }}
+        .block-container [data-testid="stVerticalBlock"] > div[data-testid="stElementContainer"]:nth-child(-n+3) [data-testid="stIFrame"] iframe,
+        .block-container [data-testid="stVerticalBlock"] > div[data-testid="stElementContainer"]:nth-child(-n+3) iframe {{
+            height: 0 !important;
+            min-height: 0 !important;
+            max-height: 0 !important;
+            border: 0 !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            display: block !important;
+        }}
         .block-container [data-testid="stMarkdownContainer"]:has(.header-container) {{
             margin-top: 0 !important;
             padding-top: 0 !important;
