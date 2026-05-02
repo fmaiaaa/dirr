@@ -5,8 +5,7 @@
 
 # --- Streamlit (>=1.56: st.iframe em substituição de components.v1.html) ---
 streamlit>=1.56.0,<2
-# 0.0.x puxava pandas<2; 0.1.0 alinha com pandas 2.x e gspread 5.8–6 (excl. 6)
-st-gsheets-connection==0.1.0
+st-gsheets-connection>=0.0.4
 streamlit-folium>=0.20.0
 simple-salesforce>=1.12.0
 
