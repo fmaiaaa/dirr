@@ -1089,7 +1089,8 @@ def _sf_classificar_ranking_cpf_11(cpf_11: str) -> tuple[str | None, str | None]
     Conecta (se credenciais existirem), busca ranking pelo CPF (11 dígitos) via Opportunity.
 
     Retorna (ranking_ui_ou_None, código_informativo_ou_None).
-    Códigos: cpf_incompleto, pacote_ausente, sem_conexao, sem_registo, erro_sf
+    Códigos: cpf_incompleto, pacote_ausente, sem_registo (sem ranking / sem registo;
+    falhas de ligação, autenticação ou SOQL mapeiam para sem_registo na UI).
     """
     cpf = _sf_normalizar_cpf(cpf_11)
     if len(cpf) != 11:
@@ -1100,7 +1101,8 @@ def _sf_classificar_ranking_cpf_11(cpf_11: str) -> tuple[str | None, str | None]
 
     sf = _sf_conectar_salesforce(verbose=False)
     if sf is None:
-        return None, "sem_conexao"
+        _sf_logger.warning("Salesforce: ligação ou autenticação sem sucesso (detalhe só em log).")
+        return None, "sem_registo"
 
     opp, err = _sf_consultar_por_cpf(sf, cpf)
     if err:
@@ -1109,7 +1111,7 @@ def _sf_classificar_ranking_cpf_11(cpf_11: str) -> tuple[str | None, str | None]
         if "Nenhum registro encontrado" in err:
             return None, "sem_registo"
         _sf_logger.warning("Salesforce Opportunity: %s", err)
-        return None, "erro_sf"
+        return None, "sem_registo"
     if opp is None:
         return None, "sem_registo"
     info = _sf_extrair_ranking_ui_de_opportunity(opp)
@@ -1151,7 +1153,8 @@ def _lookup_ranking_oportunidade_sf_cached(cpf11: str) -> tuple[dict[str, Any] |
     _injetar_secrets_salesforce_no_env()
     sf = _sf_conectar_salesforce()
     if sf is None:
-        return None, "sem_conexao"
+        _sf_logger.warning("Salesforce: ligação ou autenticação sem sucesso (detalhe só em log).")
+        return None, "Nenhum registro encontrado para o CPF informado."
     opp, err = _sf_consultar_por_cpf(sf, d)
     if err or opp is None:
         return None, err or "erro"
@@ -1932,15 +1935,15 @@ def dialog_adm_miniaturas_home_banners(df_home_banners: pd.DataFrame | None) -> 
     )
     with st.form("form_novo_home_banner"):
         bn_url = st.text_input(
-            "Endereço da imagem (URL)",
+            "Endereço da imagem (URL) (texto — https)",
             placeholder="https://i.postimg.cc/...",
         )
         bn_titulo = st.text_input(
-            "Título no popup",
+            "Título no popup (texto)",
             placeholder="Ex.: Campanha de verão",
         )
         bn_desc = st.text_area(
-            "Descrição no popup",
+            "Descrição no popup (texto)",
             placeholder="Texto curto que aparece abaixo da imagem…",
             height=72,
         )
@@ -1973,7 +1976,7 @@ def dialog_adm_miniaturas_home_banners(df_home_banners: pd.DataFrame | None) -> 
     else:
         _opts_idx = list(range(len(_df_bn_adm)))
         _ix_del = st.selectbox(
-            "Linha a excluir (mesma ordem da planilha ao carregar)",
+            "Linha a excluir (mesma ordem da planilha ao carregar) (lista)",
             options=_opts_idx,
             format_func=lambda j: _rotulo_opcao_excluir_banner(_df_bn_adm, int(j)),
             key="home_banner_excluir_select",
@@ -2004,11 +2007,11 @@ def dialog_adm_textos_campanhas(df_campanhas_texto: pd.DataFrame) -> None:
     )
     with st.form("form_novo_campanha_texto"):
         ct_titulo = st.text_input(
-            "Título",
+            "Título (texto)",
             placeholder='Ex.: "Campanha de Carnaval"',
         )
         ct_texto = st.text_area(
-            "Texto",
+            "Texto (texto)",
             placeholder="Ex.: Campanha x e y válida entre xc e yc.",
             height=100,
         )
@@ -2038,7 +2041,7 @@ def dialog_adm_textos_campanhas(df_campanhas_texto: pd.DataFrame) -> None:
     else:
         _opts_ct = list(range(len(_df_ct_adm)))
         _ix_ct = st.selectbox(
-            "Linha a excluir",
+            "Linha a excluir (lista)",
             options=_opts_ct,
             format_func=lambda j: _rotulo_opcao_excluir_campanha_texto(_df_ct_adm, int(j)),
             key="campanha_texto_excluir_select",
@@ -3033,8 +3036,9 @@ def configurar_layout():
                 padding: 1.25rem clamp(0.75rem, 4vw, 1.25rem) !important;
             }}
             .stButton button {{
-                min-height: 48px !important;
-                padding: 0.65rem 14px !important;
+                min-height: var(--dv-input-height) !important;
+                height: var(--dv-input-height) !important;
+                padding: 0 14px !important;
                 touch-action: manipulation;
             }}
         }}
@@ -3268,38 +3272,54 @@ def configurar_layout():
             box-sizing: border-box;
             -webkit-mask-image: linear-gradient(90deg, transparent, #000 2%, #000 98%, transparent);
             mask-image: linear-gradient(90deg, transparent, #000 2%, #000 98%, transparent);
+            scrollbar-gutter: stable;
         }}
         .scrolling-wrapper {{
             display: flex;
             flex-wrap: nowrap;
-            overflow-x: auto;
+            overflow-x: scroll !important;
+            overflow-y: hidden !important;
             -webkit-overflow-scrolling: touch;
             gap: 20px;
-            padding-bottom: 20px;
-            margin-bottom: 20px;
+            padding-bottom: 14px;
+            margin-bottom: 12px;
             width: max-content;
             max-width: 100%;
             box-sizing: border-box;
             scroll-behavior: smooth;
             scrollbar-width: thin;
-            scrollbar-color: rgba({RGB_AZUL_CSS}, 0.35) transparent;
+            scrollbar-color: rgba({RGB_AZUL_CSS}, 0.5) rgba(148, 163, 184, 0.22);
         }}
         .scrolling-wrapper::-webkit-scrollbar {{
-            height: 6px;
+            height: 10px !important;
+            -webkit-appearance: none;
+            appearance: none;
+            background: rgba(148, 163, 184, 0.22);
+            border-radius: 99px;
+        }}
+        .scrolling-wrapper::-webkit-scrollbar-track {{
+            background: rgba(148, 163, 184, 0.2);
+            border-radius: 99px;
         }}
         .scrolling-wrapper::-webkit-scrollbar-thumb {{
-            background: linear-gradient(90deg, rgba({RGB_AZUL_CSS}, 0.25), rgba({RGB_VERMELHO_CSS}, 0.35));
+            background: linear-gradient(90deg, rgba({RGB_AZUL_CSS}, 0.35), rgba({RGB_VERMELHO_CSS}, 0.42));
             border-radius: 99px;
         }}
 
         .scrolling-wrapper .card-item {{
             flex: 0 0 auto;
             width: 300px;
-            transition: transform var(--dv-duration) var(--dv-ease-out);
+            transition: transform var(--dv-duration) var(--dv-ease-out),
+                filter var(--dv-duration) var(--dv-ease-out);
         }}
         @media (hover: hover) and (prefers-reduced-motion: no-preference) {{
             .scrolling-wrapper .card-item:hover {{
-                transform: scale(1.015);
+                transform: translateY(-6px);
+                filter: drop-shadow(0 14px 28px rgba(15, 23, 42, 0.14));
+            }}
+            .scrolling-wrapper .recommendation-card:hover {{
+                transform: none !important;
+                box-shadow: var(--dv-shadow-md) !important;
             }}
         }}
 
@@ -3540,6 +3560,9 @@ def configurar_layout():
             border-radius: var(--dv-input-radius) !important;
             display: flex;
             align-items: center;
+            min-height: var(--dv-input-height) !important;
+            height: var(--dv-input-height) !important;
+            box-sizing: border-box !important;
         }}
 
         div[data-testid="stDateInput"] div[data-baseweb="input"] {{
@@ -3600,8 +3623,8 @@ def configurar_layout():
         }}
 
         div[data-testid="column"] .stButton button, [data-testid="stSidebar"] .stButton button {{
-             min-height: 48px !important;
-             height: 48px !important;
+             min-height: var(--dv-input-height) !important;
+             height: var(--dv-input-height) !important;
              font-size: var(--dv-body-font-size) !important;
         }}
 
@@ -3680,8 +3703,9 @@ def configurar_layout():
             justify-content: center !important;
             width: 100% !important;
             box-sizing: border-box !important;
-            min-height: 48px !important;
-            padding: 0.65rem 1.15rem !important;
+            min-height: var(--dv-input-height) !important;
+            height: var(--dv-input-height) !important;
+            padding: 0 1rem !important;
             border-radius: var(--dv-radius-sm) !important;
             transition: background-color var(--dv-duration) var(--dv-ease-out),
                 border-color var(--dv-duration) var(--dv-ease-out),
@@ -3723,8 +3747,9 @@ def configurar_layout():
             justify-content: center !important;
             width: 100% !important;
             box-sizing: border-box !important;
-            min-height: 48px !important;
-            padding: 0.65rem 1.15rem !important;
+            min-height: var(--dv-input-height) !important;
+            height: var(--dv-input-height) !important;
+            padding: 0 1rem !important;
             border-radius: 8px !important;
             background: #ffffff !important;
             background-color: #ffffff !important;
@@ -3901,7 +3926,8 @@ def configurar_layout():
             color: #0f172a !important;
             -webkit-text-fill-color: #0f172a !important;
             border: 1px solid #cbd5e1 !important;
-            height: 48px !important;
+            min-height: var(--dv-input-height) !important;
+            height: var(--dv-input-height) !important;
             box-shadow: 0 1px 3px rgba(15, 23, 42, 0.08) !important;
             border-radius: var(--dv-radius-sm) !important;
             transition: background-color var(--dv-duration) var(--dv-ease-out),
@@ -4421,6 +4447,74 @@ def configurar_layout():
             margin: 0 0 var(--dv-stack-gap) 0 !important;
             opacity: 0.72;
         }}
+        /* Tabela financiamentos/subsídios: quebra linhas na largura disponível (sem esprem texto nem scroll horizontal). */
+        .finan-subsidios-table-bleed {{
+            box-sizing: border-box;
+            width: 100%;
+            max-width: 100%;
+            margin: var(--dv-stack-gap) 0;
+            padding: 0;
+            overflow-x: visible;
+        }}
+        .finan-subsidios-table-bleed .finan-subsidios-tbl {{
+            width: 100%;
+            min-width: 0;
+            max-width: 100%;
+            border-collapse: collapse;
+            table-layout: auto;
+            color: #111111;
+            font-size: clamp(0.8125rem, 2.1vw, 0.9375rem);
+        }}
+        .finan-subsidios-table-bleed .finan-subsidios-tbl caption {{
+            caption-side: top;
+            padding: 0 0 0.65rem 0;
+            font-weight: 700;
+            color: #111111;
+            text-align: center;
+            font-size: clamp(0.875rem, 2.2vw, 1rem);
+            line-height: 1.4;
+            white-space: normal;
+            word-break: break-word;
+            overflow-wrap: break-word;
+        }}
+        .finan-subsidios-table-bleed .finan-subsidios-tbl th,
+        .finan-subsidios-table-bleed .finan-subsidios-tbl td {{
+            box-sizing: border-box;
+            padding: 8px 8px;
+            border-bottom: 1px solid #e2e8f0;
+            vertical-align: middle;
+            white-space: normal;
+            word-break: break-word;
+            overflow-wrap: break-word;
+            line-height: 1.4;
+        }}
+        .finan-subsidios-table-bleed .finan-subsidios-tbl thead th {{
+            border-color: #cbd5e1;
+        }}
+        .finan-subsidios-table-bleed .finan-subsidios-tbl thead tr:last-child th {{
+            border-bottom: 2px solid #cbd5e1;
+        }}
+        .finan-subsidios-table-bleed .finan-subsidios-tbl th:not(.finan-subs-num) {{
+            text-align: center;
+            font-weight: 700;
+            color: #000000;
+            -webkit-text-fill-color: #000000;
+        }}
+        .finan-subsidios-table-bleed .finan-subsidios-tbl td.finan-subs-flag,
+        .finan-subsidios-table-bleed .finan-subsidios-tbl th.finan-subs-flag {{
+            text-align: center;
+            font-weight: 600;
+            color: #334155;
+            -webkit-text-fill-color: #334155;
+        }}
+        .finan-subsidios-table-bleed .finan-subsidios-tbl td.finan-subs-num,
+        .finan-subsidios-table-bleed .finan-subsidios-tbl th.finan-subs-num {{
+            text-align: right;
+            white-space: nowrap;
+            font-weight: 600;
+            color: #000000;
+            -webkit-text-fill-color: #000000;
+        }}
         .dv-sinal-com-prosa {{
             color: #111111;
             margin: 0 0 var(--dv-stack-gap) 0 !important;
@@ -4439,7 +4533,7 @@ def configurar_layout():
             margin-left: 0 !important;
             margin-right: 0 !important;
             margin-bottom: var(--dv-stack-gap) !important;
-            padding: 0.4rem 0.85rem !important;
+            padding: 0 0.75rem !important;
             border-radius: var(--dv-input-radius) !important;
             text-align: center;
             font-weight: 600;
@@ -4448,6 +4542,11 @@ def configurar_layout():
             align-items: center;
             justify-content: center;
             min-height: var(--dv-input-height) !important;
+            height: var(--dv-input-height) !important;
+            max-height: var(--dv-input-height) !important;
+            overflow: hidden !important;
+            white-space: nowrap;
+            text-overflow: ellipsis;
             box-shadow: var(--dv-shadow-sm), inset 0 1px 0 rgba(255, 255, 255, 0.12);
             border: 1px solid rgba(255, 255, 255, 0.12);
         }}
@@ -4461,12 +4560,15 @@ def configurar_layout():
             margin-right: 0 !important;
             margin-bottom: var(--dv-stack-gap) !important;
             border-radius: var(--dv-input-radius) !important;
-            padding: 0.4rem 0.85rem !important;
+            padding: 0 0.75rem !important;
             min-height: var(--dv-input-height) !important;
+            height: var(--dv-input-height) !important;
+            max-height: var(--dv-input-height) !important;
             display: flex;
             align-items: center;
             justify-content: center;
             text-align: center;
+            overflow: hidden !important;
             box-shadow: var(--dv-shadow-sm), inset 0 1px 0 rgba(255, 255, 255, 0.12);
             border: 1px solid rgba(255, 255, 255, 0.14);
         }}
@@ -4474,8 +4576,14 @@ def configurar_layout():
             font-weight: 600;
             font-size: var(--dv-body-font-size) !important;
             color: #ffffff !important;
-            line-height: 1.35 !important;
+            line-height: 1.25 !important;
             width: 100%;
+            max-height: 100%;
+            overflow: hidden;
+            display: -webkit-box;
+            -webkit-box-orient: vertical;
+            -webkit-line-clamp: 2;
+            text-overflow: ellipsis;
         }}
         .dv-alert-direcional-inner strong {{
             color: #ffffff !important;
@@ -5121,7 +5229,11 @@ def show_export_dialog(d):
 
     st.markdown("---")
     st.markdown("**2. Enviar por e-mail (cliente)**")
-    email = st.text_input("Endereço de e-mail do cliente", placeholder="cliente@exemplo.com", key="export_dialog_email_cliente")
+    email = st.text_input(
+        "Endereço de e-mail do cliente (e-mail)",
+        placeholder="cliente@exemplo.com",
+        key="export_dialog_email_cliente",
+    )
     if st.button("Enviar e-mail para o cliente", use_container_width=True, key="export_dialog_btn_email"):
         if email and "@" in email:
             sucesso, msg = enviar_email_smtp(
@@ -5219,7 +5331,7 @@ def aba_simulador_automacao(
             unsafe_allow_html=True,
         )
         _nome_ref = st.text_input(
-            "Nome do Cliente ou Imobiliária (opcional)",
+            "Nome do Cliente ou Imobiliária (opcional) (texto)",
             value=str(st.session_state.dados_cliente.get("nome", "") or ""),
             key="nome_cliente_imobiliaria_opt_v1",
             placeholder="Exemplo: João da Silva ou Imobiliária Exemplo",
@@ -5238,7 +5350,7 @@ def aba_simulador_automacao(
                 max(0.0, _soma_ant), vazio_se_zero=True
             )
         st.text_input(
-            "Renda familiar total",
+            "Renda familiar total (R$)",
             key="renda_familiar_total_v1",
             placeholder="R$ 0,00",
         )
@@ -5248,10 +5360,10 @@ def aba_simulador_automacao(
                 st.session_state.dados_cliente.get("cpf") or ""
             ).strip()
         st.text_input(
-            "CPF - Classificar Clientes (opcional)",
+            "CPF - Classificar Clientes (opcional) (CPF)",
             key="cpf_classificar_clientes_sf",
             placeholder="000.000.000-00",
-            help="Com 11 dígitos e credenciais Salesforce, o ranking vem da última Oportunidade (Account.CPF__c com máscara e campos Ranking__c).",
+            help="Com 11 dígitos, o ranking vem da última Oportunidade (Account.CPF__c com máscara e campos Ranking__c).",
         )
         cpf_digits = re.sub(r"\D", "", st.session_state.get("cpf_classificar_clientes_sf") or "")
         rank_opts = ["DIAMANTE", "OURO", "PRATA", "BRONZE", "AÇO"]
@@ -5270,7 +5382,7 @@ def aba_simulador_automacao(
                         pass
             elif (
                 not _sf_rs
-                and _sf_code == "sem_registo"
+                and _sf_code in ("sem_registo", "sem_conexao", "erro_sf")
                 and st.session_state.get("_sf_rank_naoencontrado_toast_cpf") != cpf_digits
             ):
                 st.session_state["_sf_rank_naoencontrado_toast_cpf"] = cpf_digits
@@ -5291,24 +5403,28 @@ def aba_simulador_automacao(
                     f"Ranking encontrado: {html_std.escape(str(_sf_rs))}</p>",
                     unsafe_allow_html=True,
                 )
-            elif _sf_code == "sem_registo":
+            elif _sf_code in ("sem_registo", "sem_conexao", "erro_sf"):
                 st.markdown(
                     '<p class="inline-ref" style="margin-top:0;margin-bottom:0;line-height:1.45;">'
                     "CPF não encontrado. Um novo contato deve ser criado no salesforce</p>",
                     unsafe_allow_html=True,
                 )
-            elif _sf_code == "erro_sf":
-                st.markdown(
-                    '<p class="inline-ref" style="margin-top:0;margin-bottom:0;line-height:1.45;">'
-                    "Não foi possível consultar o Salesforce. Verifique credenciais e campos da org.</p>",
-                    unsafe_allow_html=True,
-                )
         curr_ranking = _rank_now
         idx_ranking = rank_opts.index(curr_ranking) if curr_ranking in rank_opts else 0
-        ranking = st.selectbox("Ranking do Cliente", options=rank_opts, index=idx_ranking, key="in_rank_v28")
+        ranking = st.selectbox(
+            "Ranking do Cliente (lista)",
+            options=rank_opts,
+            index=idx_ranking,
+            key="in_rank_v28",
+        )
         _pol_saved = st.session_state.dados_cliente.get("politica")
         _pol_idx = 0 if _pol_saved == "Direcional" else 1
-        politica_ps = st.selectbox("Política de Pro Soluto", ["Direcional", "Emcash"], index=_pol_idx, key="in_pol_v28")
+        politica_ps = st.selectbox(
+            "Política de Pro Soluto (lista)",
+            ["Direcional", "Emcash"],
+            index=_pol_idx,
+            key="in_pol_v28",
+        )
 
         prazo_ps_max = 84 if politica_ps == "Emcash" else 84
         st.session_state.dados_cliente.update({
@@ -5352,42 +5468,33 @@ def aba_simulador_automacao(
         def _sim_nao(v):
             return "Sim" if v else "Não"
 
-        _fx_cell = (
-            "padding:8px 8px;text-align:right;border-bottom:1px solid #e2e8f0;"
-            "color:#000000;-webkit-text-fill-color:#000000;font-weight:600;"
-        )
         _tbl_rows = "".join(
             f"<tr>"
-            f"<td style='padding:8px 10px;text-align:center;border-bottom:1px solid #e2e8f0;color:#334155;font-weight:600;'>{_sim_nao(it['social'])}</td>"
-            f"<td style='padding:8px 10px;text-align:center;border-bottom:1px solid #e2e8f0;color:#334155;font-weight:600;'>{_sim_nao(it['cotista'])}</td>"
-            f"<td style='{_fx_cell}'>{reais_streamlit_html(fmt_br(it['fin_F2']))}</td>"
-            f"<td style='{_fx_cell}'>{reais_streamlit_html(fmt_br(it['sub_F2']))}</td>"
-            f"<td style='{_fx_cell}'>{reais_streamlit_html(fmt_br(it['fin_F3']))}</td>"
-            f"<td style='{_fx_cell}'>{reais_streamlit_html(fmt_br(it['sub_F3']))}</td>"
+            f"<td class='finan-subs-flag'>{_sim_nao(it['social'])}</td>"
+            f"<td class='finan-subs-flag'>{_sim_nao(it['cotista'])}</td>"
+            f"<td class='finan-subs-num'>{reais_streamlit_html(fmt_br(it['fin_F2']))}</td>"
+            f"<td class='finan-subs-num'>{reais_streamlit_html(fmt_br(it['sub_F2']))}</td>"
+            f"<td class='finan-subs-num'>{reais_streamlit_html(fmt_br(it['fin_F3']))}</td>"
+            f"<td class='finan-subs-num'>{reais_streamlit_html(fmt_br(it['sub_F3']))}</td>"
             f"</tr>"
             for it in _matriz_bd
         )
         st.markdown(
-            f"""<div class="finan-subsidios-table-bleed" style="width:100vw;max-width:100%;position:relative;left:50%;transform:translateX(-50%);margin:var(--dv-stack-gap) 0;padding:0 clamp(10px,2.2vw,28px);box-sizing:border-box;overflow-x:auto;-webkit-overflow-scrolling:touch;">
-<table style="width:100%;min-width:min(100%,720px);border-collapse:collapse;font-size:clamp(0.72rem,1.6vw,0.85rem);color:#111111;table-layout:fixed;">
-<caption style="caption-side:top;padding-bottom:10px;font-weight:700;color:#111111;text-align:center;font-size:clamp(0.85rem,2vw,1rem);">Financiamentos e subsídios (base de dados - Financiamentos) - Faixas 2 e 3</caption>
-<colgroup>
-<col style="width:11%;" />
-<col style="width:13%;" />
-<col span="4" style="width:19%;" />
-</colgroup>
+            f"""<div class="finan-subsidios-table-bleed">
+<table class="finan-subsidios-tbl">
+<caption>Financiamentos e subsídios (base de dados - Financiamentos) - Faixas 2 e 3</caption>
 <thead>
 <tr>
-<th rowspan="2" style="text-align:center;vertical-align:middle;padding:8px 10px;border-bottom:2px solid #cbd5e1;">Fator Social</th>
-<th rowspan="2" style="text-align:center;vertical-align:middle;padding:8px 10px;border-bottom:2px solid #cbd5e1;">Cotista do Fundo de Garantia do Tempo de Serviço</th>
-<th colspan="2" style="text-align:center;padding:6px 8px;border-bottom:1px solid #cbd5e1;color:#000000;font-weight:700;">Faixa 2 - Imóveis até 275k</th>
-<th colspan="2" style="text-align:center;padding:6px 8px;border-bottom:1px solid #cbd5e1;color:#000000;font-weight:700;">Faixa 3 - Imóveis até 400k</th>
+<th rowspan="2">Fator Social</th>
+<th rowspan="2">Cotista do Fundo de Garantia do Tempo de Serviço</th>
+<th colspan="2">Faixa 2 - Imóveis até 275k</th>
+<th colspan="2">Faixa 3 - Imóveis até 400k</th>
 </tr>
 <tr>
-<th style="text-align:right;padding:6px 8px;border-bottom:2px solid #cbd5e1;white-space:normal;line-height:1.25;color:#000000;font-weight:700;">Financiamento</th>
-<th style="text-align:right;padding:6px 8px;border-bottom:2px solid #cbd5e1;white-space:normal;line-height:1.25;color:#000000;font-weight:700;">Subsídios</th>
-<th style="text-align:right;padding:6px 8px;border-bottom:2px solid #cbd5e1;white-space:normal;line-height:1.25;color:#000000;font-weight:700;">Financiamento</th>
-<th style="text-align:right;padding:6px 8px;border-bottom:2px solid #cbd5e1;white-space:normal;line-height:1.25;color:#000000;font-weight:700;">Subsídios</th>
+<th class="finan-subs-num">Financiamento</th>
+<th class="finan-subs-num">Subsídios</th>
+<th class="finan-subs-num">Financiamento</th>
+<th class="finan-subs-num">Subsídios</th>
 </tr>
 </thead>
 <tbody>{_tbl_rows}</tbody>
@@ -5474,7 +5581,11 @@ def aba_simulador_automacao(
             _f_ok = clamp_moeda_positiva(_f_raw, None)
             if abs(_f_raw - _f_ok) > 0.009:
                 st.session_state["fin_aprovado_key"] = float_para_campo_texto(_f_ok, vazio_se_zero=True)
-        st.text_input("Financiamento aprovado", key="fin_aprovado_key", placeholder="Exemplo: 250000 ou 250.000,00")
+        st.text_input(
+            "Financiamento aprovado (R$)",
+            key="fin_aprovado_key",
+            placeholder="Exemplo: 250000 ou 250.000,00",
+        )
         f_u = clamp_moeda_positiva(texto_moeda_para_float(st.session_state.get("fin_aprovado_key")), None)
         st.session_state.dados_cliente['finan_usado'] = f_u
 
@@ -5489,7 +5600,7 @@ def aba_simulador_automacao(
             if abs(_s_raw - _s_ok) > 0.009:
                 st.session_state["sub_aprovado_key"] = float_para_campo_texto(_s_ok, vazio_se_zero=True)
         st.text_input(
-            "FGTS e subsídio aprovados",
+            "FGTS e subsídio aprovados (R$)",
             key="sub_aprovado_key",
             placeholder="Exemplo: 50000 ou 50.000,00",
         )
@@ -5501,7 +5612,11 @@ def aba_simulador_automacao(
         except: prazo_atual = 360
         if "prazo_aprovado_key" not in st.session_state:
             st.session_state["prazo_aprovado_key"] = str(int(prazo_atual))
-        st.text_input("Prazo do financiamento", key="prazo_aprovado_key", placeholder="360")
+        st.text_input(
+            "Prazo do financiamento (inteiro — meses)",
+            key="prazo_aprovado_key",
+            placeholder="360",
+        )
         _pz = texto_inteiro(st.session_state.get("prazo_aprovado_key"), default=360, min_v=12, max_v=600)
         prazo_sel = _pz if _pz is not None else 360
         st.session_state.dados_cliente['prazo_financiamento'] = int(prazo_sel)
@@ -5510,7 +5625,7 @@ def aba_simulador_automacao(
         _cod_amort_atual = str(d.get("sistema_amortizacao", "SAC")).strip().upper()
         _idx_amort = 1 if _cod_amort_atual == "PRICE" else 0
         sist_sel_label = st.selectbox(
-            "Sistema de amortização do financiamento",
+            "Sistema de amortização do financiamento (lista)",
             options=_opcoes_amort,
             index=_idx_amort,
             key="sist_aprovado_ui_v1",
@@ -5553,7 +5668,7 @@ def aba_simulador_automacao(
         st.session_state["_parc_fin_auto_sig"] = _parc_sig_now
         st.session_state["_parc_fin_auto_ref_prev"] = float(_parc_fin_ref)
         st.text_input(
-            "Parcela estimada do financiamento (editável)",
+            "Parcela estimada do financiamento (editável) (R$)",
             key="parcela_fin_edit_key",
             placeholder="0,00",
         )
@@ -5583,7 +5698,7 @@ def aba_simulador_automacao(
 
             emp_names_rec = sorted(df_disp_total["Empreendimento"].unique().tolist())
             emp_rec = st.selectbox(
-                "Filtrar por empreendimento:",
+                "Filtrar por empreendimento: (lista)",
                 options=["Todos"] + emp_names_rec,
                 key="sel_emp_rec_v28",
             )
@@ -5699,7 +5814,7 @@ def aba_simulador_automacao(
                 return f"{nome_emp} - prazo de entrega: {m} mes(es)"
 
             emp_escolhido = st.selectbox(
-                "Escolha o Empreendimento:",
+                "Escolha o Empreendimento: (lista)",
                 options=emp_names,
                 index=idx_emp,
                 key="sel_emp_new_v3",
@@ -5770,7 +5885,7 @@ def aba_simulador_automacao(
                     return corpo
 
                 uni_escolhida_id = st.selectbox(
-                    "Escolha a Unidade:",
+                    "Escolha a Unidade: (lista)",
                     options=current_uni_ids,
                     index=min(idx_uni, len(current_uni_ids) - 1) if current_uni_ids else 0,
                     format_func=label_uni,
@@ -6084,7 +6199,12 @@ def aba_simulador_automacao(
             st.session_state["ps_u_key"] = float_para_campo_texto(novo, vazio_se_zero=True)
 
         # --- Ato 1 (Entrada Imediata): só key + session_state (evita conflito value/key) ---
-        st.text_input("Ato 1 (Entrada Imediata)", key="ato_1_key", placeholder="0,00", help="Valor pago no ato da assinatura.")
+        st.text_input(
+            "Ato 1 (Entrada Imediata) (R$)",
+            key="ato_1_key",
+            placeholder="0,00",
+            help="Valor pago no ato da assinatura.",
+        )
         r1 = max(0.0, texto_moeda_para_float(st.session_state.get("ato_1_key")))
         st.session_state.dados_cliente['ato_final'] = r1
         
@@ -6167,7 +6287,7 @@ def aba_simulador_automacao(
             col_atos_rest1, col_atos_rest2 = st.columns(2)
             with col_atos_rest1:
                 st.text_input(
-                    "Ato 30",
+                    "Ato 30 (R$)",
                     key="ato_2_key",
                     placeholder="0,00",
                 )
@@ -6176,7 +6296,7 @@ def aba_simulador_automacao(
                 )
             with col_atos_rest2:
                 st.text_input(
-                    "Ato 60",
+                    "Ato 60 (R$)",
                     key="ato_3_key",
                     placeholder="0,00",
                 )
@@ -6186,17 +6306,17 @@ def aba_simulador_automacao(
         else:
             col_atos_rest1, col_atos_rest2, col_atos_rest3 = st.columns(3)
             with col_atos_rest1:
-                st.text_input("Ato 30", key="ato_2_key", placeholder="0,00")
+                st.text_input("Ato 30 (R$)", key="ato_2_key", placeholder="0,00")
                 st.session_state.dados_cliente["ato_30"] = max(
                     0.0, texto_moeda_para_float(st.session_state.get("ato_2_key"))
                 )
             with col_atos_rest2:
-                st.text_input("Ato 60", key="ato_3_key", placeholder="0,00")
+                st.text_input("Ato 60 (R$)", key="ato_3_key", placeholder="0,00")
                 st.session_state.dados_cliente["ato_60"] = max(
                     0.0, texto_moeda_para_float(st.session_state.get("ato_3_key"))
                 )
             with col_atos_rest3:
-                st.text_input("Ato 90", key="ato_4_key", placeholder="0,00")
+                st.text_input("Ato 90 (R$)", key="ato_4_key", placeholder="0,00")
                 st.session_state.dados_cliente["ato_90"] = max(
                     0.0, texto_moeda_para_float(st.session_state.get("ato_4_key"))
                 )
@@ -6245,7 +6365,11 @@ def aba_simulador_automacao(
         col_ps_parc, col_ps_val = st.columns(2)
 
         with col_ps_parc:
-            st.text_input("Número de parcelas do Pro Soluto", key="parc_ps_key", placeholder=f"1 a {parc_max_ui}")
+            st.text_input(
+                "Número de parcelas do Pro Soluto (inteiro)",
+                key="parc_ps_key",
+                placeholder=f"1 a {parc_max_ui}",
+            )
             _parc_i = texto_inteiro(st.session_state.get("parc_ps_key"), default=1, min_v=1, max_v=parc_max_ui)
             parc = _parc_i if _parc_i is not None else 1
             st.session_state.dados_cliente['ps_parcelas'] = parc
@@ -6256,7 +6380,7 @@ def aba_simulador_automacao(
             )
 
         with col_ps_val:
-            st.text_input("Valor do Pro Soluto", key="ps_u_key", placeholder="0,00")
+            st.text_input("Valor do Pro Soluto (R$)", key="ps_u_key", placeholder="0,00")
             _ps_opts_f = []
             if ps_limite_ui2 > 0:
                 _ps_opts_f.append(ps_limite_ui2)
@@ -6407,7 +6531,7 @@ def aba_simulador_automacao(
                 help="Descontos adicionais; limitados ao saldo após o Volta ao Caixa.",
             )
             st.text_area(
-                "Origem / justificativa dos outros descontos (opcional)",
+                "Origem / justificativa dos outros descontos (opcional) (texto)",
                 key="outros_descontos_motivo_key",
                 height=88,
                 placeholder="Ex.: campanha comercial X, ajuste de tabela, condição especial aprovada por…",
