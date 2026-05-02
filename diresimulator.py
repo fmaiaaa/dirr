@@ -6165,7 +6165,7 @@ def aba_simulador_automacao(
             if _sf_rs:
                 st.markdown(
                     f'<p class="inline-ref" style="margin-top:0;margin-bottom:0;line-height:1.45;">'
-                    f"Ranking encontrado: {html_std.escape(str(_sf_rs))}</p>",
+                    f"Ranking encontrado: <strong>{html_std.escape(str(_sf_rs))}</strong></p>",
                     unsafe_allow_html=True,
                 )
             elif _sf_code in ("sem_registo", "sem_conexao", "erro_sf"):
@@ -6318,8 +6318,8 @@ def aba_simulador_automacao(
         )
         st.markdown(
             f'<p class="finan-subsidios-note">Subsídios da curva inferiores a '
-            f"{reais_streamlit_html(fmt_br(SUBSIDIO_MINIMO_CURVA))} são desconsiderados (tratados como "
-            f"{reais_streamlit_html('0,00')}). "
+            f"<strong>{reais_streamlit_html(fmt_br(SUBSIDIO_MINIMO_CURVA))}</strong> são desconsiderados (tratados como "
+            f"<strong>{reais_streamlit_html('0,00')}</strong>). "
             f"A tabela acima é só referência; financiamento e subsídio aprovados podem ser outros valores.</p>",
             unsafe_allow_html=True,
         )
@@ -6453,14 +6453,14 @@ def aba_simulador_automacao(
         price_details = _comp_sac_price["PRICE"]
         if sist_sel == "PRICE":
             _ref_comp_html = (
-                f"<b>Valor estimado da parcela:</b> {reais_streamlit_html(fmt_br(price_details['parcela']))} "
-                f"parcelas fixas (juros totais: {reais_streamlit_html(fmt_br(price_details['juros']))})"
+                f"Valor estimado da parcela: <strong>{reais_streamlit_html(fmt_br(price_details['parcela']))}</strong> "
+                f"parcelas fixas (juros totais: <strong>{reais_streamlit_html(fmt_br(price_details['juros']))}</strong>)"
             )
         else:
             _ref_comp_html = (
-                f"<b>Valor estimado da parcela:</b> {reais_streamlit_html(fmt_br(sac_details['primeira']))} "
-                f"a {reais_streamlit_html(fmt_br(sac_details['ultima']))} "
-                f"(juros totais: {reais_streamlit_html(fmt_br(sac_details['juros']))})"
+                f"Valor estimado da parcela: <strong>{reais_streamlit_html(fmt_br(sac_details['primeira']))}</strong> "
+                f"a <strong>{reais_streamlit_html(fmt_br(sac_details['ultima']))}</strong> "
+                f"(juros totais: <strong>{reais_streamlit_html(fmt_br(sac_details['juros']))}</strong>)"
             )
         st.markdown(
             f'<div class="dv-ref-prox-campo">{_ref_comp_html}</div>',
@@ -6502,7 +6502,7 @@ def aba_simulador_automacao(
             _parc_fin_ui = _parc_fin_ref
         st.session_state.dados_cliente["parcela_financiamento"] = float(_parc_fin_ui)
         st.markdown(
-            f'<span class="inline-ref">Referência automática: {reais_streamlit_html(fmt_br(_parc_fin_ref))}</span>',
+            f'<span class="inline-ref">Referência automática: <strong>{reais_streamlit_html(fmt_br(_parc_fin_ref))}</strong></span>',
             unsafe_allow_html=True,
         )
 
@@ -6753,11 +6753,11 @@ def aba_simulador_automacao(
                 )
             st.markdown(
                 '<p class="dv-sinal-com-prosa">'
-                "O campo <strong>Sinal com</strong> tem a finalidade de abater da <strong>avaliação bancária</strong> "
+                "O campo Sinal com tem a finalidade de abater da avaliação bancária "
                 "unidades pouco acima do limite da faixa anterior, a fim de que o cliente possa pegar maior financiamento. "
-                "Os valores de <strong>financiamento e subsídio automáticos</strong> seguirão o valor da unidade após abatimento "
+                "Os valores de financiamento e subsídio automáticos seguirão o valor da unidade após abatimento "
                 "(caso seja feito), não só o valor da unidade cheio. "
-                "<strong>Faixa 2:</strong> imóveis até 275 mil; <strong>Faixa 3:</strong> imóveis até 400 mil. "
+                "Faixa 2: imóveis até <strong>275 mil</strong>; Faixa 3: imóveis até <strong>400 mil</strong>. "
                 "Caso o valor seja pouco acima disso, use o campo para abater.</p>",
                 unsafe_allow_html=True,
             )
@@ -6777,35 +6777,35 @@ def aba_simulador_automacao(
                 _sug_sinal = max(0.0, _val_bruto_sinal - 400000.0)
                 st.markdown(
                     f'<p class="inline-ref" style="margin-top:0;margin-bottom:0.35rem;line-height:1.45;">'
-                    f"<strong>Imóvel na </strong>faixa 4<strong> na avaliação cheia (acima de 400 mil). É necessário </strong>"
-                    f"{reais_streamlit_html(fmt_br(_sug_sinal))}"
-                    f"<strong> de abatimento para que a avaliação efetiva fique na </strong>faixa 3"
-                    f"<strong> (limite 400 mil).</strong></p>"
+                    f"Imóvel na faixa 4 na avaliação cheia (acima de <strong>400 mil</strong>). É necessário "
+                    f"<strong>{reais_streamlit_html(fmt_br(_sug_sinal))}</strong>"
+                    f" de abatimento para que a avaliação efetiva fique na faixa 3"
+                    f" (limite <strong>400 mil</strong>).</p>"
                     f'<p class="inline-ref" style="margin:0.9rem 0 0;line-height:1.45;">'
-                    f"<strong>Valor de Avaliação com Sinal Com:</strong> "
-                    f"{reais_streamlit_html(fmt_br(_val_ef_sinal))}</p>",
+                    f"Valor de Avaliação com Sinal Com: "
+                    f"<strong>{reais_streamlit_html(fmt_br(_val_ef_sinal))}</strong></p>",
                     unsafe_allow_html=True,
                 )
             elif _val_bruto_sinal > 275000.0:
                 _sug_sinal = max(0.0, _val_bruto_sinal - 275000.0)
                 st.markdown(
                     f'<p class="inline-ref" style="margin-top:0;margin-bottom:0.35rem;line-height:1.45;">'
-                    f"<strong>Imóvel </strong>faixa 3<strong> no preço cheio. É necessário </strong>"
-                    f"{reais_streamlit_html(fmt_br(_sug_sinal))}"
-                    f"<strong> de abatimento para que seja classificado como </strong>faixa 2<strong>.</strong></p>"
+                    f"Imóvel faixa 3 no preço cheio. É necessário "
+                    f"<strong>{reais_streamlit_html(fmt_br(_sug_sinal))}</strong>"
+                    f" de abatimento para que seja classificado como faixa 2.</p>"
                     f'<p class="inline-ref" style="margin:0.9rem 0 0;line-height:1.45;">'
-                    f"<strong>Valor de Avaliação com Sinal Com:</strong> "
-                    f"{reais_streamlit_html(fmt_br(_val_ef_sinal))}</p>",
+                    f"Valor de Avaliação com Sinal Com: "
+                    f"<strong>{reais_streamlit_html(fmt_br(_val_ef_sinal))}</strong></p>",
                     unsafe_allow_html=True,
                 )
             else:
                 st.markdown(
                     f'<p class="inline-ref" style="margin-top:0;margin-bottom:0.35rem;line-height:1.45;">'
-                    "<strong>Avaliação na </strong>faixa 2<strong> (até 275 mil). O </strong>Sinal com"
-                    "<strong> é opcional se quiser ajuste fino da referência da curva.</strong></p>"
+                    "Avaliação na faixa 2 (até <strong>275 mil</strong>). O Sinal com"
+                    " é opcional se quiser ajuste fino da referência da curva.</p>"
                     f'<p class="inline-ref" style="margin:0.9rem 0 0;line-height:1.45;">'
-                    f"<strong>Valor de Avaliação com Sinal Com:</strong> "
-                    f"{reais_streamlit_html(fmt_br(_val_ef_sinal))}</p>",
+                    f"Valor de Avaliação com Sinal Com: "
+                    f"<strong>{reais_streamlit_html(fmt_br(_val_ef_sinal))}</strong></p>",
                     unsafe_allow_html=True,
                 )
             st.session_state.dados_cliente["sinal_com"] = float(_sinal_apl_pos)
@@ -6820,8 +6820,8 @@ def aba_simulador_automacao(
         )
         if float(d.get('imovel_valor', 0) or 0) <= 0 or not d.get('unidade_id'):
             st.markdown(
-                '<p style="color:#111111;margin:0 0 0.5rem 0;">Selecione <strong>empreendimento</strong> e '
-                "<strong>unidade</strong> na seção acima para calcular a distribuição da entrada.</p>",
+                '<p style="color:#111111;margin:0 0 0.5rem 0;">Selecione empreendimento e '
+                "unidade na seção acima para calcular a distribuição da entrada.</p>",
                 unsafe_allow_html=True,
             )
         # Valores da unidade vêm do cadastro (Valor de Venda); demais valores do fluxo anterior
@@ -7035,8 +7035,8 @@ def aba_simulador_automacao(
 
         def _dv_linha_sug_min_apos_campo(val_fmt: str) -> None:
             st.markdown(
-                f'<p class="dv-sug-min-ato" style="{_dv_sug_min_style}">Tente pegar no mínimo R$ '
-                f"{html_std.escape(val_fmt)}.</p>",
+                f'<p class="dv-sug-min-ato" style="{_dv_sug_min_style}">Tente pegar no mínimo '
+                f"<strong>{reais_streamlit_html(html_std.escape(val_fmt))}</strong>.</p>",
                 unsafe_allow_html=True,
             )
 
@@ -7279,7 +7279,7 @@ def aba_simulador_automacao(
             if n_min_j8 is None:
                 _dv_alerta_vermelho(
                     "Com este valor de Pro Soluto e o prazo máximo permitido, a prestação pode "
-                    "<strong>ultrapassar</strong> o teto J8. Reduza o PS ou ajuste o perfil."
+                    "ultrapassar o teto J8. Reduza o PS ou ajuste o perfil."
                 )
         ps_capacidade = max(0.0, float(v_parc) * float(parc))
         ps_efetivo = min(float(ps_input_val or 0.0), ps_capacidade)
@@ -7293,28 +7293,28 @@ def aba_simulador_automacao(
         if aj8 or acap:
             if aj8 and acap:
                 _dv_alerta_vermelho(
-                    f"Com <strong>{html_std.escape(str(parc))}</strong> parcelas, a mensalidade do Pro Soluto "
-                    f"({reais_streamlit_html(fmt_br(v_parc))}/mês) ultrapassa o teto J8 "
-                    f"({reais_streamlit_html(fmt_br(j8_ui))}/mês). "
-                    f"São necessárias pelo menos <strong>{html_std.escape(str(int(n_min_j8)))}</strong> parcelas "
+                    f"Com {html_std.escape(str(parc))} parcelas, a mensalidade do Pro Soluto "
+                    f"(<strong>{reais_streamlit_html(fmt_br(v_parc))}</strong>/mês) ultrapassa o teto J8 "
+                    f"(<strong>{reais_streamlit_html(fmt_br(j8_ui))}</strong>/mês). "
+                    f"São necessárias pelo menos {html_std.escape(str(int(n_min_j8)))} parcelas "
                     "para este valor (ou reduza o Pro Soluto). "
                     f"Com essas parcelas, a arrecadação máxima é "
-                    f"{reais_streamlit_html(fmt_br(ps_capacidade))} "
-                    f"(valor informado: {reais_streamlit_html(fmt_br(ps_input_val))})."
+                    f"<strong>{reais_streamlit_html(fmt_br(ps_capacidade))}</strong> "
+                    f"(valor informado: <strong>{reais_streamlit_html(fmt_br(ps_input_val))}</strong>)."
                 )
             elif aj8:
                 _dv_alerta_vermelho(
-                    f"Com <strong>{html_std.escape(str(parc))}</strong> parcelas, a mensalidade do Pro Soluto "
-                    f"({reais_streamlit_html(fmt_br(v_parc))}/mês) ultrapassa o teto J8 "
-                    f"({reais_streamlit_html(fmt_br(j8_ui))}/mês). "
-                    f"Use pelo menos <strong>{html_std.escape(str(int(n_min_j8)))}</strong> parcelas "
+                    f"Com {html_std.escape(str(parc))} parcelas, a mensalidade do Pro Soluto "
+                    f"(<strong>{reais_streamlit_html(fmt_br(v_parc))}</strong>/mês) ultrapassa o teto J8 "
+                    f"(<strong>{reais_streamlit_html(fmt_br(j8_ui))}</strong>/mês). "
+                    f"Use pelo menos {html_std.escape(str(int(n_min_j8)))} parcelas "
                     "(ou reduza o valor do Pro Soluto)."
                 )
             else:
                 _dv_alerta_vermelho(
-                    f"O valor de Pro Soluto informado é {reais_streamlit_html(fmt_br(ps_input_val))}, "
-                    f"mas com {html_std.escape(str(parc))} parcelas e mensalidade {reais_streamlit_html(fmt_br(v_parc))} "
-                    f"a arrecadação máxima é {reais_streamlit_html(fmt_br(ps_capacidade))}."
+                    f"O valor de Pro Soluto informado é <strong>{reais_streamlit_html(fmt_br(ps_input_val))}</strong>, "
+                    f"mas com {html_std.escape(str(parc))} parcelas e mensalidade <strong>{reais_streamlit_html(fmt_br(v_parc))}</strong> "
+                    f"a arrecadação máxima é <strong>{reais_streamlit_html(fmt_br(ps_capacidade))}</strong>."
                 )
         st.session_state.dados_cliente["ps_usado"] = ps_efetivo
 
@@ -7357,8 +7357,8 @@ def aba_simulador_automacao(
             else:
                 st.markdown(
                     f'<p class="inline-ref" style="margin:0;line-height:1.45;">Há um limite de Volta ao Caixa de '
-                    f"{_vcx_lim} e está sendo preservado {_vcx_pres}. Além disso, a unidade custa {_vcx_preco} e, "
-                    f"então, seu valor após o Volta ao Caixa é de {_vcx_pos}.</p>",
+                    f"<strong>{_vcx_lim}</strong> e está sendo preservado <strong>{_vcx_pres}</strong>. Além disso, a unidade custa <strong>{_vcx_preco}</strong> e, "
+                    f"então, seu valor após o Volta ao Caixa é de <strong>{_vcx_pos}</strong>.</p>",
                     unsafe_allow_html=True,
                 )
 
@@ -7395,9 +7395,9 @@ def aba_simulador_automacao(
                 st.rerun()
             v_liquido = max(0.0, u_valor - vc_input_val - outros_desc)
             st.markdown(
-                f'<div class="dv-campo-resumo-movel" style="margin:0;font-weight:600;color:#111111;text-align:center;line-height:1.45;">'
+                f'<div class="dv-campo-resumo-movel" style="margin:0;font-weight:400;color:#111111;text-align:center;line-height:1.45;">'
                 f"Valor final da unidade (após todos os descontos): "
-                f"{reais_streamlit_html(fmt_br(v_liquido))}</div>",
+                f"<strong>{reais_streamlit_html(fmt_br(v_liquido))}</strong></div>",
                 unsafe_allow_html=True,
             )
             st.session_state.dados_cliente["outros_descontos"] = outros_desc
@@ -7486,8 +7486,8 @@ def aba_simulador_automacao(
         gap_final = v_liquido - f_u_input - fgts_u_input - ps_efetivo - total_entrada_cash
         if abs(gap_final) > 1.0:
             _dv_alerta_vermelho(
-                f"<strong>Atenção:</strong> {'Falta cobrir' if gap_final > 0 else 'Valor excedente de'} "
-                f"{reais_streamlit_html(fmt_br(abs(gap_final)))}."
+                f"Atenção: {'Falta cobrir' if gap_final > 0 else 'Valor excedente de'} "
+                f"<strong>{reais_streamlit_html(fmt_br(abs(gap_final)))}</strong>."
             )
         parcela_fin_auto = calcular_parcela_financiamento(f_u_input, prazo_finan, taxa_fin_vigente(d), tab_fin)
         _parc_fin_ui_raw = clamp_moeda_positiva(texto_moeda_para_float(st.session_state.get("parcela_fin_edit_key")), None)
@@ -7507,7 +7507,7 @@ def aba_simulador_automacao(
                 st.rerun()
             else:
                 _dv_alerta_vermelho(
-                    f"Não é possível avançar. Saldo pendente: {reais_streamlit_html(fmt_br(abs(gap_final)))}."
+                    f"Não é possível avançar. Saldo pendente: <strong>{reais_streamlit_html(fmt_br(abs(gap_final)))}</strong>."
                 )
         st.markdown('<hr class="dv-avancar-rule" />', unsafe_allow_html=True)
     elif passo == 'summary':
