@@ -6130,7 +6130,6 @@ def aba_simulador_automacao(
             "CPF - Classificar Clientes (opcional) (CPF)",
             key="cpf_classificar_clientes_sf",
             placeholder="000.000.000-00",
-            help="Com 11 dígitos, o ranking vem da última Oportunidade (Account.CPF__c com máscara e campos Ranking__c).",
         )
         cpf_digits = re.sub(r"\D", "", st.session_state.get("cpf_classificar_clientes_sf") or "")
         rank_opts = ["DIAMANTE", "OURO", "PRATA", "BRONZE", "AÇO"]
