@@ -1350,46 +1350,6 @@ def inject_enter_confirma_campo():
     _st_iframe_html_snippet(js, height=0, width=0)
 
 
-def inject_login_password_manager_fields():
-    """Garante atributos que gestores de palavras-passe e o navegador usam para o par e-mail + senha."""
-    js = r"""
-<script>
-(function () {
-  var doc = window.parent.document;
-  function patchLoginInputs() {
-    var forms = doc.querySelectorAll('[data-testid="stForm"]');
-    for (var fi = 0; fi < forms.length; fi++) {
-      var form = forms[fi];
-      var inputs = form.querySelectorAll("input");
-      var passEl = null;
-      var i;
-      for (i = 0; i < inputs.length; i++) {
-        if (inputs[i].type === "password") { passEl = inputs[i]; break; }
-      }
-      if (!passEl) continue;
-      var userEl = null;
-      for (i = 0; i < inputs.length; i++) {
-        var el = inputs[i];
-        if (el === passEl) continue;
-        var t = (el.type || "").toLowerCase();
-        if (t === "text" || t === "email" || t === "") { userEl = el; break; }
-      }
-      if (!userEl) continue;
-      userEl.setAttribute("autocomplete", "username");
-      userEl.setAttribute("name", "username");
-      passEl.setAttribute("autocomplete", "current-password");
-      passEl.setAttribute("name", "password");
-    }
-  }
-  patchLoginInputs();
-  setTimeout(patchLoginInputs, 150);
-  setTimeout(patchLoginInputs, 600);
-})();
-</script>
-"""
-    _st_iframe_html_snippet(js, height=0, width=0)
-
-
 def inject_home_banner_dialog_modal():
     """Popup de campanha: overlay criado em JS (o Streamlit sanitiza o markdown e costuma remover <dialog>).
 
@@ -1656,13 +1616,6 @@ def normalizar_df_home_banners(df: pd.DataFrame | None) -> pd.DataFrame:
         if c not in out.columns:
             out[c] = None if c == "Ordem" else ""
     return out[list(_COLS_HOME_BANNERS)].copy()
-
-
-def login_row_is_adm(row: pd.Series) -> bool:
-    v = row.get("Adm")
-    if v is None or (isinstance(v, float) and pd.isna(v)):
-        return False
-    return str(v).strip().upper() == "SIM"
 
 
 def _img_url_seguro_https(url: str) -> str | None:
@@ -2084,104 +2037,6 @@ def _rotulo_opcao_excluir_campanha_texto(df_ct: pd.DataFrame, i: int) -> str:
     snip = str(r.get("Texto", "") or "").strip().replace("\n", " ")
     snip = (snip[:36] + "…") if len(snip) > 37 else snip
     return f"Linha {i + 1} · {tit or '(sem título)'}{' - ' + snip if snip else ''}"
-
-
-_COLS_LOGINS = ["Email", "Senha", "Nome", "Cargo", "Imobiliaria", "Telefone", "Adm"]
-
-_MAPA_LOGINS = {
-    "Imobiliária/Canal IMOB": "Imobiliaria",
-    "Cargo": "Cargo",
-    "Nome": "Nome",
-    "Email": "Email",
-    "E-mail": "Email",
-    "Escolha uma senha para o simulador": "Senha",
-    "Senha": "Senha",
-    "Número de telefone": "Telefone",
-    "Telefone": "Telefone",
-    "ADM?": "Adm",
-}
-
-
-def _normalizar_df_logins_raw(df_logins: pd.DataFrame) -> pd.DataFrame:
-    df_logins = df_logins.copy()
-    df_logins.columns = [str(c).strip() for c in df_logins.columns]
-    df_logins = df_logins.rename(columns=_MAPA_LOGINS)
-    if "Email" in df_logins.columns:
-        df_logins["Email"] = df_logins["Email"].astype(str).str.strip().str.lower()
-    if "Senha" in df_logins.columns:
-        df_logins["Senha"] = df_logins["Senha"].astype(str).str.strip()
-    return df_logins
-
-
-def _candidatos_planilha_logins() -> list:
-    """Prioriza `spreadsheet` em secrets; depois `ID_GERAL` do código."""
-    out: list = []
-    try:
-        sp = str(st.secrets["connections"]["gsheets"].get("spreadsheet", "") or "").strip()
-        if sp:
-            out.append(sp)
-    except Exception:
-        pass
-    if ID_GERAL and ID_GERAL not in out:
-        out.append(ID_GERAL)
-    return out
-
-
-def _candidatos_aba_logins() -> list:
-    names: list = []
-    env_ws = (os.environ.get("SIMULADOR_LOGINS_WORKSHEET") or "").strip()
-    if env_ws:
-        names.append(env_ws)
-    for w in ("BD Logins", "Logins"):
-        if w not in names:
-            names.append(w)
-    return names
-
-
-def _diagnostico_secrets_gsheets() -> str | None:
-    """Mensagem curta se secrets do Google Sheets estão incompletos (ex.: type vazio)."""
-    try:
-        g = dict(st.secrets["connections"]["gsheets"])
-    except Exception:
-        return None
-    t = str(g.get("type", "") or "").strip()
-    if t != "service_account":
-        return (
-            'No `secrets.toml`, em `[connections.gsheets]`, defina **type = "service_account"** '
-            "(valor literal do JSON da Google - não deixe vazio)."
-        )
-    pk = str(g.get("private_key", "") or "").strip()
-    if not pk or "BEGIN PRIVATE KEY" not in pk:
-        return (
-            "Preencha **private_key** com o bloco PEM completo do JSON da conta de serviço "
-            '(entre """ ... """ como no exemplo).'
-        )
-    ce = str(g.get("client_email", "") or "").strip()
-    if not ce:
-        return "Preencha **client_email** do JSON e partilhe a planilha com esse e-mail (leitor ou editor)."
-    return None
-
-
-@st.cache_data(ttl=300, show_spinner=False)
-def carregar_apenas_logins() -> pd.DataFrame:
-    """Só BD Logins - tela de login sem carregar estoque/financiamentos (mais rápido)."""
-    empty = pd.DataFrame(columns=_COLS_LOGINS)
-    try:
-        if "connections" not in st.secrets:
-            return empty
-        conn = st.connection("gsheets", type=GSheetsConnection)
-        for spread in _candidatos_planilha_logins():
-            for ws in _candidatos_aba_logins():
-                try:
-                    df_raw = conn.read(spreadsheet=spread, worksheet=ws, ttl=120)
-                    df_logins = _normalizar_df_logins_raw(df_raw)
-                    if not df_logins.empty or len(df_logins.columns) > 0:
-                        return df_logins
-                except Exception:
-                    continue
-        return empty
-    except Exception:
-        return empty
 
 
 @st.cache_data(ttl=300, show_spinner=False)
@@ -2876,7 +2731,7 @@ def configurar_layout():
             .block-container {{
                 max-width: 100% !important;
                 width: 100% !important;
-                padding: 1.1rem clamp(0.75rem, 3.5vw, 1.15rem) !important;
+                padding: max(6px, env(safe-area-inset-top, 0px)) clamp(0.75rem, 3.5vw, 1.15rem) 1.1rem clamp(0.75rem, 3.5vw, 1.15rem) !important;
                 margin-left: auto !important;
                 margin-right: auto !important;
                 margin-top: clamp(4px, 1.5vw, 10px) !important;
@@ -2896,12 +2751,12 @@ def configurar_layout():
                 max-width: 100%;
                 margin-left: 0;
                 margin-right: 0;
-                margin-bottom: 1.5rem;
+                margin-bottom: var(--dv-rhythm, 1.35rem);
             }}
             [data-testid="stHorizontalBlock"] {{
                 flex-direction: column !important;
                 align-items: stretch !important;
-                gap: 0.65rem !important;
+                gap: var(--dv-rhythm, 1.35rem) !important;
             }}
             [data-testid="stHorizontalBlock"] > div[data-testid="column"] {{
                 width: 100% !important;
@@ -2998,7 +2853,7 @@ def configurar_layout():
             box-sizing: border-box !important;
         }}
         section.main > div {{
-            padding-top: 0.5rem !important;
+            padding-top: 0 !important;
             padding-bottom: 0.5rem !important;
         }}
 
@@ -3017,6 +2872,15 @@ def configurar_layout():
             flex-direction: column !important;
             gap: var(--dv-rhythm) !important;
             align-items: stretch !important;
+        }}
+        /* Evita somar margem do Streamlit ao gap do bloco vertical */
+        .block-container [data-testid="stVerticalBlock"] > div[data-testid="stElementContainer"] {{
+            margin-top: 0 !important;
+            margin-bottom: 0 !important;
+        }}
+        .block-container [data-testid="stMarkdownContainer"]:has(.header-container) {{
+            margin-top: 0 !important;
+            padding-top: 0 !important;
         }}
         .block-container [data-testid="stHorizontalBlock"] {{
             gap: var(--dv-rhythm) !important;
@@ -3119,7 +2983,7 @@ def configurar_layout():
             margin-right: auto !important;
             margin-top: clamp(4px, 1vh, 14px) !important;
             margin-bottom: clamp(4px, 1vh, 14px) !important;
-            padding: 1.45rem clamp(1.1rem, 2.8vw, 2.25rem) 1.55rem clamp(1.1rem, 2.8vw, 2.25rem) !important;
+            padding: max(6px, env(safe-area-inset-top, 0px)) clamp(1.1rem, 2.8vw, 2.25rem) 1.55rem clamp(1.1rem, 2.8vw, 2.25rem) !important;
             background: rgba(255, 255, 255, 0.78) !important;
             backdrop-filter: blur(18px) saturate(1.15) !important;
             -webkit-backdrop-filter: blur(18px) saturate(1.15) !important;
@@ -3154,7 +3018,8 @@ def configurar_layout():
         .stMarkdown h1 {{ font-size: clamp(1.5rem, 2.5vw, 1.85rem) !important; text-align: center !important; margin-bottom: 0.45rem !important; font-weight: 800 !important; }}
         .stMarkdown h1.header-title {{
             font-size: clamp(1.75rem, 4.8vw, 2.65rem) !important;
-            margin-bottom: 0.55rem !important;
+            margin-top: 0 !important;
+            margin-bottom: 0 !important;
             line-height: 1.18 !important;
         }}
         .stMarkdown h2 {{ font-size: clamp(1.28rem, 2vw, 1.5rem) !important; text-align: center !important; margin-bottom: 0.45rem !important; font-weight: 700 !important; color: {COR_AZUL_ESC} !important; }}
@@ -3704,11 +3569,18 @@ def configurar_layout():
         }}
 
         .header-container {{
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: flex-start;
+            gap: var(--dv-rhythm);
             text-align: center;
-            padding: 0.85rem 1rem 1.1rem;
-            margin: 0 auto 1rem;
+            width: 100%;
             max-width: 1100px;
+            margin: 0 auto var(--dv-rhythm);
+            padding: 0 clamp(0.75rem, 2vw, 1rem) 0;
             position: relative;
+            box-sizing: border-box;
         }}
         /* Barra tipo pill: cor alterna azul ↔ vermelho (opacidade total) */
         .header-brand-bar-wrap {{
@@ -3719,7 +3591,7 @@ def configurar_layout():
             position: relative;
             left: auto;
             transform: none;
-            margin-bottom: 1.75rem;
+            margin-bottom: var(--dv-rhythm);
             margin-top: 0;
             box-sizing: border-box;
             height: 4px;
@@ -3759,7 +3631,7 @@ def configurar_layout():
             width: 100%;
             max-width: 100vw;
             position: relative;
-            margin: 0 auto 1.25rem;
+            margin: 0 auto var(--dv-rhythm);
             padding: 0 0.75rem;
             box-sizing: border-box;
             text-align: center;
@@ -3770,7 +3642,7 @@ def configurar_layout():
             font-weight: 700 !important;
             color: {COR_AZUL_ESC} !important;
             text-align: center !important;
-            margin: 0 0 0.85rem 0 !important;
+            margin: 0 0 var(--dv-rhythm) 0 !important;
             padding: 0 0.25rem !important;
             letter-spacing: -0.02em !important;
             line-height: 1.25 !important;
@@ -4011,7 +3883,8 @@ def configurar_layout():
             display: flex;
             justify-content: center;
             align-items: center;
-            margin: 0 auto 0.85rem;
+            margin: 0;
+            flex-shrink: 0;
         }}
         .header-logo-wrap img {{
             display: block;
@@ -4035,7 +3908,7 @@ def configurar_layout():
             font-size: clamp(1.75rem, 4.8vw, 2.65rem);
             font-weight: 800;
             line-height: 1.18;
-            margin: 0.2rem 0 0.55rem 0;
+            margin: 0;
             color: {COR_AZUL_ESC};
             text-align: center;
             letter-spacing: -0.03em;
@@ -4051,6 +3924,8 @@ def configurar_layout():
             font-size: clamp(1.75rem, 4.8vw, 2.65rem) !important;
             font-weight: 800 !important;
             line-height: 1.18 !important;
+            margin-top: 0 !important;
+            margin-bottom: 0 !important;
         }}
 
         .card, .fin-box, .recommendation-card, .login-card {{
@@ -4685,71 +4560,6 @@ def enviar_email_smtp(destinatario, nome_cliente, pdf_bytes, dados_cliente, tipo
     except smtplib.SMTPAuthenticationError:
         return False, "Erro de Autenticacao (535). Verifique Senha de App."
     except Exception as e: return False, f"Erro envio: {e}"
-
-
-def tela_login(df_logins: pd.DataFrame) -> None:
-    c1, c2, c3 = st.columns([1, 1.5, 1])
-    with c2:
-        st.markdown(
-            "<h3 style='text-align:center;margin:0 0 0.35rem 0;'>Acesso ao simulador</h3>",
-            unsafe_allow_html=True,
-        )
-        st.caption("Utilize o e-mail e a senha cadastrados na planilha **Logins** da base de dados.")
-        with st.form("login_form"):
-            email = st.text_input(
-                "Endereço de e-mail",
-                key="login_email",
-                autocomplete="username",
-            )
-            senha = st.text_input(
-                "Senha",
-                type="password",
-                key="login_pass",
-                autocomplete="current-password",
-            )
-            submitted = st.form_submit_button("Entrar", type="primary", use_container_width=True)
-
-        if submitted:
-            if df_logins.empty:
-                st.error("Base de usuários vazia ou indisponível. Verifique a conexão com a planilha.")
-                tip = _diagnostico_secrets_gsheets()
-                if tip:
-                    st.warning(tip)
-                elif "connections" not in st.secrets:
-                    st.info(
-                        "Falta a secção `[connections.gsheets]` no `.streamlit/secrets.toml`. "
-                        "Copie `secrets.toml.example` e preencha com o JSON da conta de serviço."
-                    )
-                else:
-                    with st.expander("Checklist da planilha"):
-                        st.markdown(
-                            "- Opcional mas recomendado: **spreadsheet** = URL da planilha (como no exemplo).\n"
-                            "- Partilhe o ficheiro Google Sheets com o **client_email** da conta de serviço.\n"
-                            "- Aba de utilizadores: **BD Logins** (ou env `SIMULADOR_LOGINS_WORKSHEET`).\n"
-                            "- Depois de corrigir: menu Streamlit → **Clear cache** ou reinicie."
-                        )
-            else:
-                em = email.strip().lower()
-                user = df_logins[
-                    (df_logins["Email"] == em) & (df_logins["Senha"] == senha.strip())
-                ]
-                if not user.empty:
-                    data = user.iloc[0]
-                    st.session_state.update(
-                        {
-                            "logged_in": True,
-                            "user_email": em,
-                            "user_name": str(data.get("Nome", "")).strip(),
-                            "user_imobiliaria": str(data.get("Imobiliaria", "Geral")).strip(),
-                            "user_cargo": str(data.get("Cargo", "")).strip(),
-                            "user_phone": str(data.get("Telefone", "")).strip(),
-                            "user_is_adm": login_row_is_adm(data),
-                        }
-                    )
-                    st.rerun()
-                else:
-                    st.error("Credenciais inválidas.")
-        inject_login_password_manager_fields()
 
 
 try:
@@ -6227,47 +6037,32 @@ def aba_simulador_automacao(
             st.rerun()
 
     st.markdown("<br><br>", unsafe_allow_html=True)
-    if st.button("Sair do sistema", key="btn_logout_bottom", use_container_width=True):
-        st.session_state["logged_in"] = False
-        st.session_state["user_is_adm"] = False
-        st.rerun()
 
-def _inject_login_vertical_center_css() -> None:
-    """Centraliza o bloco principal na altura da viewport (login). Só quando não autenticado."""
-    st.markdown(
-        """
-        <style id="diresim-login-vert-center">
-        html body [data-testid="stAppViewContainer"] {
-            min-height: 100dvh !important;
-            display: flex !important;
-            flex-direction: column !important;
-        }
-        html body [data-testid="stAppViewContainer"] > section[data-testid="stMain"],
-        html body section[data-testid="stMain"] {
-            flex: 1 1 auto !important;
-            min-height: calc(100dvh - 5.5rem) !important;
-            display: flex !important;
-            flex-direction: column !important;
-            justify-content: center !important;
-            padding-top: max(6px, env(safe-area-inset-top, 0px)) !important;
-            padding-bottom: max(10px, env(safe-area-inset-bottom, 0px)) !important;
-            box-sizing: border-box !important;
-        }
-        </style>
-        """,
-        unsafe_allow_html=True,
-    )
+
+def _secret_opt(key: str) -> str:
+    try:
+        return str(st.secrets[key] or "").strip()
+    except Exception:
+        return ""
+
+
+def _sessao_sem_login_defaults() -> None:
+    """Acesso direto ao simulador (sem ecrã de login). Corretor/admin opcionais via secrets."""
+    st.session_state["logged_in"] = True
+    st.session_state.setdefault("user_name", _secret_opt("SIMULADOR_CORRETOR_NOME"))
+    st.session_state.setdefault("user_email", _secret_opt("SIMULADOR_CORRETOR_EMAIL"))
+    st.session_state.setdefault("user_imobiliaria", "Geral")
+    st.session_state.setdefault("user_cargo", "")
+    st.session_state.setdefault("user_phone", _secret_opt("SIMULADOR_CORRETOR_TELEFONE"))
+    adm_raw = _secret_opt("SIMULADOR_ADM").lower()
+    st.session_state["user_is_adm"] = adm_raw in ("1", "true", "yes", "sim")
 
 
 def main():
     configurar_layout()
     inject_modern_ui_runtime()
     inject_enter_confirma_campo()
-    if "logged_in" not in st.session_state:
-        st.session_state["logged_in"] = False
-
-    if not st.session_state["logged_in"]:
-        _inject_login_vertical_center_css()
+    _sessao_sem_login_defaults()
 
     logo_src = html_std.escape(_src_logo_topo_header(), quote=True)
     st.markdown(
@@ -6280,27 +6075,24 @@ def main():
         unsafe_allow_html=True,
     )
 
-    if not st.session_state["logged_in"]:
-        tela_login(carregar_apenas_logins())
-    else:
-        with st.spinner("A carregar o simulador…"):
-            (
-                df_finan,
-                df_estoque,
-                df_politicas,
-                _df_cad_hist,
-                df_home_banners,
-                premissas_dict,
-                df_campanhas_texto,
-            ) = carregar_dados_sistema()
-        aba_simulador_automacao(
+    with st.spinner("A carregar o simulador…"):
+        (
             df_finan,
             df_estoque,
             df_politicas,
+            _df_cad_hist,
+            df_home_banners,
             premissas_dict,
-            df_home_banners=df_home_banners,
-            df_campanhas_texto=df_campanhas_texto,
-        )
+            df_campanhas_texto,
+        ) = carregar_dados_sistema()
+    aba_simulador_automacao(
+        df_finan,
+        df_estoque,
+        df_politicas,
+        premissas_dict,
+        df_home_banners=df_home_banners,
+        df_campanhas_texto=df_campanhas_texto,
+    )
 
     st.markdown(
         '<div class="footer">Direcional Engenharia - Rio de Janeiro<br><em>developed by Lucas Maia</em></div>',
