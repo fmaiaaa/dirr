@@ -1229,6 +1229,20 @@ def reais_streamlit_html(valor_formatado: str) -> str:
     return f"R&#36; {valor_formatado}"
 
 
+def _dv_alerta_vermelho(inner_html: str) -> None:
+    """Aviso ou erro com fundo vermelho Direcional e texto branco centralizado na caixa."""
+    st.markdown(
+        f'<div class="dv-alert-direcional" role="alert">'
+        f'<div class="dv-alert-direcional-inner">{inner_html}</div></div>',
+        unsafe_allow_html=True,
+    )
+
+
+def _dv_alerta_vermelho_texto(texto: str) -> None:
+    """Versão com escape HTML (mensagens vindas de exceções ou texto puro)."""
+    _dv_alerta_vermelho(html_std.escape(str(texto or "")).replace("\n", "<br/>"))
+
+
 _WHATSAPP_TEXTO_MAX = 3600
 
 
@@ -1937,7 +1951,10 @@ def dialog_adm_miniaturas_home_banners(df_home_banners: pd.DataFrame | None) -> 
     if enviar_bn:
         url_t = (bn_url or "").strip()
         if not url_t.startswith("https://"):
-            st.error("A URL da imagem deve começar com https:// (use o link direto do Postimages).")
+            _dv_alerta_vermelho(
+                "A URL da imagem deve começar com <strong>https://</strong> "
+                "(use o link direto do Postimages)."
+            )
         else:
             ok, err = gravar_nova_linha_home_banner(
                 url_t,
@@ -1949,7 +1966,7 @@ def dialog_adm_miniaturas_home_banners(df_home_banners: pd.DataFrame | None) -> 
                 st.success("Imagem gravada na planilha. Recarregando…")
                 st.rerun()
             else:
-                st.error(f"Não foi possível gravar: {err}")
+                _dv_alerta_vermelho_texto(f"Não foi possível gravar: {err}")
 
     st.markdown("**Remover miniatura**")
     _df_bn_adm = normalizar_df_home_banners(df_home_banners if df_home_banners is not None else pd.DataFrame())
@@ -1970,7 +1987,7 @@ def dialog_adm_miniaturas_home_banners(df_home_banners: pd.DataFrame | None) -> 
         )
         if st.button("Excluir linha selecionada", type="secondary", key="home_banner_excluir_btn"):
             if not _conf_del:
-                st.warning("Marque a confirmação para excluir.")
+                _dv_alerta_vermelho_texto("Marque a confirmação para excluir.")
             else:
                 ok_del, err_del = excluir_linha_home_banner(int(_ix_del))
                 if ok_del:
@@ -1978,7 +1995,7 @@ def dialog_adm_miniaturas_home_banners(df_home_banners: pd.DataFrame | None) -> 
                     st.success("Linha removida. Recarregando…")
                     st.rerun()
                 else:
-                    st.error(f"Não foi possível excluir: {err_del}")
+                    _dv_alerta_vermelho_texto(f"Não foi possível excluir: {err_del}")
 
 
 @st.dialog("Textos - campanhas comerciais (administrador)")
@@ -2003,7 +2020,7 @@ def dialog_adm_textos_campanhas(df_campanhas_texto: pd.DataFrame) -> None:
         )
     if enviar_ct:
         if not (ct_titulo or "").strip() and not (ct_texto or "").strip():
-            st.error("Preencha pelo menos o título ou o texto.")
+            _dv_alerta_vermelho_texto("Preencha pelo menos o título ou o texto.")
         else:
             ok_ct, err_ct = gravar_nova_linha_campanha_texto(
                 (ct_titulo or "").strip(),
@@ -2014,7 +2031,7 @@ def dialog_adm_textos_campanhas(df_campanhas_texto: pd.DataFrame) -> None:
                 st.success("Linha gravada. Recarregando…")
                 st.rerun()
             else:
-                st.error(f"Não foi possível gravar: {err_ct}")
+                _dv_alerta_vermelho_texto(f"Não foi possível gravar: {err_ct}")
 
     st.markdown("**Remover linha de texto**")
     _df_ct_adm = normalizar_df_campanhas_texto(df_campanhas_texto)
@@ -2035,7 +2052,7 @@ def dialog_adm_textos_campanhas(df_campanhas_texto: pd.DataFrame) -> None:
         )
         if st.button("Excluir linha selecionada", type="secondary", key="campanha_texto_excluir_btn"):
             if not _conf_ct:
-                st.warning("Marque a confirmação para excluir.")
+                _dv_alerta_vermelho_texto("Marque a confirmação para excluir.")
             else:
                 ok_dct, err_dct = excluir_linha_campanha_texto(int(_ix_ct))
                 if ok_dct:
@@ -2043,7 +2060,7 @@ def dialog_adm_textos_campanhas(df_campanhas_texto: pd.DataFrame) -> None:
                     st.success("Linha removida. Recarregando…")
                     st.rerun()
                 else:
-                    st.error(f"Não foi possível excluir: {err_dct}")
+                    _dv_alerta_vermelho_texto(f"Não foi possível excluir: {err_dct}")
 
 
 @st.dialog("Campanha comercial")
@@ -2455,7 +2472,7 @@ def carregar_dados_sistema():
             df_campanhas_texto,
         )
     except Exception as e:
-        st.error(f"Erro dados: {e}")
+        _dv_alerta_vermelho_texto(f"Erro dados: {e}")
         return (
             pd.DataFrame(),
             pd.DataFrame(),
@@ -3325,6 +3342,7 @@ def configurar_layout():
         div[data-testid="stMarkdown"] p,
         div[data-testid="stMarkdownContainer"] p,
         .block-container .custom-alert,
+        .block-container .dv-alert-direcional-inner,
         .block-container .summary-body,
         .block-container .summary-body b {{
             font-size: var(--dv-body-font-size) !important;
@@ -4428,6 +4446,36 @@ def configurar_layout():
             box-shadow: var(--dv-shadow-sm), inset 0 1px 0 rgba(255, 255, 255, 0.12);
             border: 1px solid rgba(255, 255, 255, 0.12);
         }}
+        .dv-alert-direcional {{
+            background: linear-gradient(135deg, {COR_VERMELHO} 0%, {COR_VERMELHO_ESCURO} 100%);
+            color: #ffffff !important;
+            border-radius: var(--dv-radius-md);
+            padding: clamp(1rem, 2.5vw, 1.35rem);
+            margin: 0 auto var(--dv-stack-gap) auto;
+            max-width: min(960px, 100%);
+            min-height: 56px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            box-shadow: var(--dv-shadow-sm), inset 0 1px 0 rgba(255, 255, 255, 0.12);
+            border: 1px solid rgba(255, 255, 255, 0.14);
+        }}
+        .dv-alert-direcional-inner {{
+            font-weight: 600;
+            font-size: var(--dv-body-font-size) !important;
+            color: #ffffff !important;
+            line-height: 1.45;
+            width: 100%;
+        }}
+        .dv-alert-direcional-inner strong {{
+            color: #ffffff !important;
+            font-weight: 800;
+        }}
+        .dv-alert-direcional-inner a {{
+            color: #ffffff !important;
+            text-decoration: underline;
+        }}
         .price-tag {{
             color: {COR_VERMELHO};
             font-weight: 900;
@@ -5060,7 +5108,7 @@ def show_export_dialog(d):
             use_container_width=True,
         )
     else:
-        st.warning("Geração do documento PDF indisponível.")
+        _dv_alerta_vermelho_texto("Geração do documento PDF indisponível.")
 
     st.markdown("---")
     st.markdown("**2. Enviar por e-mail (cliente)**")
@@ -5077,9 +5125,9 @@ def show_export_dialog(d):
             if sucesso:
                 st.success(msg)
             else:
-                st.error(msg)
+                _dv_alerta_vermelho_texto(str(msg))
         else:
-            st.error("E-mail inválido")
+            _dv_alerta_vermelho_texto("E-mail inválido")
 
     st.markdown("---")
     st.markdown("**3. WhatsApp**")
@@ -5099,7 +5147,7 @@ def show_export_dialog(d):
             type="secondary",
         )
     else:
-        st.warning(
+        _dv_alerta_vermelho_texto(
             "A mensagem ficou grande demais para abrir pelo link automático do WhatsApp. "
             "Use o envio por e-mail ou o PDF neste mesmo painel."
         )
@@ -5494,7 +5542,13 @@ def aba_simulador_automacao(
             f"""<div style="margin: 0 0 0.5rem 0; color: #111111; text-align: center;"><b>{_n_sac}:</b> {reais_streamlit_html(fmt_br(sac_details['primeira']))} a {reais_streamlit_html(fmt_br(sac_details['ultima']))} (juros totais: {reais_streamlit_html(fmt_br(sac_details['juros']))}) &nbsp;|&nbsp; <b>{_n_price}:</b> {reais_streamlit_html(fmt_br(price_details['parcela']))} parcelas fixas (juros totais: {reais_streamlit_html(fmt_br(price_details['juros']))})</div>""",
             unsafe_allow_html=True,
         )
-        _parc_fin_ref = calcular_parcela_financiamento(f_u, int(prazo_sel), taxa_fin_vigente(d), sist_sel)
+        _parc_fin_ref = calcular_parcela_financiamento(f_u, int(prazo_sel), taxa_padrao, sist_sel)
+        taxa_v = float(taxa_padrao or 0.0)
+        _parc_sig_now = (round(float(f_u or 0), 2), int(prazo_sel), str(sist_sel), round(taxa_v, 6))
+        _parc_sig_prev = st.session_state.get("_parc_fin_auto_sig")
+        _parc_ref_prev = st.session_state.get("_parc_fin_auto_ref_prev")
+        _ui_parc = texto_moeda_para_float(st.session_state.get("parcela_fin_edit_key"))
+        _tol_parc = 0.05
         _parc_fin_amort_ant = st.session_state.get("_parc_fin_last_sistema")
         if _parc_fin_amort_ant != sist_sel:
             st.session_state["parcela_fin_edit_key"] = float_para_campo_texto(_parc_fin_ref, vazio_se_zero=True)
@@ -5502,6 +5556,16 @@ def aba_simulador_automacao(
         elif "parcela_fin_edit_key" not in st.session_state:
             st.session_state["parcela_fin_edit_key"] = float_para_campo_texto(_parc_fin_ref, vazio_se_zero=True)
             st.session_state["_parc_fin_last_sistema"] = sist_sel
+        elif _parc_sig_prev != _parc_sig_now:
+            _alinha_auto = False
+            if _parc_ref_prev is not None and abs(float(_ui_parc) - float(_parc_ref_prev)) < _tol_parc:
+                _alinha_auto = True
+            elif abs(float(_ui_parc)) < 0.02 and float(_parc_fin_ref) > 0.02:
+                _alinha_auto = True
+            if _alinha_auto:
+                st.session_state["parcela_fin_edit_key"] = float_para_campo_texto(_parc_fin_ref, vazio_se_zero=True)
+        st.session_state["_parc_fin_auto_sig"] = _parc_sig_now
+        st.session_state["_parc_fin_auto_ref_prev"] = float(_parc_fin_ref)
         st.text_input(
             "Parcela estimada do financiamento (editável)",
             key="parcela_fin_edit_key",
@@ -5624,7 +5688,7 @@ def aba_simulador_automacao(
         uni_escolhida_id = None
         df_disponiveis = df_estoque.copy()
         if df_disponiveis.empty:
-            st.warning("Sem estoque disponível.")
+            _dv_alerta_vermelho_texto("Sem estoque disponível.")
         else:
             emp_names = sorted(df_disponiveis['Empreendimento'].unique())
             meses_entrega_emp: dict[str, int] = {}
@@ -5659,7 +5723,7 @@ def aba_simulador_automacao(
             unidades_disp = df_disponiveis[(df_disponiveis['Empreendimento'] == emp_escolhido)].copy()
             unidades_disp = unidades_disp.sort_values(['Valor de Venda', 'Identificador'], ascending=[True, True])
             if unidades_disp.empty:
-                st.warning("Sem unidades disponíveis.")
+                _dv_alerta_vermelho_texto("Sem unidades disponíveis.")
             else:
                 _rec_ids_emp = ids_unidades_recomendadas_empreendimento(
                     df_disponiveis, emp_escolhido, d, df_politicas, _prem
@@ -6095,7 +6159,11 @@ def aba_simulador_automacao(
             _parc_i = texto_inteiro(st.session_state.get("parc_ps_key"), default=1, min_v=1, max_v=parc_max_ui)
             parc = _parc_i if _parc_i is not None else 1
             st.session_state.dados_cliente['ps_parcelas'] = parc
-            st.markdown(f'<span class="inline-ref">Prazo máximo de parcelas do Pro Soluto: {parc_max_ui} meses</span>', unsafe_allow_html=True)
+            st.markdown(
+                f'<p class="inline-ref" style="margin-top: var(--dv-stack-gap) !important; margin-bottom: 0.35rem; line-height: 1.45;">'
+                f"Prazo máximo de parcelas do Pro Soluto: {parc_max_ui} meses</p>",
+                unsafe_allow_html=True,
+            )
 
         j8_ui = float(mps.get("parcela_max_j8") or 0)
         pol_ui = str(d.get("politica", "Direcional"))
@@ -6113,7 +6181,8 @@ def aba_simulador_automacao(
             st.session_state.dados_cliente['ps_usado'] = ps_input_val
             ref_text_ps = f"Limite máximo de Pro Soluto: {reais_streamlit_html(fmt_br(ps_limite_ui2))}"
             st.markdown(
-                f'<span class="inline-ref">{ref_text_ps}</span>',
+                f'<p class="inline-ref" style="margin-top: var(--dv-stack-gap) !important; margin-bottom: 0.35rem; line-height: 1.45;">'
+                f"{ref_text_ps}</p>",
                 unsafe_allow_html=True,
             )
 
@@ -6160,25 +6229,25 @@ def aba_simulador_automacao(
                     unsafe_allow_html=True,
                 )
                 if parc < n_min_j8:
-                    st.warning(
-                        f"Com **{parc}** parcelas a prestação tende a ultrapassar o teto J8. "
-                        f"Use pelo menos **{n_min_j8}** parcelas (ou reduza o valor do Pro Soluto)."
+                    _dv_alerta_vermelho(
+                        f"Com <strong>{html_std.escape(str(parc))}</strong> parcelas a prestação tende a ultrapassar o teto J8. "
+                        f"Use pelo menos <strong>{html_std.escape(str(n_min_j8))}</strong> parcelas "
+                        "(ou reduza o valor do Pro Soluto)."
                     )
             else:
-                st.warning(
-                    "Com este valor de Pro Soluto e o prazo máximo permitido, a prestação pode **ultrapassar** o teto J8. "
-                    "Reduza o PS ou ajuste o perfil."
+                _dv_alerta_vermelho(
+                    "Com este valor de Pro Soluto e o prazo máximo permitido, a prestação pode "
+                    "<strong>ultrapassar</strong> o teto J8. Reduza o PS ou ajuste o perfil."
                 )
         if is_emcash:
             st.caption(_EMCASH_NOTA_PARCELAS)
         ps_capacidade = max(0.0, float(v_parc) * float(parc))
         ps_efetivo = min(float(ps_input_val or 0.0), ps_capacidade)
         if ps_efetivo + 0.01 < float(ps_input_val or 0.0):
-            st.warning(
+            _dv_alerta_vermelho(
                 f"O valor de Pro Soluto informado é {reais_streamlit_html(fmt_br(ps_input_val))}, "
-                f"mas com {parc} parcelas e mensalidade {reais_streamlit_html(fmt_br(v_parc))} "
-                f"a arrecadação máxima é {reais_streamlit_html(fmt_br(ps_capacidade))}.",
-                icon="⚠️",
+                f"mas com {html_std.escape(str(parc))} parcelas e mensalidade {reais_streamlit_html(fmt_br(v_parc))} "
+                f"a arrecadação máxima é {reais_streamlit_html(fmt_br(ps_capacidade))}."
             )
         st.session_state.dados_cliente["ps_usado"] = ps_efetivo
 
@@ -6213,7 +6282,7 @@ def aba_simulador_automacao(
             )
             _v_pos_vcx_ui = max(0.0, u_valor - vc_input_val)
             st.markdown(
-                '<div style="margin:4px 0 18px 0;font-weight:600;color:#111111;">'
+                '<div style="margin:4px 0 18px 0;font-weight:600;color:#111111;text-align:center;line-height:1.45;">'
                 f"Valor da unidade após este desconto: "
                 f"{reais_streamlit_html(fmt_br(_v_pos_vcx_ui))}</div>",
                 unsafe_allow_html=True,
@@ -6249,7 +6318,7 @@ def aba_simulador_automacao(
                 )
             v_liquido = max(0.0, u_valor - vc_input_val - outros_desc)
             st.markdown(
-                f'<div style="margin:0 0 var(--dv-stack-gap) 0;font-weight:600;color:#111111;">'
+                f'<div style="margin:0 0 var(--dv-stack-gap) 0;font-weight:600;color:#111111;text-align:center;line-height:1.45;">'
                 f"Valor final da unidade (após todos os descontos): "
                 f"{reais_streamlit_html(fmt_br(v_liquido))}</div>",
                 unsafe_allow_html=True,
@@ -6296,8 +6365,9 @@ def aba_simulador_automacao(
 
         gap_final = v_liquido - f_u_input - fgts_u_input - ps_efetivo - total_entrada_cash
         if abs(gap_final) > 1.0:
-            st.error(
-                f"Atenção: {'Falta cobrir' if gap_final > 0 else 'Valor excedente de'} R$ {fmt_br(abs(gap_final))}."
+            _dv_alerta_vermelho(
+                f"<strong>Atenção:</strong> {'Falta cobrir' if gap_final > 0 else 'Valor excedente de'} "
+                f"{reais_streamlit_html(fmt_br(abs(gap_final)))}."
             )
         parcela_fin_auto = calcular_parcela_financiamento(f_u_input, prazo_finan, taxa_fin_vigente(d), tab_fin)
         _parc_fin_ui_raw = clamp_moeda_positiva(texto_moeda_para_float(st.session_state.get("parcela_fin_edit_key")), None)
@@ -6308,7 +6378,9 @@ def aba_simulador_automacao(
         if st.button("Avançar para Resumo da Simulação", type="primary", use_container_width=True):
             if abs(gap_final) <= 1.0: st.session_state.passo_simulacao = 'summary'; scroll_to_top(); st.rerun()
             else:
-                st.error(f"Não é possível avançar. Saldo pendente: R$ {fmt_br(gap_final)}")
+                _dv_alerta_vermelho(
+                    f"Não é possível avançar. Saldo pendente: {reais_streamlit_html(fmt_br(abs(gap_final)))}."
+                )
     elif passo == 'summary':
         d = st.session_state.dados_cliente
         _vc_sum = texto_moeda_para_float(st.session_state.get("volta_caixa_key"))
@@ -6516,7 +6588,8 @@ def aba_simulador_automacao(
                 conn_save.update(spreadsheet=ID_GERAL, worksheet=aba_destino, data=df_final_save)
                 st.cache_data.clear()
                 st.markdown(f'<div class="custom-alert">Registro salvo na aba Simulações da base de dados.</div>', unsafe_allow_html=True); time.sleep(2); st.session_state.dados_cliente = {}; st.session_state.passo_simulacao = 'sim'; scroll_to_top(); st.rerun()
-            except Exception as e: st.error(f"Erro ao salvar: {e}")
+            except Exception as e:
+                _dv_alerta_vermelho_texto(f"Erro ao salvar: {e}")
         if st.button("Voltar à simulação", use_container_width=True):
             st.session_state.passo_simulacao = 'sim'
             scroll_to_top()
