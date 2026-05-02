@@ -7333,6 +7333,7 @@ def aba_simulador_automacao(
                 unsafe_allow_html=True,
             )
 
+            st.markdown("---")
             st.markdown(
                 '<h3 class="dv-titulo-secao">Condições comerciais: demais descontos</h3>',
                 unsafe_allow_html=True,
