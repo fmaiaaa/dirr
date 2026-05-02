@@ -3434,27 +3434,17 @@ def configurar_layout():
             margin-right: 0 !important;
             max-width: 100% !important;
         }}
-        /* Exceção: uma linha em row para o botão "Avançar para Resumo" entre dois --- (o resto de st.columns segue em coluna) */
-        .block-container div[data-testid="stElementContainer"]:has(.dv-allow-row-columns-avancar-resumo) {{
-            margin-top: 0 !important;
-            margin-bottom: 0 !important;
-            min-height: 0 !important;
-        }}
-        .block-container div[data-testid="stElementContainer"]:has(.dv-allow-row-columns-avancar-resumo)
-            + div[data-testid="stElementContainer"] [data-testid="stHorizontalBlock"] {{
-            display: flex !important;
-            flex-direction: row !important;
-            justify-content: center !important;
-            align-items: stretch !important;
-            gap: clamp(0.35rem, 1.5vw, 0.85rem) !important;
-            width: 100% !important;
-            max-width: 100% !important;
-        }}
-        .block-container div[data-testid="stElementContainer"]:has(.dv-allow-row-columns-avancar-resumo)
-            + div[data-testid="stElementContainer"] [data-testid="stHorizontalBlock"] > div[data-testid="column"] {{
-            width: auto !important;
-            flex: 1 1 0 !important;
-            min-width: 0 !important;
+        /* "Avançar para Resumo": linhas iguais às de ---, margem simétrica (botão à largura total entre as duas) */
+        .block-container hr.dv-avancar-rule {{
+            border: none !important;
+            height: 1px !important;
+            margin: clamp(0.65rem, 1.6vw, 1.05rem) 0 !important;
+            background: linear-gradient(
+                90deg,
+                transparent 0%,
+                rgba(148, 163, 184, 0.45) 50%,
+                transparent 100%
+            ) !important;
         }}
         /* Referência imediatamente após o campo (compensa row-gap do bloco vertical) */
         .block-container [data-testid="stVerticalBlock"] > div[data-testid="stElementContainer"]:has(
@@ -3468,7 +3458,8 @@ def configurar_layout():
                 [data-testid="stMarkdownContainer"] .inline-ref,
                 [data-testid="stMarkdownContainer"] .dv-campo-resumo-movel,
                 [data-testid="stMarkdownContainer"] .inline-ref-vcx-linhas,
-                [data-testid="stMarkdownContainer"] .dv-ref-prox-campo
+                [data-testid="stMarkdownContainer"] .dv-ref-prox-campo,
+                [data-testid="stMarkdownContainer"] .dv-sug-min-ato
             ),
         .block-container [data-testid="column"] [data-testid="stVerticalBlock"] > div[data-testid="stElementContainer"]:has(
                 [data-testid="stTextInput"],
@@ -3481,7 +3472,8 @@ def configurar_layout():
                 [data-testid="stMarkdownContainer"] .inline-ref,
                 [data-testid="stMarkdownContainer"] .dv-campo-resumo-movel,
                 [data-testid="stMarkdownContainer"] .inline-ref-vcx-linhas,
-                [data-testid="stMarkdownContainer"] .dv-ref-prox-campo
+                [data-testid="stMarkdownContainer"] .dv-ref-prox-campo,
+                [data-testid="stMarkdownContainer"] .dv-sug-min-ato
             ) {{
             margin-top: calc(var(--dv-ref-after-gap) - var(--dv-stack-gap)) !important;
         }}
@@ -3489,7 +3481,8 @@ def configurar_layout():
             + div[data-testid="stElementContainer"]:has(
                 [data-testid="stMarkdownContainer"] .inline-ref,
                 [data-testid="stMarkdownContainer"] .dv-campo-resumo-movel,
-                [data-testid="stMarkdownContainer"] .dv-ref-prox-campo
+                [data-testid="stMarkdownContainer"] .dv-ref-prox-campo,
+                [data-testid="stMarkdownContainer"] .dv-sug-min-ato
             ) {{
             margin-top: calc(var(--dv-ref-after-gap) - var(--dv-stack-gap)) !important;
         }}
@@ -5359,6 +5352,7 @@ def configurar_layout():
                 -webkit-hyphens: auto;
             }}
             .block-container .inline-ref,
+            .block-container .dv-sug-min-ato,
             .block-container .dv-campo-resumo-movel,
             .block-container .dv-ref-prox-campo,
             .block-container .dv-prosa-secao,
@@ -7036,13 +7030,13 @@ def aba_simulador_automacao(
         _sug_min_ato1 = 2.0 * _renda_cli
         _sug_min_meio = _renda_cli / 2.0
         _dv_sug_min_style = (
-            "margin:2px 0 0.35rem 0;padding:0;font-size:0.8125rem;line-height:1.35;"
-            "color:#000000;"
+            "margin:0 0 0.35rem 0;padding:0;font-size:0.8125rem;line-height:1.35;"
+            "color:#000000;text-align:center;"
         )
 
         def _dv_linha_sug_min_apos_campo(val_fmt: str) -> None:
             st.markdown(
-                f'<p style="{_dv_sug_min_style}">Tente pegar no mínimo R$ '
+                f'<p class="dv-sug-min-ato" style="{_dv_sug_min_style}">Tente pegar no mínimo R$ '
                 f"{html_std.escape(val_fmt)}.</p>",
                 unsafe_allow_html=True,
             )
@@ -7053,10 +7047,10 @@ def aba_simulador_automacao(
             key="ato_1_key",
             placeholder="0,00",
         )
-        r1 = max(0.0, texto_moeda_para_float(st.session_state.get("ato_1_key")))
-        st.session_state.dados_cliente['ato_final'] = r1
         if _renda_cli > 0:
             _dv_linha_sug_min_apos_campo(fmt_br(_sug_min_ato1))
+        r1 = max(0.0, texto_moeda_para_float(st.session_state.get("ato_1_key")))
+        st.session_state.dados_cliente['ato_final'] = r1
         
         # Função para distribuir o restante (usa PS atual da session)
         def distribuir_restante(n_parcelas):
@@ -7136,40 +7130,40 @@ def aba_simulador_automacao(
                 key="ato_2_key",
                 placeholder="0,00",
             )
+            if _renda_cli > 0:
+                _dv_linha_sug_min_apos_campo(fmt_br(_sug_min_meio))
             st.session_state.dados_cliente["ato_30"] = max(
                 0.0, texto_moeda_para_float(st.session_state.get("ato_2_key"))
             )
-            if _renda_cli > 0:
-                _dv_linha_sug_min_apos_campo(fmt_br(_sug_min_meio))
             st.text_input(
                 "Ato 60 (R$)",
                 key="ato_3_key",
                 placeholder="0,00",
             )
+            if _renda_cli > 0:
+                _dv_linha_sug_min_apos_campo(fmt_br(_sug_min_meio))
             st.session_state.dados_cliente["ato_60"] = max(
                 0.0, texto_moeda_para_float(st.session_state.get("ato_3_key"))
             )
-            if _renda_cli > 0:
-                _dv_linha_sug_min_apos_campo(fmt_br(_sug_min_meio))
         else:
             st.text_input("Ato 30 (R$)", key="ato_2_key", placeholder="0,00")
+            if _renda_cli > 0:
+                _dv_linha_sug_min_apos_campo(fmt_br(_sug_min_meio))
             st.session_state.dados_cliente["ato_30"] = max(
                 0.0, texto_moeda_para_float(st.session_state.get("ato_2_key"))
             )
+            st.text_input("Ato 60 (R$)", key="ato_3_key", placeholder="0,00")
             if _renda_cli > 0:
                 _dv_linha_sug_min_apos_campo(fmt_br(_sug_min_meio))
-            st.text_input("Ato 60 (R$)", key="ato_3_key", placeholder="0,00")
             st.session_state.dados_cliente["ato_60"] = max(
                 0.0, texto_moeda_para_float(st.session_state.get("ato_3_key"))
             )
+            st.text_input("Ato 90 (R$)", key="ato_4_key", placeholder="0,00")
             if _renda_cli > 0:
                 _dv_linha_sug_min_apos_campo(fmt_br(_sug_min_meio))
-            st.text_input("Ato 90 (R$)", key="ato_4_key", placeholder="0,00")
             st.session_state.dados_cliente["ato_90"] = max(
                 0.0, texto_moeda_para_float(st.session_state.get("ato_4_key"))
             )
-            if _renda_cli > 0:
-                _dv_linha_sug_min_apos_campo(fmt_br(_sug_min_meio))
 
         st.write("")
         st.button(
@@ -7479,28 +7473,22 @@ def aba_simulador_automacao(
         st.session_state.dados_cliente['parcela_financiamento'] = (
             _parc_fin_ui_raw if _parc_fin_ui_raw > 0 else parcela_fin_auto
         )
-        st.markdown("---")
-        st.markdown(
-            '<p class="dv-allow-row-columns-avancar-resumo" style="display:none;margin:0;padding:0;line-height:0;">'
-            "&nbsp;</p>",
-            unsafe_allow_html=True,
-        )
-        _dv_av_l, _dv_av_m, _dv_av_r = st.columns([1, 1, 1])
-        with _dv_av_l:
-            pass
-        with _dv_av_m:
-            if st.button("Avançar para Resumo da Simulação", type="primary", use_container_width=True):
-                if abs(gap_final) <= 1.0:
-                    st.session_state.passo_simulacao = "summary"
-                    scroll_to_top()
-                    st.rerun()
-                else:
-                    _dv_alerta_vermelho(
-                        f"Não é possível avançar. Saldo pendente: {reais_streamlit_html(fmt_br(abs(gap_final)))}."
-                    )
-        with _dv_av_r:
-            pass
-        st.markdown("---")
+        st.markdown('<hr class="dv-avancar-rule" />', unsafe_allow_html=True)
+        if st.button(
+            "Avançar para Resumo da Simulação",
+            type="primary",
+            use_container_width=True,
+            key="dv_btn_avancar_resumo",
+        ):
+            if abs(gap_final) <= 1.0:
+                st.session_state.passo_simulacao = "summary"
+                scroll_to_top()
+                st.rerun()
+            else:
+                _dv_alerta_vermelho(
+                    f"Não é possível avançar. Saldo pendente: {reais_streamlit_html(fmt_br(abs(gap_final)))}."
+                )
+        st.markdown('<hr class="dv-avancar-rule" />', unsafe_allow_html=True)
     elif passo == 'summary':
         d = st.session_state.dados_cliente
         _vc_sum = texto_moeda_para_float(st.session_state.get("volta_caixa_key"))
