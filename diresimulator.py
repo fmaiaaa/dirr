@@ -3529,22 +3529,10 @@ def configurar_layout():
                 transparent 100%
             ) !important;
         }}
-        /* Uma linha <hr> antes do botão; linha inferior via ::after (evita dois <hr> seguidos sem conteúdo) */
+        /* Espaço igual entre <hr> superior, botão e <hr> inferior (sem linha extra colada ao botão) */
         .block-container .st-key-dv_btn_avancar_resumo {{
-            margin-top: clamp(0.75rem, 2.5vw, 1.35rem) !important;
-            margin-bottom: clamp(0.75rem, 2.5vw, 1.35rem) !important;
-        }}
-        .block-container .st-key-dv_btn_avancar_resumo::after {{
-            content: "";
-            display: block;
-            height: 1px;
-            margin-top: clamp(0.75rem, 2.5vw, 1.35rem);
-            background: linear-gradient(
-                90deg,
-                transparent 0%,
-                rgba(148, 163, 184, 0.45) 50%,
-                transparent 100%
-            );
+            margin-top: clamp(0.85rem, 2.8vw, 1.4rem) !important;
+            margin-bottom: clamp(0.85rem, 2.8vw, 1.4rem) !important;
         }}
 
         /*
@@ -7539,6 +7527,7 @@ def aba_simulador_automacao(
                 _dv_alerta_vermelho(
                     f"Não é possível avançar. Saldo pendente: <strong>{reais_streamlit_html(fmt_br(abs(gap_final)))}</strong>."
                 )
+        st.markdown('<hr class="dv-avancar-rule" />', unsafe_allow_html=True)
     elif passo == 'summary':
         d = st.session_state.dados_cliente
         _vc_sum = texto_moeda_para_float(st.session_state.get("volta_caixa_key"))
