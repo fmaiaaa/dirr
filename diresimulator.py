@@ -2129,20 +2129,36 @@ def render_secao_campanhas_comerciais(
                 }
             )
     if not campanhas_ativas and not copy_html and not user_is_adm:
+        st.markdown(
+            '<div class="dv-hero-campanhas-bridge dv-hero-campanhas-bridge--solo" aria-hidden="true">'
+            '<div class="dv-hero-campanhas-bridge__spacer-top"></div>'
+            '<div class="header-brand-bar-wrap"></div>'
+            '<div class="dv-hero-campanhas-bridge__spacer-bottom"></div>'
+            "</div>",
+            unsafe_allow_html=True,
+        )
         return
     if not user_is_adm:
         st.markdown(
+            '<div class="dv-hero-campanhas-bridge" role="presentation">'
+            '<div class="dv-hero-campanhas-bridge__spacer-top" aria-hidden="true"></div>'
+            '<div class="header-brand-bar-wrap" aria-hidden="true"></div>'
+            '<div class="dv-hero-campanhas-bridge__spacer-bottom" aria-hidden="true"></div>'
             '<div class="home-banners-wrap" role="region" aria-label="Campanhas comerciais">'
             '<h2 class="home-banners-section-title">Campanhas comerciais</h2>'
-            + "</div>",
+            + "</div></div>",
             unsafe_allow_html=True,
         )
         _render_miniaturas_popup_real(campanhas_ativas)
     else:
         st.markdown(
+            '<div class="dv-hero-campanhas-bridge" role="presentation">'
+            '<div class="dv-hero-campanhas-bridge__spacer-top" aria-hidden="true"></div>'
+            '<div class="header-brand-bar-wrap" aria-hidden="true"></div>'
+            '<div class="dv-hero-campanhas-bridge__spacer-bottom" aria-hidden="true"></div>'
             '<div class="home-banners-wrap" role="region" aria-label="Campanhas comerciais">'
             '<h2 class="home-banners-section-title">Campanhas comerciais</h2>'
-            "</div>",
+            "</div></div>",
             unsafe_allow_html=True,
         )
         bc1, bc2 = st.columns([1, 1], gap="small")
@@ -3991,6 +4007,49 @@ def configurar_layout():
             box-shadow: 0 1px 3px rgba({RGB_AZUL_CSS}, 0.12);
             animation: none;
         }}
+        /* Barra centrada no intervalo visual entre o título do simulador e «Campanhas comerciais» */
+        .dv-hero-campanhas-bridge {{
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            width: 100%;
+            max-width: 1100px;
+            margin-left: auto;
+            margin-right: auto;
+            box-sizing: border-box;
+            padding: 0 clamp(0.75rem, 2vw, 1rem);
+        }}
+        .dv-hero-campanhas-bridge__spacer-top,
+        .dv-hero-campanhas-bridge__spacer-bottom {{
+            flex: 0 0 auto;
+            width: 100%;
+            height: calc(var(--dv-stack-gap) * 0.62);
+            min-height: calc(var(--dv-stack-gap) * 0.62);
+            pointer-events: none;
+        }}
+        .dv-hero-campanhas-bridge--solo .dv-hero-campanhas-bridge__spacer-top,
+        .dv-hero-campanhas-bridge--solo .dv-hero-campanhas-bridge__spacer-bottom {{
+            height: calc(var(--dv-stack-gap) * 0.55);
+            min-height: calc(var(--dv-stack-gap) * 0.55);
+        }}
+        .dv-hero-campanhas-bridge .header-brand-bar-wrap {{
+            width: min(560px, 92vw);
+            max-width: min(560px, 92vw);
+            margin-left: auto;
+            margin-right: auto;
+            flex-shrink: 0;
+        }}
+        .dv-hero-campanhas-bridge .home-banners-wrap {{
+            width: 100%;
+            max-width: 100%;
+            padding-left: 0;
+            padding-right: 0;
+            margin-top: calc(var(--dv-stack-gap) * 0.35);
+        }}
+        /* Menos espaço entre a faixa de campanhas e «Perfil da simulação» */
+        .block-container [data-testid="stVerticalBlock"] > div[data-testid="stElementContainer"]:has(.dv-perfil-simulacao-anchor) {{
+            margin-top: calc(-0.5 * var(--dv-stack-gap)) !important;
+        }}
         @media (prefers-reduced-motion: no-preference) {{
             .header-brand-bar-wrap {{
                 animation: dvFadeRise var(--dv-duration-slow) var(--dv-ease-out) 0.08s both,
@@ -5134,11 +5193,7 @@ def aba_simulador_automacao(
         return resolver_taxa_financiamento_anual_pct(d_cli or {}, _prem)
     if 'dados_cliente' not in st.session_state: st.session_state.dados_cliente = {}
 
-    st.markdown(
-        '<div class="header-brand-bar-wrap" aria-hidden="true"></div>',
-        unsafe_allow_html=True,
-    )
-    # Resumo da simulação: sem faixa de campanhas comerciais nem iframe do popup de miniaturas
+    # Resumo da simulação: sem campanhas; mantém a barra de marca entre o cabeçalho e o conteúdo
     if passo != "summary":
         render_secao_campanhas_comerciais(
             df_home_banners if df_home_banners is not None else pd.DataFrame(),
@@ -5146,6 +5201,15 @@ def aba_simulador_automacao(
             user_is_adm=bool(st.session_state.get("user_is_adm")),
         )
         inject_home_banner_dialog_modal()
+    else:
+        st.markdown(
+            '<div class="dv-hero-campanhas-bridge dv-hero-campanhas-bridge--solo" aria-hidden="true">'
+            '<div class="dv-hero-campanhas-bridge__spacer-top"></div>'
+            '<div class="header-brand-bar-wrap"></div>'
+            '<div class="dv-hero-campanhas-bridge__spacer-bottom"></div>'
+            "</div>",
+            unsafe_allow_html=True,
+        )
 
     # --- PÁGINA ÚNICA: perfil → valores → recomendações → unidade → distribuição (ordem fixa) ---
     if passo == 'sim':
