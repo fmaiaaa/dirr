@@ -3175,7 +3175,7 @@ def configurar_layout():
             margin-top: 0 !important;
             margin-bottom: 0 !important;
             line-height: 1.35 !important;
-            text-align: center !important;
+            text-align: left !important;
         }}
         .block-container [data-testid="stElementContainer"] [data-baseweb="form-control-container"] {{
             margin-top: 0 !important;
@@ -3282,6 +3282,57 @@ def configurar_layout():
             margin-left: 0 !important;
             margin-right: 0 !important;
             max-width: 100% !important;
+        }}
+        /* Referência imediatamente após o campo (compensa row-gap do bloco vertical) */
+        .block-container [data-testid="stVerticalBlock"] > div[data-testid="stElementContainer"]:has(
+                [data-testid="stTextInput"],
+                [data-testid="stNumberInput"],
+                [data-testid="stDateInput"],
+                [data-testid="stSelectbox"],
+                [data-testid="stMultiSelect"],
+                [data-testid="stTextArea"]
+            ) + div[data-testid="stElementContainer"]:has(
+                [data-testid="stMarkdownContainer"] .inline-ref,
+                [data-testid="stMarkdownContainer"] .dv-campo-resumo-movel,
+                [data-testid="stMarkdownContainer"] .inline-ref-vcx-linhas,
+                [data-testid="stMarkdownContainer"] .dv-ref-prox-campo
+            ),
+        .block-container [data-testid="column"] [data-testid="stVerticalBlock"] > div[data-testid="stElementContainer"]:has(
+                [data-testid="stTextInput"],
+                [data-testid="stNumberInput"],
+                [data-testid="stDateInput"],
+                [data-testid="stSelectbox"],
+                [data-testid="stMultiSelect"],
+                [data-testid="stTextArea"]
+            ) + div[data-testid="stElementContainer"]:has(
+                [data-testid="stMarkdownContainer"] .inline-ref,
+                [data-testid="stMarkdownContainer"] .dv-campo-resumo-movel,
+                [data-testid="stMarkdownContainer"] .inline-ref-vcx-linhas,
+                [data-testid="stMarkdownContainer"] .dv-ref-prox-campo
+            ) {{
+            margin-top: calc(var(--dv-ref-after-gap) - var(--dv-stack-gap)) !important;
+        }}
+        .block-container [data-testid="stElementContainer"]:has([data-testid="stHorizontalBlock"])
+            + div[data-testid="stElementContainer"]:has(
+                [data-testid="stMarkdownContainer"] .inline-ref,
+                [data-testid="stMarkdownContainer"] .dv-campo-resumo-movel,
+                [data-testid="stMarkdownContainer"] .dv-ref-prox-campo
+            ) {{
+            margin-top: calc(var(--dv-ref-after-gap) - var(--dv-stack-gap)) !important;
+        }}
+        .block-container [data-testid="stVerticalBlock"] > div[data-testid="stElementContainer"]:has(
+                [data-testid="stMarkdownContainer"] .dv-campo-resumo-movel
+            ) + div[data-testid="stElementContainer"]:has(
+                [data-testid="stMarkdownContainer"] .inline-ref
+            ) {{
+            margin-top: calc(var(--dv-ref-chain-gap) - var(--dv-stack-gap)) !important;
+        }}
+        .dv-ref-prox-campo {{
+            margin: 0 !important;
+            padding: 0 !important;
+            text-align: left !important;
+            line-height: 1.45 !important;
+            color: #111111 !important;
         }}
         .block-container div[data-testid="stMarkdownContainer"] hr,
         .block-container hr {{
@@ -3412,12 +3463,12 @@ def configurar_layout():
         .block-container .summary-body b {{
             font-size: var(--dv-body-font-size) !important;
         }}
-        /* Parágrafos do markdown = textos de apoio / subtítulos - centralizados */
-        div[data-testid="stMarkdown"] p,
-        div[data-testid="stMarkdownContainer"] p {{
+        /* Corpo do formulário: mesma lateralidade que os campos (títulos h1–h6 mantêm centro noutras regras) */
+        .block-container div[data-testid="stMarkdown"] p,
+        .block-container div[data-testid="stMarkdownContainer"] p {{
             color: #334155;
             line-height: 1.58;
-            text-align: center !important;
+            text-align: left !important;
             text-wrap: pretty;
         }}
         h1, h2, h3, .home-banners-section-title, .dv-titulo-secao {{
@@ -3429,6 +3480,8 @@ def configurar_layout():
             --dv-rhythm: clamp(1.32rem, 1.15rem + 0.65vw, 1.55rem);
             --dv-stack-gap: clamp(1.26rem, 0.95rem + 2vw, 1.95rem);
             --dv-block-pad-x: clamp(1.1rem, 2.8vw, 2.25rem);
+            --dv-ref-after-gap: 0.28rem;
+            --dv-ref-chain-gap: 0.16rem;
             text-rendering: optimizeLegibility;
             max-width: min(1680px, 100%) !important;
             margin-left: auto !important;
@@ -3488,22 +3541,22 @@ def configurar_layout():
         .dv-titulo-secao {{
             margin: 0 !important;
         }}
-        [data-testid="stCaption"] {{
+        .block-container [data-testid="stCaption"] {{
             font-family: 'Inter', sans-serif !important;
             color: #475569 !important;
             font-size: var(--dv-body-font-size) !important;
             line-height: 1.5 !important;
-            text-align: center !important;
-            justify-content: center !important;
-            align-items: center !important;
+            text-align: left !important;
+            justify-content: flex-start !important;
+            align-items: flex-start !important;
             width: 100% !important;
             display: flex !important;
             flex-direction: column !important;
         }}
-        [data-testid="stCaption"] > *,
-        [data-testid="stCaption"] [data-testid="stMarkdownContainer"],
-        [data-testid="stCaption"] [data-testid="stMarkdownContainer"] p {{
-            text-align: center !important;
+        .block-container [data-testid="stCaption"] > *,
+        .block-container [data-testid="stCaption"] [data-testid="stMarkdownContainer"],
+        .block-container [data-testid="stCaption"] [data-testid="stMarkdownContainer"] p {{
+            text-align: left !important;
             width: 100% !important;
         }}
 
@@ -4394,7 +4447,7 @@ def configurar_layout():
             margin: 0.5rem auto 0;
             padding: 0 clamp(1.25rem, 6vw, 3.25rem) 0.5rem;
             box-sizing: border-box;
-            text-align: center;
+            text-align: left;
             font-size: var(--dv-body-font-size);
             order: 2;
         }}
@@ -4732,13 +4785,13 @@ def configurar_layout():
         .dv-prosa-secao {{
             color: #111111 !important;
             margin: 0 0 var(--dv-stack-gap) 0 !important;
-            text-align: center !important;
+            text-align: left !important;
         }}
         .finan-subsidios-note {{
             color: #111111;
             margin: 0 0 var(--dv-stack-gap) 0 !important;
             opacity: 0.72;
-            text-align: center !important;
+            text-align: left !important;
         }}
         /* Tabela financiamentos/subsídios: quebra linhas na largura disponível (sem esprem texto nem scroll horizontal). */
         .finan-subsidios-table-bleed {{
@@ -4851,6 +4904,7 @@ def configurar_layout():
             color: #111111;
             margin: 0 0 var(--dv-stack-gap) 0 !important;
             line-height: 1.45;
+            text-align: left !important;
         }}
         .dv-page-tail-spacer {{
             height: calc(var(--dv-stack-gap) * 2);
@@ -4936,30 +4990,30 @@ def configurar_layout():
             color: #111111;
             margin-top: 0 !important;
             margin-bottom: 0 !important;
-            padding-top: 0.15rem;
-            padding-bottom: 0.35rem;
+            padding-top: 0.05rem;
+            padding-bottom: 0.12rem;
             font-weight: 700;
             letter-spacing: 0.02em;
             display: block;
             width: 100%;
-            text-align: center !important;
+            text-align: left !important;
             opacity: 0.72;
             position: relative;
             z-index: 0;
         }}
         .dv-campo-resumo-movel {{
-            text-align: center !important;
+            text-align: left !important;
         }}
         /* Volta ao Caixa: duas referências empilhadas (sem barra no meio) em qualquer largura */
         .inline-ref-vcx-linhas {{
             display: flex !important;
             flex-direction: column !important;
-            align-items: center !important;
-            gap: 0.35rem !important;
-            text-align: center !important;
+            align-items: flex-start !important;
+            gap: 0.2rem !important;
+            text-align: left !important;
         }}
         .inline-ref-vcx-linha {{
-            text-align: center !important;
+            text-align: left !important;
             width: 100%;
         }}
         .inline-ref-vcx-sep {{
@@ -5746,6 +5800,14 @@ def aba_simulador_automacao(
             st.session_state["_sf_rank_applied_cpf"] = ""
             st.session_state["_sf_rank_naoencontrado_toast_cpf"] = ""
         _rank_now = st.session_state.get("in_rank_v28", st.session_state.dados_cliente.get("ranking", "DIAMANTE"))
+        curr_ranking = _rank_now
+        idx_ranking = rank_opts.index(curr_ranking) if curr_ranking in rank_opts else 0
+        ranking = st.selectbox(
+            "Ranking do Cliente (lista)",
+            options=rank_opts,
+            index=idx_ranking,
+            key="in_rank_v28",
+        )
         if len(cpf_digits) == 11:
             if _sf_rs:
                 st.markdown(
@@ -5759,14 +5821,6 @@ def aba_simulador_automacao(
                     "CPF não encontrado. Um novo contato deve ser criado no salesforce</p>",
                     unsafe_allow_html=True,
                 )
-        curr_ranking = _rank_now
-        idx_ranking = rank_opts.index(curr_ranking) if curr_ranking in rank_opts else 0
-        ranking = st.selectbox(
-            "Ranking do Cliente (lista)",
-            options=rank_opts,
-            index=idx_ranking,
-            key="in_rank_v28",
-        )
         _pol_saved = st.session_state.dados_cliente.get("politica")
         _pol_idx = 0 if _pol_saved == "Direcional" else 1
         politica_ps = st.selectbox(
@@ -6033,21 +6087,19 @@ def aba_simulador_automacao(
         _comp_sac_price = calcular_comparativo_sac_price(f_u, int(prazo_sel), taxa_padrao)
         sac_details = _comp_sac_price["SAC"]
         price_details = _comp_sac_price["PRICE"]
-        _n_sac = _AMORTIZACAO_NOME_COMPLETO["SAC"]
-        _n_price = _AMORTIZACAO_NOME_COMPLETO["PRICE"]
         if sist_sel == "PRICE":
             _ref_comp_html = (
-                f"<b>{_n_price}:</b> {reais_streamlit_html(fmt_br(price_details['parcela']))} "
+                f"<b>Valor estimado da parcela:</b> {reais_streamlit_html(fmt_br(price_details['parcela']))} "
                 f"parcelas fixas (juros totais: {reais_streamlit_html(fmt_br(price_details['juros']))})"
             )
         else:
             _ref_comp_html = (
-                f"<b>{_n_sac}:</b> {reais_streamlit_html(fmt_br(sac_details['primeira']))} "
+                f"<b>Valor estimado da parcela:</b> {reais_streamlit_html(fmt_br(sac_details['primeira']))} "
                 f"a {reais_streamlit_html(fmt_br(sac_details['ultima']))} "
                 f"(juros totais: {reais_streamlit_html(fmt_br(sac_details['juros']))})"
             )
         st.markdown(
-            f'<div style="margin: 0 0 0.5rem 0; color: #111111; text-align: center;">{_ref_comp_html}</div>',
+            f'<div class="dv-ref-prox-campo">{_ref_comp_html}</div>',
             unsafe_allow_html=True,
         )
         _parc_fin_ref = calcular_parcela_financiamento(f_u, int(prazo_sel), taxa_padrao, sist_sel)
@@ -6783,7 +6835,7 @@ def aba_simulador_automacao(
             parc = _parc_i if _parc_i is not None else 1
             st.session_state.dados_cliente['ps_parcelas'] = parc
             st.markdown(
-                f'<p class="inline-ref" style="margin-top: var(--dv-stack-gap) !important; margin-bottom: 0.35rem; line-height: 1.45;">'
+                '<p class="inline-ref" style="margin-top:0;margin-bottom:0;line-height:1.45;">'
                 f"Prazo máximo de parcelas do Pro Soluto: {parc_max_ui} meses</p>",
                 unsafe_allow_html=True,
             )
@@ -6800,8 +6852,7 @@ def aba_simulador_automacao(
             st.session_state.dados_cliente['ps_usado'] = ps_input_val
             ref_text_ps = f"Limite máximo de Pro Soluto: {reais_streamlit_html(fmt_br(ps_limite_ui2))}"
             st.markdown(
-                f'<p class="inline-ref" style="margin-top: var(--dv-stack-gap) !important; margin-bottom: 0.35rem; line-height: 1.45;">'
-                f"{ref_text_ps}</p>",
+                f'<p class="inline-ref" style="margin-top:0;margin-bottom:0;line-height:1.45;">{ref_text_ps}</p>',
                 unsafe_allow_html=True,
             )
 
@@ -6817,13 +6868,11 @@ def aba_simulador_automacao(
         )
         st.session_state.dados_cliente['ps_mensal'] = v_parc
         st.session_state.dados_cliente['ps_mensal_simples'] = (float(ps_input_val or 0) / parc) if parc > 0 else 0.0
+        _ps_parc_fmt = reais_streamlit_html(fmt_br(v_parc))
+        _ps_j8_fmt = reais_streamlit_html(fmt_br(j8_ui))
         st.markdown(
-            f'<div class="dv-campo-resumo-movel" style="margin: 0 0 0.5rem 0; font-weight: 600; color: #111111; text-align: center;">'
-            f"Mensalidade do Pro Soluto: {reais_streamlit_html(fmt_br(v_parc))} ({parc} parcelas)</div>",
-            unsafe_allow_html=True,
-        )
-        st.markdown(
-            f'<span class="inline-ref">Parcela máx. (J8): {reais_streamlit_html(fmt_br(j8_ui))}</span>',
+            f'<p class="inline-ref" style="margin:0;line-height:1.45;">Está sendo dividido em {int(parc)}x de '
+            f"{_ps_parc_fmt}. As parcelas são limitadas em {_ps_j8_fmt}.</p>",
             unsafe_allow_html=True,
         )
         if float(ps_input_val or 0) > 0 and j8_ui > 0:
@@ -6832,7 +6881,7 @@ def aba_simulador_automacao(
                 _pmax = int(parc_max_ui)
                 if _nmj >= _pmax:
                     st.markdown(
-                        f'<p class="inline-ref" style="margin-top:6px;line-height:1.45;">'
+                        '<p class="inline-ref" style="margin-top:0;margin-bottom:0;line-height:1.45;">'
                         f"Parcelas mínimas necessárias: <strong>{html_std.escape(str(_nmj))}</strong> "
                         f"(prazo máximo da política; prestação dentro do teto J8 "
                         f"{reais_streamlit_html(fmt_br(j8_ui))}/mês).</p>",
@@ -6840,7 +6889,7 @@ def aba_simulador_automacao(
                     )
                 else:
                     st.markdown(
-                        f'<p class="inline-ref" style="margin-top:6px;line-height:1.45;">'
+                        '<p class="inline-ref" style="margin-top:0;margin-bottom:0;line-height:1.45;">'
                         f"Parcelas mínimas necessárias: <strong>{html_std.escape(str(_nmj))}</strong> "
                         f"(teto J8 {reais_streamlit_html(fmt_br(j8_ui))}/mês).</p>",
                         unsafe_allow_html=True,
@@ -6911,19 +6960,15 @@ def aba_simulador_automacao(
             if abs(_vc_raw_ui - vc_input_val) > 0.009:
                 st.session_state["volta_caixa_key"] = float_para_campo_texto(vc_input_val, vazio_se_zero=True)
             _vc_pres_ui = max(0.0, vc_ref_top - vc_input_val)
-            st.markdown(
-                f'<div class="inline-ref inline-ref-vcx-linhas" style="color:#111111;opacity:0.85;">'
-                f'<span class="inline-ref-vcx-linha">Limite Volta ao Caixa: {reais_streamlit_html(fmt_br(vc_ref_top))}</span>'
-                f'<span class="inline-ref-vcx-sep" aria-hidden="true"> · </span>'
-                f'<span class="inline-ref-vcx-linha">Volta ao Caixa preservado: {reais_streamlit_html(fmt_br(_vc_pres_ui))}</span>'
-                f"</div>",
-                unsafe_allow_html=True,
-            )
             _v_pos_vcx_ui = max(0.0, u_valor - vc_input_val)
+            _vcx_lim = reais_streamlit_html(fmt_br(vc_ref_top))
+            _vcx_pres = reais_streamlit_html(fmt_br(_vc_pres_ui))
+            _vcx_preco = reais_streamlit_html(fmt_br(u_valor))
+            _vcx_pos = reais_streamlit_html(fmt_br(_v_pos_vcx_ui))
             st.markdown(
-                '<div class="dv-campo-resumo-movel" style="margin:4px 0 18px 0;font-weight:600;color:#111111;text-align:center;line-height:1.45;">'
-                f"Valor da unidade (após volta ao caixa): "
-                f"{reais_streamlit_html(fmt_br(_v_pos_vcx_ui))}</div>",
+                f'<p class="inline-ref" style="margin:0;line-height:1.45;">Há um limite de Volta ao Caixa de '
+                f"{_vcx_lim} e está sendo preservado {_vcx_pres}. Além disso, a unidade custa {_vcx_preco} e, "
+                f"então, seu valor após o Volta ao Caixa é de {_vcx_pos}.</p>",
                 unsafe_allow_html=True,
             )
 
@@ -6957,7 +7002,7 @@ def aba_simulador_automacao(
                 )
             v_liquido = max(0.0, u_valor - vc_input_val - outros_desc)
             st.markdown(
-                f'<div class="dv-campo-resumo-movel" style="margin:0 0 var(--dv-stack-gap) 0;font-weight:600;color:#111111;text-align:center;line-height:1.45;">'
+                f'<div class="dv-campo-resumo-movel" style="margin:0;font-weight:600;color:#111111;text-align:left;line-height:1.45;">'
                 f"Valor final da unidade (após todos os descontos): "
                 f"{reais_streamlit_html(fmt_br(v_liquido))}</div>",
                 unsafe_allow_html=True,
