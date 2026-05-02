@@ -2868,8 +2868,8 @@ def configurar_layout():
             --dv-title-font-size: clamp(1.12rem, 2vw, 1.28rem);
             /* Título principal do cabeçalho (Simulador imobiliário DV) */
             --dv-hero-title-font-size: clamp(1.72rem, 4.75vw, 2.62rem);
-            /* Espaçamento fixo entre cada bloco/campo na coluna principal */
-            --dv-stack-gap: 1.25rem;
+            /* Espaçamento entre blocos/campos (responsivo: mais ar no telemóvel e no ecrã largo) */
+            --dv-stack-gap: clamp(1.22rem, 0.92rem + 2.1vw, 1.9rem);
             --dv-body-font-size: 1rem;
         }}
         @media (prefers-reduced-motion: no-preference) {{
@@ -2997,7 +2997,8 @@ def configurar_layout():
             .block-container {{
                 max-width: 100% !important;
                 width: 100% !important;
-                padding: max(6px, env(safe-area-inset-top, 0px)) clamp(0.75rem, 3.5vw, 1.15rem) 1.1rem clamp(0.75rem, 3.5vw, 1.15rem) !important;
+                --dv-stack-gap: clamp(1.28rem, 0.88rem + 2.8vw, 1.72rem) !important;
+                padding: max(6px, env(safe-area-inset-top, 0px)) clamp(0.75rem, 3.5vw, 1.15rem) clamp(1.2rem, 0.85rem + 2.2vw, 1.65rem) clamp(0.75rem, 3.5vw, 1.15rem) !important;
                 margin-left: auto !important;
                 margin-right: auto !important;
                 margin-top: clamp(4px, 1.5vw, 10px) !important;
@@ -3121,7 +3122,7 @@ def configurar_layout():
         }}
         section.main > div {{
             padding-top: 0 !important;
-            padding-bottom: 0.5rem !important;
+            padding-bottom: clamp(0.65rem, 0.5rem + 0.8vw, 1.1rem) !important;
         }}
 
         @media (prefers-reduced-motion: no-preference) {{
@@ -3175,12 +3176,13 @@ def configurar_layout():
         }}
         .block-container [data-testid="stWidgetLabel"] {{
             margin-top: 0 !important;
-            margin-bottom: 0 !important;
+            margin-bottom: 0.32rem !important;
         }}
         .block-container [data-testid="stWidgetLabel"] label,
         .block-container [data-testid="stWidgetLabel"] p {{
             margin-top: 0 !important;
             margin-bottom: 0 !important;
+            line-height: 1.35 !important;
         }}
         .block-container [data-testid="stElementContainer"] [data-baseweb="form-control-container"] {{
             margin-top: 0 !important;
@@ -3379,8 +3381,8 @@ def configurar_layout():
 
         /* Cartão de vidro - mesma linguagem da Ficha Credenciamento (max-width largo para o simulador) */
         .block-container {{
-            --dv-rhythm: 1.35rem;
-            --dv-stack-gap: 1.25rem;
+            --dv-rhythm: clamp(1.32rem, 1.15rem + 0.65vw, 1.55rem);
+            --dv-stack-gap: clamp(1.26rem, 0.95rem + 2vw, 1.95rem);
             --dv-block-pad-x: clamp(1.1rem, 2.8vw, 2.25rem);
             text-rendering: optimizeLegibility;
             max-width: min(1680px, 100%) !important;
@@ -3388,7 +3390,7 @@ def configurar_layout():
             margin-right: auto !important;
             margin-top: clamp(4px, 1vh, 14px) !important;
             margin-bottom: clamp(4px, 1vh, 14px) !important;
-            padding: max(6px, env(safe-area-inset-top, 0px)) var(--dv-block-pad-x) 1.55rem var(--dv-block-pad-x) !important;
+            padding: max(6px, env(safe-area-inset-top, 0px)) var(--dv-block-pad-x) clamp(1.45rem, 1.1rem + 1.8vw, 2rem) var(--dv-block-pad-x) !important;
             background: rgba(255, 255, 255, 0.78) !important;
             backdrop-filter: blur(18px) saturate(1.15) !important;
             -webkit-backdrop-filter: blur(18px) saturate(1.15) !important;
@@ -3465,6 +3467,7 @@ def configurar_layout():
         [data-testid="stNumberInput"],
         [data-testid="stDateInput"],
         [data-testid="stSelectbox"],
+        [data-testid="stMultiSelect"],
         [data-testid="stTextArea"] {{
             width: 100% !important;
             max-width: 100% !important;
@@ -3507,8 +3510,8 @@ def configurar_layout():
             background-color: {COR_INPUT_BG} !important;
         }}
 
-        /* --- Altura 48px (texto, número, data, select); texto longo em área de texto --- */
-        .stTextInput input, .stNumberInput input, .stDateInput input, div[data-baseweb="select"] > div {{
+        /* --- Altura 48px: texto, número, data (select/picklist tem regras à parte — várias linhas) --- */
+        .stTextInput input, .stNumberInput input, .stDateInput input {{
             height: var(--dv-input-height) !important;
             min-height: var(--dv-input-height) !important;
             padding: 0 15px !important;
@@ -3545,16 +3548,7 @@ def configurar_layout():
             align-items: center !important;
         }}
 
-        div[data-baseweb="select"] span {{
-            text-align: left !important;
-            display: flex !important;
-            align-items: center !important;
-            height: 100% !important;
-            color: {COR_INPUT_TEXTO} !important;
-            -webkit-text-fill-color: {COR_INPUT_TEXTO} !important;
-        }}
-
-        div[data-testid="stDateInput"] > div, div[data-baseweb="select"] > div {{
+        div[data-testid="stDateInput"] > div {{
             background-color: {COR_INPUT_BG} !important;
             border: 1px solid #e2e8f0 !important;
             border-radius: var(--dv-input-radius) !important;
@@ -3563,6 +3557,61 @@ def configurar_layout():
             min-height: var(--dv-input-height) !important;
             height: var(--dv-input-height) !important;
             box-sizing: border-box !important;
+        }}
+
+        /* st.selectbox / st.multiselect (picklists): quebra de linha no valor fechado e nas opções abertas — não afeta text_input/number_input */
+        [data-testid="stSelectbox"] div[data-baseweb="select"] > div,
+        [data-testid="stMultiSelect"] div[data-baseweb="select"] > div {{
+            background-color: {COR_INPUT_BG} !important;
+            border: 1px solid #e2e8f0 !important;
+            border-radius: var(--dv-input-radius) !important;
+            display: flex !important;
+            align-items: flex-start !important;
+            justify-content: space-between !important;
+            gap: 8px !important;
+            min-height: var(--dv-input-height) !important;
+            height: auto !important;
+            max-height: none !important;
+            padding: 8px 12px !important;
+            box-sizing: border-box !important;
+            overflow: visible !important;
+        }}
+        [data-testid="stSelectbox"] div[data-baseweb="select"] > div > div,
+        [data-testid="stSelectbox"] div[data-baseweb="select"] span,
+        [data-testid="stMultiSelect"] div[data-baseweb="select"] > div > div,
+        [data-testid="stMultiSelect"] div[data-baseweb="select"] span {{
+            text-align: left !important;
+            white-space: normal !important;
+            word-break: break-word !important;
+            overflow-wrap: break-word !important;
+            text-overflow: unset !important;
+            overflow: visible !important;
+            height: auto !important;
+            max-height: none !important;
+            line-height: 1.38 !important;
+            color: {COR_INPUT_TEXTO} !important;
+            -webkit-text-fill-color: {COR_INPUT_TEXTO} !important;
+            display: block !important;
+            flex: 1 1 auto !important;
+            min-width: 0 !important;
+        }}
+        [data-testid="stSelectbox"] div[data-baseweb="select"] svg,
+        [data-testid="stMultiSelect"] div[data-baseweb="select"] svg {{
+            flex-shrink: 0 !important;
+            align-self: center !important;
+        }}
+        /* Opções abertas do picklist (listbox no popover), incl. no móvel */
+        ul[role="listbox"] [role="option"],
+        div[data-baseweb="popover"] ul[role="listbox"] [role="option"] {{
+            white-space: normal !important;
+            word-break: break-word !important;
+            overflow-wrap: break-word !important;
+            text-overflow: unset !important;
+            overflow: visible !important;
+            height: auto !important;
+            min-height: 2.5rem !important;
+            line-height: 1.35 !important;
+            align-items: flex-start !important;
         }}
 
         div[data-testid="stDateInput"] div[data-baseweb="input"] {{
@@ -4540,28 +4589,6 @@ def configurar_layout():
                 .finan-subs-narrow {{ display: block !important; }}
             }}
         }}
-        .finan-subs-stack-intro {{
-            font-size: clamp(0.8rem, 2.1vw, 0.9rem);
-            color: #334155;
-            line-height: 1.45;
-            margin: 0 0 0.85rem 0;
-            padding: 0.65rem 0.75rem;
-            background: #f8fafc;
-            border: 1px solid #e2e8f0;
-            border-radius: var(--dv-radius-md, 8px);
-        }}
-        .finan-subs-stack-intro p {{
-            margin: 0 0 0.5rem 0;
-            font-weight: 700;
-            color: #111111;
-        }}
-        .finan-subs-stack-intro ul {{
-            margin: 0;
-            padding-left: 1.15rem;
-        }}
-        .finan-subs-stack-intro li {{
-            margin: 0.25rem 0;
-        }}
         .finan-subs-mini-heading {{
             text-align: center;
             font-weight: 700;
@@ -4569,6 +4596,9 @@ def configurar_layout():
             color: #111111;
             margin: 0.85rem 0 0.35rem 0;
             line-height: 1.35;
+        }}
+        .finan-subs-narrow > .finan-subs-mini-heading:first-of-type {{
+            margin-top: 0;
         }}
         .finan-subs-narrow .finan-subsidios-tbl {{
             margin-bottom: 0.15rem;
@@ -4672,6 +4702,27 @@ def configurar_layout():
             opacity: 0.72;
             position: relative;
             z-index: 0;
+        }}
+        /* Telemóvel: uma coluna — referências alinhadas ao campo (esquerda), não duas linhas “centralizadas” */
+        @media (max-width: 768px) {{
+            .inline-ref,
+            .inline-ref p,
+            p.inline-ref {{
+                text-align: left !important;
+            }}
+            .dv-campo-resumo-movel {{
+                text-align: left !important;
+            }}
+            .inline-ref-vcx-linhas {{
+                display: flex !important;
+                flex-direction: column !important;
+                align-items: flex-start !important;
+                gap: 0.35rem !important;
+                text-align: left !important;
+            }}
+            .inline-ref-vcx-sep {{
+                display: none !important;
+            }}
         }}
 
         .metric-label {{
@@ -5563,7 +5614,7 @@ def aba_simulador_automacao(
 <thead>
 <tr>
 <th rowspan="2">Fator Social</th>
-<th rowspan="2">Cotista do Fundo de Garantia do Tempo de Serviço</th>
+<th rowspan="2">Cotista FGTS</th>
 <th colspan="2">Faixa 2 - Imóveis até 275k</th>
 <th colspan="2">Faixa 3 - Imóveis até 400k</th>
 </tr>
@@ -5578,14 +5629,6 @@ def aba_simulador_automacao(
 </table>
 </div>
 <div class="finan-subs-narrow">
-<div class="finan-subs-stack-intro">
-<p>O que cada coluna significa</p>
-<ul>
-<li><strong>Fator Social</strong>: se a combinação considera fator social (Sim ou Não).</li>
-<li><strong>Cotista do FGTS</strong>: se considera cotista do Fundo de Garantia do Tempo de Serviço (Sim ou Não).</li>
-<li><strong>Financiamento</strong> e <strong>Subsídios</strong>: valores de referência em R$ na base Financiamentos, para a faixa indicada.</li>
-</ul>
-</div>
 <div class="finan-subs-mini-heading">Faixa 2 — imóveis até 275 mil (referência curva)</div>
 <table class="finan-subsidios-tbl">
 <thead>
@@ -6440,7 +6483,7 @@ def aba_simulador_automacao(
             key="btn_ps_preencher_restante",
             use_container_width=True,
             on_click=_preencher_ps_restante,
-            help="Usa o saldo ainda não coberto (valor líquido da unidade após descontos, menos financiamento, Fundo de Garantia do Tempo de Serviço e subsídio e atos), limitado ao teto de Pro Soluto.",
+            help="Usa o saldo ainda não coberto (valor líquido da unidade após descontos, menos financiamento, FGTS + subsídio e atos), limitado ao teto de Pro Soluto.",
         )
         st.write("")
         j8_ui = float(mps.get("parcela_max_j8") or 0)
@@ -6522,7 +6565,7 @@ def aba_simulador_automacao(
         st.session_state.dados_cliente['ps_mensal'] = v_parc
         st.session_state.dados_cliente['ps_mensal_simples'] = (float(ps_input_val or 0) / parc) if parc > 0 else 0.0
         st.markdown(
-            f'<div style="margin: 0 0 0.5rem 0; font-weight: 600; color: #111111; text-align: center;">'
+            f'<div class="dv-campo-resumo-movel" style="margin: 0 0 0.5rem 0; font-weight: 600; color: #111111; text-align: center;">'
             f"Mensalidade do Pro Soluto: {reais_streamlit_html(fmt_br(v_parc))} ({parc} parcelas)</div>",
             unsafe_allow_html=True,
         )
@@ -6616,15 +6659,16 @@ def aba_simulador_automacao(
                 st.session_state["volta_caixa_key"] = float_para_campo_texto(vc_input_val, vazio_se_zero=True)
             _vc_pres_ui = max(0.0, vc_ref_top - vc_input_val)
             st.markdown(
-                f'<div class="inline-ref" style="color:#111111;opacity:0.85;">'
-                f"Limite Volta ao Caixa: {reais_streamlit_html(fmt_br(vc_ref_top))}"
-                f' &nbsp;|&nbsp; Volta ao Caixa preservado: {reais_streamlit_html(fmt_br(_vc_pres_ui))}'
+                f'<div class="inline-ref inline-ref-vcx-linhas" style="color:#111111;opacity:0.85;">'
+                f'<span class="inline-ref-vcx-linha">Limite Volta ao Caixa: {reais_streamlit_html(fmt_br(vc_ref_top))}</span>'
+                f'<span class="inline-ref-vcx-sep" aria-hidden="true"> · </span>'
+                f'<span class="inline-ref-vcx-linha">Volta ao Caixa preservado: {reais_streamlit_html(fmt_br(_vc_pres_ui))}</span>'
                 f"</div>",
                 unsafe_allow_html=True,
             )
             _v_pos_vcx_ui = max(0.0, u_valor - vc_input_val)
             st.markdown(
-                '<div style="margin:4px 0 18px 0;font-weight:600;color:#111111;text-align:center;line-height:1.45;">'
+                '<div class="dv-campo-resumo-movel" style="margin:4px 0 18px 0;font-weight:600;color:#111111;text-align:center;line-height:1.45;">'
                 f"Valor da unidade (após volta ao caixa): "
                 f"{reais_streamlit_html(fmt_br(_v_pos_vcx_ui))}</div>",
                 unsafe_allow_html=True,
@@ -6660,7 +6704,7 @@ def aba_simulador_automacao(
                 )
             v_liquido = max(0.0, u_valor - vc_input_val - outros_desc)
             st.markdown(
-                f'<div style="margin:0 0 var(--dv-stack-gap) 0;font-weight:600;color:#111111;text-align:center;line-height:1.45;">'
+                f'<div class="dv-campo-resumo-movel" style="margin:0 0 var(--dv-stack-gap) 0;font-weight:600;color:#111111;text-align:center;line-height:1.45;">'
                 f"Valor final da unidade (após todos os descontos): "
                 f"{reais_streamlit_html(fmt_br(v_liquido))}</div>",
                 unsafe_allow_html=True,
