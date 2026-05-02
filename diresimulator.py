@@ -1317,18 +1317,47 @@ def scroll_to_top():
     js = """<script>var body = window.parent.document.querySelector(".main"); if (body) { body.scrollTop = 0; } window.scrollTo(0, 0);</script>"""
     _st_iframe_html_snippet(js, height=0)
 
-def inject_enter_confirma_campo():
-    """Enter em campo de texto não submete o fluxo: apenas confirma o campo (blur)."""
-    js = r"""
+def inject_dv_parent_ui_scripts():
+    """Um único st.iframe: marca `data-dv-reduced-motion`, Enter→blur no documento pai, popup campanhas.
+
+    Evita vários `stElementContainer` + `gap` vertical empilhados antes/entre blocos visíveis.
+    """
+    html = r"""
 <script>
 (function () {
+  var doc = document;
+  try {
+    if (window.parent && window.parent !== window && window.parent.document) {
+      doc = window.parent.document;
+    }
+  } catch (e) {
+    doc = document;
+  }
+  var root = doc.documentElement;
+  if (!root || root.getAttribute("data-dv-ui-runtime") === "1") return;
+  root.setAttribute("data-dv-ui-runtime", "1");
+  try {
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      root.setAttribute("data-dv-reduced-motion", "1");
+    }
+  } catch (e2) {}
+})();
+(function () {
+  var doc = document;
+  try {
+    if (window.parent && window.parent !== window && window.parent.document) {
+      doc = window.parent.document;
+    }
+  } catch (e0) {
+    doc = document;
+  }
   function isTextLike(el) {
     if (!el || !el.closest) return false;
     return el.closest('[data-testid="stTextInput"]') != null
       || el.closest('[data-testid="stNumberInput"]') != null
       || el.closest('[data-baseweb="input"]') != null;
   }
-  document.addEventListener("keydown", function (e) {
+  doc.addEventListener("keydown", function (e) {
     if (e.key !== "Enter" || e.isComposing) return;
     var t = e.target;
     if (!t || (t.tagName !== "INPUT" && t.tagName !== "TEXTAREA")) return;
@@ -1345,18 +1374,6 @@ def inject_enter_confirma_campo():
     }
   }, true);
 })();
-</script>
-"""
-    _st_iframe_html_snippet(js, height=0, width=0)
-
-
-def inject_home_banner_dialog_modal():
-    """Popup de campanha: overlay criado em JS (o Streamlit sanitiza o markdown e costuma remover <dialog>).
-
-    Dados vêm de data-dv-src (URL) e data-dv-t64 / data-dv-b64 (título e texto em UTF-8 base64).
-    """
-    js = r"""
-<script>
 (function () {
   function b64ToUtf8(b64) {
     if (!b64) return "";
@@ -1509,34 +1526,7 @@ def inject_home_banner_dialog_modal():
 })();
 </script>
 """
-    _st_iframe_html_snippet(js, height=0, width=0)
-
-
-def inject_modern_ui_runtime():
-    """Marca o documento com preferências de movimento para CSS; JS vanilla no parent (Streamlit usa React internamente - não há runtime React app embutível neste ficheiro)."""
-    js = r"""
-<script>
-(function () {
-  var doc = document;
-  try {
-    if (window.parent && window.parent !== window && window.parent.document) {
-      doc = window.parent.document;
-    }
-  } catch (e) {
-    doc = document;
-  }
-  var root = doc.documentElement;
-  if (!root || root.getAttribute("data-dv-ui-runtime") === "1") return;
-  root.setAttribute("data-dv-ui-runtime", "1");
-  try {
-    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
-      root.setAttribute("data-dv-reduced-motion", "1");
-    }
-  } catch (e2) {}
-})();
-</script>
-"""
-    _st_iframe_html_snippet(js, height=0, width=0)
+    _st_iframe_html_snippet(html, height=1)
 
 
 # =============================================================================
@@ -2566,6 +2556,7 @@ def configurar_layout():
 
     bg_url = _css_url_fundo_simulador().replace("&", "&amp;")
     st.markdown(f"""
+        <div class="dv-css-inject-marker" aria-hidden="true"></div>
         <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Montserrat:wght@400;600;700;800;900&display=swap');
         /* Barra superior: alterna azul ↔ vermelho marca, sempre opaca (sem “esvair”) */
@@ -2881,6 +2872,26 @@ def configurar_layout():
         .block-container [data-testid="stMarkdownContainer"]:has(.header-container) {{
             margin-top: 0 !important;
             padding-top: 0 !important;
+        }}
+        /* Slot só de CSS (marker + style): não “empurra” o cabeçalho no gap do bloco vertical */
+        .block-container [data-testid="stVerticalBlock"] > div[data-testid="stElementContainer"]:has(.dv-css-inject-marker) {{
+            margin-top: 0 !important;
+            margin-bottom: calc(-1 * var(--dv-rhythm)) !important;
+        }}
+        .block-container [data-testid="stVerticalBlock"] > div[data-testid="stElementContainer"]:has(.dv-css-inject-marker) [data-testid="stMarkdownContainer"] {{
+            padding: 0 !important;
+            margin: 0 !important;
+            min-height: 0 !important;
+        }}
+        .block-container [data-testid="stVerticalBlock"] > div[data-testid="stElementContainer"]:has(.dv-css-inject-marker) .dv-css-inject-marker {{
+            display: none !important;
+        }}
+        /* Único iframe de scripts logo após o header: remove intervalo duplo do flex gap */
+        .block-container [data-testid="stVerticalBlock"] > div[data-testid="stElementContainer"]:has(.header-container) + div[data-testid="stElementContainer"]:has([data-testid="stIFrame"]) {{
+            margin-top: calc(-1 * var(--dv-rhythm)) !important;
+            margin-bottom: calc(-1 * var(--dv-rhythm)) !important;
+            padding-top: 0 !important;
+            padding-bottom: 0 !important;
         }}
         .block-container [data-testid="stHorizontalBlock"] {{
             gap: var(--dv-rhythm) !important;
@@ -4681,7 +4692,7 @@ def aba_simulador_automacao(
         df_campanhas_texto if df_campanhas_texto is not None else pd.DataFrame(),
         user_is_adm=bool(st.session_state.get("user_is_adm")),
     )
-    inject_home_banner_dialog_modal()
+    # Popup campanhas: JS em `inject_dv_parent_ui_scripts()` (main, iframe único).
 
     # --- PÁGINA ÚNICA: perfil → valores → recomendações → unidade → distribuição (ordem fixa) ---
     if passo == 'sim':
@@ -6060,8 +6071,6 @@ def _sessao_sem_login_defaults() -> None:
 
 def main():
     configurar_layout()
-    inject_modern_ui_runtime()
-    inject_enter_confirma_campo()
     _sessao_sem_login_defaults()
 
     logo_src = html_std.escape(_src_logo_topo_header(), quote=True)
@@ -6074,6 +6083,7 @@ def main():
 </header>''',
         unsafe_allow_html=True,
     )
+    inject_dv_parent_ui_scripts()
 
     with st.spinner("A carregar o simulador…"):
         (
