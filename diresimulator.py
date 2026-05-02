@@ -841,15 +841,11 @@ import streamlit as st
 
 def _st_iframe_html_snippet(html: str, *, height: int = 0, width: int | None = None) -> None:
     """Substitui st.components.v1.html (deprecado). Scripts devem usar window.parent como antes."""
-    # st.iframe rejeita height=0 e width=0 (StreamlitInvalidHeightError / StreamlitInvalidWidthError).
-    kw: dict = {}
-    hi = int(height or 0)
-    kw["height"] = hi if hi > 0 else "content"
+    # st.iframe rejeita width=0 (StreamlitInvalidWidthError).
+    kw: dict = {"height": height}
     if width is not None and int(width) > 0:
         kw["width"] = int(width)
     st.iframe(html, **kw)
-
-
 import pandas as pd
 import re
 from streamlit_gsheets import GSheetsConnection
@@ -1349,7 +1345,7 @@ def inject_enter_confirma_campo():
 })();
 </script>
 """
-    _st_iframe_html_snippet(js, height=0)
+    _st_iframe_html_snippet(js, height=0, width=0)
 
 
 def inject_login_password_manager_fields():
@@ -1389,7 +1385,7 @@ def inject_login_password_manager_fields():
 })();
 </script>
 """
-    _st_iframe_html_snippet(js, height=0)
+    _st_iframe_html_snippet(js, height=0, width=0)
 
 
 def inject_home_banner_dialog_modal():
@@ -1551,7 +1547,7 @@ def inject_home_banner_dialog_modal():
 })();
 </script>
 """
-    _st_iframe_html_snippet(js, height=0)
+    _st_iframe_html_snippet(js, height=0, width=0)
 
 
 def inject_modern_ui_runtime():
@@ -1578,7 +1574,7 @@ def inject_modern_ui_runtime():
 })();
 </script>
 """
-    _st_iframe_html_snippet(js, height=0)
+    _st_iframe_html_snippet(js, height=0, width=0)
 
 
 # =============================================================================
