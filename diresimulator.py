@@ -1315,10 +1315,11 @@ def montar_mensagem_whatsapp_resumo(
     linhas.append(item("Empreendimento", d.get("empreendimento_nome", "-")))
     linhas.append(item("Unidade", d.get("unidade_id", "-")))
     linhas.append(item("Valor de venda (lista)", f"R$ {fmt_br(v_total)}"))
-    linhas.append(item("Desconto Volta ao Caixa", f"R$ {fmt_br(vc_apl)}"))
-    linhas.append(item("Outros descontos", f"R$ {fmt_br(outros_apl_wa)}"))
+    _desc_wa = vc_apl + outros_apl_wa
+    if _desc_wa > 0.009:
+        linhas.append(item("Descontos Concedidos", f"R$ {fmt_br(_desc_wa)}"))
     _mot_wa = str(d.get("outros_descontos_motivo") or "").strip()
-    if _mot_wa:
+    if outros_apl_wa > 0.009 and _mot_wa:
         linhas.append(item("Origem dos outros descontos", _mot_wa))
     linhas.append(item("Valor final da unidade", f"R$ {fmt_br(v_final_wa)}"))
     if d.get("unid_entrega"):
@@ -1335,8 +1336,6 @@ def montar_mensagem_whatsapp_resumo(
     linhas.extend(
         [
             "",
-            f"*Pro Soluto (política): {_wa_escape_texto(_pol_ps_label)}*",
-            "",
             "*Financiamento*",
             item("Financiamento utilizado", brs("finan_usado", 0)),
             item("Sistema de amortização e prazo", f"{amort} - {prazo} meses"),
@@ -1344,6 +1343,19 @@ def montar_mensagem_whatsapp_resumo(
             item("FGTS + subsídio", brs("fgts_sub_usado", 0)),
             "",
             "*Entrada e Pro Soluto*",
+        ]
+    )
+    if _politica_emcash(d.get("politica")):
+        linhas.append(
+            item(
+                "Política de Pro Soluto",
+                f"{_pol_ps_label} ({_wa_escape_texto(_EMCASH_NOTA_PARCELAS)})",
+            )
+        )
+    else:
+        linhas.append(item("Política de Pro Soluto", _pol_ps_label))
+    linhas.extend(
+        [
             item("Pro Soluto (valor)", brs("ps_usado", 0)),
             item("Número de parcelas do Pro Soluto", d.get("ps_parcelas", "-")),
             item("Mensalidade do Pro Soluto", brs("ps_mensal", 0)),
@@ -1351,19 +1363,8 @@ def montar_mensagem_whatsapp_resumo(
         ]
     )
     if _politica_emcash(d.get("politica")):
-        linhas.append(f"• *{_EMCASH_NOTA_PARCELAS}*")
-        linhas.append(
-            item(
-                "Ato 30 (prestação entrada; juros + correção +IPCA)",
-                brs("ato_30", 0),
-            )
-        )
-        linhas.append(
-            item(
-                "Ato 60 (prestação entrada; juros + correção +IPCA)",
-                brs("ato_60", 0),
-            )
-        )
+        linhas.append(item("Ato 30", brs("ato_30", 0)))
+        linhas.append(item("Ato 60", brs("ato_60", 0)))
     else:
         linhas.append(item("Ato 30", brs("ato_30", 0)))
         linhas.append(item("Ato 60", brs("ato_60", 0)))
@@ -5269,14 +5270,14 @@ def gerar_resumo_pdf(d, volta_caixa_val: float = 0.0):
 
         pdf.ln(2)
         secao("Dados do imóvel")
-        linha("Nome do Cliente ou Imobiliária", _pdf_text_seguro(d.get("nome", "-")))
         linha("Empreendimento", _pdf_text_seguro(d.get("empreendimento_nome")))
         linha("Unidade", _pdf_text_seguro(d.get("unidade_id")))
         linha("Valor de venda (lista)", f"R$ {fmt_br(v_total)}", True)
-        linha("Desconto Volta ao Caixa", f"R$ {fmt_br(vc_apl)}")
-        linha("Outros descontos", f"R$ {fmt_br(outros_pdf)}")
+        _desc_pdf = vc_apl + outros_pdf
+        if _desc_pdf > 0.009:
+            linha("Descontos Concedidos", f"R$ {fmt_br(_desc_pdf)}")
         _mot_pdf = str(d.get("outros_descontos_motivo") or "").strip()
-        if _mot_pdf:
+        if outros_pdf > 0.009 and _mot_pdf:
             pdf.set_font("Helvetica", "", 9)
             pdf.set_text_color(70, 80, 95)
             pdf.multi_cell(
@@ -5312,35 +5313,21 @@ def gerar_resumo_pdf(d, volta_caixa_val: float = 0.0):
         linha("FGTS + subsídio", f"R$ {fmt_br(d.get('fgts_sub_usado', 0))}")
 
         pdf.ln(2)
-        secao("Pro Soluto")
-        linha("Política utilizada", _pdf_text_seguro(_pol_pdf_label))
-
-        pdf.ln(2)
         secao("Entrada e Pro Soluto")
         if _politica_emcash(d.get("politica")):
-            pdf.set_font("Helvetica", "I", 8)
-            pdf.set_text_color(70, 80, 95)
-            pdf.multi_cell(
-                largura_util,
-                4,
-                _pdf_text_seguro(_EMCASH_NOTA_PARCELAS),
-                ln=True,
+            linha(
+                "Política de Pro Soluto",
+                _pdf_text_seguro(f"{_pol_pdf_label} ({_EMCASH_NOTA_PARCELAS})"),
             )
-            pdf.ln(1)
-            pdf.set_text_color(*AZUL)
+        else:
+            linha("Política de Pro Soluto", _pdf_text_seguro(_pol_pdf_label))
         linha("Pro Soluto (valor)", f"R$ {fmt_br(d.get('ps_usado', 0))}")
         linha("Número de parcelas do Pro Soluto", _pdf_text_seguro(d.get("ps_parcelas")))
         linha("Mensalidade do Pro Soluto", f"R$ {fmt_br(d.get('ps_mensal', 0))}")
         linha("Ato 1 (Entrada Imediata)", f"R$ {fmt_br(d.get('ato_final', 0))}")
         if _politica_emcash(d.get("politica")):
-            linha(
-                "Ato 30 (prestação entrada; juros + correção +IPCA)",
-                f"R$ {fmt_br(d.get('ato_30', 0))}",
-            )
-            linha(
-                "Ato 60 (prestação entrada; juros + correção +IPCA)",
-                f"R$ {fmt_br(d.get('ato_60', 0))}",
-            )
+            linha("Ato 30", f"R$ {fmt_br(d.get('ato_30', 0))}")
+            linha("Ato 60", f"R$ {fmt_br(d.get('ato_60', 0))}")
         else:
             linha("Ato 30", f"R$ {fmt_br(d.get('ato_30', 0))}")
             linha("Ato 60", f"R$ {fmt_br(d.get('ato_60', 0))}")
@@ -5455,16 +5442,8 @@ def enviar_email_smtp(destinatario, nome_cliente, pdf_bytes, dados_cliente, tipo
             "                                        </tr>\n"
         )
     )
-    _lbl_cor_ato30 = (
-        "&nbsp;&nbsp;↳ Ato 30 (prestação entrada; juros + correção +IPCA)"
-        if _emcash_corretor
-        else "&nbsp;&nbsp;↳ Ato 30"
-    )
-    _lbl_cor_ato60 = (
-        "&nbsp;&nbsp;↳ Ato 60 (prestação entrada; juros + correção +IPCA)"
-        if _emcash_corretor
-        else "&nbsp;&nbsp;↳ Ato 60"
-    )
+    _lbl_cor_ato30 = "&nbsp;&nbsp;↳ Ato 30"
+    _lbl_cor_ato60 = "&nbsp;&nbsp;↳ Ato 60"
     _html_nota_emcash_entrada = (
         '<p style="font-size:12px;color:#334155;margin:0 0 12px 0;line-height:1.45;">'
         f"{html_std.escape(_EMCASH_NOTA_PARCELAS)}</p>"
@@ -6474,7 +6453,7 @@ def aba_simulador_automacao(
                 '<p class="dv-sinal-com-prosa">'
                 "O campo <strong>Sinal com</strong> tem a finalidade de abater da <strong>avaliação bancária</strong> "
                 "unidades pouco acima do limite da faixa anterior, a fim de que o cliente possa pegar maior financiamento. "
-                "Os valores de <strong>financiamento automáticos</strong> seguirão o valor da unidade após abatimento "
+                "Os valores de <strong>financiamento e subsídio automáticos</strong> seguirão o valor da unidade após abatimento "
                 "(caso seja feito), não só o valor da unidade cheio. "
                 "<strong>Faixa 2:</strong> imóveis até 275 mil; <strong>Faixa 3:</strong> imóveis até 400 mil. "
                 "Caso o valor seja pouco acima disso, use o campo para abater.</p>",
@@ -6500,7 +6479,7 @@ def aba_simulador_automacao(
                     f"{reais_streamlit_html(fmt_br(_sug_sinal))}"
                     f"<strong> de abatimento para que a avaliação efetiva fique na </strong>faixa 3"
                     f"<strong> (limite 400 mil).</strong></p>"
-                    f'<p class="inline-ref" style="margin:0;line-height:1.45;">'
+                    f'<p class="inline-ref" style="margin:0.9rem 0 0;line-height:1.45;">'
                     f"<strong>Valor de Avaliação com Sinal Com:</strong> "
                     f"{reais_streamlit_html(fmt_br(_val_ef_sinal))}</p>",
                     unsafe_allow_html=True,
@@ -6512,7 +6491,7 @@ def aba_simulador_automacao(
                     f"<strong>Imóvel </strong>faixa 3<strong> no preço cheio. É necessário </strong>"
                     f"{reais_streamlit_html(fmt_br(_sug_sinal))}"
                     f"<strong> de abatimento para que seja classificado como </strong>faixa 2<strong>.</strong></p>"
-                    f'<p class="inline-ref" style="margin:0;line-height:1.45;">'
+                    f'<p class="inline-ref" style="margin:0.9rem 0 0;line-height:1.45;">'
                     f"<strong>Valor de Avaliação com Sinal Com:</strong> "
                     f"{reais_streamlit_html(fmt_br(_val_ef_sinal))}</p>",
                     unsafe_allow_html=True,
@@ -6522,25 +6501,11 @@ def aba_simulador_automacao(
                     f'<p class="inline-ref" style="margin-top:0;margin-bottom:0.35rem;line-height:1.45;">'
                     "<strong>Avaliação na </strong>faixa 2<strong> (até 275 mil). O </strong>Sinal com"
                     "<strong> é opcional se quiser ajuste fino da referência da curva.</strong></p>"
-                    f'<p class="inline-ref" style="margin:0;line-height:1.45;">'
+                    f'<p class="inline-ref" style="margin:0.9rem 0 0;line-height:1.45;">'
                     f"<strong>Valor de Avaliação com Sinal Com:</strong> "
                     f"{reais_streamlit_html(fmt_br(_val_ef_sinal))}</p>",
                     unsafe_allow_html=True,
                 )
-            _, _, _faixa_pre_sinal_pos = motor.obter_enquadramento(
-                _renda_sinal_pos, True, True, valor_avaliacao=_val_bruto_sinal
-            )
-            _, _, _faixa_pos_sinal_pos = motor.obter_enquadramento(
-                _renda_sinal_pos, True, True, valor_avaliacao=_val_ef_sinal
-            )
-            st.markdown(
-                f'<p class="inline-ref" style="margin:0;line-height:1.45;">'
-                f"Avaliação na unidade: {reais_streamlit_html(fmt_br(_val_bruto_sinal))} "
-                f"· Efetiva na curva: {reais_streamlit_html(fmt_br(_val_ef_sinal))} "
-                f"· Faixa (cheia): <strong>{html_std.escape(str(_faixa_pre_sinal_pos))}</strong> "
-                f"· Faixa (após sinal): <strong>{html_std.escape(str(_faixa_pos_sinal_pos))}</strong></p>",
-                unsafe_allow_html=True,
-            )
             st.session_state.dados_cliente["sinal_com"] = float(_sinal_apl_pos)
             st.session_state.dados_cliente["imovel_avaliacao_curva_efetiva"] = float(_val_ef_sinal)
 
@@ -6963,22 +6928,12 @@ def aba_simulador_automacao(
         if float(ps_input_val or 0) > 0 and j8_ui > 0:
             if n_min_j8 is not None:
                 _nmj = int(n_min_j8)
-                _pmax = int(parc_max_ui)
-                if _nmj >= _pmax:
-                    st.markdown(
-                        '<p class="inline-ref" style="margin-top:0;margin-bottom:0;line-height:1.45;">'
-                        f"Parcelas mínimas necessárias: <strong>{html_std.escape(str(_nmj))}</strong> "
-                        f"(prazo máximo da política; prestação dentro do teto J8 "
-                        f"{reais_streamlit_html(fmt_br(j8_ui))}/mês).</p>",
-                        unsafe_allow_html=True,
-                    )
-                else:
-                    st.markdown(
-                        '<p class="inline-ref" style="margin-top:0;margin-bottom:0;line-height:1.45;">'
-                        f"Parcelas mínimas necessárias: <strong>{html_std.escape(str(_nmj))}</strong> "
-                        f"(teto J8 {reais_streamlit_html(fmt_br(j8_ui))}/mês).</p>",
-                        unsafe_allow_html=True,
-                    )
+                st.markdown(
+                    '<p class="inline-ref" style="margin-top:0;margin-bottom:0;line-height:1.45;">'
+                    f"Parcelas mínimas necessárias: <strong>{html_std.escape(str(_nmj))}</strong> "
+                    f"(teto J8 {reais_streamlit_html(fmt_br(j8_ui))}/mês).</p>",
+                    unsafe_allow_html=True,
+                )
             else:
                 _dv_alerta_vermelho(
                     "Com este valor de Pro Soluto e o prazo máximo permitido, a prestação pode "
@@ -7158,8 +7113,6 @@ def aba_simulador_automacao(
             _out_sum = max(0.0, float(d.get("outros_descontos", 0) or 0))
         except (TypeError, ValueError):
             _out_sum = 0.0
-        _vc_ref_sum = max(0.0, float(d.get("volta_caixa_ref", 0) or 0))
-        _vc_preservado_sum = max(0.0, _vc_ref_sum - _vc_sum)
         v_emp_total = max(0.0, float(d.get("imovel_valor", 0) or 0))
         try:
             v_final_sum = float(d.get("valor_final_unidade", 0) or 0)
@@ -7172,6 +7125,11 @@ def aba_simulador_automacao(
             unsafe_allow_html=True,
         )
         _nome_cli = str(d.get("nome", "") or "").strip() or "—"
+        st.markdown(
+            f'<p style="text-align:center;margin:0 0 var(--dv-stack-gap) 0;line-height:1.5;color:#111;font-weight:600;">'
+            f"<b>Nome do Cliente ou Imobiliária:</b> {html_std.escape(_nome_cli)}</p>",
+            unsafe_allow_html=True,
+        )
         _cpf_d = re.sub(r"\D", "", str(d.get("cpf") or ""))
         _cpf_linha = ""
         if len(_cpf_d) == 11:
@@ -7183,7 +7141,6 @@ def aba_simulador_automacao(
             f"<b>Ranking do cliente:</b> {html_std.escape(_rank_s)}<br>" if _rank_s else ""
         )
         _cliente_inner = (
-            f"<b>Nome:</b> {html_std.escape(_nome_cli)}<br>"
             f"{_cpf_linha}"
             f"{_rank_linha}"
             f"<b>Renda familiar total:</b> {reais_streamlit_html(fmt_br(d.get('renda', 0)))}<br>"
@@ -7193,11 +7150,14 @@ def aba_simulador_automacao(
             f"<b>Unidade:</b> {html_std.escape(str(d.get('unidade_id') or '—'))}<br>"
             f"<b>Valor de venda (lista):</b> <span style=\"color: #111111; font-weight: 700;\">"
             f"{reais_streamlit_html(fmt_br(v_emp_total))}</span><br>"
-            f"<b>Desconto Volta ao Caixa:</b> {reais_streamlit_html(fmt_br(_vc_sum))}<br>"
-            f"<b>Outros descontos:</b> {reais_streamlit_html(fmt_br(_out_sum))}<br>"
         )
+        _desc_combinado = _vc_sum + _out_sum
+        if _desc_combinado > 0.009:
+            _imovel_inner += (
+                f"<b>Descontos Concedidos:</b> {reais_streamlit_html(fmt_br(_desc_combinado))}<br>"
+            )
         _mot_sum = str(d.get("outros_descontos_motivo") or "").strip()
-        if _mot_sum:
+        if _out_sum > 0.009 and _mot_sum:
             _imovel_inner += (
                 f"<b>Origem dos outros descontos:</b> "
                 f"<span style=\"color:#334155;\">{html_std.escape(_mot_sum)}</span><br>"
@@ -7205,7 +7165,6 @@ def aba_simulador_automacao(
         _imovel_inner += (
             f"<b>Valor final da unidade:</b> <span style=\"color: #111111; font-weight: 700;\">"
             f"{reais_streamlit_html(fmt_br(v_final_sum))}</span><br>"
-            f"<b>Volta ao caixa preservado:</b> {reais_streamlit_html(fmt_br(_vc_preservado_sum))}<br>"
         )
         if d.get("unid_entrega"):
             _imovel_inner += (
@@ -7234,16 +7193,6 @@ def aba_simulador_automacao(
         )
 
         _em_sum = _politica_emcash(d.get("politica"))
-        _lbl_a30_sum = (
-            "Ato 30 (prestação entrada; juros + correção +IPCA)"
-            if _em_sum
-            else "Ato 30"
-        )
-        _lbl_a60_sum = (
-            "Ato 60 (prestação entrada; juros + correção +IPCA)"
-            if _em_sum
-            else "Ato 60"
-        )
         _linha_resumo_ato_90 = (
             ""
             if _em_sum
@@ -7252,39 +7201,33 @@ def aba_simulador_automacao(
         _a1 = float(d.get("ato_final", 0) or 0)
         _a2 = float(d.get("ato_30", 0) or 0)
         _a3 = float(d.get("ato_60", 0) or 0)
-        _a4 = float(d.get("ato_90", 0) or 0)
-        _tot_atos = _a1 + _a2 + _a3 + _a4
-        _ent_inner = (
-            f"<b>Ato 1 (entrada imediata):</b> {reais_streamlit_html(fmt_br(_a1))}<br>"
-            f"<b>{html_std.escape(_lbl_a30_sum)}:</b> {reais_streamlit_html(fmt_br(_a2))}<br>"
-            f"<b>{html_std.escape(_lbl_a60_sum)}:</b> {reais_streamlit_html(fmt_br(_a3))}<br>"
-            f"{_linha_resumo_ato_90}"
-            f"<hr style=\"border:0;border-top:1px solid #e2e8f0;margin:var(--dv-stack-gap) 0;\">"
-            f"<b>Total nos atos (entrada própria):</b> {reais_streamlit_html(fmt_br(_tot_atos))}<br>"
-        )
-
         _ent_resumo = float(d.get("entrada_total", 0) or 0) + float(d.get("ps_usado", 0) or 0)
-        _ps_inner = ""
+        _nota_emcash_paren = html_std.escape(_EMCASH_NOTA_PARCELAS)
+        _entrada_pro_inner = ""
         if _em_sum:
-            _ps_inner += (
-                f'<p style="color:#334155;margin:0 0 var(--dv-stack-gap) 0;line-height:1.45;text-align:center;">'
-                f"{html_std.escape(_EMCASH_NOTA_PARCELAS)}</p>"
+            _entrada_pro_inner += (
+                f"<b>Política de Pro Soluto:</b> {html_std.escape(_pol_sum_label)} "
+                f"<span style=\"color:#334155;font-weight:400;\">({_nota_emcash_paren})</span><br>"
             )
-        _ps_inner += (
-            f"<b>Política de Pro Soluto:</b> {html_std.escape(_pol_sum_label)}<br>"
+        else:
+            _entrada_pro_inner += f"<b>Política de Pro Soluto:</b> {html_std.escape(_pol_sum_label)}<br>"
+        _entrada_pro_inner += (
             f"<b>Pro Soluto (valor):</b> {reais_streamlit_html(fmt_br(d.get('ps_usado', 0)))}<br>"
             f"<b>Número de parcelas do Pro Soluto:</b> {html_std.escape(str(d.get('ps_parcelas')))}<br>"
             f"<b>Mensalidade do Pro Soluto:</b> {reais_streamlit_html(fmt_br(d.get('ps_mensal', 0)))}<br>"
+            f"<b>Ato 1 (Entrada Imediata):</b> {reais_streamlit_html(fmt_br(_a1))}<br>"
+            f"<b>Ato 30:</b> {reais_streamlit_html(fmt_br(_a2))}<br>"
+            f"<b>Ato 60:</b> {reais_streamlit_html(fmt_br(_a3))}<br>"
+            f"{_linha_resumo_ato_90}"
             f"<hr style=\"border:0;border-top:1px solid #e2e8f0;margin:var(--dv-stack-gap) 0;\">"
-            f"<b>Total atos + Pro Soluto:</b> {reais_streamlit_html(fmt_br(_ent_resumo))}<br>"
+            f"<b>Entrada total (atos e Pro Soluto):</b> {reais_streamlit_html(fmt_br(_ent_resumo))}<br>"
         )
 
         _cartoes = (
             _html_cartao_resumo_secao("Dados do cliente", _cliente_inner)
             + _html_cartao_resumo_secao("Dados do imóvel", _imovel_inner)
             + _html_cartao_resumo_secao("Financiamento", _fin_inner)
-            + _html_cartao_resumo_secao("Entrada", _ent_inner)
-            + _html_cartao_resumo_secao("Pro Soluto", _ps_inner)
+            + _html_cartao_resumo_secao("Entrada e Pro Soluto", _entrada_pro_inner)
         )
         st.markdown(
             f'<div class="dv-summary-stack">{_cartoes}</div>',
