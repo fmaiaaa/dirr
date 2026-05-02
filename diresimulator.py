@@ -1352,6 +1352,46 @@ def inject_enter_confirma_campo():
     _st_iframe_html_snippet(js, height=0)
 
 
+def inject_login_password_manager_fields():
+    """Garante atributos que gestores de palavras-passe e o navegador usam para o par e-mail + senha."""
+    js = r"""
+<script>
+(function () {
+  var doc = window.parent.document;
+  function patchLoginInputs() {
+    var forms = doc.querySelectorAll('[data-testid="stForm"]');
+    for (var fi = 0; fi < forms.length; fi++) {
+      var form = forms[fi];
+      var inputs = form.querySelectorAll("input");
+      var passEl = null;
+      var i;
+      for (i = 0; i < inputs.length; i++) {
+        if (inputs[i].type === "password") { passEl = inputs[i]; break; }
+      }
+      if (!passEl) continue;
+      var userEl = null;
+      for (i = 0; i < inputs.length; i++) {
+        var el = inputs[i];
+        if (el === passEl) continue;
+        var t = (el.type || "").toLowerCase();
+        if (t === "text" || t === "email" || t === "") { userEl = el; break; }
+      }
+      if (!userEl) continue;
+      userEl.setAttribute("autocomplete", "username");
+      userEl.setAttribute("name", "username");
+      passEl.setAttribute("autocomplete", "current-password");
+      passEl.setAttribute("name", "password");
+    }
+  }
+  patchLoginInputs();
+  setTimeout(patchLoginInputs, 150);
+  setTimeout(patchLoginInputs, 600);
+})();
+</script>
+"""
+    _st_iframe_html_snippet(js, height=0)
+
+
 def inject_home_banner_dialog_modal():
     """Popup de campanha: overlay criado em JS (o Streamlit sanitiza o markdown e costuma remover <dialog>).
 
@@ -1620,6 +1660,13 @@ def normalizar_df_home_banners(df: pd.DataFrame | None) -> pd.DataFrame:
     return out[list(_COLS_HOME_BANNERS)].copy()
 
 
+def login_row_is_adm(row: pd.Series) -> bool:
+    v = row.get("Adm")
+    if v is None or (isinstance(v, float) and pd.isna(v)):
+        return False
+    return str(v).strip().upper() == "SIM"
+
+
 def _img_url_seguro_https(url: str) -> str | None:
     u = (url or "").strip()
     if not u.startswith("https://"):
@@ -1829,35 +1876,6 @@ def dialog_visualizar_campanha(campanha: dict[str, str]) -> None:
         st.rerun()
 
 
-def _html_miniaturas_strip_campanhas(campanhas: list[dict[str, str]]) -> str:
-    """HTML da faixa de miniaturas (strip-outer + strip); vazio se não houver imagens. Sem wrapper home-banners-wrap."""
-    if not campanhas:
-        return ""
-    cards: list[str] = []
-    for c in campanhas:
-        src = _img_url_seguro_https(str(c.get("src", "") or ""))
-        if not src:
-            continue
-        t64 = _utf8_base64_attr(str(c.get("titulo", "") or ""))
-        b64 = _utf8_base64_attr(str(c.get("descricao", "") or ""))
-        cards.append(
-            f'<div class="home-banner-lb-root">'
-            f'<button type="button" class="home-banner-card home-banner-card--fs home-banner-card--thumb home-banner-lb-open" '
-            f'data-dv-src="{src}" data-dv-t64="{html_std.escape(t64, quote=True)}" data-dv-b64="{html_std.escape(b64, quote=True)}" '
-            f'title="Ver campanha" aria-label="Abrir campanha em destaque">'
-            f'<span class="home-banner-thumb-frame"><img src="{src}" alt="" loading="lazy" decoding="async" /></span>'
-            f"</button></div>"
-        )
-    if not cards:
-        return ""
-    return (
-        '<div class="home-banners-strip-outer">'
-        '<div class="home-banners-strip" role="group" aria-label="Miniaturas de campanhas">'
-        + "".join(cards)
-        + "</div></div>"
-    )
-
-
 def render_secao_campanhas_comerciais(
     df_banners: pd.DataFrame,
     df_texto_campanhas: pd.DataFrame | None = None,
@@ -1870,10 +1888,33 @@ def render_secao_campanhas_comerciais(
     copy_html = _html_campanhas_texto_bloco(df_txt)
 
     def _render_miniaturas_popup_real(campanhas: list[dict[str, str]]) -> None:
-        """Só a faixa horizontal (evita segundo home-banners-wrap = espaço duplicado)."""
-        h = _html_miniaturas_strip_campanhas(campanhas)
-        if h:
-            st.markdown(h, unsafe_allow_html=True)
+        """Renderiza miniaturas que disparam o popup JS legado (home-banner-lb-open)."""
+        if not campanhas:
+            return
+        cards: list[str] = []
+        for c in campanhas:
+            src = _img_url_seguro_https(str(c.get("src", "") or ""))
+            if not src:
+                continue
+            t64 = _utf8_base64_attr(str(c.get("titulo", "") or ""))
+            b64 = _utf8_base64_attr(str(c.get("descricao", "") or ""))
+            cards.append(
+                f'<div class="home-banner-lb-root">'
+                f'<button type="button" class="home-banner-card home-banner-card--fs home-banner-card--thumb home-banner-lb-open" '
+                f'data-dv-src="{src}" data-dv-t64="{html_std.escape(t64, quote=True)}" data-dv-b64="{html_std.escape(b64, quote=True)}" '
+                f'title="Ver campanha" aria-label="Abrir campanha em destaque">'
+                f'<span class="home-banner-thumb-frame"><img src="{src}" alt="" loading="lazy" decoding="async" /></span>'
+                f"</button></div>"
+            )
+        if not cards:
+            return
+        strip_html = (
+            '<div class="home-banners-strip-outer">'
+            '<div class="home-banners-strip" role="group" aria-label="Miniaturas de campanhas">'
+            + "".join(cards)
+            + "</div></div>"
+        )
+        st.markdown('<div class="home-banners-wrap">' + strip_html + "</div>", unsafe_allow_html=True)
     campanhas_ativas: list[dict[str, str]] = []
     if not df_bn.empty:
         for _, row in df_bn.iterrows():
@@ -1892,13 +1933,21 @@ def render_secao_campanhas_comerciais(
             )
     if not campanhas_ativas and not copy_html and not user_is_adm:
         return
-    _wrap = '<div class="home-banners-wrap" role="region" aria-label="Campanhas comerciais">'
-    _tit = '<h2 class="home-banners-section-title">Campanhas comerciais</h2>'
-    _strip_html = _html_miniaturas_strip_campanhas(campanhas_ativas)
     if not user_is_adm:
-        st.markdown(_wrap + _tit + _strip_html + "</div>", unsafe_allow_html=True)
+        st.markdown(
+            '<div class="home-banners-wrap" role="region" aria-label="Campanhas comerciais">'
+            '<h2 class="home-banners-section-title">Campanhas comerciais</h2>'
+            + "</div>",
+            unsafe_allow_html=True,
+        )
+        _render_miniaturas_popup_real(campanhas_ativas)
     else:
-        st.markdown(_wrap + _tit + "</div>", unsafe_allow_html=True)
+        st.markdown(
+            '<div class="home-banners-wrap" role="region" aria-label="Campanhas comerciais">'
+            '<h2 class="home-banners-section-title">Campanhas comerciais</h2>'
+            "</div>",
+            unsafe_allow_html=True,
+        )
         bc1, bc2 = st.columns([1, 1], gap="small")
         with bc1:
             if st.button(
@@ -2037,6 +2086,104 @@ def _rotulo_opcao_excluir_campanha_texto(df_ct: pd.DataFrame, i: int) -> str:
     snip = str(r.get("Texto", "") or "").strip().replace("\n", " ")
     snip = (snip[:36] + "…") if len(snip) > 37 else snip
     return f"Linha {i + 1} · {tit or '(sem título)'}{' - ' + snip if snip else ''}"
+
+
+_COLS_LOGINS = ["Email", "Senha", "Nome", "Cargo", "Imobiliaria", "Telefone", "Adm"]
+
+_MAPA_LOGINS = {
+    "Imobiliária/Canal IMOB": "Imobiliaria",
+    "Cargo": "Cargo",
+    "Nome": "Nome",
+    "Email": "Email",
+    "E-mail": "Email",
+    "Escolha uma senha para o simulador": "Senha",
+    "Senha": "Senha",
+    "Número de telefone": "Telefone",
+    "Telefone": "Telefone",
+    "ADM?": "Adm",
+}
+
+
+def _normalizar_df_logins_raw(df_logins: pd.DataFrame) -> pd.DataFrame:
+    df_logins = df_logins.copy()
+    df_logins.columns = [str(c).strip() for c in df_logins.columns]
+    df_logins = df_logins.rename(columns=_MAPA_LOGINS)
+    if "Email" in df_logins.columns:
+        df_logins["Email"] = df_logins["Email"].astype(str).str.strip().str.lower()
+    if "Senha" in df_logins.columns:
+        df_logins["Senha"] = df_logins["Senha"].astype(str).str.strip()
+    return df_logins
+
+
+def _candidatos_planilha_logins() -> list:
+    """Prioriza `spreadsheet` em secrets; depois `ID_GERAL` do código."""
+    out: list = []
+    try:
+        sp = str(st.secrets["connections"]["gsheets"].get("spreadsheet", "") or "").strip()
+        if sp:
+            out.append(sp)
+    except Exception:
+        pass
+    if ID_GERAL and ID_GERAL not in out:
+        out.append(ID_GERAL)
+    return out
+
+
+def _candidatos_aba_logins() -> list:
+    names: list = []
+    env_ws = (os.environ.get("SIMULADOR_LOGINS_WORKSHEET") or "").strip()
+    if env_ws:
+        names.append(env_ws)
+    for w in ("BD Logins", "Logins"):
+        if w not in names:
+            names.append(w)
+    return names
+
+
+def _diagnostico_secrets_gsheets() -> str | None:
+    """Mensagem curta se secrets do Google Sheets estão incompletos (ex.: type vazio)."""
+    try:
+        g = dict(st.secrets["connections"]["gsheets"])
+    except Exception:
+        return None
+    t = str(g.get("type", "") or "").strip()
+    if t != "service_account":
+        return (
+            'No `secrets.toml`, em `[connections.gsheets]`, defina **type = "service_account"** '
+            "(valor literal do JSON da Google - não deixe vazio)."
+        )
+    pk = str(g.get("private_key", "") or "").strip()
+    if not pk or "BEGIN PRIVATE KEY" not in pk:
+        return (
+            "Preencha **private_key** com o bloco PEM completo do JSON da conta de serviço "
+            '(entre """ ... """ como no exemplo).'
+        )
+    ce = str(g.get("client_email", "") or "").strip()
+    if not ce:
+        return "Preencha **client_email** do JSON e partilhe a planilha com esse e-mail (leitor ou editor)."
+    return None
+
+
+@st.cache_data(ttl=300, show_spinner=False)
+def carregar_apenas_logins() -> pd.DataFrame:
+    """Só BD Logins - tela de login sem carregar estoque/financiamentos (mais rápido)."""
+    empty = pd.DataFrame(columns=_COLS_LOGINS)
+    try:
+        if "connections" not in st.secrets:
+            return empty
+        conn = st.connection("gsheets", type=GSheetsConnection)
+        for spread in _candidatos_planilha_logins():
+            for ws in _candidatos_aba_logins():
+                try:
+                    df_raw = conn.read(spreadsheet=spread, worksheet=ws, ttl=120)
+                    df_logins = _normalizar_df_logins_raw(df_raw)
+                    if not df_logins.empty or len(df_logins.columns) > 0:
+                        return df_logins
+                except Exception:
+                    continue
+        return empty
+    except Exception:
+        return empty
 
 
 @st.cache_data(ttl=300, show_spinner=False)
@@ -2605,8 +2752,6 @@ def configurar_layout():
             --dv-shadow-glow: 0 0 0 1px rgba({RGB_AZUL_CSS}, 0.06), 0 8px 32px -8px rgba({RGB_AZUL_CSS}, 0.12);
             --dv-surface-glass: rgba(255, 255, 255, 0.82);
             --dv-surface-glass-strong: rgba(255, 255, 255, 0.94);
-            /* Ritmo único: mesmo valor entre widgets, margens de secção e padding do cartão */
-            --dv-rhythm: 1.25rem;
         }}
         @media (prefers-reduced-motion: no-preference) {{
             html {{
@@ -2645,11 +2790,6 @@ def configurar_layout():
             opacity: 1 !important;
             transition: none !important;
         }}
-        /* Evita somar margem do Streamlit com o gap dos blocos verticais (espaçamento = só --dv-rhythm) */
-        .block-container [data-testid="stElementContainer"],
-        section.main [data-testid="stElementContainer"] {{
-            margin-bottom: 0 !important;
-        }}
         /* Sidebar oculta (navegação/galeria/histórico removidos da UI) */
         section[data-testid="stSidebar"] {{ display: none !important; }}
         [data-testid="stSidebarCollapsedControl"] {{ display: none !important; }}
@@ -2665,7 +2805,7 @@ def configurar_layout():
             background: transparent !important;
             background-color: transparent !important;
         }}
-        /* Fundo: degradê marca + foto (imagem local ou fallback) */
+        /* Fundo estilo Ficha Credenciamento Vendas RJ: degradê diagonal marca + foto */
         .stApp,
         [data-testid="stApp"] {{
             background-color: transparent !important;
@@ -2730,22 +2870,21 @@ def configurar_layout():
                 background-attachment: scroll, scroll !important;
             }}
             [data-testid="stMain"] {{
-                padding-left: max(clamp(6px, 2.5vw, 16px), env(safe-area-inset-left, 0px)) !important;
-                padding-right: max(clamp(6px, 2.5vw, 16px), env(safe-area-inset-right, 0px)) !important;
-                padding-top: max(var(--dv-rhythm), env(safe-area-inset-top, 0px)) !important;
-                padding-bottom: max(var(--dv-rhythm), env(safe-area-inset-bottom, 0px)) !important;
-                justify-content: flex-start !important;
+                padding-left: max(clamp(10px, 4vw, 28px), env(safe-area-inset-left, 0px)) !important;
+                padding-right: max(clamp(10px, 4vw, 28px), env(safe-area-inset-right, 0px)) !important;
+                padding-top: max(clamp(8px, 2.5vh, 24px), env(safe-area-inset-top, 0px)) !important;
+                padding-bottom: max(clamp(10px, 3vh, 28px), env(safe-area-inset-bottom, 0px)) !important;
             }}
             .block-container {{
                 max-width: 100% !important;
                 width: 100% !important;
-                padding: var(--dv-rhythm) clamp(0.55rem, 2.8vw, 1rem) var(--dv-rhythm) clamp(0.55rem, 2.8vw, 1rem) !important;
+                padding: 1.1rem clamp(0.75rem, 3.5vw, 1.15rem) !important;
                 margin-left: auto !important;
                 margin-right: auto !important;
-                margin-top: clamp(2px, 1vw, 6px) !important;
+                margin-top: clamp(4px, 1.5vw, 10px) !important;
                 margin-bottom: clamp(4px, 1.5vw, 10px) !important;
                 border-radius: 20px !important;
-                background: rgba(255, 255, 255, 0.72) !important;
+                background: rgba(255, 255, 255, 0.82) !important;
                 border: 1px solid rgba(255, 255, 255, 0.5) !important;
                 box-shadow:
                     0 4px 6px -1px rgba({RGB_AZUL_CSS}, 0.05),
@@ -2759,12 +2898,12 @@ def configurar_layout():
                 max-width: 100%;
                 margin-left: 0;
                 margin-right: 0;
-                margin-bottom: 0;
+                margin-bottom: 1.5rem;
             }}
             [data-testid="stHorizontalBlock"] {{
                 flex-direction: column !important;
                 align-items: stretch !important;
-                gap: var(--dv-rhythm) !important;
+                gap: 0.65rem !important;
             }}
             [data-testid="stHorizontalBlock"] > div[data-testid="column"] {{
                 width: 100% !important;
@@ -2785,16 +2924,15 @@ def configurar_layout():
         }}
         @media (max-width: 420px) {{
             .block-container {{
-                padding: var(--dv-rhythm) 0.5rem var(--dv-rhythm) 0.5rem !important;
+                padding: 0.7rem 0.5rem !important;
             }}
             .header-logo-wrap img {{
                 max-height: 58px;
             }}
         }}
-        /* Véu muito leve: deixa ver o fundo com “uma pequena transparência” na página */
         [data-testid="stAppViewContainer"] {{
-            background: rgba(255, 255, 255, 0.1) !important;
-            background-color: rgba(255, 255, 255, 0.1) !important;
+            background: transparent !important;
+            background-color: transparent !important;
             font-family: 'Inter', system-ui, sans-serif;
             color: {COR_TEXTO_LABEL};
         }}
@@ -2855,26 +2993,15 @@ def configurar_layout():
             background: rgba(255, 255, 255, 0.12) !important;
         }}
         [data-testid="stMain"] {{
-            padding-left: max(clamp(6px, 1.8vw, 22px), env(safe-area-inset-left, 0px)) !important;
-            padding-right: max(clamp(6px, 1.8vw, 22px), env(safe-area-inset-right, 0px)) !important;
-            padding-top: max(var(--dv-rhythm), env(safe-area-inset-top, 0px)) !important;
-            padding-bottom: max(var(--dv-rhythm), env(safe-area-inset-bottom, 0px)) !important;
+            padding-left: max(clamp(14px, 5vw, 56px), env(safe-area-inset-left, 0px)) !important;
+            padding-right: max(clamp(14px, 5vw, 56px), env(safe-area-inset-right, 0px)) !important;
+            padding-top: max(clamp(12px, 3.5vh, 40px), env(safe-area-inset-top, 0px)) !important;
+            padding-bottom: max(clamp(14px, 4vh, 44px), env(safe-area-inset-bottom, 0px)) !important;
             box-sizing: border-box !important;
-            background: transparent !important;
-            background-color: transparent !important;
-            justify-content: flex-start !important;
-            align-items: stretch !important;
-        }}
-        /* Com pouco conteúdo o tema centra a coluna verticalmente — sobra vazio em cima da logo */
-        section.main {{
-            justify-content: flex-start !important;
-            align-items: stretch !important;
         }}
         section.main > div {{
-            justify-content: flex-start !important;
-            align-items: stretch !important;
-            padding-top: 0 !important;
-            padding-bottom: 0 !important;
+            padding-top: 0.5rem !important;
+            padding-bottom: 0.5rem !important;
         }}
 
         @media (prefers-reduced-motion: no-preference) {{
@@ -2887,16 +3014,13 @@ def configurar_layout():
         }}
 
         /* Ritmo vertical uniforme entre secções, widgets e colunas */
-        .block-container [data-testid="stVerticalBlock"],
-        section.main [data-testid="stVerticalBlock"] {{
+        .block-container [data-testid="stVerticalBlock"] {{
             display: flex !important;
             flex-direction: column !important;
             gap: var(--dv-rhythm) !important;
             align-items: stretch !important;
-            justify-content: flex-start !important;
         }}
-        .block-container [data-testid="stHorizontalBlock"],
-        section.main [data-testid="stHorizontalBlock"] {{
+        .block-container [data-testid="stHorizontalBlock"] {{
             gap: var(--dv-rhythm) !important;
             align-items: flex-start !important;
         }}
@@ -2927,9 +3051,9 @@ def configurar_layout():
             flex-wrap: nowrap;
             overflow-x: auto;
             -webkit-overflow-scrolling: touch;
-            gap: var(--dv-rhythm);
-            padding-bottom: var(--dv-rhythm);
-            margin-bottom: var(--dv-rhythm);
+            gap: 20px;
+            padding-bottom: 20px;
+            margin-bottom: 20px;
             width: max-content;
             max-width: 100%;
             box-sizing: border-box;
@@ -2983,23 +3107,22 @@ def configurar_layout():
             line-height: 1.58;
             text-align: center !important;
             text-wrap: pretty;
-            margin-top: 0;
-            margin-bottom: calc(var(--dv-rhythm) * 0.65);
         }}
         h1, h2, h3, .header-title, .home-banners-section-title {{
             text-wrap: balance;
         }}
 
-        /* Cartão “vidro”: padding = --dv-rhythm (igual ao gap entre widgets); margens da box inalteradas */
+        /* Cartão de vidro - mesma linguagem da Ficha Credenciamento (max-width largo para o simulador) */
         .block-container {{
+            --dv-rhythm: 1.35rem;
             text-rendering: optimizeLegibility;
             max-width: min(1680px, 100%) !important;
             margin-left: auto !important;
             margin-right: auto !important;
-            margin-top: clamp(2px, 0.5vh, 8px) !important;
+            margin-top: clamp(4px, 1vh, 14px) !important;
             margin-bottom: clamp(4px, 1vh, 14px) !important;
-            padding: var(--dv-rhythm) clamp(0.7rem, 1.6vw, 1.35rem) var(--dv-rhythm) clamp(0.7rem, 1.6vw, 1.35rem) !important;
-            background: rgba(255, 255, 255, 0.72) !important;
+            padding: 1.45rem clamp(1.1rem, 2.8vw, 2.25rem) 1.55rem clamp(1.1rem, 2.8vw, 2.25rem) !important;
+            background: rgba(255, 255, 255, 0.78) !important;
             backdrop-filter: blur(18px) saturate(1.15) !important;
             -webkit-backdrop-filter: blur(18px) saturate(1.15) !important;
             border-radius: 24px !important;
@@ -3030,21 +3153,19 @@ def configurar_layout():
         }}
 
         /* Títulos de conteúdo - hierarquia clara, só Montserrat + Inter herdada */
-        .stMarkdown h1 {{ font-size: clamp(1.5rem, 2.5vw, 1.85rem) !important; text-align: center !important; margin-top: 0 !important; margin-bottom: calc(var(--dv-rhythm) * 0.65) !important; font-weight: 800 !important; }}
+        .stMarkdown h1 {{ font-size: clamp(1.5rem, 2.5vw, 1.85rem) !important; text-align: center !important; margin-bottom: 0.45rem !important; font-weight: 800 !important; }}
         .stMarkdown h1.header-title {{
             font-size: clamp(1.75rem, 4.8vw, 2.65rem) !important;
-            margin-top: 0 !important;
-            margin-bottom: 0 !important;
+            margin-bottom: 0.55rem !important;
             line-height: 1.18 !important;
         }}
-        .stMarkdown h2 {{ font-size: clamp(1.28rem, 2vw, 1.5rem) !important; text-align: center !important; margin-top: 0 !important; margin-bottom: calc(var(--dv-rhythm) * 0.65) !important; font-weight: 700 !important; color: {COR_AZUL_ESC} !important; }}
-        .stMarkdown h3 {{ font-size: clamp(1.12rem, 1.8vw, 1.28rem) !important; text-align: center !important; margin-top: 0 !important; margin-bottom: calc(var(--dv-rhythm) * 0.65) !important; font-weight: 700 !important; }}
-        .stMarkdown h4 {{ font-size: 1.05rem !important; text-align: center !important; margin-top: 0 !important; margin-bottom: calc(var(--dv-rhythm) * 0.55) !important; font-weight: 700 !important; }}
+        .stMarkdown h2 {{ font-size: clamp(1.28rem, 2vw, 1.5rem) !important; text-align: center !important; margin-bottom: 0.45rem !important; font-weight: 700 !important; color: {COR_AZUL_ESC} !important; }}
+        .stMarkdown h3 {{ font-size: clamp(1.12rem, 1.8vw, 1.28rem) !important; text-align: center !important; margin-bottom: 0.4rem !important; font-weight: 700 !important; }}
+        .stMarkdown h4 {{ font-size: 1.05rem !important; text-align: center !important; margin-bottom: 0.35rem !important; font-weight: 700 !important; }}
         .stMarkdown h5, .stMarkdown h6 {{
             font-size: 0.95rem !important;
             text-align: center !important;
-            margin-top: 0 !important;
-            margin-bottom: calc(var(--dv-rhythm) * 0.5) !important;
+            margin-bottom: 0.3rem !important;
             font-weight: 600 !important;
             color: {COR_TEXTO_MUTED} !important;
         }}
@@ -3586,20 +3707,10 @@ def configurar_layout():
 
         .header-container {{
             text-align: center;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            gap: var(--dv-rhythm);
-            padding: 0 0.75rem 0;
-            margin: 0 auto 0;
+            padding: 0.85rem 1rem 1.1rem;
+            margin: 0 auto 1rem;
             max-width: 1100px;
             position: relative;
-        }}
-        .header-container .header-logo-wrap,
-        .header-container .header-title,
-        .header-container .header-brand-bar-wrap {{
-            margin-top: 0 !important;
-            margin-bottom: 0 !important;
         }}
         /* Barra tipo pill: cor alterna azul ↔ vermelho (opacidade total) */
         .header-brand-bar-wrap {{
@@ -3610,7 +3721,7 @@ def configurar_layout():
             position: relative;
             left: auto;
             transform: none;
-            margin-bottom: 0;
+            margin-bottom: 1.75rem;
             margin-top: 0;
             box-sizing: border-box;
             height: 4px;
@@ -3647,11 +3758,10 @@ def configurar_layout():
             display: flex;
             flex-direction: column;
             align-items: center;
-            gap: var(--dv-rhythm);
             width: 100%;
             max-width: 100vw;
             position: relative;
-            margin: 0 auto 0;
+            margin: 0 auto 1.25rem;
             padding: 0 0.75rem;
             box-sizing: border-box;
             text-align: center;
@@ -3662,21 +3772,18 @@ def configurar_layout():
             font-weight: 700 !important;
             color: {COR_AZUL_ESC} !important;
             text-align: center !important;
-            margin: 0 !important;
+            margin: 0 0 0.85rem 0 !important;
             padding: 0 0.25rem !important;
             letter-spacing: -0.02em !important;
             line-height: 1.25 !important;
             width: 100%;
             order: 0;
         }}
-        .stMarkdown h2.home-banners-section-title {{
-            margin: 0 !important;
-        }}
         .home-campanhas-copy {{
             width: 100%;
             max-width: min(920px, calc(100vw - clamp(1.5rem, 8vw, 4rem)));
-            margin: 0 auto 0;
-            padding: 0 clamp(1.25rem, 6vw, 3.25rem) 0;
+            margin: 0.5rem auto 0;
+            padding: 0 clamp(1.25rem, 6vw, 3.25rem) 0.5rem;
             box-sizing: border-box;
             text-align: left;
             order: 2;
@@ -3713,8 +3820,8 @@ def configurar_layout():
             display: flex;
             flex-direction: row;
             flex-wrap: nowrap;
-            gap: var(--dv-rhythm);
-            padding: 0 0.25rem 0;
+            gap: 1rem;
+            padding: 0.35rem 0.25rem 0.75rem;
             scroll-snap-type: x proximity;
             margin-left: auto;
             margin-right: auto;
@@ -3906,7 +4013,7 @@ def configurar_layout():
             display: flex;
             justify-content: center;
             align-items: center;
-            margin: 0 auto 0;
+            margin: 0 auto 0.85rem;
         }}
         .header-logo-wrap img {{
             display: block;
@@ -3930,13 +4037,10 @@ def configurar_layout():
             font-size: clamp(1.75rem, 4.8vw, 2.65rem);
             font-weight: 800;
             line-height: 1.18;
-            margin: 0;
+            margin: 0.2rem 0 0.55rem 0;
             color: {COR_AZUL_ESC};
             text-align: center;
             letter-spacing: -0.03em;
-        }}
-        .header-container .header-title {{
-            margin: 0 !important;
         }}
         /* Cabeçalho injetado: wrapper do Streamlit às vezes força alinhamento à esquerda */
         div[data-testid="stMarkdown"] .header-container {{
@@ -3951,7 +4055,7 @@ def configurar_layout():
             line-height: 1.18 !important;
         }}
 
-        .card, .fin-box, .recommendation-card {{
+        .card, .fin-box, .recommendation-card, .login-card {{
             background: #ffffff;
             padding: clamp(1rem, 2.5vw, 1.35rem);
             border-radius: var(--dv-radius-md);
@@ -3968,6 +4072,7 @@ def configurar_layout():
         }}
         @media (hover: hover) and (prefers-reduced-motion: no-preference) {{
             .recommendation-card:hover,
+            .login-card:hover,
             .card:hover,
             .fin-box:hover {{
                 transform: translateY(-3px);
@@ -3990,10 +4095,10 @@ def configurar_layout():
         }}
         .summary-body {{
             background: #ffffff;
-            padding: calc(var(--dv-rhythm) * 1.75);
+            padding: 40px;
             border: 1px solid {COR_BORDA};
             border-radius: 0 0 var(--dv-radius-md) var(--dv-radius-md);
-            margin-bottom: var(--dv-rhythm);
+            margin-bottom: 40px;
             color: #111111;
             text-align: center !important;
             box-shadow: var(--dv-shadow-xs);
@@ -4002,7 +4107,7 @@ def configurar_layout():
             background: linear-gradient(135deg, {COR_AZUL_ESC} 0%, #033061 100%);
             padding: clamp(1.1rem, 3vw, 1.5rem);
             border-radius: var(--dv-radius-md);
-            margin-bottom: var(--dv-rhythm);
+            margin-bottom: 30px;
             text-align: center;
             font-weight: 600;
             color: #ffffff !important;
@@ -4052,15 +4157,15 @@ def configurar_layout():
             .badge-ideal:hover, .badge-seguro:hover, .badge-multi:hover {{
                 transform: scale(1.04);
                 box-shadow: 0 6px 18px -4px rgba({RGB_VERMELHO_CSS}, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.22);
-            }}
+            }}a
         }}
         
         [data-testid="stSidebar"] {{ background-color: #fff; border-right: 1px solid {COR_BORDA}; }}
 
         .footer {{
             text-align: center;
-            margin-top: var(--dv-rhythm) !important;
-            padding: var(--dv-rhythm) 1rem calc(var(--dv-rhythm) + 0.25rem);
+            margin-top: var(--dv-rhythm, 1.35rem) !important;
+            padding: var(--dv-rhythm, 1.35rem) 1rem calc(var(--dv-rhythm, 1.35rem) + 0.25rem);
             font-family: 'Inter', system-ui, sans-serif;
             color: #64748b !important;
             font-size: 0.8rem;
@@ -4584,6 +4689,71 @@ def enviar_email_smtp(destinatario, nome_cliente, pdf_bytes, dados_cliente, tipo
     except Exception as e: return False, f"Erro envio: {e}"
 
 
+def tela_login(df_logins: pd.DataFrame) -> None:
+    c1, c2, c3 = st.columns([1, 1.5, 1])
+    with c2:
+        st.markdown(
+            "<h3 style='text-align:center;margin:0 0 0.35rem 0;'>Acesso ao simulador</h3>",
+            unsafe_allow_html=True,
+        )
+        st.caption("Utilize o e-mail e a senha cadastrados na planilha **Logins** da base de dados.")
+        with st.form("login_form"):
+            email = st.text_input(
+                "Endereço de e-mail",
+                key="login_email",
+                autocomplete="username",
+            )
+            senha = st.text_input(
+                "Senha",
+                type="password",
+                key="login_pass",
+                autocomplete="current-password",
+            )
+            submitted = st.form_submit_button("Entrar", type="primary", use_container_width=True)
+
+        if submitted:
+            if df_logins.empty:
+                st.error("Base de usuários vazia ou indisponível. Verifique a conexão com a planilha.")
+                tip = _diagnostico_secrets_gsheets()
+                if tip:
+                    st.warning(tip)
+                elif "connections" not in st.secrets:
+                    st.info(
+                        "Falta a secção `[connections.gsheets]` no `.streamlit/secrets.toml`. "
+                        "Copie `secrets.toml.example` e preencha com o JSON da conta de serviço."
+                    )
+                else:
+                    with st.expander("Checklist da planilha"):
+                        st.markdown(
+                            "- Opcional mas recomendado: **spreadsheet** = URL da planilha (como no exemplo).\n"
+                            "- Partilhe o ficheiro Google Sheets com o **client_email** da conta de serviço.\n"
+                            "- Aba de utilizadores: **BD Logins** (ou env `SIMULADOR_LOGINS_WORKSHEET`).\n"
+                            "- Depois de corrigir: menu Streamlit → **Clear cache** ou reinicie."
+                        )
+            else:
+                em = email.strip().lower()
+                user = df_logins[
+                    (df_logins["Email"] == em) & (df_logins["Senha"] == senha.strip())
+                ]
+                if not user.empty:
+                    data = user.iloc[0]
+                    st.session_state.update(
+                        {
+                            "logged_in": True,
+                            "user_email": em,
+                            "user_name": str(data.get("Nome", "")).strip(),
+                            "user_imobiliaria": str(data.get("Imobiliaria", "Geral")).strip(),
+                            "user_cargo": str(data.get("Cargo", "")).strip(),
+                            "user_phone": str(data.get("Telefone", "")).strip(),
+                            "user_is_adm": login_row_is_adm(data),
+                        }
+                    )
+                    st.rerun()
+                else:
+                    st.error("Credenciais inválidas.")
+        inject_login_password_manager_fields()
+
+
 try:
     _dialog_export_deco = st.dialog("Resumo: PDF, e-mail e WhatsApp", width="large")
 except TypeError:
@@ -4694,10 +4864,14 @@ def aba_simulador_automacao(
         return resolver_taxa_financiamento_anual_pct(d_cli or {}, _prem)
     if 'dados_cliente' not in st.session_state: st.session_state.dados_cliente = {}
 
+    st.markdown(
+        '<div class="header-brand-bar-wrap" aria-hidden="true"></div>',
+        unsafe_allow_html=True,
+    )
     render_secao_campanhas_comerciais(
         df_home_banners if df_home_banners is not None else pd.DataFrame(),
         df_campanhas_texto if df_campanhas_texto is not None else pd.DataFrame(),
-        user_is_adm=True,
+        user_is_adm=bool(st.session_state.get("user_is_adm")),
     )
     inject_home_banner_dialog_modal()
 
@@ -5108,6 +5282,7 @@ def aba_simulador_automacao(
         else:
             df_disp_total = df_disp_total.sort_values(["Valor de Venda", "Identificador"], ascending=[True, True])
 
+            st.markdown("<br>", unsafe_allow_html=True)
             emp_names_rec = sorted(df_disp_total["Empreendimento"].unique().tolist())
             emp_rec = st.selectbox(
                 "Filtrar por empreendimento:",
@@ -6053,21 +6228,48 @@ def aba_simulador_automacao(
             scroll_to_top()
             st.rerun()
 
+    st.markdown("<br><br>", unsafe_allow_html=True)
+    if st.button("Sair do sistema", key="btn_logout_bottom", use_container_width=True):
+        st.session_state["logged_in"] = False
+        st.session_state["user_is_adm"] = False
+        st.rerun()
+
+def _inject_login_vertical_center_css() -> None:
+    """Centraliza o bloco principal na altura da viewport (login). Só quando não autenticado."""
+    st.markdown(
+        """
+        <style id="diresim-login-vert-center">
+        html body [data-testid="stAppViewContainer"] {
+            min-height: 100dvh !important;
+            display: flex !important;
+            flex-direction: column !important;
+        }
+        html body [data-testid="stAppViewContainer"] > section[data-testid="stMain"],
+        html body section[data-testid="stMain"] {
+            flex: 1 1 auto !important;
+            min-height: calc(100dvh - 5.5rem) !important;
+            display: flex !important;
+            flex-direction: column !important;
+            justify-content: center !important;
+            padding-top: max(6px, env(safe-area-inset-top, 0px)) !important;
+            padding-bottom: max(10px, env(safe-area-inset-bottom, 0px)) !important;
+            box-sizing: border-box !important;
+        }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
 def main():
     configurar_layout()
     inject_modern_ui_runtime()
     inject_enter_confirma_campo()
+    if "logged_in" not in st.session_state:
+        st.session_state["logged_in"] = False
 
-    with st.spinner("A carregar o simulador…"):
-        (
-            df_finan,
-            df_estoque,
-            df_politicas,
-            _df_cad_hist,
-            df_home_banners,
-            premissas_dict,
-            df_campanhas_texto,
-        ) = carregar_dados_sistema()
+    if not st.session_state["logged_in"]:
+        _inject_login_vertical_center_css()
 
     logo_src = html_std.escape(_src_logo_topo_header(), quote=True)
     st.markdown(
@@ -6076,19 +6278,31 @@ def main():
 <img src="{logo_src}" alt="Direcional Engenharia" class="header-logo-img" decoding="async" loading="eager" />
 </div>
 <h1 class="header-title">Simulador imobiliário DV</h1>
-<div class="header-brand-bar-wrap" aria-hidden="true"></div>
 </header>''',
         unsafe_allow_html=True,
     )
 
-    aba_simulador_automacao(
-        df_finan,
-        df_estoque,
-        df_politicas,
-        premissas_dict,
-        df_home_banners=df_home_banners,
-        df_campanhas_texto=df_campanhas_texto,
-    )
+    if not st.session_state["logged_in"]:
+        tela_login(carregar_apenas_logins())
+    else:
+        with st.spinner("A carregar o simulador…"):
+            (
+                df_finan,
+                df_estoque,
+                df_politicas,
+                _df_cad_hist,
+                df_home_banners,
+                premissas_dict,
+                df_campanhas_texto,
+            ) = carregar_dados_sistema()
+        aba_simulador_automacao(
+            df_finan,
+            df_estoque,
+            df_politicas,
+            premissas_dict,
+            df_home_banners=df_home_banners,
+            df_campanhas_texto=df_campanhas_texto,
+        )
 
     st.markdown(
         '<div class="footer">Direcional Engenharia - Rio de Janeiro<br><em>developed by Lucas Maia</em></div>',
