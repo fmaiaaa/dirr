@@ -2970,6 +2970,22 @@ def configurar_layout():
             padding: 0 !important;
             display: block !important;
         }}
+        /*
+         * Colunas (st.columns): o mesmo seletor acima atingiria o stVerticalBlock interno e
+         * anulava o gap entre os 2–3 primeiros widgets (ex.: Ato 30/60 + refs Pro Soluto).
+         * Manter --dv-stack-gap só no fluxo principal; dentro de colunas, sem margem negativa.
+         */
+        .block-container [data-testid="column"] [data-testid="stVerticalBlock"] > div[data-testid="stElementContainer"]:nth-child(-n+2) {{
+            margin-bottom: 0 !important;
+        }}
+        .block-container [data-testid="column"] [data-testid="stVerticalBlock"] > div[data-testid="stElementContainer"]:nth-child(-n+3) {{
+            padding-top: revert !important;
+            padding-bottom: revert !important;
+            min-height: revert !important;
+        }}
+        .block-container [data-testid="column"] [data-testid="stVerticalBlock"] > div[data-testid="stElementContainer"]:nth-child(-n+3) > div {{
+            min-height: revert !important;
+        }}
         .block-container [data-testid="stMarkdownContainer"]:has(.header-container) {{
             margin-top: 0 !important;
             padding-top: 0 !important;
@@ -5823,6 +5839,7 @@ def aba_simulador_automacao(
                     0.0, texto_moeda_para_float(st.session_state.get("ato_4_key"))
                 )
 
+        st.write("")
         st.button(
             "Preencher valor restante no Pro Soluto",
             key="btn_ps_preencher_restante",
