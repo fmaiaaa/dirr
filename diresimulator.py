@@ -2872,15 +2872,56 @@ def configurar_layout():
             }}
         }}
 
-        /* Ritmo vertical uniforme entre secções, widgets e colunas */
+        /* Ritmo vertical uniforme: um único espaçamento entre linhas (campos / blocos) */
         .block-container [data-testid="stVerticalBlock"] {{
             display: flex !important;
             flex-direction: column !important;
             gap: var(--dv-rhythm) !important;
+            row-gap: var(--dv-rhythm) !important;
+            column-gap: var(--dv-rhythm) !important;
             align-items: stretch !important;
+        }}
+        .block-container [data-testid="column"] [data-testid="stVerticalBlock"] {{
+            display: flex !important;
+            flex-direction: column !important;
+            gap: var(--dv-rhythm) !important;
+            row-gap: var(--dv-rhythm) !important;
+            align-items: stretch !important;
+        }}
+        .block-container [data-testid="stVerticalBlock"] [data-testid="stVerticalBlock"] {{
+            gap: var(--dv-rhythm) !important;
+            row-gap: var(--dv-rhythm) !important;
         }}
         /* Evita somar margem do Streamlit ao gap do bloco vertical */
         .block-container [data-testid="stVerticalBlock"] > div[data-testid="stElementContainer"] {{
+            margin-top: 0 !important;
+            margin-bottom: 0 !important;
+        }}
+        /* Sem margem extra dentro do markdown (o gap entre stElementContainer já define o ritmo) */
+        .block-container [data-testid="stMarkdownContainer"] p,
+        .block-container [data-testid="stMarkdownContainer"] h1,
+        .block-container [data-testid="stMarkdownContainer"] h2,
+        .block-container [data-testid="stMarkdownContainer"] h3,
+        .block-container [data-testid="stMarkdownContainer"] h4,
+        .block-container [data-testid="stMarkdownContainer"] h5,
+        .block-container [data-testid="stMarkdownContainer"] h6 {{
+            margin-top: 0 !important;
+            margin-bottom: 0 !important;
+        }}
+        .block-container .dv-titulo-secao {{
+            margin-top: 0 !important;
+            margin-bottom: 0 !important;
+        }}
+        .block-container [data-testid="stWidgetLabel"] {{
+            margin-top: 0 !important;
+            margin-bottom: 0 !important;
+        }}
+        .block-container [data-testid="stWidgetLabel"] label,
+        .block-container [data-testid="stWidgetLabel"] p {{
+            margin-top: 0 !important;
+            margin-bottom: 0 !important;
+        }}
+        .block-container [data-testid="stElementContainer"] [data-baseweb="form-control-container"] {{
             margin-top: 0 !important;
             margin-bottom: 0 !important;
         }}
@@ -3078,23 +3119,23 @@ def configurar_layout():
         }}
 
         /* Títulos em markdown: margens (tamanho = regra global h1–h6 / .dv-titulo-secao) */
-        .stMarkdown h1 {{ text-align: center !important; margin-bottom: 0.45rem !important; font-weight: 800 !important; }}
+        .stMarkdown h1 {{ text-align: center !important; margin: 0 !important; font-weight: 800 !important; }}
         .stMarkdown h1.header-title {{
             margin-top: 0 !important;
             margin-bottom: 0 !important;
             line-height: 1.18 !important;
         }}
-        .stMarkdown h2 {{ text-align: center !important; margin-bottom: 0.45rem !important; color: {COR_AZUL_ESC} !important; }}
-        .stMarkdown h3 {{ text-align: center !important; margin-bottom: 0.4rem !important; }}
-        .stMarkdown h4 {{ text-align: center !important; margin-bottom: 0.35rem !important; }}
+        .stMarkdown h2 {{ text-align: center !important; margin: 0 !important; color: {COR_AZUL_ESC} !important; }}
+        .stMarkdown h3 {{ text-align: center !important; margin: 0 !important; }}
+        .stMarkdown h4 {{ text-align: center !important; margin: 0 !important; }}
         .stMarkdown h5, .stMarkdown h6 {{
             text-align: center !important;
-            margin-bottom: 0.3rem !important;
+            margin: 0 !important;
             font-weight: 600 !important;
             color: {COR_TEXTO_MUTED} !important;
         }}
         .dv-titulo-secao {{
-            margin: 0 0 0.4rem 0 !important;
+            margin: 0 !important;
         }}
         [data-testid="stCaption"] {{
             font-family: 'Inter', sans-serif !important;
@@ -4788,12 +4829,14 @@ def aba_simulador_automacao(
         '<div class="header-brand-bar-wrap" aria-hidden="true"></div>',
         unsafe_allow_html=True,
     )
-    render_secao_campanhas_comerciais(
-        df_home_banners if df_home_banners is not None else pd.DataFrame(),
-        df_campanhas_texto if df_campanhas_texto is not None else pd.DataFrame(),
-        user_is_adm=bool(st.session_state.get("user_is_adm")),
-    )
-    inject_home_banner_dialog_modal()
+    # Resumo da simulação: sem faixa de campanhas comerciais nem iframe do popup de miniaturas
+    if passo != "summary":
+        render_secao_campanhas_comerciais(
+            df_home_banners if df_home_banners is not None else pd.DataFrame(),
+            df_campanhas_texto if df_campanhas_texto is not None else pd.DataFrame(),
+            user_is_adm=bool(st.session_state.get("user_is_adm")),
+        )
+        inject_home_banner_dialog_modal()
 
     # --- PÁGINA ÚNICA: perfil → valores → recomendações → unidade → distribuição (ordem fixa) ---
     if passo == 'sim':
