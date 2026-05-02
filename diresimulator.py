@@ -2674,7 +2674,9 @@ def df_estoque_com_poder_compra(
 
 def candidatos_df_recomendados(df_pool: pd.DataFrame) -> pd.DataFrame:
     """
-    Subconjunto recomendado por maior lucro previsto.
+    Subconjunto recomendado por maior lucro previsto entre unidades compatíveis.
+    Se nenhuma for compatível, devolve a(s) unidade(s) com menor Valor de Venda
+    (na UI o badge fica MENOR PREÇO).
     Espera colunas calculadas:
     - Unidade_Compativel
     - Lucro_Recomendacao
@@ -3266,44 +3268,58 @@ def configurar_layout():
             ) !important;
         }}
 
-        /* Cards de recomendação: grupo centralizado; fade nas bordas do carrossel */
-        .recommendation-cards-outer {{
-            display: flex;
-            justify-content: center;
-            width: 100%;
-            box-sizing: border-box;
-            -webkit-mask-image: linear-gradient(90deg, transparent, #000 2%, #000 98%, transparent);
-            mask-image: linear-gradient(90deg, transparent, #000 2%, #000 98%, transparent);
-            scrollbar-gutter: stable;
+        /*
+         * Recomendação de unidades: scroll no wrapper externo.
+         * Antes o overflow estava no .scrolling-wrapper com max-width:100% — em cadeia flex (Streamlit)
+         * o min-width:auto do content impedia overflow real e o arrasto horizontal no telemóvel falhava.
+         */
+        .block-container [data-testid="stElementContainer"]:has(.recommendation-cards-outer),
+        .block-container div[data-testid="stMarkdownContainer"]:has(.recommendation-cards-outer) {{
+            min-width: 0 !important;
+            max-width: 100% !important;
+            overflow-x: visible !important;
         }}
-        .scrolling-wrapper {{
-            display: flex;
-            flex-wrap: nowrap;
-            overflow-x: scroll !important;
-            overflow-y: hidden !important;
-            -webkit-overflow-scrolling: touch;
-            gap: 20px;
-            padding-bottom: 14px;
-            margin-bottom: 12px;
-            width: max-content;
+        .recommendation-cards-outer {{
+            display: block;
+            width: 100%;
             max-width: 100%;
             box-sizing: border-box;
+            overflow-x: auto;
+            overflow-y: hidden;
+            -webkit-overflow-scrolling: touch;
+            overscroll-behavior-x: contain;
+            touch-action: pan-x pan-y;
             scroll-behavior: smooth;
             scrollbar-width: thin;
             scrollbar-color: rgba({RGB_AZUL_CSS}, 0.5) rgba(148, 163, 184, 0.22);
+            scrollbar-gutter: stable;
+            padding: 0 2px 4px 2px;
         }}
-        .scrolling-wrapper::-webkit-scrollbar {{
+        .recommendation-cards-outer .scrolling-wrapper {{
+            display: flex;
+            flex-direction: row;
+            flex-wrap: nowrap;
+            gap: 20px;
+            width: max-content;
+            max-width: none;
+            min-width: min-content;
+            overflow: visible;
+            margin: 0 auto 12px auto;
+            padding-bottom: 14px;
+            box-sizing: border-box;
+        }}
+        .recommendation-cards-outer::-webkit-scrollbar {{
             height: 10px !important;
             -webkit-appearance: none;
             appearance: none;
             background: rgba(148, 163, 184, 0.22);
             border-radius: 99px;
         }}
-        .scrolling-wrapper::-webkit-scrollbar-track {{
+        .recommendation-cards-outer::-webkit-scrollbar-track {{
             background: rgba(148, 163, 184, 0.2);
             border-radius: 99px;
         }}
-        .scrolling-wrapper::-webkit-scrollbar-thumb {{
+        .recommendation-cards-outer::-webkit-scrollbar-thumb {{
             background: linear-gradient(90deg, rgba({RGB_AZUL_CSS}, 0.35), rgba({RGB_VERMELHO_CSS}, 0.42));
             border-radius: 99px;
         }}
@@ -3559,59 +3575,176 @@ def configurar_layout():
             box-sizing: border-box !important;
         }}
 
-        /* st.selectbox / st.multiselect (picklists): quebra de linha no valor fechado e nas opções abertas — não afeta text_input/number_input */
-        [data-testid="stSelectbox"] div[data-baseweb="select"] > div,
-        [data-testid="stMultiSelect"] div[data-baseweb="select"] > div {{
-            background-color: {COR_INPUT_BG} !important;
-            border: 1px solid #e2e8f0 !important;
-            border-radius: var(--dv-input-radius) !important;
-            display: flex !important;
-            align-items: flex-start !important;
-            justify-content: space-between !important;
-            gap: 8px !important;
-            min-height: var(--dv-input-height) !important;
-            height: auto !important;
-            max-height: none !important;
-            padding: 8px 12px !important;
-            box-sizing: border-box !important;
-            overflow: visible !important;
+        /*
+         * Picklists (Base Web): desktop = uma linha + ellipsis; só em larguras finas (max 768px)
+         * quebra no valor fechado e nas opções. Regras em divs descendentes sobrepõem nowrap interno.
+         */
+        @media (min-width: 769px) {{
+            [data-testid="stSelectbox"] div[data-baseweb="select"] > div,
+            [data-testid="stMultiSelect"] div[data-baseweb="select"] > div {{
+                background-color: {COR_INPUT_BG} !important;
+                border: 1px solid #e2e8f0 !important;
+                border-radius: var(--dv-input-radius) !important;
+                display: flex !important;
+                align-items: center !important;
+                justify-content: space-between !important;
+                gap: 8px !important;
+                min-height: var(--dv-input-height) !important;
+                height: var(--dv-input-height) !important;
+                max-height: var(--dv-input-height) !important;
+                padding: 0 12px !important;
+                box-sizing: border-box !important;
+                overflow: hidden !important;
+            }}
+            [data-testid="stSelectbox"] div[data-baseweb="select"] > div > div,
+            [data-testid="stSelectbox"] div[data-baseweb="select"] > div > p,
+            [data-testid="stSelectbox"] div[data-baseweb="select"] span,
+            [data-testid="stMultiSelect"] div[data-baseweb="select"] > div > div,
+            [data-testid="stMultiSelect"] div[data-baseweb="select"] > div > p,
+            [data-testid="stMultiSelect"] div[data-baseweb="select"] span {{
+                text-align: left !important;
+                white-space: nowrap !important;
+                overflow: hidden !important;
+                text-overflow: ellipsis !important;
+                word-break: normal !important;
+                overflow-wrap: normal !important;
+                line-height: 1.38 !important;
+                color: {COR_INPUT_TEXTO} !important;
+                -webkit-text-fill-color: {COR_INPUT_TEXTO} !important;
+                display: block !important;
+                flex: 1 1 auto !important;
+                min-width: 0 !important;
+            }}
+            [data-testid="stSelectbox"] div[data-baseweb="select"] svg,
+            [data-testid="stMultiSelect"] div[data-baseweb="select"] svg {{
+                flex-shrink: 0 !important;
+                align-self: center !important;
+            }}
+            [data-testid="stSelectbox"] div[data-baseweb="select"] p,
+            [data-testid="stMultiSelect"] div[data-baseweb="select"] p {{
+                text-align: left !important;
+                white-space: nowrap !important;
+                overflow: hidden !important;
+                text-overflow: ellipsis !important;
+                word-break: normal !important;
+                overflow-wrap: normal !important;
+                line-height: 1.38 !important;
+                color: {COR_INPUT_TEXTO} !important;
+                -webkit-text-fill-color: {COR_INPUT_TEXTO} !important;
+                margin: 0 !important;
+                min-width: 0 !important;
+            }}
+            div[data-baseweb="popover"] ul[role="listbox"] [role="option"],
+            ul[role="listbox"] [role="option"] {{
+                white-space: nowrap !important;
+                overflow: hidden !important;
+                text-overflow: ellipsis !important;
+                word-break: normal !important;
+                overflow-wrap: normal !important;
+                min-height: 2.5rem !important;
+                line-height: 1.35 !important;
+                align-items: center !important;
+            }}
         }}
-        [data-testid="stSelectbox"] div[data-baseweb="select"] > div > div,
-        [data-testid="stSelectbox"] div[data-baseweb="select"] span,
-        [data-testid="stMultiSelect"] div[data-baseweb="select"] > div > div,
-        [data-testid="stMultiSelect"] div[data-baseweb="select"] span {{
-            text-align: left !important;
-            white-space: normal !important;
-            word-break: break-word !important;
-            overflow-wrap: break-word !important;
-            text-overflow: unset !important;
-            overflow: visible !important;
-            height: auto !important;
-            max-height: none !important;
-            line-height: 1.38 !important;
-            color: {COR_INPUT_TEXTO} !important;
-            -webkit-text-fill-color: {COR_INPUT_TEXTO} !important;
-            display: block !important;
-            flex: 1 1 auto !important;
-            min-width: 0 !important;
-        }}
-        [data-testid="stSelectbox"] div[data-baseweb="select"] svg,
-        [data-testid="stMultiSelect"] div[data-baseweb="select"] svg {{
-            flex-shrink: 0 !important;
-            align-self: center !important;
-        }}
-        /* Opções abertas do picklist (listbox no popover), incl. no móvel */
-        ul[role="listbox"] [role="option"],
-        div[data-baseweb="popover"] ul[role="listbox"] [role="option"] {{
-            white-space: normal !important;
-            word-break: break-word !important;
-            overflow-wrap: break-word !important;
-            text-overflow: unset !important;
-            overflow: visible !important;
-            height: auto !important;
-            min-height: 2.5rem !important;
-            line-height: 1.35 !important;
-            align-items: flex-start !important;
+        @media (max-width: 768px) {{
+            [data-testid="stSelectbox"] div[data-baseweb="select"],
+            [data-testid="stMultiSelect"] div[data-baseweb="select"] {{
+                overflow: visible !important;
+                max-width: 100% !important;
+            }}
+            [data-testid="stSelectbox"] div[data-baseweb="select"] > div,
+            [data-testid="stMultiSelect"] div[data-baseweb="select"] > div {{
+                background-color: {COR_INPUT_BG} !important;
+                border: 1px solid #e2e8f0 !important;
+                border-radius: var(--dv-input-radius) !important;
+                display: flex !important;
+                align-items: flex-start !important;
+                justify-content: space-between !important;
+                gap: 8px !important;
+                min-height: var(--dv-input-height) !important;
+                height: auto !important;
+                max-height: none !important;
+                padding: 8px 12px !important;
+                box-sizing: border-box !important;
+                overflow: visible !important;
+                max-width: 100% !important;
+            }}
+            [data-testid="stSelectbox"] div[data-baseweb="select"] > div > div,
+            [data-testid="stSelectbox"] div[data-baseweb="select"] > div > p,
+            [data-testid="stSelectbox"] div[data-baseweb="select"] span,
+            [data-testid="stMultiSelect"] div[data-baseweb="select"] > div > div,
+            [data-testid="stMultiSelect"] div[data-baseweb="select"] > div > p,
+            [data-testid="stMultiSelect"] div[data-baseweb="select"] span {{
+                text-align: left !important;
+                white-space: normal !important;
+                word-break: break-word !important;
+                overflow-wrap: anywhere !important;
+                text-overflow: unset !important;
+                overflow: visible !important;
+                height: auto !important;
+                max-height: none !important;
+                line-height: 1.38 !important;
+                color: {COR_INPUT_TEXTO} !important;
+                -webkit-text-fill-color: {COR_INPUT_TEXTO} !important;
+                display: block !important;
+                flex: 1 1 auto !important;
+                min-width: 0 !important;
+                max-width: 100% !important;
+                -webkit-line-clamp: unset !important;
+            }}
+            [data-testid="stSelectbox"] div[data-baseweb="select"] div,
+            [data-testid="stMultiSelect"] div[data-baseweb="select"] div {{
+                white-space: normal !important;
+                word-break: break-word !important;
+                overflow-wrap: anywhere !important;
+                overflow: visible !important;
+                text-overflow: clip !important;
+                max-width: 100% !important;
+            }}
+            [data-testid="stSelectbox"] div[data-baseweb="select"] p,
+            [data-testid="stMultiSelect"] div[data-baseweb="select"] p {{
+                white-space: normal !important;
+                word-break: break-word !important;
+                overflow-wrap: anywhere !important;
+                overflow: visible !important;
+                text-overflow: unset !important;
+                max-width: 100% !important;
+                -webkit-line-clamp: unset !important;
+                margin: 0 !important;
+            }}
+            [data-testid="stSelectbox"] div[data-baseweb="select"] svg,
+            [data-testid="stMultiSelect"] div[data-baseweb="select"] svg {{
+                flex-shrink: 0 !important;
+                align-self: flex-start !important;
+                margin-top: 2px !important;
+            }}
+            div[data-baseweb="popover"] ul[role="listbox"] [role="option"],
+            ul[role="listbox"] [role="option"] {{
+                white-space: normal !important;
+                word-break: break-word !important;
+                overflow-wrap: anywhere !important;
+                text-overflow: unset !important;
+                overflow: visible !important;
+                height: auto !important;
+                min-height: 2.5rem !important;
+                line-height: 1.35 !important;
+                align-items: flex-start !important;
+                -webkit-line-clamp: unset !important;
+            }}
+            div[data-baseweb="popover"] ul[role="listbox"] [role="option"] div,
+            div[data-baseweb="popover"] ul[role="listbox"] [role="option"] span,
+            div[data-baseweb="popover"] ul[role="listbox"] [role="option"] p,
+            ul[role="listbox"] [role="option"] div,
+            ul[role="listbox"] [role="option"] span,
+            ul[role="listbox"] [role="option"] p {{
+                white-space: normal !important;
+                word-break: break-word !important;
+                overflow-wrap: anywhere !important;
+                overflow: visible !important;
+                text-overflow: unset !important;
+                -webkit-line-clamp: unset !important;
+                max-width: 100% !important;
+            }}
         }}
 
         div[data-testid="stDateInput"] div[data-baseweb="input"] {{
@@ -5878,7 +6011,7 @@ def aba_simulador_automacao(
                         cand_rec = fit_all.groupby("Empreendimento", as_index=False).head(1)
                 comp_col = pd.to_numeric(df_pool.get("Unidade_Compativel", pd.Series(dtype=float)), errors="coerce").fillna(0.0)
                 alguma_cabe = (comp_col > 0).any()
-                label_rec, css_rec = ("MAIOR LUCRO", "badge-ideal") if alguma_cabe else ("SEM COMPATIBILIDADE", "badge-seguro")
+                label_rec, css_rec = ("MAIOR LUCRO", "badge-ideal") if alguma_cabe else ("MENOR PREÇO", "badge-seguro")
 
                 def add_cards_group(label, df_group, css_class):
                     if df_group is None or df_group.empty:
