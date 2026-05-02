@@ -2376,8 +2376,6 @@ def _validar_login_planilha(df_logins: pd.DataFrame, email: str, senha: str) -> 
 
 
 def _render_login_section(df_logins: pd.DataFrame, cookie_manager=None) -> None:
-    st.session_state.setdefault("dv_cb_manter_sessao", True)
-    st.session_state.setdefault("dv_cb_lembrar_email", True)
     if cookie_manager is not None:
         try:
             _saved_em = cookie_manager.get(_DV_COOKIE_EMAIL)
@@ -2413,21 +2411,9 @@ def _render_login_section(df_logins: pd.DataFrame, cookie_manager=None) -> None:
             _sessao_sem_login_defaults()
             st.rerun()
         return
-    st.checkbox(
-        "Manter sessão neste dispositivo (reabre sem pedir senha por até 30 dias)",
-        key="dv_cb_manter_sessao",
-    )
-    st.checkbox(
-        "Lembrar e-mail neste dispositivo",
-        key="dv_cb_lembrar_email",
-    )
     with st.form("dv_login_form", clear_on_submit=False):
         st.text_input("E-mail", key="dv_login_email_in")
         st.text_input("Senha", type="password", key="dv_login_senha_in")
-        st.caption(
-            "A senha **não** é guardada no browser: usamos um token seguro. "
-            "Defina `SIMULADOR_SESSION_SECRET` nos *Secrets* em produção."
-        )
         submitted = st.form_submit_button(
             "Entrar",
             type="primary",
@@ -2443,8 +2429,8 @@ def _render_login_section(df_logins: pd.DataFrame, cookie_manager=None) -> None:
                 _dv_apply_session_from_row(row)
                 _dv_persist_after_login(
                     row,
-                    remember_long=bool(st.session_state.get("dv_cb_manter_sessao")),
-                    remember_email=bool(st.session_state.get("dv_cb_lembrar_email")),
+                    remember_long=True,
+                    remember_email=True,
                     cookie_manager=cookie_manager,
                 )
                 st.rerun()
