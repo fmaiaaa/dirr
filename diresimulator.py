@@ -7025,12 +7025,25 @@ def aba_simulador_automacao(
             novo = min(gap, teto_b) if teto_b > 0 else gap
             st.session_state["ps_u_key"] = float_para_campo_texto(novo, vazio_se_zero=True)
 
+        _renda_cli = max(0.0, float(d.get("renda", 0) or 0))
         # --- Ato 1 (Entrada Imediata): só key + session_state (evita conflito value/key) ---
+        if _renda_cli > 0:
+            _sug_ato1 = 2.0 * _renda_cli
+            st.markdown(
+                '<p class="inline-ref" style="margin:0 0 0.35rem 0;line-height:1.45;">'
+                "Sugestão: tente pegar, no mínimo, "
+                f"{reais_streamlit_html(fmt_br(_sug_ato1))} do cliente como entrada imediata "
+                f"(2× a renda familiar: {reais_streamlit_html(fmt_br(_renda_cli))}).</p>",
+                unsafe_allow_html=True,
+            )
+        else:
+            st.caption(
+                "Informe a renda familiar na etapa anterior para ver sugestão de mínimo no Ato 1."
+            )
         st.text_input(
             "Ato 1 (Entrada Imediata) (R$)",
             key="ato_1_key",
             placeholder="0,00",
-            help="Valor pago no ato da assinatura.",
         )
         r1 = max(0.0, texto_moeda_para_float(st.session_state.get("ato_1_key")))
         st.session_state.dados_cliente['ato_final'] = r1
@@ -7107,6 +7120,15 @@ def aba_simulador_automacao(
             )
 
         st.write("")
+        if _renda_cli > 0:
+            _sug_ato30_60 = _renda_cli / 2.0
+            _sug_fmt = reais_streamlit_html(fmt_br(_sug_ato30_60))
+            st.markdown(
+                '<p class="inline-ref" style="margin:0 0 0.35rem 0;line-height:1.45;">'
+                f"Sugestão — Ato 30 e Ato 60: tente pegar, no mínimo, {_sug_fmt} em cada "
+                f"(½× a renda familiar: {reais_streamlit_html(fmt_br(_renda_cli))}).</p>",
+                unsafe_allow_html=True,
+            )
         if is_emcash:
             st.text_input(
                 "Ato 30 (R$)",
