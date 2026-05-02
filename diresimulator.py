@@ -2609,6 +2609,8 @@ def configurar_layout():
             --dv-surface-glass-strong: rgba(255, 255, 255, 0.94);
             /* Ritmo único entre secções, cabeçalho, campanhas e widgets Streamlit */
             --dv-rhythm: 1.25rem;
+            /* ~½ dedo no topo do cartão / main (máx. ~10px); safe-area somada onde aplicável */
+            --dv-inset-top-min: clamp(3px, 0.4rem, 10px);
         }}
         @media (prefers-reduced-motion: no-preference) {{
             html {{
@@ -2734,14 +2736,14 @@ def configurar_layout():
             [data-testid="stMain"] {{
                 padding-left: max(clamp(6px, 2.5vw, 16px), env(safe-area-inset-left, 0px)) !important;
                 padding-right: max(clamp(6px, 2.5vw, 16px), env(safe-area-inset-right, 0px)) !important;
-                padding-top: max(calc(var(--dv-rhythm) * 0.2), env(safe-area-inset-top, 0px)) !important;
+                padding-top: max(var(--dv-inset-top-min), env(safe-area-inset-top, 0px)) !important;
                 padding-bottom: max(var(--dv-rhythm), env(safe-area-inset-bottom, 0px)) !important;
                 justify-content: flex-start !important;
             }}
             .block-container {{
                 max-width: 100% !important;
                 width: 100% !important;
-                padding: calc(var(--dv-rhythm) * 0.55) clamp(0.55rem, 2.8vw, 1rem) var(--dv-rhythm) clamp(0.55rem, 2.8vw, 1rem) !important;
+                padding: var(--dv-inset-top-min) clamp(0.55rem, 2.8vw, 1rem) var(--dv-rhythm) clamp(0.55rem, 2.8vw, 1rem) !important;
                 margin-left: auto !important;
                 margin-right: auto !important;
                 margin-top: clamp(2px, 1vw, 6px) !important;
@@ -2787,7 +2789,7 @@ def configurar_layout():
         }}
         @media (max-width: 420px) {{
             .block-container {{
-                padding: 0.7rem 0.5rem !important;
+                padding: var(--dv-inset-top-min) 0.5rem 0.65rem 0.5rem !important;
             }}
             .header-logo-wrap img {{
                 max-height: 58px;
@@ -2859,7 +2861,7 @@ def configurar_layout():
         [data-testid="stMain"] {{
             padding-left: max(clamp(6px, 1.8vw, 22px), env(safe-area-inset-left, 0px)) !important;
             padding-right: max(clamp(6px, 1.8vw, 22px), env(safe-area-inset-right, 0px)) !important;
-            padding-top: max(calc(var(--dv-rhythm) * 0.2), env(safe-area-inset-top, 0px)) !important;
+            padding-top: max(var(--dv-inset-top-min), env(safe-area-inset-top, 0px)) !important;
             padding-bottom: max(var(--dv-rhythm), env(safe-area-inset-bottom, 0px)) !important;
             box-sizing: border-box !important;
             background: transparent !important;
@@ -2875,7 +2877,7 @@ def configurar_layout():
         section.main > div {{
             justify-content: flex-start !important;
             align-items: stretch !important;
-            padding-top: max(calc(var(--dv-rhythm) * 0.12), env(safe-area-inset-top, 0px)) !important;
+            padding-top: 0 !important;
             padding-bottom: calc(var(--dv-rhythm) * 0.35) !important;
         }}
 
@@ -2895,6 +2897,7 @@ def configurar_layout():
             flex-direction: column !important;
             gap: var(--dv-rhythm) !important;
             align-items: stretch !important;
+            justify-content: flex-start !important;
         }}
         .block-container [data-testid="stHorizontalBlock"],
         section.main [data-testid="stHorizontalBlock"] {{
@@ -2991,7 +2994,7 @@ def configurar_layout():
             text-wrap: balance;
         }}
 
-        /* Cartão “vidro”: padding-top um pouco menor que o de baixo (logo mais alta; box mantém margin igual) */
+        /* Cartão “vidro”: topo ~½ dedo; fundo mantém ritmo; margens da box inalteradas */
         .block-container {{
             text-rendering: optimizeLegibility;
             max-width: min(1680px, 100%) !important;
@@ -2999,7 +3002,7 @@ def configurar_layout():
             margin-right: auto !important;
             margin-top: clamp(2px, 0.5vh, 8px) !important;
             margin-bottom: clamp(4px, 1vh, 14px) !important;
-            padding: calc(var(--dv-rhythm) * 0.55) clamp(0.7rem, 1.6vw, 1.35rem) var(--dv-rhythm) clamp(0.7rem, 1.6vw, 1.35rem) !important;
+            padding: var(--dv-inset-top-min) clamp(0.7rem, 1.6vw, 1.35rem) var(--dv-rhythm) clamp(0.7rem, 1.6vw, 1.35rem) !important;
             background: rgba(255, 255, 255, 0.72) !important;
             backdrop-filter: blur(18px) saturate(1.15) !important;
             -webkit-backdrop-filter: blur(18px) saturate(1.15) !important;
@@ -3587,7 +3590,7 @@ def configurar_layout():
 
         .header-container {{
             text-align: center;
-            padding: calc(var(--dv-rhythm) * 0.2) 0.75rem calc(var(--dv-rhythm) * 0.35);
+            padding: 0 0.75rem calc(var(--dv-rhythm) * 0.35);
             margin: 0 auto var(--dv-rhythm);
             max-width: 1100px;
             position: relative;
