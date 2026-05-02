@@ -5207,90 +5207,26 @@ def aba_simulador_automacao(
                 st.session_state["_sf_rank_applied_cpf"] = cpf_digits
                 if hasattr(st, "toast"):
                     try:
-                        st.toast(f"Ranking definido pelo Salesforce: {_sf_rs}", icon="✅")
+                        st.toast(f"Ranking encontrado: {_sf_rs}", icon="✅")
                     except Exception:
                         pass
         else:
             # CPF incompleto ou vazio: permite nova consulta ao voltar a 11 dígitos
             st.session_state["_sf_rank_applied_cpf"] = ""
         _rank_now = st.session_state.get("in_rank_v28", st.session_state.dados_cliente.get("ranking", "DIAMANTE"))
-        if not cpf_digits:
-            st.markdown(
-                f'<p class="inline-ref" style="margin-top:0;margin-bottom:0;line-height:1.45;">'
-                f"Ranking atual no simulador: <strong>{html_std.escape(str(_rank_now))}</strong>. "
-                "Informe 11 dígitos do CPF para tentar buscar o ranking no Salesforce (credenciais em secrets).</p>",
-                unsafe_allow_html=True,
-            )
-        elif len(cpf_digits) < 11:
-            st.markdown(
-                f'<p class="inline-ref" style="margin-top:0;margin-bottom:0;line-height:1.45;">'
-                f"Ranking atual: <strong>{html_std.escape(str(_rank_now))}</strong>. "
-                f"CPF incompleto ({len(cpf_digits)} dígitos) - são necessários 11 para consulta automática.</p>",
-                unsafe_allow_html=True,
-            )
-        else:
-            if _sf_rs and _sf_rs in rank_opts:
+        if len(cpf_digits) == 11:
+            if _sf_rs:
                 st.markdown(
                     f'<p class="inline-ref" style="margin-top:0;margin-bottom:0;line-height:1.45;">'
-                    "Ranking <strong>Salesforce</strong>: "
-                    f'<strong style="color:{COR_AZUL_ESC};">{html_std.escape(_sf_rs)}</strong> '
-                    "(refletido no seletor <em>Ranking do Cliente</em> logo abaixo).</p>",
+                    f"Ranking encontrado: {html_std.escape(str(_sf_rs))}</p>",
                     unsafe_allow_html=True,
                 )
             elif _sf_code == "sem_registo":
                 st.markdown(
-                    f'<p class="inline-ref" style="margin-top:0;margin-bottom:0;line-height:1.45;">'
-                    f"Salesforce: nenhum contato com este CPF. Ranking mantido: <strong>{html_std.escape(str(_rank_now))}</strong>.</p>",
-                    unsafe_allow_html=True,
-                )
-            elif _sf_code == "sem_conexao":
-                st.markdown(
-                    f'<p class="inline-ref" style="margin-top:0;margin-bottom:0;line-height:1.45;">'
-                    "Salesforce: sem conexão (credenciais, token ou rede). "
-                    f'Ranking no simulador: <strong>{html_std.escape(str(_rank_now))}</strong>.</p>',
-                    unsafe_allow_html=True,
-                )
-            elif _sf_code == "pacote_ausente":
-                st.markdown(
                     '<p class="inline-ref" style="margin-top:0;margin-bottom:0;line-height:1.45;">'
-                    "Instale o pacote <code>simple-salesforce</code> para consultar o ranking pelo CPF.</p>",
+                    "CPF não encontrado. Um novo contato deve ser criado no salesforce</p>",
                     unsafe_allow_html=True,
                 )
-            else:
-                st.markdown(
-                    f'<p class="inline-ref" style="margin-top:0;margin-bottom:0;line-height:1.45;">'
-                    f"Salesforce devolveu um ranking não mapeado. Ranking no simulador: <strong>{html_std.escape(str(_rank_now))}</strong>.</p>",
-                    unsafe_allow_html=True,
-                )
-            # Conta / última oportunidade — omitir se não há Contact com este CPF (evita segunda linha redundante)
-            if _sf_code != "sem_registo":
-                _opp_d, _opp_e = _lookup_ranking_oportunidade_sf_cached(cpf_digits)
-                if _opp_d:
-                    rtxt = html_std.escape(str(_opp_d.get("ranking_exibir") or "—"))
-                    nconta = _opp_d.get("nome_conta")
-                    extra_nome = ""
-                    if nconta:
-                        extra_nome = (
-                            f' — <span style="opacity:0.85;">{html_std.escape(str(nconta))}</span>'
-                        )
-                    st.markdown(
-                        f'<p class="inline-ref" style="margin-top:0;margin-bottom:0;line-height:1.45;">'
-                        f"<strong>Conta (última oportunidade)</strong> no Salesforce: ranking "
-                        f'<strong style="color:{COR_AZUL_ESC};">{rtxt}</strong>{extra_nome}.</p>',
-                        unsafe_allow_html=True,
-                    )
-                elif _opp_e and "Nenhum registro" in str(_opp_e):
-                    st.markdown(
-                        '<p class="inline-ref" style="margin-top:0;margin-bottom:0;line-height:1.45;">'
-                        "Sem <strong>oportunidade</strong> recente com este CPF na conta (verificação Account.CPF__c).</p>",
-                        unsafe_allow_html=True,
-                    )
-                elif _opp_e and _opp_e != "sem_conexao" and _sf_code != "sem_conexao":
-                    st.markdown(
-                        f'<p class="inline-ref" style="margin-top:0;margin-bottom:0;line-height:1.45;">'
-                        f"{html_std.escape(str(_opp_e))}</p>",
-                        unsafe_allow_html=True,
-                    )
         curr_ranking = _rank_now
         idx_ranking = rank_opts.index(curr_ranking) if curr_ranking in rank_opts else 0
         ranking = st.selectbox("Ranking do Cliente", options=rank_opts, index=idx_ranking, key="in_rank_v28")
