@@ -3248,6 +3248,8 @@ def configurar_layout():
             flex-direction: column !important;
             align-items: stretch !important;
             gap: var(--dv-stack-gap) !important;
+            width: 100% !important;
+            max-width: 100% !important;
         }}
         .block-container [data-testid="stHorizontalBlock"] > div[data-testid="column"] {{
             width: 100% !important;
@@ -3330,7 +3332,7 @@ def configurar_layout():
         .dv-ref-prox-campo {{
             margin: 0 !important;
             padding: 0 !important;
-            text-align: left !important;
+            text-align: center !important;
             line-height: 1.45 !important;
             color: #111111 !important;
         }}
@@ -3463,12 +3465,12 @@ def configurar_layout():
         .block-container .summary-body b {{
             font-size: var(--dv-body-font-size) !important;
         }}
-        /* Corpo do formulário: mesma lateralidade que os campos (títulos h1–h6 mantêm centro noutras regras) */
+        /* Textos de apoio no cartão: centralizados (rótulos de widgets mantêm-se à esquerda) */
         .block-container div[data-testid="stMarkdown"] p,
         .block-container div[data-testid="stMarkdownContainer"] p {{
             color: #334155;
             line-height: 1.58;
-            text-align: left !important;
+            text-align: center !important;
             text-wrap: pretty;
         }}
         h1, h2, h3, .home-banners-section-title, .dv-titulo-secao {{
@@ -3546,9 +3548,9 @@ def configurar_layout():
             color: #475569 !important;
             font-size: var(--dv-body-font-size) !important;
             line-height: 1.5 !important;
-            text-align: left !important;
-            justify-content: flex-start !important;
-            align-items: flex-start !important;
+            text-align: center !important;
+            justify-content: center !important;
+            align-items: center !important;
             width: 100% !important;
             display: flex !important;
             flex-direction: column !important;
@@ -3556,7 +3558,7 @@ def configurar_layout():
         .block-container [data-testid="stCaption"] > *,
         .block-container [data-testid="stCaption"] [data-testid="stMarkdownContainer"],
         .block-container [data-testid="stCaption"] [data-testid="stMarkdownContainer"] p {{
-            text-align: left !important;
+            text-align: center !important;
             width: 100% !important;
         }}
 
@@ -3976,14 +3978,34 @@ def configurar_layout():
         .stButton button[kind="primary"] {{
             background: linear-gradient(180deg, {COR_VERMELHO} 0%, {COR_VERMELHO_ESCURO} 100%) !important;
             color: #ffffff !important;
+            -webkit-text-fill-color: #ffffff !important;
             border: none !important;
             box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.2),
                 0 4px 20px -4px rgba({RGB_VERMELHO_CSS}, 0.42) !important;
         }}
         .stButton button[kind="primary"]:hover {{
             background: linear-gradient(180deg, {COR_VERMELHO} 0%, {COR_VERMELHO_ESCURO} 100%) !important;
+            color: #ffffff !important;
+            -webkit-text-fill-color: #ffffff !important;
             box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.22),
                 0 10px 28px -6px rgba({RGB_VERMELHO_CSS}, 0.48) !important;
+        }}
+        .stButton button[kind="primary"] *,
+        .stButton button[kind="primary"] span,
+        .stButton button[kind="primary"] p {{
+            color: #ffffff !important;
+            -webkit-text-fill-color: #ffffff !important;
+        }}
+        .stButton button[kind="primary"]:hover *,
+        .stButton button[kind="primary"]:hover span,
+        .stButton button[kind="primary"]:hover p {{
+            color: #ffffff !important;
+            -webkit-text-fill-color: #ffffff !important;
+        }}
+        .stButton button[kind="primary"] svg,
+        .stButton button[kind="primary"]:hover svg {{
+            fill: #ffffff !important;
+            color: #ffffff !important;
         }}
         @media (hover: hover) and (prefers-reduced-motion: no-preference) {{
             .stButton button[kind="primary"]:hover {{
@@ -4447,7 +4469,7 @@ def configurar_layout():
             margin: 0.5rem auto 0;
             padding: 0 clamp(1.25rem, 6vw, 3.25rem) 0.5rem;
             box-sizing: border-box;
-            text-align: left;
+            text-align: center;
             font-size: var(--dv-body-font-size);
             order: 2;
         }}
@@ -4785,13 +4807,13 @@ def configurar_layout():
         .dv-prosa-secao {{
             color: #111111 !important;
             margin: 0 0 var(--dv-stack-gap) 0 !important;
-            text-align: left !important;
+            text-align: center !important;
         }}
         .finan-subsidios-note {{
             color: #111111;
             margin: 0 0 var(--dv-stack-gap) 0 !important;
             opacity: 0.72;
-            text-align: left !important;
+            text-align: center !important;
         }}
         /* Tabela financiamentos/subsídios: quebra linhas na largura disponível (sem esprem texto nem scroll horizontal). */
         .finan-subsidios-table-bleed {{
@@ -4904,7 +4926,7 @@ def configurar_layout():
             color: #111111;
             margin: 0 0 var(--dv-stack-gap) 0 !important;
             line-height: 1.45;
-            text-align: left !important;
+            text-align: center !important;
         }}
         .dv-page-tail-spacer {{
             height: calc(var(--dv-stack-gap) * 2);
@@ -4996,28 +5018,72 @@ def configurar_layout():
             letter-spacing: 0.02em;
             display: block;
             width: 100%;
-            text-align: left !important;
+            text-align: center !important;
             opacity: 0.72;
             position: relative;
             z-index: 0;
         }}
         .dv-campo-resumo-movel {{
-            text-align: left !important;
+            text-align: center !important;
         }}
         /* Volta ao Caixa: duas referências empilhadas (sem barra no meio) em qualquer largura */
         .inline-ref-vcx-linhas {{
             display: flex !important;
             flex-direction: column !important;
-            align-items: flex-start !important;
+            align-items: center !important;
             gap: 0.2rem !important;
-            text-align: left !important;
+            text-align: center !important;
         }}
         .inline-ref-vcx-linha {{
-            text-align: left !important;
+            text-align: center !important;
             width: 100%;
         }}
         .inline-ref-vcx-sep {{
             display: none !important;
+        }}
+
+        /* Telemóvel / ecrã fino: apoios e referências em várias linhas ficam justificados; desktop mantém centro */
+        @media (max-width: 768px) {{
+            .block-container div[data-testid="stMarkdown"] p,
+            .block-container div[data-testid="stMarkdownContainer"] p {{
+                text-align: justify !important;
+                text-align-last: center !important;
+                hyphens: auto;
+                -webkit-hyphens: auto;
+            }}
+            .block-container [data-testid="stCaption"],
+            .block-container [data-testid="stCaption"] > *,
+            .block-container [data-testid="stCaption"] [data-testid="stMarkdownContainer"],
+            .block-container [data-testid="stCaption"] [data-testid="stMarkdownContainer"] p {{
+                text-align: justify !important;
+                text-align-last: center !important;
+                hyphens: auto;
+                -webkit-hyphens: auto;
+            }}
+            .block-container .inline-ref,
+            .block-container .dv-campo-resumo-movel,
+            .block-container .dv-ref-prox-campo,
+            .block-container .dv-prosa-secao,
+            .block-container .finan-subsidios-note,
+            .block-container .dv-sinal-com-prosa,
+            .block-container .home-campanhas-copy {{
+                text-align: justify !important;
+                text-align-last: center !important;
+                hyphens: auto;
+                -webkit-hyphens: auto;
+            }}
+            .block-container .home-campanhas-copy-list li {{
+                text-align: justify !important;
+                text-align-last: center !important;
+            }}
+            .block-container .inline-ref-vcx-linhas {{
+                align-items: stretch !important;
+                text-align: justify !important;
+            }}
+            .block-container .inline-ref-vcx-linha {{
+                text-align: justify !important;
+                text-align-last: center !important;
+            }}
         }}
 
         .metric-label {{
@@ -6725,62 +6791,52 @@ def aba_simulador_automacao(
                 args=(2,),
             )
         else:
-            col_dist_a, col_dist_b = st.columns(2)
-            with col_dist_a:
-                st.button(
-                    "Distribuir saldo restante em duas parcelas (30 e 60 dias)",
-                    use_container_width=True,
-                    key="btn_rest_2x",
-                    on_click=distribuir_restante,
-                    args=(2,),
-                )
-            with col_dist_b:
-                st.button(
-                    "Distribuir saldo restante em três parcelas (30, 60 e 90 dias)",
-                    use_container_width=True,
-                    key="btn_rest_3x",
-                    on_click=distribuir_restante,
-                    args=(3,),
-                )
+            st.button(
+                "Distribuir saldo restante em duas parcelas (30 e 60 dias)",
+                use_container_width=True,
+                key="btn_rest_2x",
+                on_click=distribuir_restante,
+                args=(2,),
+            )
+            st.button(
+                "Distribuir saldo restante em três parcelas (30, 60 e 90 dias)",
+                use_container_width=True,
+                key="btn_rest_3x",
+                on_click=distribuir_restante,
+                args=(3,),
+            )
 
         st.write("")
         if is_emcash:
-            col_atos_rest1, col_atos_rest2 = st.columns(2)
-            with col_atos_rest1:
-                st.text_input(
-                    "Ato 30 (R$)",
-                    key="ato_2_key",
-                    placeholder="0,00",
-                )
-                st.session_state.dados_cliente["ato_30"] = max(
-                    0.0, texto_moeda_para_float(st.session_state.get("ato_2_key"))
-                )
-            with col_atos_rest2:
-                st.text_input(
-                    "Ato 60 (R$)",
-                    key="ato_3_key",
-                    placeholder="0,00",
-                )
-                st.session_state.dados_cliente["ato_60"] = max(
-                    0.0, texto_moeda_para_float(st.session_state.get("ato_3_key"))
-                )
+            st.text_input(
+                "Ato 30 (R$)",
+                key="ato_2_key",
+                placeholder="0,00",
+            )
+            st.session_state.dados_cliente["ato_30"] = max(
+                0.0, texto_moeda_para_float(st.session_state.get("ato_2_key"))
+            )
+            st.text_input(
+                "Ato 60 (R$)",
+                key="ato_3_key",
+                placeholder="0,00",
+            )
+            st.session_state.dados_cliente["ato_60"] = max(
+                0.0, texto_moeda_para_float(st.session_state.get("ato_3_key"))
+            )
         else:
-            col_atos_rest1, col_atos_rest2, col_atos_rest3 = st.columns(3)
-            with col_atos_rest1:
-                st.text_input("Ato 30 (R$)", key="ato_2_key", placeholder="0,00")
-                st.session_state.dados_cliente["ato_30"] = max(
-                    0.0, texto_moeda_para_float(st.session_state.get("ato_2_key"))
-                )
-            with col_atos_rest2:
-                st.text_input("Ato 60 (R$)", key="ato_3_key", placeholder="0,00")
-                st.session_state.dados_cliente["ato_60"] = max(
-                    0.0, texto_moeda_para_float(st.session_state.get("ato_3_key"))
-                )
-            with col_atos_rest3:
-                st.text_input("Ato 90 (R$)", key="ato_4_key", placeholder="0,00")
-                st.session_state.dados_cliente["ato_90"] = max(
-                    0.0, texto_moeda_para_float(st.session_state.get("ato_4_key"))
-                )
+            st.text_input("Ato 30 (R$)", key="ato_2_key", placeholder="0,00")
+            st.session_state.dados_cliente["ato_30"] = max(
+                0.0, texto_moeda_para_float(st.session_state.get("ato_2_key"))
+            )
+            st.text_input("Ato 60 (R$)", key="ato_3_key", placeholder="0,00")
+            st.session_state.dados_cliente["ato_60"] = max(
+                0.0, texto_moeda_para_float(st.session_state.get("ato_3_key"))
+            )
+            st.text_input("Ato 90 (R$)", key="ato_4_key", placeholder="0,00")
+            st.session_state.dados_cliente["ato_90"] = max(
+                0.0, texto_moeda_para_float(st.session_state.get("ato_4_key"))
+            )
 
         st.write("")
         st.button(
@@ -6823,38 +6879,34 @@ def aba_simulador_automacao(
             if _cur_pq < _n_need:
                 st.session_state["parc_ps_key"] = str(_n_need)
 
-        col_ps_parc, col_ps_val = st.columns(2)
+        st.text_input(
+            "Número de parcelas do Pro Soluto (inteiro)",
+            key="parc_ps_key",
+            placeholder=f"1 a {parc_max_ui}",
+        )
+        _parc_i = texto_inteiro(st.session_state.get("parc_ps_key"), default=1, min_v=1, max_v=parc_max_ui)
+        parc = _parc_i if _parc_i is not None else 1
+        st.session_state.dados_cliente['ps_parcelas'] = parc
+        st.markdown(
+            '<p class="inline-ref" style="margin-top:0;margin-bottom:0;line-height:1.45;">'
+            f"Prazo máximo de parcelas do Pro Soluto: {parc_max_ui} meses</p>",
+            unsafe_allow_html=True,
+        )
 
-        with col_ps_parc:
-            st.text_input(
-                "Número de parcelas do Pro Soluto (inteiro)",
-                key="parc_ps_key",
-                placeholder=f"1 a {parc_max_ui}",
-            )
-            _parc_i = texto_inteiro(st.session_state.get("parc_ps_key"), default=1, min_v=1, max_v=parc_max_ui)
-            parc = _parc_i if _parc_i is not None else 1
-            st.session_state.dados_cliente['ps_parcelas'] = parc
-            st.markdown(
-                '<p class="inline-ref" style="margin-top:0;margin-bottom:0;line-height:1.45;">'
-                f"Prazo máximo de parcelas do Pro Soluto: {parc_max_ui} meses</p>",
-                unsafe_allow_html=True,
-            )
-
-        with col_ps_val:
-            st.text_input("Valor do Pro Soluto (R$)", key="ps_u_key", placeholder="0,00")
-            _ps_opts_f = []
-            if ps_limite_ui2 > 0:
-                _ps_opts_f.append(ps_limite_ui2)
-            if u_valor > 0:
-                _ps_opts_f.append(max(0.0, v_liquido - f_u_input - fgts_u_input))
-            _teto_ps_final = min(_ps_opts_f) if _ps_opts_f else None
-            ps_input_val = clamp_moeda_positiva(texto_moeda_para_float(st.session_state.get("ps_u_key")), _teto_ps_final)
-            st.session_state.dados_cliente['ps_usado'] = ps_input_val
-            ref_text_ps = f"Limite máximo de Pro Soluto: {reais_streamlit_html(fmt_br(ps_limite_ui2))}"
-            st.markdown(
-                f'<p class="inline-ref" style="margin-top:0;margin-bottom:0;line-height:1.45;">{ref_text_ps}</p>',
-                unsafe_allow_html=True,
-            )
+        st.text_input("Valor do Pro Soluto (R$)", key="ps_u_key", placeholder="0,00")
+        _ps_opts_f = []
+        if ps_limite_ui2 > 0:
+            _ps_opts_f.append(ps_limite_ui2)
+        if u_valor > 0:
+            _ps_opts_f.append(max(0.0, v_liquido - f_u_input - fgts_u_input))
+        _teto_ps_final = min(_ps_opts_f) if _ps_opts_f else None
+        ps_input_val = clamp_moeda_positiva(texto_moeda_para_float(st.session_state.get("ps_u_key")), _teto_ps_final)
+        st.session_state.dados_cliente['ps_usado'] = ps_input_val
+        ref_text_ps = f"Limite máximo de Pro Soluto: {reais_streamlit_html(fmt_br(ps_limite_ui2))}"
+        st.markdown(
+            f'<p class="inline-ref" style="margin-top:0;margin-bottom:0;line-height:1.45;">{ref_text_ps}</p>',
+            unsafe_allow_html=True,
+        )
 
         meses_entrega_unid = meses_ate_entrega(d.get("unid_entrega", ""))
         st.session_state.dados_cliente["meses_ate_entrega"] = meses_entrega_unid
@@ -7002,7 +7054,7 @@ def aba_simulador_automacao(
                 )
             v_liquido = max(0.0, u_valor - vc_input_val - outros_desc)
             st.markdown(
-                f'<div class="dv-campo-resumo-movel" style="margin:0;font-weight:600;color:#111111;text-align:left;line-height:1.45;">'
+                f'<div class="dv-campo-resumo-movel" style="margin:0;font-weight:600;color:#111111;text-align:center;line-height:1.45;">'
                 f"Valor final da unidade (após todos os descontos): "
                 f"{reais_streamlit_html(fmt_br(v_liquido))}</div>",
                 unsafe_allow_html=True,
