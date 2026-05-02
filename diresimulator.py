@@ -3151,7 +3151,7 @@ def configurar_layout():
         }}
         .block-container .dv-titulo-secao {{
             margin-top: 0 !important;
-            margin-bottom: 0 !important;
+            margin-bottom: var(--dv-stack-gap) !important;
         }}
         .block-container [data-testid="stWidgetLabel"] {{
             margin-top: 0 !important;
@@ -4375,21 +4375,49 @@ def configurar_layout():
             letter-spacing: 0.15em;
             font-size: var(--dv-title-font-size) !important;
         }}
+        .dv-summary-stack {{
+            display: flex;
+            flex-direction: column;
+            gap: var(--dv-stack-gap);
+            margin-bottom: var(--dv-stack-gap);
+        }}
+        .dv-summary-card {{
+            margin: 0;
+        }}
         .summary-body {{
             background: #ffffff;
-            padding: 40px;
+            padding: clamp(1.25rem, 3.5vw, 2.25rem);
             border: 1px solid {COR_BORDA};
             border-radius: 0 0 var(--dv-radius-md) var(--dv-radius-md);
-            margin-bottom: 40px;
+            margin-bottom: 0;
             color: #111111;
             text-align: center !important;
             box-shadow: var(--dv-shadow-xs);
+        }}
+        .dv-prosa-secao {{
+            color: #111111 !important;
+            margin: 0 0 var(--dv-stack-gap) 0 !important;
+        }}
+        .finan-subsidios-note {{
+            color: #111111;
+            margin: 0 0 var(--dv-stack-gap) 0 !important;
+            opacity: 0.72;
+        }}
+        .dv-sinal-com-prosa {{
+            color: #111111;
+            margin: 0 0 var(--dv-stack-gap) 0 !important;
+            line-height: 1.45;
+        }}
+        .dv-page-tail-spacer {{
+            height: calc(var(--dv-stack-gap) * 2);
+            margin: 0;
+            pointer-events: none;
         }}
         .custom-alert {{
             background: linear-gradient(135deg, {COR_AZUL_ESC} 0%, #033061 100%);
             padding: clamp(1.1rem, 3vw, 1.5rem);
             border-radius: var(--dv-radius-md);
-            margin-bottom: 30px;
+            margin-bottom: var(--dv-stack-gap);
             text-align: center;
             font-weight: 600;
             color: #ffffff !important;
@@ -4488,6 +4516,17 @@ def configurar_layout():
         }}
         </style>
     """, unsafe_allow_html=True)
+
+
+def _html_cartao_resumo_secao(titulo: str, corpo_html: str) -> str:
+    """Uma secção do resumo na tela (título + corpo; corpo_html já com escapes onde necessário)."""
+    return (
+        '<div class="dv-summary-card">'
+        f'<div class="summary-header">{html_std.escape(titulo)}</div>'
+        f'<div class="summary-body">{corpo_html}</div>'
+        "</div>"
+    )
+
 
 def gerar_resumo_pdf(d, volta_caixa_val: float = 0.0):
     if not PDF_ENABLED:
@@ -5118,7 +5157,7 @@ def aba_simulador_automacao(
             unsafe_allow_html=True,
         )
         st.markdown(
-            '<p style="color:#111111;margin:0 0 0.75rem 0;">Informe renda e perfil de crédito. '
+            '<p class="dv-prosa-secao">Informe renda e perfil de crédito. '
             "Os blocos abaixo atualizam automaticamente ao alterar estes campos.</p>",
             unsafe_allow_html=True,
         )
@@ -5261,7 +5300,7 @@ def aba_simulador_automacao(
 
         prazo_ps_max = 84 if politica_ps == "Emcash" else 84
         st.session_state.dados_cliente.update({
-            'nome': str(_nome_ref or "").strip() or "Simulação",
+            'nome': str(_nome_ref or "").strip(),
             'nome_imobiliaria': "",
             'cpf': cpf_digits,
             'data_nascimento': None,
@@ -5317,7 +5356,7 @@ def aba_simulador_automacao(
             for it in _matriz_bd
         )
         st.markdown(
-            f"""<div class="finan-subsidios-table-bleed" style="width:100vw;max-width:100%;position:relative;left:50%;transform:translateX(-50%);margin:0.5rem 0 1rem;padding:0 clamp(10px,2.2vw,28px);box-sizing:border-box;overflow-x:auto;-webkit-overflow-scrolling:touch;">
+            f"""<div class="finan-subsidios-table-bleed" style="width:100vw;max-width:100%;position:relative;left:50%;transform:translateX(-50%);margin:var(--dv-stack-gap) 0;padding:0 clamp(10px,2.2vw,28px);box-sizing:border-box;overflow-x:auto;-webkit-overflow-scrolling:touch;">
 <table style="width:100%;min-width:min(100%,720px);border-collapse:collapse;font-size:clamp(0.72rem,1.6vw,0.85rem);color:#111111;table-layout:fixed;">
 <caption style="caption-side:top;padding-bottom:10px;font-weight:700;color:#111111;text-align:center;font-size:clamp(0.85rem,2vw,1rem);">Financiamentos e subsídios (base de dados - Financiamentos) - Faixas 2 e 3</caption>
 <colgroup>
@@ -5344,7 +5383,7 @@ def aba_simulador_automacao(
             unsafe_allow_html=True,
         )
         st.markdown(
-            f'<p style="color:#111111;margin:0.5rem 0 1rem 0;opacity:0.72;">Subsídios da curva inferiores a '
+            f'<p class="finan-subsidios-note">Subsídios da curva inferiores a '
             f"{reais_streamlit_html(fmt_br(SUBSIDIO_MINIMO_CURVA))} são desconsiderados (tratados como "
             f"{reais_streamlit_html('0,00')}), alinhado à regra da planilha comercial. "
             f"A tabela acima é só referência; financiamento e subsídio aprovados podem ser outros valores.</p>",
@@ -5357,7 +5396,7 @@ def aba_simulador_automacao(
                     max(0.0, float(d.get("sinal_com", 0) or 0)), vazio_se_zero=True
                 )
             st.markdown(
-                '<p style="color:#111111;margin:0.35rem 0 0.4rem 0;line-height:1.45;">'
+                '<p class="dv-sinal-com-prosa">'
                 "<strong>Sinal com</strong> abate da <strong>avaliação bancária</strong> só para definir a "
                 "<strong>faixa da curva</strong> (F2 até R$ 275 mil; F3 até R$ 400 mil; F4 acima de R$ 400 mil, referência até R$ 600 mil). "
                 "Os valores sugeridos de <strong>financiamento</strong> e <strong>subsídio</strong> logo abaixo seguem a "
@@ -5556,7 +5595,6 @@ def aba_simulador_automacao(
         else:
             df_disp_total = df_disp_total.sort_values(["Valor de Venda", "Identificador"], ascending=[True, True])
 
-            st.markdown("<br>", unsafe_allow_html=True)
             emp_names_rec = sorted(df_disp_total["Empreendimento"].unique().tolist())
             emp_rec = st.selectbox(
                 "Filtrar por empreendimento:",
@@ -6275,7 +6313,7 @@ def aba_simulador_automacao(
                 )
             v_liquido = max(0.0, u_valor - vc_input_val - outros_desc)
             st.markdown(
-                f'<div style="margin:4px 0 8px 0;font-weight:600;color:#111111;">'
+                f'<div style="margin:0 0 var(--dv-stack-gap) 0;font-weight:600;color:#111111;">'
                 f"Valor final da unidade (após todos os descontos): "
                 f"{reais_streamlit_html(fmt_br(v_liquido))}</div>",
                 unsafe_allow_html=True,
@@ -6353,25 +6391,29 @@ def aba_simulador_automacao(
         _pol_sum_label = "Emcash" if _politica_emcash(d.get("politica")) else "Direcional"
 
         st.markdown(
-            f'<h3 class="dv-titulo-secao">Resumo da Simulação - {html_std.escape(str(d.get("nome", "Cliente")))}</h3>',
+            '<h3 class="dv-titulo-secao">Resumo da simulação</h3>',
             unsafe_allow_html=True,
         )
-        st.markdown(
-            f'<p style="text-align:center;margin:0 0 0.5rem 0;font-weight:600;color:{COR_AZUL_ESC};">'
-            f"Nome do Cliente ou Imobiliária: {html_std.escape(str(d.get('nome', '-')))}</p>",
-            unsafe_allow_html=True,
+        _nome_cli = str(d.get("nome", "") or "").strip() or "—"
+        _cpf_d = re.sub(r"\D", "", str(d.get("cpf") or ""))
+        _cpf_linha = ""
+        if len(_cpf_d) == 11:
+            _cpf_linha = f"<b>CPF:</b> {_sf_cpf_mascarado_br(_cpf_d)}<br>"
+        elif str(d.get("cpf") or "").strip():
+            _cpf_linha = f"<b>CPF:</b> {html_std.escape(str(d.get('cpf') or '').strip())}<br>"
+        _rank_s = str(d.get("ranking") or "").strip()
+        _rank_linha = (
+            f"<b>Ranking do cliente:</b> {html_std.escape(_rank_s)}<br>" if _rank_s else ""
         )
-        st.markdown('<div class="summary-header">Renda</div>', unsafe_allow_html=True)
-        _ren_html = (
+        _cliente_inner = (
+            f"<b>Nome:</b> {html_std.escape(_nome_cli)}<br>"
+            f"{_cpf_linha}"
+            f"{_rank_linha}"
             f"<b>Renda familiar total:</b> {reais_streamlit_html(fmt_br(d.get('renda', 0)))}<br>"
         )
-        st.markdown(f'<div class="summary-body">{_ren_html}</div>', unsafe_allow_html=True)
-
-        st.markdown('<div class="summary-header">Dados do imóvel</div>', unsafe_allow_html=True)
-        _dim = (
-            f"<div class=\"summary-body\"><b>Pro Soluto (política):</b> {_pol_sum_label}<br>"
-            f"<b>Empreendimento:</b> {d.get('empreendimento_nome')}<br>"
-            f"<b>Unidade:</b> {d.get('unidade_id')}<br>"
+        _imovel_inner = (
+            f"<b>Empreendimento:</b> {html_std.escape(str(d.get('empreendimento_nome') or '—'))}<br>"
+            f"<b>Unidade:</b> {html_std.escape(str(d.get('unidade_id') or '—'))}<br>"
             f"<b>Valor de venda (lista):</b> <span style=\"color: #111111; font-weight: 700;\">"
             f"{reais_streamlit_html(fmt_br(v_emp_total))}</span><br>"
             f"<b>Desconto Volta ao Caixa:</b> {reais_streamlit_html(fmt_br(_vc_sum))}<br>"
@@ -6379,45 +6421,42 @@ def aba_simulador_automacao(
         )
         _mot_sum = str(d.get("outros_descontos_motivo") or "").strip()
         if _mot_sum:
-            _dim += (
+            _imovel_inner += (
                 f"<b>Origem dos outros descontos:</b> "
                 f"<span style=\"color:#334155;\">{html_std.escape(_mot_sum)}</span><br>"
             )
-        _dim += (
+        _imovel_inner += (
             f"<b>Valor final da unidade:</b> <span style=\"color: #111111; font-weight: 700;\">"
             f"{reais_streamlit_html(fmt_br(v_final_sum))}</span><br>"
             f"<b>Volta ao caixa preservado:</b> {reais_streamlit_html(fmt_br(_vc_preservado_sum))}<br>"
         )
         if d.get("unid_entrega"):
-            _dim += f"<b>Previsão de entrega:</b> {d.get('unid_entrega')}<br>"
+            _imovel_inner += (
+                f"<b>Previsão de entrega:</b> {html_std.escape(str(d.get('unid_entrega')))}<br>"
+            )
         if d.get("unid_area"):
-            _dim += f"<b>Área privativa:</b> {d.get('unid_area')} m²<br>"
+            _imovel_inner += (
+                f"<b>Área privativa:</b> {html_std.escape(str(d.get('unid_area')))} m²<br>"
+            )
         if d.get("unid_tipo"):
-            _dim += f"<b>Tipologia:</b> {d.get('unid_tipo')}<br>"
+            _imovel_inner += f"<b>Tipologia:</b> {html_std.escape(str(d.get('unid_tipo')))}<br>"
         if d.get("unid_endereco") and d.get("unid_bairro"):
-            _dim += f"<b>Localização:</b> {d.get('unid_endereco')} - {d.get('unid_bairro')}"
-        _dim += "</div>"
-        st.markdown(_dim, unsafe_allow_html=True)
+            _imovel_inner += (
+                f"<b>Localização:</b> {html_std.escape(str(d.get('unid_endereco')))} — "
+                f"{html_std.escape(str(d.get('unid_bairro')))}"
+            )
 
-        st.markdown('<div class="summary-header">Financiamento</div>', unsafe_allow_html=True)
         prazo_txt = d.get("prazo_financiamento", 360)
         _amort_res = nome_sistema_amortizacao_completo(str(d.get("sistema_amortizacao", "SAC")))
-        st.markdown(
-            f"""<div class="summary-body"><b>Financiamento utilizado:</b> {reais_streamlit_html(fmt_br(d.get('finan_usado', 0)))}<br>"""
-            f"""<b>Sistema de amortização e prazo:</b> {_amort_res} - {prazo_txt} meses<br>"""
-            f"""<b>Parcela estimada do financiamento:</b> {reais_streamlit_html(fmt_br(d.get('parcela_financiamento', 0)))}<br>"""
-            f"""<b>FGTS + subsídio:</b> {reais_streamlit_html(fmt_br(d.get('fgts_sub_usado', 0)))}</div>""",
-            unsafe_allow_html=True,
+        _fin_inner = (
+            f"<b>Financiamento utilizado:</b> {reais_streamlit_html(fmt_br(d.get('finan_usado', 0)))}<br>"
+            f"<b>Sistema de amortização e prazo:</b> {_amort_res} — {prazo_txt} meses<br>"
+            f"<b>Parcela estimada do financiamento:</b> "
+            f"{reais_streamlit_html(fmt_br(d.get('parcela_financiamento', 0)))}<br>"
+            f"<b>FGTS + subsídio:</b> {reais_streamlit_html(fmt_br(d.get('fgts_sub_usado', 0)))}<br>"
         )
-        _ent_resumo = float(d.get("entrada_total", 0) or 0) + float(d.get("ps_usado", 0) or 0)
-        st.markdown('<div class="summary-header">Entrada e Pro Soluto</div>', unsafe_allow_html=True)
+
         _em_sum = _politica_emcash(d.get("politica"))
-        if _em_sum:
-            st.markdown(
-                '<p style="color:#334155;margin:0 0 0.65rem 0;line-height:1.45;">'
-                f"{html_std.escape(_EMCASH_NOTA_PARCELAS)}</p>",
-                unsafe_allow_html=True,
-            )
         _lbl_a30_sum = (
             "Ato 30 (prestação entrada; juros + correção +IPCA)"
             if _em_sum
@@ -6431,30 +6470,59 @@ def aba_simulador_automacao(
         _linha_resumo_ato_90 = (
             ""
             if _em_sum
-            else f"<br><b>Ato 90:</b> {reais_streamlit_html(fmt_br(d.get('ato_90', 0)))}"
+            else f"<b>Ato 90:</b> {reais_streamlit_html(fmt_br(d.get('ato_90', 0)))}<br>"
+        )
+        _a1 = float(d.get("ato_final", 0) or 0)
+        _a2 = float(d.get("ato_30", 0) or 0)
+        _a3 = float(d.get("ato_60", 0) or 0)
+        _a4 = float(d.get("ato_90", 0) or 0)
+        _tot_atos = _a1 + _a2 + _a3 + _a4
+        _ent_inner = (
+            f"<b>Ato 1 (entrada imediata):</b> {reais_streamlit_html(fmt_br(_a1))}<br>"
+            f"<b>{html_std.escape(_lbl_a30_sum)}:</b> {reais_streamlit_html(fmt_br(_a2))}<br>"
+            f"<b>{html_std.escape(_lbl_a60_sum)}:</b> {reais_streamlit_html(fmt_br(_a3))}<br>"
+            f"{_linha_resumo_ato_90}"
+            f"<hr style=\"border:0;border-top:1px solid #e2e8f0;margin:var(--dv-stack-gap) 0;\">"
+            f"<b>Total nos atos (entrada própria):</b> {reais_streamlit_html(fmt_br(_tot_atos))}<br>"
+        )
+
+        _ent_resumo = float(d.get("entrada_total", 0) or 0) + float(d.get("ps_usado", 0) or 0)
+        _ps_inner = ""
+        if _em_sum:
+            _ps_inner += (
+                f'<p style="color:#334155;margin:0 0 var(--dv-stack-gap) 0;line-height:1.45;text-align:center;">'
+                f"{html_std.escape(_EMCASH_NOTA_PARCELAS)}</p>"
+            )
+        _ps_inner += (
+            f"<b>Política de Pro Soluto:</b> {html_std.escape(_pol_sum_label)}<br>"
+            f"<b>Pro Soluto (valor):</b> {reais_streamlit_html(fmt_br(d.get('ps_usado', 0)))}<br>"
+            f"<b>Número de parcelas do Pro Soluto:</b> {html_std.escape(str(d.get('ps_parcelas')))}<br>"
+            f"<b>Mensalidade do Pro Soluto:</b> {reais_streamlit_html(fmt_br(d.get('ps_mensal', 0)))}<br>"
+            f"<hr style=\"border:0;border-top:1px solid #e2e8f0;margin:var(--dv-stack-gap) 0;\">"
+            f"<b>Total atos + Pro Soluto:</b> {reais_streamlit_html(fmt_br(_ent_resumo))}<br>"
+        )
+
+        _cartoes = (
+            _html_cartao_resumo_secao("Dados do cliente", _cliente_inner)
+            + _html_cartao_resumo_secao("Dados do imóvel", _imovel_inner)
+            + _html_cartao_resumo_secao("Financiamento", _fin_inner)
+            + _html_cartao_resumo_secao("Entrada", _ent_inner)
+            + _html_cartao_resumo_secao("Pro Soluto", _ps_inner)
         )
         st.markdown(
-            f"""<div class="summary-body"><b>Pro Soluto (valor):</b> {reais_streamlit_html(fmt_br(d.get('ps_usado', 0)))}<br>"""
-            f"""<b>Número de parcelas do Pro Soluto:</b> {d.get('ps_parcelas')}<br>"""
-            f"""<b>Mensalidade do Pro Soluto:</b> {reais_streamlit_html(fmt_br(d.get('ps_mensal', 0)))}<br>"""
-            f"""<hr style="border: 0; border-top: 1px solid #e2e8f0; margin: 10px 0;">"""
-            f"""<b>Ato 1 (Entrada Imediata):</b> {reais_streamlit_html(fmt_br(d.get('ato_final', 0)))}<br>"""
-            f"""<b>{html_std.escape(_lbl_a30_sum)}:</b> {reais_streamlit_html(fmt_br(d.get('ato_30', 0)))}<br>"""
-            f"""<b>{html_std.escape(_lbl_a60_sum)}:</b> {reais_streamlit_html(fmt_br(d.get('ato_60', 0)))}{_linha_resumo_ato_90}<br>"""
-            f"""<hr style="border: 0; border-top: 1px solid #e2e8f0; margin: 10px 0;">"""
-            f"""<b>Entrada total (atos e Pro Soluto):</b> {reais_streamlit_html(fmt_br(_ent_resumo))}</div>""",
+            f'<div class="dv-summary-stack">{_cartoes}</div>',
             unsafe_allow_html=True,
         )
         _cn_sum = (st.session_state.get("user_name", "") or "").strip()
         if _cn_sum:
             st.markdown(
-                f'<p style="text-align:center;margin:1rem 0 0.5rem 0;font-weight:600;color:{COR_AZUL_ESC};">'
+                f'<p style="text-align:center;margin:0 0 var(--dv-stack-gap) 0;font-weight:600;color:{COR_AZUL_ESC};">'
                 f"Consultor: {html_std.escape(_cn_sum)}</p>",
                 unsafe_allow_html=True,
             )
         st.markdown(
             f'<p style="text-align:center;margin:0;color:#64748b;font-style:italic;">'
-            f"Simulação em {d.get('data_simulacao', date.today().strftime('%d/%m/%Y'))}</p>",
+            f"Simulação em {html_std.escape(str(d.get('data_simulacao', date.today().strftime('%d/%m/%Y'))))}</p>",
             unsafe_allow_html=True,
         )
         st.markdown("---")
@@ -6518,7 +6586,10 @@ def aba_simulador_automacao(
             scroll_to_top()
             st.rerun()
 
-    st.markdown("<br><br>", unsafe_allow_html=True)
+    st.markdown(
+        '<div class="dv-page-tail-spacer" aria-hidden="true"></div>',
+        unsafe_allow_html=True,
+    )
 
 
 def _secret_opt(key: str) -> str:
