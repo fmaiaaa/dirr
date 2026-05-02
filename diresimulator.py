@@ -3434,7 +3434,7 @@ def configurar_layout():
             margin-right: 0 !important;
             max-width: 100% !important;
         }}
-        /* "Avançar para Resumo": mesma linha que ---; margens no hr = 0 para o ritmo vir só do gap do bloco (espaço igual acima/abaixo do botão) */
+        /* "Avançar para Resumo": contentores do <hr> sem margem extra (ritmo vem do hr + margens no .st-key-dv_btn_avancar_resumo) */
         .block-container div[data-testid="stElementContainer"]:has(hr.dv-avancar-rule) {{
             margin-top: 0 !important;
             margin-bottom: 0 !important;
@@ -3515,6 +3515,36 @@ def configurar_layout():
                 rgba(148, 163, 184, 0.45) 50%,
                 transparent 100%
             ) !important;
+        }}
+        /* dv-avancar: a regra genérica .block-container hr acima vinha depois e anulava margin:0 — faixa dupla / “terceira linha” */
+        .block-container div[data-testid="stMarkdownContainer"] hr.dv-avancar-rule,
+        .block-container hr.dv-avancar-rule {{
+            margin: 0 !important;
+            height: 1px !important;
+            border: none !important;
+            background: linear-gradient(
+                90deg,
+                transparent 0%,
+                rgba(148, 163, 184, 0.45) 50%,
+                transparent 100%
+            ) !important;
+        }}
+        /* Uma linha <hr> antes do botão; linha inferior via ::after (evita dois <hr> seguidos sem conteúdo) */
+        .block-container .st-key-dv_btn_avancar_resumo {{
+            margin-top: clamp(0.75rem, 2.5vw, 1.35rem) !important;
+            margin-bottom: clamp(0.75rem, 2.5vw, 1.35rem) !important;
+        }}
+        .block-container .st-key-dv_btn_avancar_resumo::after {{
+            content: "";
+            display: block;
+            height: 1px;
+            margin-top: clamp(0.75rem, 2.5vw, 1.35rem);
+            background: linear-gradient(
+                90deg,
+                transparent 0%,
+                rgba(148, 163, 184, 0.45) 50%,
+                transparent 100%
+            );
         }}
 
         /*
@@ -7509,7 +7539,6 @@ def aba_simulador_automacao(
                 _dv_alerta_vermelho(
                     f"Não é possível avançar. Saldo pendente: <strong>{reais_streamlit_html(fmt_br(abs(gap_final)))}</strong>."
                 )
-        st.markdown('<hr class="dv-avancar-rule" />', unsafe_allow_html=True)
     elif passo == 'summary':
         d = st.session_state.dados_cliente
         _vc_sum = texto_moeda_para_float(st.session_state.get("volta_caixa_key"))
