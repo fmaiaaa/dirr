@@ -1829,6 +1829,35 @@ def dialog_visualizar_campanha(campanha: dict[str, str]) -> None:
         st.rerun()
 
 
+def _html_miniaturas_strip_campanhas(campanhas: list[dict[str, str]]) -> str:
+    """HTML da faixa de miniaturas (strip-outer + strip); vazio se não houver imagens. Sem wrapper home-banners-wrap."""
+    if not campanhas:
+        return ""
+    cards: list[str] = []
+    for c in campanhas:
+        src = _img_url_seguro_https(str(c.get("src", "") or ""))
+        if not src:
+            continue
+        t64 = _utf8_base64_attr(str(c.get("titulo", "") or ""))
+        b64 = _utf8_base64_attr(str(c.get("descricao", "") or ""))
+        cards.append(
+            f'<div class="home-banner-lb-root">'
+            f'<button type="button" class="home-banner-card home-banner-card--fs home-banner-card--thumb home-banner-lb-open" '
+            f'data-dv-src="{src}" data-dv-t64="{html_std.escape(t64, quote=True)}" data-dv-b64="{html_std.escape(b64, quote=True)}" '
+            f'title="Ver campanha" aria-label="Abrir campanha em destaque">'
+            f'<span class="home-banner-thumb-frame"><img src="{src}" alt="" loading="lazy" decoding="async" /></span>'
+            f"</button></div>"
+        )
+    if not cards:
+        return ""
+    return (
+        '<div class="home-banners-strip-outer">'
+        '<div class="home-banners-strip" role="group" aria-label="Miniaturas de campanhas">'
+        + "".join(cards)
+        + "</div></div>"
+    )
+
+
 def render_secao_campanhas_comerciais(
     df_banners: pd.DataFrame,
     df_texto_campanhas: pd.DataFrame | None = None,
@@ -1841,33 +1870,10 @@ def render_secao_campanhas_comerciais(
     copy_html = _html_campanhas_texto_bloco(df_txt)
 
     def _render_miniaturas_popup_real(campanhas: list[dict[str, str]]) -> None:
-        """Renderiza miniaturas que disparam o popup JS legado (home-banner-lb-open)."""
-        if not campanhas:
-            return
-        cards: list[str] = []
-        for c in campanhas:
-            src = _img_url_seguro_https(str(c.get("src", "") or ""))
-            if not src:
-                continue
-            t64 = _utf8_base64_attr(str(c.get("titulo", "") or ""))
-            b64 = _utf8_base64_attr(str(c.get("descricao", "") or ""))
-            cards.append(
-                f'<div class="home-banner-lb-root">'
-                f'<button type="button" class="home-banner-card home-banner-card--fs home-banner-card--thumb home-banner-lb-open" '
-                f'data-dv-src="{src}" data-dv-t64="{html_std.escape(t64, quote=True)}" data-dv-b64="{html_std.escape(b64, quote=True)}" '
-                f'title="Ver campanha" aria-label="Abrir campanha em destaque">'
-                f'<span class="home-banner-thumb-frame"><img src="{src}" alt="" loading="lazy" decoding="async" /></span>'
-                f"</button></div>"
-            )
-        if not cards:
-            return
-        strip_html = (
-            '<div class="home-banners-strip-outer">'
-            '<div class="home-banners-strip" role="group" aria-label="Miniaturas de campanhas">'
-            + "".join(cards)
-            + "</div></div>"
-        )
-        st.markdown('<div class="home-banners-wrap">' + strip_html + "</div>", unsafe_allow_html=True)
+        """Só a faixa horizontal (evita segundo home-banners-wrap = espaço duplicado)."""
+        h = _html_miniaturas_strip_campanhas(campanhas)
+        if h:
+            st.markdown(h, unsafe_allow_html=True)
     campanhas_ativas: list[dict[str, str]] = []
     if not df_bn.empty:
         for _, row in df_bn.iterrows():
@@ -1886,21 +1892,13 @@ def render_secao_campanhas_comerciais(
             )
     if not campanhas_ativas and not copy_html and not user_is_adm:
         return
+    _wrap = '<div class="home-banners-wrap" role="region" aria-label="Campanhas comerciais">'
+    _tit = '<h2 class="home-banners-section-title">Campanhas comerciais</h2>'
+    _strip_html = _html_miniaturas_strip_campanhas(campanhas_ativas)
     if not user_is_adm:
-        st.markdown(
-            '<div class="home-banners-wrap" role="region" aria-label="Campanhas comerciais">'
-            '<h2 class="home-banners-section-title">Campanhas comerciais</h2>'
-            + "</div>",
-            unsafe_allow_html=True,
-        )
-        _render_miniaturas_popup_real(campanhas_ativas)
+        st.markdown(_wrap + _tit + _strip_html + "</div>", unsafe_allow_html=True)
     else:
-        st.markdown(
-            '<div class="home-banners-wrap" role="region" aria-label="Campanhas comerciais">'
-            '<h2 class="home-banners-section-title">Campanhas comerciais</h2>'
-            "</div>",
-            unsafe_allow_html=True,
-        )
+        st.markdown(_wrap + _tit + "</div>", unsafe_allow_html=True)
         bc1, bc2 = st.columns([1, 1], gap="small")
         with bc1:
             if st.button(
@@ -2607,10 +2605,8 @@ def configurar_layout():
             --dv-shadow-glow: 0 0 0 1px rgba({RGB_AZUL_CSS}, 0.06), 0 8px 32px -8px rgba({RGB_AZUL_CSS}, 0.12);
             --dv-surface-glass: rgba(255, 255, 255, 0.82);
             --dv-surface-glass-strong: rgba(255, 255, 255, 0.94);
-            /* Ritmo único entre secções, cabeçalho, campanhas e widgets Streamlit */
+            /* Ritmo único: mesmo valor entre widgets, margens de secção e padding do cartão */
             --dv-rhythm: 1.25rem;
-            /* ~½ dedo no topo do cartão / main (máx. ~10px); safe-area somada onde aplicável */
-            --dv-inset-top-min: clamp(3px, 0.4rem, 10px);
         }}
         @media (prefers-reduced-motion: no-preference) {{
             html {{
@@ -2736,14 +2732,14 @@ def configurar_layout():
             [data-testid="stMain"] {{
                 padding-left: max(clamp(6px, 2.5vw, 16px), env(safe-area-inset-left, 0px)) !important;
                 padding-right: max(clamp(6px, 2.5vw, 16px), env(safe-area-inset-right, 0px)) !important;
-                padding-top: max(var(--dv-inset-top-min), env(safe-area-inset-top, 0px)) !important;
+                padding-top: max(var(--dv-rhythm), env(safe-area-inset-top, 0px)) !important;
                 padding-bottom: max(var(--dv-rhythm), env(safe-area-inset-bottom, 0px)) !important;
                 justify-content: flex-start !important;
             }}
             .block-container {{
                 max-width: 100% !important;
                 width: 100% !important;
-                padding: var(--dv-inset-top-min) clamp(0.55rem, 2.8vw, 1rem) var(--dv-rhythm) clamp(0.55rem, 2.8vw, 1rem) !important;
+                padding: var(--dv-rhythm) clamp(0.55rem, 2.8vw, 1rem) var(--dv-rhythm) clamp(0.55rem, 2.8vw, 1rem) !important;
                 margin-left: auto !important;
                 margin-right: auto !important;
                 margin-top: clamp(2px, 1vw, 6px) !important;
@@ -2763,7 +2759,7 @@ def configurar_layout():
                 max-width: 100%;
                 margin-left: 0;
                 margin-right: 0;
-                margin-bottom: var(--dv-rhythm);
+                margin-bottom: 0;
             }}
             [data-testid="stHorizontalBlock"] {{
                 flex-direction: column !important;
@@ -2789,7 +2785,7 @@ def configurar_layout():
         }}
         @media (max-width: 420px) {{
             .block-container {{
-                padding: var(--dv-inset-top-min) 0.5rem 0.65rem 0.5rem !important;
+                padding: var(--dv-rhythm) 0.5rem var(--dv-rhythm) 0.5rem !important;
             }}
             .header-logo-wrap img {{
                 max-height: 58px;
@@ -2861,7 +2857,7 @@ def configurar_layout():
         [data-testid="stMain"] {{
             padding-left: max(clamp(6px, 1.8vw, 22px), env(safe-area-inset-left, 0px)) !important;
             padding-right: max(clamp(6px, 1.8vw, 22px), env(safe-area-inset-right, 0px)) !important;
-            padding-top: max(var(--dv-inset-top-min), env(safe-area-inset-top, 0px)) !important;
+            padding-top: max(var(--dv-rhythm), env(safe-area-inset-top, 0px)) !important;
             padding-bottom: max(var(--dv-rhythm), env(safe-area-inset-bottom, 0px)) !important;
             box-sizing: border-box !important;
             background: transparent !important;
@@ -2878,7 +2874,7 @@ def configurar_layout():
             justify-content: flex-start !important;
             align-items: stretch !important;
             padding-top: 0 !important;
-            padding-bottom: calc(var(--dv-rhythm) * 0.35) !important;
+            padding-bottom: 0 !important;
         }}
 
         @media (prefers-reduced-motion: no-preference) {{
@@ -2994,7 +2990,7 @@ def configurar_layout():
             text-wrap: balance;
         }}
 
-        /* Cartão “vidro”: topo ~½ dedo; fundo mantém ritmo; margens da box inalteradas */
+        /* Cartão “vidro”: padding = --dv-rhythm (igual ao gap entre widgets); margens da box inalteradas */
         .block-container {{
             text-rendering: optimizeLegibility;
             max-width: min(1680px, 100%) !important;
@@ -3002,7 +2998,7 @@ def configurar_layout():
             margin-right: auto !important;
             margin-top: clamp(2px, 0.5vh, 8px) !important;
             margin-bottom: clamp(4px, 1vh, 14px) !important;
-            padding: var(--dv-inset-top-min) clamp(0.7rem, 1.6vw, 1.35rem) var(--dv-rhythm) clamp(0.7rem, 1.6vw, 1.35rem) !important;
+            padding: var(--dv-rhythm) clamp(0.7rem, 1.6vw, 1.35rem) var(--dv-rhythm) clamp(0.7rem, 1.6vw, 1.35rem) !important;
             background: rgba(255, 255, 255, 0.72) !important;
             backdrop-filter: blur(18px) saturate(1.15) !important;
             -webkit-backdrop-filter: blur(18px) saturate(1.15) !important;
@@ -3038,7 +3034,7 @@ def configurar_layout():
         .stMarkdown h1.header-title {{
             font-size: clamp(1.75rem, 4.8vw, 2.65rem) !important;
             margin-top: 0 !important;
-            margin-bottom: calc(var(--dv-rhythm) * 0.5) !important;
+            margin-bottom: 0 !important;
             line-height: 1.18 !important;
         }}
         .stMarkdown h2 {{ font-size: clamp(1.28rem, 2vw, 1.5rem) !important; text-align: center !important; margin-top: 0 !important; margin-bottom: calc(var(--dv-rhythm) * 0.65) !important; font-weight: 700 !important; color: {COR_AZUL_ESC} !important; }}
@@ -3590,10 +3586,20 @@ def configurar_layout():
 
         .header-container {{
             text-align: center;
-            padding: 0 0.75rem calc(var(--dv-rhythm) * 0.35);
-            margin: 0 auto var(--dv-rhythm);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: var(--dv-rhythm);
+            padding: 0 0.75rem 0;
+            margin: 0 auto 0;
             max-width: 1100px;
             position: relative;
+        }}
+        .header-container .header-logo-wrap,
+        .header-container .header-title,
+        .header-container .header-brand-bar-wrap {{
+            margin-top: 0 !important;
+            margin-bottom: 0 !important;
         }}
         /* Barra tipo pill: cor alterna azul ↔ vermelho (opacidade total) */
         .header-brand-bar-wrap {{
@@ -3604,7 +3610,7 @@ def configurar_layout():
             position: relative;
             left: auto;
             transform: none;
-            margin-bottom: var(--dv-rhythm);
+            margin-bottom: 0;
             margin-top: 0;
             box-sizing: border-box;
             height: 4px;
@@ -3641,10 +3647,11 @@ def configurar_layout():
             display: flex;
             flex-direction: column;
             align-items: center;
+            gap: var(--dv-rhythm);
             width: 100%;
             max-width: 100vw;
             position: relative;
-            margin: 0 auto var(--dv-rhythm);
+            margin: 0 auto 0;
             padding: 0 0.75rem;
             box-sizing: border-box;
             text-align: center;
@@ -3655,18 +3662,21 @@ def configurar_layout():
             font-weight: 700 !important;
             color: {COR_AZUL_ESC} !important;
             text-align: center !important;
-            margin: 0 0 var(--dv-rhythm) 0 !important;
+            margin: 0 !important;
             padding: 0 0.25rem !important;
             letter-spacing: -0.02em !important;
             line-height: 1.25 !important;
             width: 100%;
             order: 0;
         }}
+        .stMarkdown h2.home-banners-section-title {{
+            margin: 0 !important;
+        }}
         .home-campanhas-copy {{
             width: 100%;
             max-width: min(920px, calc(100vw - clamp(1.5rem, 8vw, 4rem)));
-            margin: var(--dv-rhythm) auto 0;
-            padding: 0 clamp(1.25rem, 6vw, 3.25rem) var(--dv-rhythm);
+            margin: 0 auto 0;
+            padding: 0 clamp(1.25rem, 6vw, 3.25rem) 0;
             box-sizing: border-box;
             text-align: left;
             order: 2;
@@ -3704,7 +3714,7 @@ def configurar_layout():
             flex-direction: row;
             flex-wrap: nowrap;
             gap: var(--dv-rhythm);
-            padding: calc(var(--dv-rhythm) * 0.35) 0.25rem calc(var(--dv-rhythm) * 0.65);
+            padding: 0 0.25rem 0;
             scroll-snap-type: x proximity;
             margin-left: auto;
             margin-right: auto;
@@ -3896,7 +3906,7 @@ def configurar_layout():
             display: flex;
             justify-content: center;
             align-items: center;
-            margin: 0 auto calc(var(--dv-rhythm) * 0.45);
+            margin: 0 auto 0;
         }}
         .header-logo-wrap img {{
             display: block;
@@ -3920,10 +3930,13 @@ def configurar_layout():
             font-size: clamp(1.75rem, 4.8vw, 2.65rem);
             font-weight: 800;
             line-height: 1.18;
-            margin: calc(var(--dv-rhythm) * 0.2) 0 calc(var(--dv-rhythm) * 0.35) 0;
+            margin: 0;
             color: {COR_AZUL_ESC};
             text-align: center;
             letter-spacing: -0.03em;
+        }}
+        .header-container .header-title {{
+            margin: 0 !important;
         }}
         /* Cabeçalho injetado: wrapper do Streamlit às vezes força alinhamento à esquerda */
         div[data-testid="stMarkdown"] .header-container {{
@@ -4681,10 +4694,6 @@ def aba_simulador_automacao(
         return resolver_taxa_financiamento_anual_pct(d_cli or {}, _prem)
     if 'dados_cliente' not in st.session_state: st.session_state.dados_cliente = {}
 
-    st.markdown(
-        '<div class="header-brand-bar-wrap" aria-hidden="true"></div>',
-        unsafe_allow_html=True,
-    )
     render_secao_campanhas_comerciais(
         df_home_banners if df_home_banners is not None else pd.DataFrame(),
         df_campanhas_texto if df_campanhas_texto is not None else pd.DataFrame(),
@@ -5099,7 +5108,6 @@ def aba_simulador_automacao(
         else:
             df_disp_total = df_disp_total.sort_values(["Valor de Venda", "Identificador"], ascending=[True, True])
 
-            st.markdown("<br>", unsafe_allow_html=True)
             emp_names_rec = sorted(df_disp_total["Empreendimento"].unique().tolist())
             emp_rec = st.selectbox(
                 "Filtrar por empreendimento:",
@@ -6045,24 +6053,10 @@ def aba_simulador_automacao(
             scroll_to_top()
             st.rerun()
 
-    st.markdown("<br><br>", unsafe_allow_html=True)
-
-
 def main():
     configurar_layout()
     inject_modern_ui_runtime()
     inject_enter_confirma_campo()
-
-    logo_src = html_std.escape(_src_logo_topo_header(), quote=True)
-    st.markdown(
-        f'''<header class="header-container" role="banner">
-<div class="header-logo-wrap">
-<img src="{logo_src}" alt="Direcional Engenharia" class="header-logo-img" decoding="async" loading="eager" />
-</div>
-<h1 class="header-title">Simulador imobiliário DV</h1>
-</header>''',
-        unsafe_allow_html=True,
-    )
 
     with st.spinner("A carregar o simulador…"):
         (
@@ -6074,6 +6068,19 @@ def main():
             premissas_dict,
             df_campanhas_texto,
         ) = carregar_dados_sistema()
+
+    logo_src = html_std.escape(_src_logo_topo_header(), quote=True)
+    st.markdown(
+        f'''<header class="header-container" role="banner">
+<div class="header-logo-wrap">
+<img src="{logo_src}" alt="Direcional Engenharia" class="header-logo-img" decoding="async" loading="eager" />
+</div>
+<h1 class="header-title">Simulador imobiliário DV</h1>
+<div class="header-brand-bar-wrap" aria-hidden="true"></div>
+</header>''',
+        unsafe_allow_html=True,
+    )
+
     aba_simulador_automacao(
         df_finan,
         df_estoque,
