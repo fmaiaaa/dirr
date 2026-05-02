@@ -2853,6 +2853,8 @@ def configurar_layout():
             --dv-radius-sm: 10px;
             --dv-input-radius: 10px;
             --dv-input-height: 48px;
+            /* Igual ao padding horizontal do .block-container (alertas em largura total) */
+            --dv-block-pad-x: clamp(1.1rem, 2.8vw, 2.25rem);
             --dv-radius-md: 14px;
             --dv-radius-lg: 18px;
             --dv-radius-xl: 22px;
@@ -3362,13 +3364,14 @@ def configurar_layout():
         .block-container {{
             --dv-rhythm: 1.35rem;
             --dv-stack-gap: 1.25rem;
+            --dv-block-pad-x: clamp(1.1rem, 2.8vw, 2.25rem);
             text-rendering: optimizeLegibility;
             max-width: min(1680px, 100%) !important;
             margin-left: auto !important;
             margin-right: auto !important;
             margin-top: clamp(4px, 1vh, 14px) !important;
             margin-bottom: clamp(4px, 1vh, 14px) !important;
-            padding: max(6px, env(safe-area-inset-top, 0px)) clamp(1.1rem, 2.8vw, 2.25rem) 1.55rem clamp(1.1rem, 2.8vw, 2.25rem) !important;
+            padding: max(6px, env(safe-area-inset-top, 0px)) var(--dv-block-pad-x) 1.55rem var(--dv-block-pad-x) !important;
             background: rgba(255, 255, 255, 0.78) !important;
             backdrop-filter: blur(18px) saturate(1.15) !important;
             -webkit-backdrop-filter: blur(18px) saturate(1.15) !important;
@@ -3583,8 +3586,8 @@ def configurar_layout():
             border-radius: var(--dv-radius-sm) !important;
             padding: 0 16px !important;
             width: 100% !important;
-            min-height: 44px !important;
-            height: auto !important;
+            min-height: var(--dv-input-height) !important;
+            height: var(--dv-input-height) !important;
             font-weight: 600 !important;
             font-size: var(--dv-body-font-size) !important;
             transition: background-color var(--dv-duration) var(--dv-ease-out),
@@ -4433,27 +4436,36 @@ def configurar_layout():
         }}
         .custom-alert {{
             background: linear-gradient(135deg, {COR_AZUL_ESC} 0%, #033061 100%);
-            padding: clamp(1.1rem, 3vw, 1.5rem);
-            border-radius: var(--dv-radius-md);
-            margin-bottom: var(--dv-stack-gap);
+            box-sizing: border-box !important;
+            width: calc(100% + 2 * var(--dv-block-pad-x)) !important;
+            max-width: none !important;
+            margin-left: calc(-1 * var(--dv-block-pad-x)) !important;
+            margin-right: calc(-1 * var(--dv-block-pad-x)) !important;
+            margin-bottom: var(--dv-stack-gap) !important;
+            padding: 0.4rem 0.85rem !important;
+            border-radius: var(--dv-input-radius) !important;
             text-align: center;
             font-weight: 600;
             color: #ffffff !important;
             display: flex;
             align-items: center;
             justify-content: center;
-            min-height: 60px;
+            min-height: var(--dv-input-height) !important;
             box-shadow: var(--dv-shadow-sm), inset 0 1px 0 rgba(255, 255, 255, 0.12);
             border: 1px solid rgba(255, 255, 255, 0.12);
         }}
         .dv-alert-direcional {{
             background: linear-gradient(135deg, {COR_VERMELHO} 0%, {COR_VERMELHO_ESCURO} 100%);
             color: #ffffff !important;
-            border-radius: var(--dv-radius-md);
-            padding: clamp(1rem, 2.5vw, 1.35rem);
-            margin: 0 auto var(--dv-stack-gap) auto;
-            max-width: min(960px, 100%);
-            min-height: 56px;
+            box-sizing: border-box !important;
+            width: calc(100% + 2 * var(--dv-block-pad-x)) !important;
+            max-width: none !important;
+            margin-left: calc(-1 * var(--dv-block-pad-x)) !important;
+            margin-right: calc(-1 * var(--dv-block-pad-x)) !important;
+            margin-bottom: var(--dv-stack-gap) !important;
+            border-radius: var(--dv-input-radius) !important;
+            padding: 0.4rem 0.85rem !important;
+            min-height: var(--dv-input-height) !important;
             display: flex;
             align-items: center;
             justify-content: center;
@@ -4465,7 +4477,7 @@ def configurar_layout():
             font-weight: 600;
             font-size: var(--dv-body-font-size) !important;
             color: #ffffff !important;
-            line-height: 1.45;
+            line-height: 1.35 !important;
             width: 100%;
         }}
         .dv-alert-direcional-inner strong {{
@@ -5379,47 +5391,11 @@ def aba_simulador_automacao(
                 st.session_state["sinal_com_key"] = float_para_campo_texto(
                     max(0.0, float(d.get("sinal_com", 0) or 0)), vazio_se_zero=True
                 )
-            st.markdown(
-                '<p class="dv-sinal-com-prosa">'
-                "<strong>Sinal com</strong> abate da <strong>avaliação bancária</strong> só para definir a "
-                "<strong>faixa da curva</strong> (F2 até R$ 275 mil; F3 até R$ 400 mil; F4 acima de R$ 400 mil, referência até R$ 600 mil). "
-                "Os valores sugeridos de <strong>financiamento</strong> e <strong>subsídio</strong> logo abaixo seguem a "
-                "<em>avaliação efetiva</em> (após o sinal), não só o valor de tabela da unidade.</p>",
-                unsafe_allow_html=True,
-            )
-            st.text_input(
-                "Sinal com (R$)",
-                key="sinal_com_key",
-                placeholder="0,00",
-                help="Opcional. Reduz a avaliação usada na leitura da faixa F2/F3/F4 na base Financiamentos.",
-            )
             _sinal_raw = texto_moeda_para_float(st.session_state.get("sinal_com_key"))
             _sinal_apl = max(0.0, float(_sinal_raw or 0))
             if _sinal_apl > _val_bruto_faixa:
                 _sinal_apl = float(_val_bruto_faixa)
                 st.session_state["sinal_com_key"] = float_para_campo_texto(_sinal_apl, vazio_se_zero=True)
-            if _val_bruto_faixa > 400000.0:
-                _sug_sc = max(0.0, _val_bruto_faixa - 400000.0)
-                st.markdown(
-                    f'<p class="inline-ref" style="margin-top:0;margin-bottom:0;line-height:1.45;">'
-                    f"Avaliação <strong>acima de R$ 400.000</strong> → curva em <strong>Faixa 4</strong>. "
-                    f"Para usar financiamento/subsídio da <strong>Faixa 3</strong>, a avaliação efetiva deve ser ≤ 400 mil. "
-                    f"Sinal com indicativo: <strong>{reais_streamlit_html(fmt_br(_sug_sc))}</strong>.</p>",
-                    unsafe_allow_html=True,
-                )
-            elif _val_bruto_faixa > 275000.0:
-                _sug_sc = max(0.0, _val_bruto_faixa - 275000.0)
-                st.markdown(
-                    f'<p class="inline-ref" style="margin-top:0;margin-bottom:0;line-height:1.45;">'
-                    f"Avaliação entre <strong>R$ 275 mil e 400 mil</strong> (Faixa 3 na avaliação cheia). "
-                    f"Para usar a <strong>Faixa 2</strong>, a avaliação efetiva deve ser ≤ 275 mil. "
-                    f"Sinal com indicativo: <strong>{reais_streamlit_html(fmt_br(_sug_sc))}</strong>.</p>",
-                    unsafe_allow_html=True,
-                )
-            else:
-                st.caption(
-                    "Avaliação na Faixa 2 (até R$ 275 mil). Sinal com opcional se quiser ajustar fino a referência da curva."
-                )
         else:
             _sinal_apl = 0.0
             st.session_state.dados_cliente["sinal_com"] = 0.0
@@ -5433,14 +5409,6 @@ def aba_simulador_automacao(
         )
         _, _, _faixa_curva = motor.obter_enquadramento(
             renda_cli, True, True, valor_avaliacao=_val_aval_para_faixa
-        )
-        st.markdown(
-            f'<p class="inline-ref" style="margin:0;line-height:1.45;">'
-            f"Avaliação na unidade: {reais_streamlit_html(fmt_br(_val_bruto_faixa))} "
-            f"· Efetiva na curva: {reais_streamlit_html(fmt_br(_val_aval_para_faixa))} "
-            f"· Faixa (cheia): <strong>{html_std.escape(str(_faixa_pre_sinal))}</strong> "
-            f"· Faixa (após sinal): <strong>{html_std.escape(str(_faixa_curva))}</strong></p>",
-            unsafe_allow_html=True,
         )
         if str(_faixa_curva) not in ("F2", "F3", "F4"):
             _faixa_curva = "F2"
@@ -5547,13 +5515,15 @@ def aba_simulador_automacao(
         _parc_sig_now = (round(float(f_u or 0), 2), int(prazo_sel), str(sist_sel), round(taxa_v, 6))
         _parc_sig_prev = st.session_state.get("_parc_fin_auto_sig")
         _parc_ref_prev = st.session_state.get("_parc_fin_auto_ref_prev")
-        _ui_parc = texto_moeda_para_float(st.session_state.get("parcela_fin_edit_key"))
         _tol_parc = 0.05
+        # Campo editável: começa (ou volta) com a referência automática se ainda vazio/zero; qualquer outro valor respeita a edição.
+        if float(_parc_fin_ref or 0) > 0.02:
+            _ui_seed = texto_moeda_para_float(st.session_state.get("parcela_fin_edit_key"))
+            if "parcela_fin_edit_key" not in st.session_state or abs(float(_ui_seed or 0)) < 0.02:
+                st.session_state["parcela_fin_edit_key"] = float_para_campo_texto(_parc_fin_ref, vazio_se_zero=True)
+        _ui_parc = texto_moeda_para_float(st.session_state.get("parcela_fin_edit_key"))
         _parc_fin_amort_ant = st.session_state.get("_parc_fin_last_sistema")
         if _parc_fin_amort_ant != sist_sel:
-            st.session_state["parcela_fin_edit_key"] = float_para_campo_texto(_parc_fin_ref, vazio_se_zero=True)
-            st.session_state["_parc_fin_last_sistema"] = sist_sel
-        elif "parcela_fin_edit_key" not in st.session_state:
             st.session_state["parcela_fin_edit_key"] = float_para_campo_texto(_parc_fin_ref, vazio_se_zero=True)
             st.session_state["_parc_fin_last_sistema"] = sist_sel
         elif _parc_sig_prev != _parc_sig_now:
@@ -5812,6 +5782,77 @@ def aba_simulador_automacao(
                     prazo_max_ps = 84 if pol == 'Emcash' else 84
                     st.session_state.dados_cliente['prazo_ps_max'] = prazo_max_ps
 
+        _d_sinal_pos = st.session_state.dados_cliente
+        _vu_sinal_pos = max(0.0, float(_d_sinal_pos.get("imovel_valor", 0) or 0))
+        _mostrar_sinal_pos = (275_000.0 < _vu_sinal_pos <= 305_000.0) or (
+            400_000.0 < _vu_sinal_pos <= 430_000.0
+        )
+        _val_bruto_sinal = float(_d_sinal_pos.get("imovel_avaliacao") or 0) or _vu_sinal_pos or 240000.0
+        _renda_sinal_pos = float(_d_sinal_pos.get("renda", 0) or 0)
+        if _mostrar_sinal_pos and _vu_sinal_pos > 0.0 and str(_d_sinal_pos.get("unidade_id") or "").strip():
+            if "sinal_com_key" not in st.session_state:
+                st.session_state["sinal_com_key"] = float_para_campo_texto(
+                    max(0.0, float(_d_sinal_pos.get("sinal_com", 0) or 0)), vazio_se_zero=True
+                )
+            st.markdown(
+                '<p class="dv-sinal-com-prosa">'
+                "<strong>Sinal com</strong> abate da <strong>avaliação bancária</strong> só para definir a "
+                "<strong>faixa da curva</strong> (F2 até R$ 275 mil; F3 até R$ 400 mil; F4 acima de R$ 400 mil, referência até R$ 600 mil). "
+                "Os valores sugeridos de <strong>financiamento</strong> e <strong>subsídio</strong> na secção acima seguem a "
+                "<em>avaliação efetiva</em> (após o sinal), não só o valor de tabela da unidade.</p>",
+                unsafe_allow_html=True,
+            )
+            st.text_input(
+                "Sinal com (R$)",
+                key="sinal_com_key",
+                placeholder="0,00",
+                help="Opcional. Reduz a avaliação usada na leitura da faixa F2/F3/F4 na base Financiamentos.",
+            )
+            _sinal_raw_pos = texto_moeda_para_float(st.session_state.get("sinal_com_key"))
+            _sinal_apl_pos = max(0.0, float(_sinal_raw_pos or 0))
+            if _sinal_apl_pos > _val_bruto_sinal:
+                _sinal_apl_pos = float(_val_bruto_sinal)
+                st.session_state["sinal_com_key"] = float_para_campo_texto(_sinal_apl_pos, vazio_se_zero=True)
+            if _val_bruto_sinal > 400000.0:
+                _sug_sinal = max(0.0, _val_bruto_sinal - 400000.0)
+                st.markdown(
+                    f'<p class="inline-ref" style="margin-top:0;margin-bottom:0;line-height:1.45;">'
+                    f"Avaliação <strong>acima de R$ 400.000</strong> → curva em <strong>Faixa 4</strong>. "
+                    f"Para usar financiamento/subsídio da <strong>Faixa 3</strong>, a avaliação efetiva deve ser ≤ 400 mil. "
+                    f"Sinal com indicativo: <strong>{reais_streamlit_html(fmt_br(_sug_sinal))}</strong>.</p>",
+                    unsafe_allow_html=True,
+                )
+            elif _val_bruto_sinal > 275000.0:
+                _sug_sinal = max(0.0, _val_bruto_sinal - 275000.0)
+                st.markdown(
+                    f'<p class="inline-ref" style="margin-top:0;margin-bottom:0;line-height:1.45;">'
+                    f"Avaliação entre <strong>R$ 275 mil e 400 mil</strong> (Faixa 3 na avaliação cheia). "
+                    f"Para usar a <strong>Faixa 2</strong>, a avaliação efetiva deve ser ≤ 275 mil. "
+                    f"Sinal com indicativo: <strong>{reais_streamlit_html(fmt_br(_sug_sinal))}</strong>.</p>",
+                    unsafe_allow_html=True,
+                )
+            else:
+                st.caption(
+                    "Avaliação na Faixa 2 (até R$ 275 mil). Sinal com opcional se quiser ajustar fino a referência da curva."
+                )
+            _val_ef_sinal = max(0.0, _val_bruto_sinal - _sinal_apl_pos)
+            _, _, _faixa_pre_sinal_pos = motor.obter_enquadramento(
+                _renda_sinal_pos, True, True, valor_avaliacao=_val_bruto_sinal
+            )
+            _, _, _faixa_pos_sinal_pos = motor.obter_enquadramento(
+                _renda_sinal_pos, True, True, valor_avaliacao=_val_ef_sinal
+            )
+            st.markdown(
+                f'<p class="inline-ref" style="margin:0;line-height:1.45;">'
+                f"Avaliação na unidade: {reais_streamlit_html(fmt_br(_val_bruto_sinal))} "
+                f"· Efetiva na curva: {reais_streamlit_html(fmt_br(_val_ef_sinal))} "
+                f"· Faixa (cheia): <strong>{html_std.escape(str(_faixa_pre_sinal_pos))}</strong> "
+                f"· Faixa (após sinal): <strong>{html_std.escape(str(_faixa_pos_sinal_pos))}</strong></p>",
+                unsafe_allow_html=True,
+            )
+            st.session_state.dados_cliente["sinal_com"] = float(_sinal_apl_pos)
+            st.session_state.dados_cliente["imovel_avaliacao_curva_efetiva"] = float(_val_ef_sinal)
+
         st.markdown("---")
         # --- ETAPA 5: DISTRIBUIÇÃO DA ENTRADA (FECHAMENTO) ---
         d = st.session_state.dados_cliente
@@ -5942,6 +5983,7 @@ def aba_simulador_automacao(
 
         _parc_sync = int(st.session_state["parc_ps_key"] or "1")
         _parc_sync = max(1, min(_parc_sync, parc_max_ui))
+
         ps_limite_ui = float(mps.get("ps_max_efetivo", 0) or 0)
 
         if 'ps_u_key' not in st.session_state:
@@ -6152,6 +6194,38 @@ def aba_simulador_automacao(
             help="Usa o saldo ainda não coberto (valor líquido da unidade após descontos, menos financiamento, Fundo de Garantia do Tempo de Serviço e subsídio e atos), limitado ao teto de Pro Soluto.",
         )
         st.write("")
+        j8_ui = float(mps.get("parcela_max_j8") or 0)
+        pol_ui = str(d.get("politica", "Direcional"))
+        ps_limite_ui2 = float(mps.get("ps_max_efetivo", 0) or 0)
+        _ps_opts_pre: list[float] = []
+        if ps_limite_ui2 > 0:
+            _ps_opts_pre.append(ps_limite_ui2)
+        if u_valor > 0:
+            _ps_opts_pre.append(max(0.0, v_liquido - f_u_input - fgts_u_input))
+        _teto_ps_pre = min(_ps_opts_pre) if _ps_opts_pre else None
+        ps_input_pre = clamp_moeda_positiva(
+            texto_moeda_para_float(st.session_state.get("ps_u_key")), _teto_ps_pre
+        )
+        meses_pre = meses_ate_entrega(d.get("unid_entrega", ""))
+        n_min_j8 = None
+        if float(ps_input_pre or 0) > 0 and j8_ui > 0:
+            n_min_j8 = menor_prazo_parcelas_ps_respeitando_j8(
+                float(ps_input_pre or 0),
+                j8_ui,
+                pol_ui,
+                _prem,
+                prazo_max=parc_max_ui,
+                meses_entrega=meses_pre,
+            )
+        if n_min_j8 is not None:
+            _n_need = int(max(1, min(int(n_min_j8), parc_max_ui)))
+            _cur_pq = texto_inteiro(
+                st.session_state.get("parc_ps_key"), default=_n_need, min_v=1, max_v=parc_max_ui
+            )
+            _cur_pq = int(_cur_pq if _cur_pq is not None else _n_need)
+            if _cur_pq < _n_need:
+                st.session_state["parc_ps_key"] = str(_n_need)
+
         col_ps_parc, col_ps_val = st.columns(2)
 
         with col_ps_parc:
@@ -6164,10 +6238,6 @@ def aba_simulador_automacao(
                 f"Prazo máximo de parcelas do Pro Soluto: {parc_max_ui} meses</p>",
                 unsafe_allow_html=True,
             )
-
-        j8_ui = float(mps.get("parcela_max_j8") or 0)
-        pol_ui = str(d.get("politica", "Direcional"))
-        ps_limite_ui2 = float(mps.get("ps_max_efetivo", 0) or 0)
 
         with col_ps_val:
             st.text_input("Valor do Pro Soluto", key="ps_u_key", placeholder="0,00")
@@ -6188,16 +6258,6 @@ def aba_simulador_automacao(
 
         meses_entrega_unid = meses_ate_entrega(d.get("unid_entrega", ""))
         st.session_state.dados_cliente["meses_ate_entrega"] = meses_entrega_unid
-        n_min_j8 = None
-        if float(ps_input_val or 0) > 0 and j8_ui > 0:
-            n_min_j8 = menor_prazo_parcelas_ps_respeitando_j8(
-                float(ps_input_val or 0),
-                j8_ui,
-                pol_ui,
-                _prem,
-                prazo_max=parc_max_ui,
-                meses_entrega=meses_entrega_unid,
-            )
         v_parc = parcela_ps_para_valor(
             float(ps_input_val or 0),
             parc,
@@ -6219,20 +6279,22 @@ def aba_simulador_automacao(
         )
         if float(ps_input_val or 0) > 0 and j8_ui > 0:
             if n_min_j8 is not None:
-                st.markdown(
-                    "<p class=\"inline-ref\" style=\"margin-top:6px;line-height:1.45;\">"
-                    f"Sugestão de intervalo: entre <strong>{n_min_j8}</strong> e <strong>{parc_max_ui}</strong> parcelas "
-                    "a prestação calculada fica dentro do teto J8 "
-                    f"({reais_streamlit_html(fmt_br(j8_ui))}/mês). "
-                    f"O mínimo <strong>{n_min_j8}x</strong> já respeita o teto - evite ir direto a <strong>{parc_max_ui}x</strong> sem necessidade."
-                    "</p>",
-                    unsafe_allow_html=True,
-                )
-                if parc < n_min_j8:
-                    _dv_alerta_vermelho(
-                        f"Com <strong>{html_std.escape(str(parc))}</strong> parcelas a prestação tende a ultrapassar o teto J8. "
-                        f"Use pelo menos <strong>{html_std.escape(str(n_min_j8))}</strong> parcelas "
-                        "(ou reduza o valor do Pro Soluto)."
+                _nmj = int(n_min_j8)
+                _pmax = int(parc_max_ui)
+                if _nmj >= _pmax:
+                    st.markdown(
+                        f'<p class="inline-ref" style="margin-top:6px;line-height:1.45;">'
+                        f"Parcelas mínimas necessárias: <strong>{html_std.escape(str(_nmj))}</strong> "
+                        f"(prazo máximo da política; prestação dentro do teto J8 "
+                        f"{reais_streamlit_html(fmt_br(j8_ui))}/mês).</p>",
+                        unsafe_allow_html=True,
+                    )
+                else:
+                    st.markdown(
+                        f'<p class="inline-ref" style="margin-top:6px;line-height:1.45;">'
+                        f"Parcelas mínimas necessárias: <strong>{html_std.escape(str(_nmj))}</strong> "
+                        f"(teto J8 {reais_streamlit_html(fmt_br(j8_ui))}/mês).</p>",
+                        unsafe_allow_html=True,
                     )
             else:
                 _dv_alerta_vermelho(
@@ -6243,12 +6305,39 @@ def aba_simulador_automacao(
             st.caption(_EMCASH_NOTA_PARCELAS)
         ps_capacidade = max(0.0, float(v_parc) * float(parc))
         ps_efetivo = min(float(ps_input_val or 0.0), ps_capacidade)
-        if ps_efetivo + 0.01 < float(ps_input_val or 0.0):
-            _dv_alerta_vermelho(
-                f"O valor de Pro Soluto informado é {reais_streamlit_html(fmt_br(ps_input_val))}, "
-                f"mas com {html_std.escape(str(parc))} parcelas e mensalidade {reais_streamlit_html(fmt_br(v_parc))} "
-                f"a arrecadação máxima é {reais_streamlit_html(fmt_br(ps_capacidade))}."
-            )
+        aj8 = (
+            float(ps_input_val or 0) > 0
+            and j8_ui > 0
+            and n_min_j8 is not None
+            and int(parc) < int(n_min_j8)
+        )
+        acap = ps_efetivo + 0.01 < float(ps_input_val or 0.0)
+        if aj8 or acap:
+            if aj8 and acap:
+                _dv_alerta_vermelho(
+                    f"Com <strong>{html_std.escape(str(parc))}</strong> parcelas, a mensalidade do Pro Soluto "
+                    f"({reais_streamlit_html(fmt_br(v_parc))}/mês) ultrapassa o teto J8 "
+                    f"({reais_streamlit_html(fmt_br(j8_ui))}/mês). "
+                    f"São necessárias pelo menos <strong>{html_std.escape(str(int(n_min_j8)))}</strong> parcelas "
+                    "para este valor (ou reduza o Pro Soluto). "
+                    f"Com essas parcelas, a arrecadação máxima é "
+                    f"{reais_streamlit_html(fmt_br(ps_capacidade))} "
+                    f"(valor informado: {reais_streamlit_html(fmt_br(ps_input_val))})."
+                )
+            elif aj8:
+                _dv_alerta_vermelho(
+                    f"Com <strong>{html_std.escape(str(parc))}</strong> parcelas, a mensalidade do Pro Soluto "
+                    f"({reais_streamlit_html(fmt_br(v_parc))}/mês) ultrapassa o teto J8 "
+                    f"({reais_streamlit_html(fmt_br(j8_ui))}/mês). "
+                    f"Use pelo menos <strong>{html_std.escape(str(int(n_min_j8)))}</strong> parcelas "
+                    "(ou reduza o valor do Pro Soluto)."
+                )
+            else:
+                _dv_alerta_vermelho(
+                    f"O valor de Pro Soluto informado é {reais_streamlit_html(fmt_br(ps_input_val))}, "
+                    f"mas com {html_std.escape(str(parc))} parcelas e mensalidade {reais_streamlit_html(fmt_br(v_parc))} "
+                    f"a arrecadação máxima é {reais_streamlit_html(fmt_br(ps_capacidade))}."
+                )
         st.session_state.dados_cliente["ps_usado"] = ps_efetivo
 
         if u_valor > 0:
