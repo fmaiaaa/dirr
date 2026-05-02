@@ -3175,6 +3175,7 @@ def configurar_layout():
             margin-top: 0 !important;
             margin-bottom: 0 !important;
             line-height: 1.35 !important;
+            text-align: center !important;
         }}
         .block-container [data-testid="stElementContainer"] [data-baseweb="form-control-container"] {{
             margin-top: 0 !important;
@@ -3252,6 +3253,35 @@ def configurar_layout():
             width: 100% !important;
             min-width: 0 !important;
             flex: 1 1 auto !important;
+            padding-left: 0 !important;
+            padding-right: 0 !important;
+            margin-left: 0 !important;
+            margin-right: 0 !important;
+            box-sizing: border-box !important;
+        }}
+        /* Wrapper interno da coluna (Streamlit): mesma largura útil que os campos fora de st.columns */
+        .block-container [data-testid="stHorizontalBlock"] > div[data-testid="column"] > div {{
+            width: 100% !important;
+            max-width: 100% !important;
+            min-width: 0 !important;
+            padding-left: 0 !important;
+            padding-right: 0 !important;
+            margin-left: 0 !important;
+            margin-right: 0 !important;
+            box-sizing: border-box !important;
+        }}
+        .block-container [data-testid="stHorizontalBlock"] [data-testid="column"] [data-testid="stVerticalBlock"] {{
+            width: 100% !important;
+            max-width: 100% !important;
+            min-width: 0 !important;
+            box-sizing: border-box !important;
+        }}
+        .block-container [data-testid="stHorizontalBlock"] [data-testid="column"] [data-testid="stElementContainer"] {{
+            padding-left: 0 !important;
+            padding-right: 0 !important;
+            margin-left: 0 !important;
+            margin-right: 0 !important;
+            max-width: 100% !important;
         }}
         .block-container div[data-testid="stMarkdownContainer"] hr,
         .block-container hr {{
@@ -3383,7 +3413,8 @@ def configurar_layout():
             font-size: var(--dv-body-font-size) !important;
         }}
         /* Parágrafos do markdown = textos de apoio / subtítulos - centralizados */
-        div[data-testid="stMarkdown"] p {{
+        div[data-testid="stMarkdown"] p,
+        div[data-testid="stMarkdownContainer"] p {{
             color: #334155;
             line-height: 1.58;
             text-align: center !important;
@@ -3577,7 +3608,7 @@ def configurar_layout():
         /*
          * Picklists (Base Web): desktop = uma linha + ellipsis; só em larguras finas (max 768px)
          * quebra no valor fechado e nas opções. Regras em divs descendentes sobrepõem nowrap interno.
-         * Setinha: coluna com div:has(> svg) + justify-content center; valor com align-items center na linha.
+         * Setinha: coluna fixa à direita (largura constante) com o SVG centrado nessa faixa (horizontal + vertical).
          */
         @media (min-width: 769px) {{
             [data-testid="stSelectbox"] div[data-baseweb="select"] > div,
@@ -3622,19 +3653,43 @@ def configurar_layout():
                 flex: 1 1 auto !important;
                 min-width: 0 !important;
             }}
-            [data-testid="stSelectbox"] div[data-baseweb="select"] > div > div:has(> svg),
-            [data-testid="stMultiSelect"] div[data-baseweb="select"] > div > div:has(> svg) {{
+            /* Não usar só :has(svg) — tags do multiselect têm ícones na primeira coluna. */
+            [data-testid="stSelectbox"] div[data-baseweb="select"] > div > div:not(:first-of-type):has(svg),
+            [data-testid="stMultiSelect"] div[data-baseweb="select"] > div > div:not(:first-of-type):has(svg) {{
                 display: flex !important;
+                flex-direction: row !important;
                 align-items: center !important;
                 justify-content: center !important;
+                gap: 6px !important;
+                flex: 0 0 auto !important;
+                width: auto !important;
+                min-width: 2.375rem !important;
+                max-width: none !important;
+                box-sizing: border-box !important;
                 flex-shrink: 0 !important;
-                align-self: center !important;
+                align-self: stretch !important;
+                padding: 0 !important;
+                margin: 0 !important;
             }}
-            [data-testid="stSelectbox"] div[data-baseweb="select"] svg,
-            [data-testid="stMultiSelect"] div[data-baseweb="select"] svg {{
+            [data-testid="stSelectbox"] div[data-baseweb="select"] > div > div:not(:first-of-type):has(svg) svg,
+            [data-testid="stMultiSelect"] div[data-baseweb="select"] > div > div:not(:first-of-type):has(svg) svg {{
                 flex-shrink: 0 !important;
-                align-self: center !important;
                 display: block !important;
+                margin: 0 !important;
+            }}
+            /* Setinha sem wrapper (svg filho direto da linha do controlo): coluna fixa à direita */
+            [data-testid="stSelectbox"] div[data-baseweb="select"] > div > svg:last-of-type,
+            [data-testid="stMultiSelect"] div[data-baseweb="select"] > div > svg:last-of-type {{
+                flex: 0 0 2.375rem !important;
+                width: 2.375rem !important;
+                min-width: 2.375rem !important;
+                max-width: 2.375rem !important;
+                box-sizing: border-box !important;
+                margin-left: auto !important;
+                margin-right: 0 !important;
+                display: block !important;
+                align-self: center !important;
+                object-fit: contain !important;
             }}
             [data-testid="stSelectbox"] div[data-baseweb="select"] p,
             [data-testid="stMultiSelect"] div[data-baseweb="select"] p {{
@@ -3735,20 +3790,42 @@ def configurar_layout():
                 -webkit-line-clamp: unset !important;
                 margin: 0 !important;
             }}
-            [data-testid="stSelectbox"] div[data-baseweb="select"] > div > div:has(> svg),
-            [data-testid="stMultiSelect"] div[data-baseweb="select"] > div > div:has(> svg) {{
+            /* Não usar só :has(svg) — tags do multiselect têm ícones na primeira coluna. */
+            [data-testid="stSelectbox"] div[data-baseweb="select"] > div > div:not(:first-of-type):has(svg),
+            [data-testid="stMultiSelect"] div[data-baseweb="select"] > div > div:not(:first-of-type):has(svg) {{
                 display: flex !important;
+                flex-direction: row !important;
                 align-items: center !important;
                 justify-content: center !important;
+                gap: 6px !important;
+                flex: 0 0 auto !important;
+                width: auto !important;
+                min-width: 2.375rem !important;
+                max-width: none !important;
+                box-sizing: border-box !important;
                 flex-shrink: 0 !important;
-                align-self: center !important;
+                align-self: stretch !important;
+                padding: 0 !important;
+                margin: 0 !important;
             }}
-            [data-testid="stSelectbox"] div[data-baseweb="select"] svg,
-            [data-testid="stMultiSelect"] div[data-baseweb="select"] svg {{
+            [data-testid="stSelectbox"] div[data-baseweb="select"] > div > div:not(:first-of-type):has(svg) svg,
+            [data-testid="stMultiSelect"] div[data-baseweb="select"] > div > div:not(:first-of-type):has(svg) svg {{
                 flex-shrink: 0 !important;
-                align-self: center !important;
                 display: block !important;
-                margin-top: 0 !important;
+                margin: 0 !important;
+            }}
+            [data-testid="stSelectbox"] div[data-baseweb="select"] > div > svg:last-of-type,
+            [data-testid="stMultiSelect"] div[data-baseweb="select"] > div > svg:last-of-type {{
+                flex: 0 0 2.375rem !important;
+                width: 2.375rem !important;
+                min-width: 2.375rem !important;
+                max-width: 2.375rem !important;
+                box-sizing: border-box !important;
+                margin-left: auto !important;
+                margin-right: 0 !important;
+                display: block !important;
+                align-self: center !important;
+                object-fit: contain !important;
             }}
             div[data-baseweb="popover"] ul[role="listbox"] [role="option"],
             ul[role="listbox"] [role="option"] {{
@@ -4317,7 +4394,7 @@ def configurar_layout():
             margin: 0.5rem auto 0;
             padding: 0 clamp(1.25rem, 6vw, 3.25rem) 0.5rem;
             box-sizing: border-box;
-            text-align: left;
+            text-align: center;
             font-size: var(--dv-body-font-size);
             order: 2;
         }}
@@ -4525,7 +4602,7 @@ def configurar_layout():
             color: #1e293b !important;
             font-size: var(--dv-body-font-size) !important;
             line-height: 1.55 !important;
-            text-align: left !important;
+            text-align: center !important;
             margin-top: 10px !important;
             padding: 0 2px 2px !important;
             box-sizing: border-box !important;
@@ -4655,11 +4732,13 @@ def configurar_layout():
         .dv-prosa-secao {{
             color: #111111 !important;
             margin: 0 0 var(--dv-stack-gap) 0 !important;
+            text-align: center !important;
         }}
         .finan-subsidios-note {{
             color: #111111;
             margin: 0 0 var(--dv-stack-gap) 0 !important;
             opacity: 0.72;
+            text-align: center !important;
         }}
         /* Tabela financiamentos/subsídios: quebra linhas na largura disponível (sem esprem texto nem scroll horizontal). */
         .finan-subsidios-table-bleed {{
@@ -4863,21 +4942,25 @@ def configurar_layout():
             letter-spacing: 0.02em;
             display: block;
             width: 100%;
-            text-align: left !important;
+            text-align: center !important;
             opacity: 0.72;
             position: relative;
             z-index: 0;
         }}
         .dv-campo-resumo-movel {{
-            text-align: left !important;
+            text-align: center !important;
         }}
         /* Volta ao Caixa: duas referências empilhadas (sem barra no meio) em qualquer largura */
         .inline-ref-vcx-linhas {{
             display: flex !important;
             flex-direction: column !important;
-            align-items: flex-start !important;
+            align-items: center !important;
             gap: 0.35rem !important;
-            text-align: left !important;
+            text-align: center !important;
+        }}
+        .inline-ref-vcx-linha {{
+            text-align: center !important;
+            width: 100%;
         }}
         .inline-ref-vcx-sep {{
             display: none !important;
@@ -5947,12 +6030,24 @@ def aba_simulador_automacao(
         sist_sel = "PRICE" if sist_sel_label == _AMORTIZACAO_NOME_COMPLETO["PRICE"] else "SAC"
         st.session_state.dados_cliente['sistema_amortizacao'] = sist_sel
         taxa_padrao = taxa_fin_vigente(d)
-        sac_details = calcular_comparativo_sac_price(f_u, int(prazo_sel), taxa_padrao)["SAC"]
-        price_details = calcular_comparativo_sac_price(f_u, int(prazo_sel), taxa_padrao)["PRICE"]
+        _comp_sac_price = calcular_comparativo_sac_price(f_u, int(prazo_sel), taxa_padrao)
+        sac_details = _comp_sac_price["SAC"]
+        price_details = _comp_sac_price["PRICE"]
         _n_sac = _AMORTIZACAO_NOME_COMPLETO["SAC"]
         _n_price = _AMORTIZACAO_NOME_COMPLETO["PRICE"]
+        if sist_sel == "PRICE":
+            _ref_comp_html = (
+                f"<b>{_n_price}:</b> {reais_streamlit_html(fmt_br(price_details['parcela']))} "
+                f"parcelas fixas (juros totais: {reais_streamlit_html(fmt_br(price_details['juros']))})"
+            )
+        else:
+            _ref_comp_html = (
+                f"<b>{_n_sac}:</b> {reais_streamlit_html(fmt_br(sac_details['primeira']))} "
+                f"a {reais_streamlit_html(fmt_br(sac_details['ultima']))} "
+                f"(juros totais: {reais_streamlit_html(fmt_br(sac_details['juros']))})"
+            )
         st.markdown(
-            f"""<div style="margin: 0 0 0.5rem 0; color: #111111; text-align: center;"><b>{_n_sac}:</b> {reais_streamlit_html(fmt_br(sac_details['primeira']))} a {reais_streamlit_html(fmt_br(sac_details['ultima']))} (juros totais: {reais_streamlit_html(fmt_br(sac_details['juros']))}) &nbsp;|&nbsp; <b>{_n_price}:</b> {reais_streamlit_html(fmt_br(price_details['parcela']))} parcelas fixas (juros totais: {reais_streamlit_html(fmt_br(price_details['juros']))})</div>""",
+            f'<div style="margin: 0 0 0.5rem 0; color: #111111; text-align: center;">{_ref_comp_html}</div>',
             unsafe_allow_html=True,
         )
         _parc_fin_ref = calcular_parcela_financiamento(f_u, int(prazo_sel), taxa_padrao, sist_sel)
@@ -6723,7 +6818,7 @@ def aba_simulador_automacao(
         st.session_state.dados_cliente['ps_mensal'] = v_parc
         st.session_state.dados_cliente['ps_mensal_simples'] = (float(ps_input_val or 0) / parc) if parc > 0 else 0.0
         st.markdown(
-            f'<div class="dv-campo-resumo-movel" style="margin: 0 0 0.5rem 0; font-weight: 600; color: #111111; text-align: left;">'
+            f'<div class="dv-campo-resumo-movel" style="margin: 0 0 0.5rem 0; font-weight: 600; color: #111111; text-align: center;">'
             f"Mensalidade do Pro Soluto: {reais_streamlit_html(fmt_br(v_parc))} ({parc} parcelas)</div>",
             unsafe_allow_html=True,
         )
@@ -6826,7 +6921,7 @@ def aba_simulador_automacao(
             )
             _v_pos_vcx_ui = max(0.0, u_valor - vc_input_val)
             st.markdown(
-                '<div class="dv-campo-resumo-movel" style="margin:4px 0 18px 0;font-weight:600;color:#111111;text-align:left;line-height:1.45;">'
+                '<div class="dv-campo-resumo-movel" style="margin:4px 0 18px 0;font-weight:600;color:#111111;text-align:center;line-height:1.45;">'
                 f"Valor da unidade (após volta ao caixa): "
                 f"{reais_streamlit_html(fmt_br(_v_pos_vcx_ui))}</div>",
                 unsafe_allow_html=True,
@@ -6862,7 +6957,7 @@ def aba_simulador_automacao(
                 )
             v_liquido = max(0.0, u_valor - vc_input_val - outros_desc)
             st.markdown(
-                f'<div class="dv-campo-resumo-movel" style="margin:0 0 var(--dv-stack-gap) 0;font-weight:600;color:#111111;text-align:left;line-height:1.45;">'
+                f'<div class="dv-campo-resumo-movel" style="margin:0 0 var(--dv-stack-gap) 0;font-weight:600;color:#111111;text-align:center;line-height:1.45;">'
                 f"Valor final da unidade (após todos os descontos): "
                 f"{reais_streamlit_html(fmt_br(v_liquido))}</div>",
                 unsafe_allow_html=True,
