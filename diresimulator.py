@@ -2358,34 +2358,59 @@ def _validar_login_planilha(df_logins: pd.DataFrame, email: str, senha: str) -> 
 
 
 def _render_login_section(df_logins: pd.DataFrame) -> None:
-    st.title("Simulador imobiliário DV")
-    st.subheader("Acesso")
-    if df_logins is None or df_logins.empty:
-        st.warning(
-            "Não foi possível carregar a folha **BD Logins** (ou não há ligação ao Google Sheets). "
-            "Configure a aba na base ou as credenciais em *Secrets*."
-        )
-        if st.button("Continuar em modo demonstração", type="primary", key="login_demo_fallback"):
-            _sessao_sem_login_defaults()
-            st.rerun()
-        return
-    with st.form("dv_login_form", clear_on_submit=False):
-        _em = st.text_input("E-mail", key="dv_login_email_in")
-        _pw = st.text_input("Senha", type="password", key="dv_login_senha_in")
-        if st.form_submit_button("Entrar"):
-            row = _validar_login_planilha(df_logins, _em, _pw)
-            if not row:
-                st.error("E-mail ou senha inválidos.")
-            else:
-                st.session_state["logged_in"] = True
-                st.session_state["user_name"] = row.get("Nome") or ""
-                st.session_state["user_email"] = row.get("Email") or ""
-                st.session_state["user_phone"] = row.get("Telefone") or ""
-                st.session_state["user_imobiliaria"] = row.get("Imobiliaria") or "Geral"
-                st.session_state["user_cargo"] = row.get("Cargo") or ""
-                adm_raw = _secret_opt("SIMULADOR_ADM").lower()
-                st.session_state["user_is_adm"] = adm_raw in ("1", "true", "yes", "sim")
+    logo_src = html_std.escape(_src_logo_topo_header(), quote=True)
+    _login_head = f"""<div class="dv-login-page" role="region" aria-label="Início de sessão">
+<header class="header-container" role="banner">
+<div class="header-logo-wrap">
+<img src="{logo_src}" alt="Direcional Engenharia" class="header-logo-img" decoding="async" loading="eager" />
+</div>
+<h1 class="header-title">Simulador imobiliário DV</h1>
+</header>
+<div class="header-brand-bar-wrap" aria-hidden="true"></div>
+<h2 class="dv-login-acesso-h2">Acesso</h2>
+</div>"""
+
+    _lc_l, _lc_m, _lc_r = st.columns([1, 2.35, 1])
+    with _lc_m:
+        st.markdown(_login_head, unsafe_allow_html=True)
+        if df_logins is None or df_logins.empty:
+            st.warning(
+                "Não foi possível carregar a folha **BD Logins** (ou não há ligação ao Google Sheets). "
+                "Configure a aba na base ou as credenciais em *Secrets*."
+            )
+            if st.button(
+                "Continuar em modo demonstração",
+                type="primary",
+                use_container_width=True,
+                key="login_demo_fallback",
+            ):
+                _sessao_sem_login_defaults()
                 st.rerun()
+            return
+        with st.form("dv_login_form", clear_on_submit=False):
+            st.text_input("E-mail", key="dv_login_email_in")
+            st.text_input("Senha", type="password", key="dv_login_senha_in")
+            submitted = st.form_submit_button(
+                "Entrar",
+                type="primary",
+                use_container_width=True,
+            )
+            if submitted:
+                _em = st.session_state.get("dv_login_email_in", "")
+                _pw = st.session_state.get("dv_login_senha_in", "")
+                row = _validar_login_planilha(df_logins, str(_em), str(_pw))
+                if not row:
+                    st.error("E-mail ou senha inválidos.")
+                else:
+                    st.session_state["logged_in"] = True
+                    st.session_state["user_name"] = row.get("Nome") or ""
+                    st.session_state["user_email"] = row.get("Email") or ""
+                    st.session_state["user_phone"] = row.get("Telefone") or ""
+                    st.session_state["user_imobiliaria"] = row.get("Imobiliaria") or "Geral"
+                    st.session_state["user_cargo"] = row.get("Cargo") or ""
+                    adm_raw = _secret_opt("SIMULADOR_ADM").lower()
+                    st.session_state["user_is_adm"] = adm_raw in ("1", "true", "yes", "sim")
+                    st.rerun()
 
 
 @st.cache_data(ttl=300, show_spinner=False)
@@ -4845,6 +4870,23 @@ def configurar_layout():
             margin-bottom: 0 !important;
             text-transform: none !important;
             letter-spacing: -0.03em !important;
+        }}
+        /* Login: mesmo cabeçalho + barra; conteúdo centrado na coluna */
+        .dv-login-page .header-container {{
+            margin-bottom: 0.35rem;
+        }}
+        .dv-login-page .header-brand-bar-wrap {{
+            margin-bottom: clamp(0.85rem, 2vw, 1.45rem);
+        }}
+        .dv-login-page .dv-login-acesso-h2 {{
+            font-family: 'Montserrat', 'Inter', sans-serif !important;
+            font-size: var(--dv-title-font-size) !important;
+            font-weight: 700 !important;
+            color: {COR_AZUL_ESC} !important;
+            text-align: center !important;
+            margin: 0 0 clamp(0.75rem, 2vw, 1.1rem) 0 !important;
+            letter-spacing: -0.02em !important;
+            line-height: 1.25 !important;
         }}
 
         .card, .fin-box, .recommendation-card, .login-card {{
