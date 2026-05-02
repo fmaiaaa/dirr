@@ -2734,13 +2734,14 @@ def configurar_layout():
             [data-testid="stMain"] {{
                 padding-left: max(clamp(6px, 2.5vw, 16px), env(safe-area-inset-left, 0px)) !important;
                 padding-right: max(clamp(6px, 2.5vw, 16px), env(safe-area-inset-right, 0px)) !important;
-                padding-top: max(calc(var(--dv-rhythm) * 0.45), env(safe-area-inset-top, 0px)) !important;
+                padding-top: max(calc(var(--dv-rhythm) * 0.2), env(safe-area-inset-top, 0px)) !important;
                 padding-bottom: max(var(--dv-rhythm), env(safe-area-inset-bottom, 0px)) !important;
+                justify-content: flex-start !important;
             }}
             .block-container {{
                 max-width: 100% !important;
                 width: 100% !important;
-                padding: var(--dv-rhythm) clamp(0.55rem, 2.8vw, 1rem) var(--dv-rhythm) clamp(0.55rem, 2.8vw, 1rem) !important;
+                padding: calc(var(--dv-rhythm) * 0.55) clamp(0.55rem, 2.8vw, 1rem) var(--dv-rhythm) clamp(0.55rem, 2.8vw, 1rem) !important;
                 margin-left: auto !important;
                 margin-right: auto !important;
                 margin-top: clamp(2px, 1vw, 6px) !important;
@@ -2858,14 +2859,23 @@ def configurar_layout():
         [data-testid="stMain"] {{
             padding-left: max(clamp(6px, 1.8vw, 22px), env(safe-area-inset-left, 0px)) !important;
             padding-right: max(clamp(6px, 1.8vw, 22px), env(safe-area-inset-right, 0px)) !important;
-            padding-top: max(calc(var(--dv-rhythm) * 0.45), env(safe-area-inset-top, 0px)) !important;
+            padding-top: max(calc(var(--dv-rhythm) * 0.2), env(safe-area-inset-top, 0px)) !important;
             padding-bottom: max(var(--dv-rhythm), env(safe-area-inset-bottom, 0px)) !important;
             box-sizing: border-box !important;
             background: transparent !important;
             background-color: transparent !important;
+            justify-content: flex-start !important;
+            align-items: stretch !important;
+        }}
+        /* Com pouco conteúdo o tema centra a coluna verticalmente — sobra vazio em cima da logo */
+        section.main {{
+            justify-content: flex-start !important;
+            align-items: stretch !important;
         }}
         section.main > div {{
-            padding-top: calc(var(--dv-rhythm) * 0.35) !important;
+            justify-content: flex-start !important;
+            align-items: stretch !important;
+            padding-top: max(calc(var(--dv-rhythm) * 0.12), env(safe-area-inset-top, 0px)) !important;
             padding-bottom: calc(var(--dv-rhythm) * 0.35) !important;
         }}
 
@@ -2981,7 +2991,7 @@ def configurar_layout():
             text-wrap: balance;
         }}
 
-        /* Cartão “vidro”: padding vertical = mesmo ritmo que o gap entre widgets */
+        /* Cartão “vidro”: padding-top um pouco menor que o de baixo (logo mais alta; box mantém margin igual) */
         .block-container {{
             text-rendering: optimizeLegibility;
             max-width: min(1680px, 100%) !important;
@@ -2989,7 +2999,7 @@ def configurar_layout():
             margin-right: auto !important;
             margin-top: clamp(2px, 0.5vh, 8px) !important;
             margin-bottom: clamp(4px, 1vh, 14px) !important;
-            padding: var(--dv-rhythm) clamp(0.7rem, 1.6vw, 1.35rem) var(--dv-rhythm) clamp(0.7rem, 1.6vw, 1.35rem) !important;
+            padding: calc(var(--dv-rhythm) * 0.55) clamp(0.7rem, 1.6vw, 1.35rem) var(--dv-rhythm) clamp(0.7rem, 1.6vw, 1.35rem) !important;
             background: rgba(255, 255, 255, 0.72) !important;
             backdrop-filter: blur(18px) saturate(1.15) !important;
             -webkit-backdrop-filter: blur(18px) saturate(1.15) !important;
@@ -3577,7 +3587,7 @@ def configurar_layout():
 
         .header-container {{
             text-align: center;
-            padding: calc(var(--dv-rhythm) * 0.45) 0.75rem calc(var(--dv-rhythm) * 0.35);
+            padding: calc(var(--dv-rhythm) * 0.2) 0.75rem calc(var(--dv-rhythm) * 0.35);
             margin: 0 auto var(--dv-rhythm);
             max-width: 1100px;
             position: relative;
