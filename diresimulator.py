@@ -6262,6 +6262,196 @@ def _secret_opt(key: str) -> str:
         return ""
 
 
+def _render_consulta_ranking_sf_oportunidade() -> None:
+    """
+    Consulta de ranking por CPF (Salesforce): Opportunity + Account.CPF__c.
+    CSS escopado em .dv-ranking-sf-scope para não sobrepor o tema global do simulador.
+    """
+    from salesforce_api import (
+        conectar_salesforce,
+        consultar_opportunity_ranking_por_cpf,
+        extrair_ranking_ui_de_opportunity,
+    )
+
+    st.markdown(
+        f"""
+<style>
+.dv-ranking-sf-scope .dv-rk-head {{
+    text-align: center;
+    padding: 1.25rem 1rem;
+    background: rgba(255,255,255,0.92);
+    margin-bottom: var(--dv-stack-gap, 1.25rem);
+    border-radius: 0 0 20px 20px;
+    border-bottom: 1px solid {COR_BORDA};
+    box-shadow: 0 8px 22px -14px rgba({RGB_AZUL_CSS}, 0.2);
+}}
+.dv-ranking-sf-scope .dv-rk-title {{
+    font-family: 'Montserrat', sans-serif;
+    color: {COR_AZUL_ESC};
+    font-size: clamp(1.25rem, 3vw, 1.65rem);
+    font-weight: 800;
+    margin: 0;
+    letter-spacing: 0.06em;
+}}
+.dv-ranking-sf-scope .dv-rk-sub {{
+    color: {COR_AZUL_ESC};
+    font-size: 0.92rem;
+    font-weight: 600;
+    margin-top: 0.5rem;
+    opacity: 0.88;
+}}
+.dv-ranking-sf-scope .dv-rk-card {{
+    background: #ffffff;
+    border-radius: 12px;
+    padding: 1rem 0.9rem;
+    border: 1px solid {COR_BORDA};
+    box-shadow: 0 4px 6px rgba(15, 23, 42, 0.05);
+    transition: transform 0.25s ease, box-shadow 0.25s ease, border-color 0.25s ease;
+    min-height: 120px;
+    width: 100%;
+    max-width: 520px;
+    margin-left: auto;
+    margin-right: auto;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    box-sizing: border-box;
+}}
+.dv-ranking-sf-scope .dv-rk-card:hover {{
+    transform: translateY(-3px);
+    box-shadow: 0 10px 20px rgba({RGB_AZUL_CSS}, 0.12);
+    border-color: {COR_VERMELHO};
+}}
+.dv-ranking-sf-scope .dv-rk-card-label {{
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: {COR_TEXTO_MUTED};
+    margin-bottom: 0.35rem;
+    font-weight: 700;
+}}
+.dv-ranking-sf-scope .dv-rk-card-value {{
+    font-size: 1.05rem;
+    font-weight: 800;
+    color: {COR_VERMELHO};
+    word-break: break-word;
+    text-align: center;
+}}
+.dv-ranking-sf-scope .dv-rk-err {{
+    margin-top: 1rem;
+    padding: 0.75rem 1rem;
+    border-radius: 8px;
+    border: 1px solid {COR_VERMELHO};
+    background: #fff5f5;
+    color: {COR_VERMELHO};
+    font-weight: 600;
+    text-align: center;
+    max-width: 560px;
+    margin-left: auto;
+    margin-right: auto;
+}}
+</style>
+<div class="dv-ranking-sf-scope">
+  <div class="dv-rk-head">
+    <div class="dv-rk-title">Consulta de ranking</div>
+    <div class="dv-rk-sub">CPF da conta (Salesforce) via oportunidade mais recente</div>
+  </div>
+</div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    st.session_state.setdefault("sf_ranking_tool_dv", None)
+    st.session_state.setdefault("ultimo_resultado_ranking_opp", None)
+
+    st.markdown(
+        f"""
+<div class="dv-ranking-sf-scope">
+<p style="text-align:center;margin:0 0 0.75rem 0;font-size:0.95rem;color:{COR_AZUL_ESC};">
+Digite o <b>CPF do cliente</b> (com ou sem formatação).
+</p>
+</div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    cpf_entrada = st.text_input(
+        "CPF do cliente",
+        placeholder="Ex.: 000.000.000-00",
+        key="cpf_consulta_ranking_dv",
+    )
+
+    if st.button(
+        "Consultar ranking",
+        type="primary",
+        use_container_width=True,
+        key="btn_consultar_ranking_dv",
+    ):
+        st.session_state.ultimo_resultado_ranking_opp = None
+        texto = (cpf_entrada or "").strip()
+        if not texto:
+            st.warning("Informe o CPF do cliente para continuar.")
+        else:
+            _injetar_secrets_salesforce_no_env()
+            if st.session_state.sf_ranking_tool_dv is None:
+                with st.spinner("Conectando ao Salesforce..."):
+                    sf_try = conectar_salesforce()
+                if not sf_try:
+                    st.error(
+                        "Não foi possível conectar ao Salesforce. "
+                        "Verifique [salesforce] em .streamlit/secrets.toml (USER, PASSWORD, TOKEN)."
+                    )
+                else:
+                    st.session_state.sf_ranking_tool_dv = sf_try
+
+            if st.session_state.sf_ranking_tool_dv is not None:
+                with st.spinner("Consultando..."):
+                    opp, erro = consultar_opportunity_ranking_por_cpf(
+                        st.session_state.sf_ranking_tool_dv,
+                        texto,
+                    )
+                if erro:
+                    st.markdown(
+                        f'<div class="dv-ranking-sf-scope"><div class="dv-rk-err">{html_std.escape(erro)}</div></div>',
+                        unsafe_allow_html=True,
+                    )
+                    st.session_state.ultimo_resultado_ranking_opp = None
+                else:
+                    st.session_state.ultimo_resultado_ranking_opp = extrair_ranking_ui_de_opportunity(opp)
+
+    dados = st.session_state.ultimo_resultado_ranking_opp
+    if dados:
+        r = html_std.escape(str(dados.get("ranking_exibir") or "—"))
+        nome = dados.get("nome_conta") or dados.get("nome_opp") or ""
+        nome_html = ""
+        if nome:
+            nome_html = (
+                f'<div style="font-size:0.82rem;color:{COR_TEXTO_MUTED};margin-bottom:0.5rem;">'
+                f"{html_std.escape(str(nome))}</div>"
+            )
+        extra = ""
+        if dados.get("ranking_score_conta") is not None:
+            sc = html_std.escape(str(dados.get("ranking_score_conta")))
+            extra += f'<div class="dv-rk-card-label" style="margin-top:0.5rem;">Score (conta)</div><div style="font-size:0.88rem;font-weight:600;color:{COR_AZUL_ESC};">{sc}</div>'
+        elif dados.get("ranking_score_opp") is not None:
+            so = html_std.escape(str(dados.get("ranking_score_opp")))
+            extra += f'<div class="dv-rk-card-label" style="margin-top:0.5rem;">Score (oportunidade)</div><div style="font-size:0.88rem;font-weight:600;color:{COR_AZUL_ESC};">{so}</div>'
+        st.markdown(
+            f"""
+<div class="dv-ranking-sf-scope">
+<div class="dv-rk-card">
+  {nome_html}
+  <div class="dv-rk-card-label">Ranking do cliente</div>
+  <div class="dv-rk-card-value">{r}</div>
+  {extra}
+</div>
+</div>
+            """,
+            unsafe_allow_html=True,
+        )
+
+
 def _sessao_sem_login_defaults() -> None:
     """Acesso direto ao simulador (sem ecrã de login). Corretor/admin opcionais via secrets."""
     st.session_state["logged_in"] = True
@@ -6290,6 +6480,23 @@ def main():
 </header>''',
         unsafe_allow_html=True,
     )
+
+    _modos_nav = ["Simulador", "Consulta de ranking"]
+    modo = st.radio(
+        "Navegação",
+        _modos_nav,
+        horizontal=True,
+        key="dv_modo_app_sel",
+        help="Simulador completo ou consulta de ranking por CPF (Salesforce — oportunidade / conta).",
+    )
+
+    if modo == "Consulta de ranking":
+        _render_consulta_ranking_sf_oportunidade()
+        st.markdown(
+            '<div class="footer">Direcional Engenharia - Rio de Janeiro<br><em>developed by Lucas Maia</em></div>',
+            unsafe_allow_html=True,
+        )
+        return
 
     with st.spinner("A carregar o simulador…"):
         (
