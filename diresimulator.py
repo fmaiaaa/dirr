@@ -1145,6 +1145,22 @@ def _lookup_ranking_salesforce_cached(cpf11: str) -> tuple[str | None, str | Non
     return _sf_classificar_ranking_cpf_11(cpf11)
 
 
+@st.cache_data(ttl=300, show_spinner=False)
+def _lookup_ranking_oportunidade_sf_cached(cpf11: str) -> tuple[dict[str, Any] | None, str | None]:
+    """Ranking na Conta via última Opportunity (Account.CPF__c); complementa o Contact do seletor."""
+    d = re.sub(r"\D", "", str(cpf11 or ""))
+    if len(d) != 11:
+        return None, "cpf_incompleto"
+    _injetar_secrets_salesforce_no_env()
+    sf = _sf_conectar_salesforce()
+    if sf is None:
+        return None, "sem_conexao"
+    opp, err = _sf_consultar_opportunity_ranking_por_cpf(sf, d)
+    if err or opp is None:
+        return None, err or "erro"
+    return _sf_extrair_ranking_ui_de_opportunity(opp), None
+
+
 # Tenta importar fpdf e PIL
 try:
     from fpdf import FPDF
@@ -5207,6 +5223,34 @@ def aba_simulador_automacao(
                     f"Salesforce devolveu um ranking não mapeado. Ranking no simulador: <strong>{html_std.escape(str(_rank_now))}</strong>.</p>",
                     unsafe_allow_html=True,
                 )
+            # Conta / última oportunidade (Account.CPF__c) — mesma linha visual das referências acima
+            _opp_d, _opp_e = _lookup_ranking_oportunidade_sf_cached(cpf_digits)
+            if _opp_d:
+                rtxt = html_std.escape(str(_opp_d.get("ranking_exibir") or "—"))
+                nconta = _opp_d.get("nome_conta")
+                extra_nome = ""
+                if nconta:
+                    extra_nome = (
+                        f' — <span style="opacity:0.85;">{html_std.escape(str(nconta))}</span>'
+                    )
+                st.markdown(
+                    f'<p class="inline-ref" style="margin-top:0;margin-bottom:0;line-height:1.45;">'
+                    f"<strong>Conta (última oportunidade)</strong> no Salesforce: ranking "
+                    f'<strong style="color:{COR_AZUL_ESC};">{rtxt}</strong>{extra_nome}.</p>',
+                    unsafe_allow_html=True,
+                )
+            elif _opp_e and "Nenhum registro" in str(_opp_e):
+                st.markdown(
+                    '<p class="inline-ref" style="margin-top:0;margin-bottom:0;line-height:1.45;">'
+                    "Sem <strong>oportunidade</strong> recente com este CPF na conta (verificação Account.CPF__c).</p>",
+                    unsafe_allow_html=True,
+                )
+            elif _opp_e and _opp_e != "sem_conexao" and _sf_code != "sem_conexao":
+                st.markdown(
+                    f'<p class="inline-ref" style="margin-top:0;margin-bottom:0;line-height:1.45;">'
+                    f"{html_std.escape(str(_opp_e))}</p>",
+                    unsafe_allow_html=True,
+                )
         curr_ranking = _rank_now
         idx_ranking = rank_opts.index(curr_ranking) if curr_ranking in rank_opts else 0
         ranking = st.selectbox("Ranking do Cliente", options=rank_opts, index=idx_ranking, key="in_rank_v28")
@@ -6094,7 +6138,7 @@ def aba_simulador_automacao(
             st.session_state.dados_cliente['ps_usado'] = ps_input_val
             ref_text_ps = f"Limite máximo de Pro Soluto: {reais_streamlit_html(fmt_br(ps_limite_ui2))}"
             st.markdown(
-                f'<div class="inline-ref" style="color:#111111;opacity:0.72;">{ref_text_ps}</div>',
+                f'<span class="inline-ref">{ref_text_ps}</span>',
                 unsafe_allow_html=True,
             )
 
@@ -6483,200 +6527,6 @@ def _secret_opt(key: str) -> str:
         return ""
 
 
-def _render_consulta_ranking_sf_oportunidade() -> None:
-    """
-    Consulta de ranking por CPF (Salesforce): Opportunity + Account.CPF__c.
-    CSS escopado em .dv-ranking-sf-scope para não sobrepor o tema global do simulador.
-    """
-    st.markdown(
-        f"""
-<style>
-.dv-ranking-sf-scope .dv-rk-head {{
-    text-align: center;
-    padding: 1.25rem 1rem;
-    background: rgba(255,255,255,0.92);
-    margin-bottom: var(--dv-stack-gap, 1.25rem);
-    border-radius: 0 0 20px 20px;
-    border-bottom: 1px solid {COR_BORDA};
-    box-shadow: 0 8px 22px -14px rgba({RGB_AZUL_CSS}, 0.2);
-}}
-.dv-ranking-sf-scope .dv-rk-title {{
-    font-family: 'Montserrat', sans-serif;
-    color: {COR_AZUL_ESC};
-    font-size: clamp(1.25rem, 3vw, 1.65rem);
-    font-weight: 800;
-    margin: 0;
-    letter-spacing: 0.06em;
-}}
-.dv-ranking-sf-scope .dv-rk-sub {{
-    color: {COR_AZUL_ESC};
-    font-size: 0.92rem;
-    font-weight: 600;
-    margin-top: 0.5rem;
-    opacity: 0.88;
-}}
-.dv-ranking-sf-scope .dv-rk-card {{
-    background: #ffffff;
-    border-radius: 12px;
-    padding: 1rem 0.9rem;
-    border: 1px solid {COR_BORDA};
-    box-shadow: 0 4px 6px rgba(15, 23, 42, 0.05);
-    transition: transform 0.25s ease, box-shadow 0.25s ease, border-color 0.25s ease;
-    min-height: 120px;
-    width: 100%;
-    max-width: 520px;
-    margin-left: auto;
-    margin-right: auto;
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-    align-items: center;
-    box-sizing: border-box;
-}}
-.dv-ranking-sf-scope .dv-rk-card:hover {{
-    transform: translateY(-3px);
-    box-shadow: 0 10px 20px rgba({RGB_AZUL_CSS}, 0.12);
-    border-color: {COR_VERMELHO};
-}}
-.dv-ranking-sf-scope .dv-rk-card-label {{
-    font-size: 0.72rem;
-    text-transform: uppercase;
-    letter-spacing: 0.12em;
-    color: {COR_TEXTO_MUTED};
-    margin-bottom: 0.35rem;
-    font-weight: 700;
-}}
-.dv-ranking-sf-scope .dv-rk-card-value {{
-    font-size: 1.05rem;
-    font-weight: 800;
-    color: {COR_VERMELHO};
-    word-break: break-word;
-    text-align: center;
-}}
-.dv-ranking-sf-scope .dv-rk-err {{
-    margin-top: 1rem;
-    padding: 0.75rem 1rem;
-    border-radius: 8px;
-    border: 1px solid {COR_VERMELHO};
-    background: #fff5f5;
-    color: {COR_VERMELHO};
-    font-weight: 600;
-    text-align: center;
-    max-width: 560px;
-    margin-left: auto;
-    margin-right: auto;
-}}
-</style>
-<div class="dv-ranking-sf-scope">
-  <div class="dv-rk-head">
-    <div class="dv-rk-title">Consulta de ranking</div>
-    <div class="dv-rk-sub">CPF da conta (Salesforce) via oportunidade mais recente</div>
-  </div>
-</div>
-        """,
-        unsafe_allow_html=True,
-    )
-
-    st.session_state.setdefault("sf_ranking_tool_dv", None)
-    st.session_state.setdefault("ultimo_resultado_ranking_opp", None)
-
-    st.markdown(
-        f"""
-<div class="dv-ranking-sf-scope">
-<p style="text-align:center;margin:0 0 0.75rem 0;font-size:0.95rem;color:{COR_AZUL_ESC};">
-Digite o <b>CPF do cliente</b> (com ou sem formatação).
-</p>
-</div>
-        """,
-        unsafe_allow_html=True,
-    )
-
-    cpf_entrada = st.text_input(
-        "CPF do cliente",
-        placeholder="Ex.: 000.000.000-00",
-        key="cpf_consulta_ranking_dv",
-    )
-
-    if st.button(
-        "Consultar ranking",
-        type="primary",
-        use_container_width=True,
-        key="btn_consultar_ranking_dv",
-    ):
-        st.session_state.ultimo_resultado_ranking_opp = None
-        texto = (cpf_entrada or "").strip()
-        if not texto:
-            st.warning("Informe o CPF do cliente para continuar.")
-        else:
-            _injetar_secrets_salesforce_no_env()
-            if st.session_state.sf_ranking_tool_dv is None:
-                with st.spinner("Conectando ao Salesforce..."):
-                    sf_try = _sf_conectar_salesforce()
-                if not sf_try:
-                    _u = (os.environ.get("SALESFORCE_USER") or "").strip()
-                    _p = (os.environ.get("SALESFORCE_PASSWORD") or "").strip()
-                    if not _u or not _p:
-                        st.warning(
-                            "Credenciais Salesforce não encontradas. "
-                            "Em **Secrets**, inclua a secção `[salesforce]` com **USER**, **PASSWORD** e **TOKEN** (ou chaves `SALESFORCE_*` na raiz)."
-                        )
-                    else:
-                        st.info(
-                            "Não foi possível abrir sessão com o Salesforce neste momento "
-                            "(rede, org ou política de login). USER e PASSWORD já foram lidos dos Secrets. "
-                            "Se for **sandbox**, em `[salesforce]` defina **DOMAIN** = **test**. "
-                            "Se a org tiver **restrição por IP**, a Streamlit Cloud pode ser bloqueada."
-                        )
-                else:
-                    st.session_state.sf_ranking_tool_dv = sf_try
-
-            if st.session_state.sf_ranking_tool_dv is not None:
-                with st.spinner("Consultando..."):
-                    opp, erro = _sf_consultar_opportunity_ranking_por_cpf(
-                        st.session_state.sf_ranking_tool_dv,
-                        texto,
-                    )
-                if erro:
-                    st.markdown(
-                        f'<div class="dv-ranking-sf-scope"><div class="dv-rk-err">{html_std.escape(erro)}</div></div>',
-                        unsafe_allow_html=True,
-                    )
-                    st.session_state.ultimo_resultado_ranking_opp = None
-                else:
-                    st.session_state.ultimo_resultado_ranking_opp = _sf_extrair_ranking_ui_de_opportunity(opp)
-
-    dados = st.session_state.ultimo_resultado_ranking_opp
-    if dados:
-        r = html_std.escape(str(dados.get("ranking_exibir") or "—"))
-        nome = dados.get("nome_conta") or dados.get("nome_opp") or ""
-        nome_html = ""
-        if nome:
-            nome_html = (
-                f'<div style="font-size:0.82rem;color:{COR_TEXTO_MUTED};margin-bottom:0.5rem;">'
-                f"{html_std.escape(str(nome))}</div>"
-            )
-        extra = ""
-        if dados.get("ranking_score_conta") is not None:
-            sc = html_std.escape(str(dados.get("ranking_score_conta")))
-            extra += f'<div class="dv-rk-card-label" style="margin-top:0.5rem;">Score (conta)</div><div style="font-size:0.88rem;font-weight:600;color:{COR_AZUL_ESC};">{sc}</div>'
-        elif dados.get("ranking_score_opp") is not None:
-            so = html_std.escape(str(dados.get("ranking_score_opp")))
-            extra += f'<div class="dv-rk-card-label" style="margin-top:0.5rem;">Score (oportunidade)</div><div style="font-size:0.88rem;font-weight:600;color:{COR_AZUL_ESC};">{so}</div>'
-        st.markdown(
-            f"""
-<div class="dv-ranking-sf-scope">
-<div class="dv-rk-card">
-  {nome_html}
-  <div class="dv-rk-card-label">Ranking do cliente</div>
-  <div class="dv-rk-card-value">{r}</div>
-  {extra}
-</div>
-</div>
-            """,
-            unsafe_allow_html=True,
-        )
-
-
 def _sessao_sem_login_defaults() -> None:
     """Acesso direto ao simulador (sem ecrã de login). Corretor/admin opcionais via secrets."""
     st.session_state["logged_in"] = True
@@ -6705,23 +6555,6 @@ def main():
 </header>''',
         unsafe_allow_html=True,
     )
-
-    _modos_nav = ["Simulador", "Consulta de ranking"]
-    modo = st.radio(
-        "Navegação",
-        _modos_nav,
-        horizontal=True,
-        key="dv_modo_app_sel",
-        help="Simulador completo ou consulta de ranking por CPF (Salesforce — oportunidade / conta).",
-    )
-
-    if modo == "Consulta de ranking":
-        _render_consulta_ranking_sf_oportunidade()
-        st.markdown(
-            '<div class="footer">Direcional Engenharia - Rio de Janeiro<br><em>developed by Lucas Maia</em></div>',
-            unsafe_allow_html=True,
-        )
-        return
 
     with st.spinner("A carregar o simulador…"):
         (
