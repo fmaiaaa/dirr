@@ -7369,8 +7369,9 @@ def aba_simulador_automacao(
 
         # Desconto comercial no final: se o fechamento já cobria o líquido anterior, baixar o PS pelo delta do desconto.
         if u_valor > 0:
-            _uid_fe = (str(d.get("unidade_id") or ""), round(float(u_valor or 0), 2))
-            if st.session_state.get("_dv_vliq_trace_uid") != _uid_fe:
+            # Chave em string (tuplas em session_state podem falhar na igualdade entre reruns).
+            _uid_fe = f"{str(d.get('unidade_id') or '').strip()}|{round(float(u_valor or 0), 2)}"
+            if str(st.session_state.get("_dv_vliq_trace_uid") or "") != _uid_fe:
                 st.session_state.pop("_dv_v_liquido_fechamento_prev", None)
             st.session_state["_dv_vliq_trace_uid"] = _uid_fe
             _ra_fe = max(0.0, texto_moeda_para_float(st.session_state.get("ato_1_key")))
@@ -7391,7 +7392,7 @@ def aba_simulador_automacao(
                 if _vlp is not None and _vlp > float(v_liquido) + 0.01:
                     _delta_desc_fe = _vlp - float(v_liquido)
                     _T_fe = float(f_u_input) + float(fgts_u_input) + float(ps_efetivo) + _sum_atos_fe
-                    if _T_fe >= _vlp - 0.01 and _delta_desc_fe > 0.01:
+                    if _T_fe >= _vlp - 1.0 and _delta_desc_fe > 0.01:
                         _cut_ps_desc = min(float(ps_efetivo), float(_delta_desc_fe))
                         if _cut_ps_desc > 0.01:
                             ps_efetivo = max(0.0, float(ps_efetivo) - float(_cut_ps_desc))
@@ -7426,6 +7427,12 @@ def aba_simulador_automacao(
             _ps_show = float_para_campo_texto(ps_efetivo, vazio_se_zero=True)
             if str(st.session_state.get("ps_u_key") or "") != str(_ps_show):
                 st.session_state["_dv_ps_u_key_deferred"] = _ps_show
+                st.rerun()
+        else:
+            # Ex.: PS baixado pelo desconto comercial e excedente já zerado — o input ainda mostrava o PS antigo.
+            _ps_show_else = float_para_campo_texto(ps_efetivo, vazio_se_zero=True)
+            if str(st.session_state.get("ps_u_key") or "") != str(_ps_show_else):
+                st.session_state["_dv_ps_u_key_deferred"] = _ps_show_else
                 st.rerun()
 
         st.session_state.dados_cliente['ato_final'] = r1_val
