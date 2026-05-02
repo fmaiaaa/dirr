@@ -910,11 +910,22 @@ def _injetar_secrets_salesforce_no_env() -> None:
         ):
             if hasattr(sec, "get"):
                 _set(key, sec.get(key))
-        blk = sec.get("salesforce") if hasattr(sec, "get") else None
-        if isinstance(blk, dict):
-            for k, v in blk.items():
-                if str(k).strip():
-                    _set(_chave_env_salesforce_desde_toml(str(k).strip()), v)
+        # [salesforce] na Cloud pode vir como dict, AttrDict ou outro mapeamento — não usar só isinstance(..., dict).
+        blk = None
+        if hasattr(sec, "get"):
+            blk = sec.get("salesforce")
+        if blk is None and hasattr(sec, "__getitem__"):
+            try:
+                blk = sec["salesforce"]
+            except Exception:
+                blk = None
+        if blk is not None and hasattr(blk, "items"):
+            try:
+                for k, v in blk.items():
+                    if str(k).strip():
+                        _set(_chave_env_salesforce_desde_toml(str(k).strip()), v)
+            except Exception:
+                pass
     except Exception:
         pass
 
@@ -938,6 +949,7 @@ def _sf_normalizar_cpf(cpf: str | None) -> str:
 
 
 def _sf_conectar_salesforce(verbose: bool = False) -> Any | None:
+    _injetar_secrets_salesforce_no_env()
     if Salesforce is None:
         if verbose:
             _sf_logger.warning("Pacote simple_salesforce não instalado.")
@@ -6601,12 +6613,20 @@ Digite o <b>CPF do cliente</b> (com ou sem formatação).
                 with st.spinner("Conectando ao Salesforce..."):
                     sf_try = _sf_conectar_salesforce()
                 if not sf_try:
-                    st.error(
-                        "Não foi possível conectar ao Salesforce. "
-                        "Confira em **Secrets** (ou `[salesforce]` no TOML): **USER**, **PASSWORD**, **TOKEN** (Security Token). "
-                        "Se a org for **sandbox**, defina **DOMAIN** = `test`. "
-                        "Se a org tiver **restrição por IP**, autorize os IPs da Streamlit Cloud ou use um utilizador API sem IP lock."
-                    )
+                    _u = (os.environ.get("SALESFORCE_USER") or "").strip()
+                    _p = (os.environ.get("SALESFORCE_PASSWORD") or "").strip()
+                    if not _u or not _p:
+                        st.warning(
+                            "Credenciais Salesforce não encontradas. "
+                            "Em **Secrets**, inclua a secção `[salesforce]` com **USER**, **PASSWORD** e **TOKEN** (ou chaves `SALESFORCE_*` na raiz)."
+                        )
+                    else:
+                        st.info(
+                            "Não foi possível abrir sessão com o Salesforce neste momento "
+                            "(rede, org ou política de login). USER e PASSWORD já foram lidos dos Secrets. "
+                            "Se for **sandbox**, em `[salesforce]` defina **DOMAIN** = **test**. "
+                            "Se a org tiver **restrição por IP**, a Streamlit Cloud pode ser bloqueada."
+                        )
                 else:
                     st.session_state.sf_ranking_tool_dv = sf_try
 
