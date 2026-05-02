@@ -7066,6 +7066,9 @@ def aba_simulador_automacao(
             _ps_opts_f.append(max(0.0, v_liquido - f_u_input - fgts_u_input))
         _teto_ps_final = min(_ps_opts_f) if _ps_opts_f else None
 
+        if "_dv_ps_u_key_deferred" in st.session_state:
+            st.session_state["ps_u_key"] = st.session_state.pop("_dv_ps_u_key_deferred")
+
         st.text_input("Valor do Pro Soluto (R$)", key="ps_u_key", placeholder="0,00")
         ps_input_val = clamp_moeda_positiva(
             texto_moeda_para_float(st.session_state.get("ps_u_key")), _teto_ps_final
@@ -7193,6 +7196,8 @@ def aba_simulador_automacao(
             st.caption(
                 "Valor de desconto negociado dentro do **limite de Volta ao Caixa** da unidade."
             )
+            if "_dv_volta_caixa_key_deferred" in st.session_state:
+                st.session_state["volta_caixa_key"] = st.session_state.pop("_dv_volta_caixa_key_deferred")
             st.text_input(
                 "Desconto Volta ao Caixa (R$)",
                 key="volta_caixa_key",
@@ -7204,7 +7209,10 @@ def aba_simulador_automacao(
                 max(0.0, min(_vc_raw_ui, vc_ref_top)) if vc_ref_top > 0 else max(0.0, _vc_raw_ui)
             )
             if abs(_vc_raw_ui - vc_input_val) > 0.009:
-                st.session_state["volta_caixa_key"] = float_para_campo_texto(vc_input_val, vazio_se_zero=True)
+                st.session_state["_dv_volta_caixa_key_deferred"] = float_para_campo_texto(
+                    vc_input_val, vazio_se_zero=True
+                )
+                st.rerun()
             _vc_pres_ui = max(0.0, vc_ref_top - vc_input_val)
             _v_pos_vcx_ui = max(0.0, u_valor - vc_input_val)
             _vcx_lim = reais_streamlit_html(fmt_br(vc_ref_top))
@@ -7225,6 +7233,10 @@ def aba_simulador_automacao(
             st.caption(
                 "Outros abatimentos sobre o preço."
             )
+            if "_dv_outros_descontos_key_deferred" in st.session_state:
+                st.session_state["outros_descontos_key"] = st.session_state.pop(
+                    "_dv_outros_descontos_key_deferred"
+                )
             st.text_input(
                 "Outros descontos (R$)",
                 key="outros_descontos_key",
@@ -7243,9 +7255,10 @@ def aba_simulador_automacao(
             _max_out_ui = max(0.0, u_valor - vc_input_val)
             if outros_desc > _max_out_ui + 0.009:
                 outros_desc = _max_out_ui
-                st.session_state["outros_descontos_key"] = float_para_campo_texto(
+                st.session_state["_dv_outros_descontos_key_deferred"] = float_para_campo_texto(
                     outros_desc, vazio_se_zero=True
                 )
+                st.rerun()
             v_liquido = max(0.0, u_valor - vc_input_val - outros_desc)
             st.markdown(
                 f'<div class="dv-campo-resumo-movel" style="margin:0;font-weight:600;color:#111111;text-align:center;line-height:1.45;">'
@@ -7283,7 +7296,10 @@ def aba_simulador_automacao(
                     r4_val *= _kf2
                 else:
                     r1_val = r2_val = r3_val = r4_val = 0.0
-            st.session_state['ps_u_key'] = float_para_campo_texto(ps_efetivo, vazio_se_zero=True)
+            _ps_show = float_para_campo_texto(ps_efetivo, vazio_se_zero=True)
+            if str(st.session_state.get("ps_u_key") or "") != str(_ps_show):
+                st.session_state["_dv_ps_u_key_deferred"] = _ps_show
+                st.rerun()
 
         st.session_state.dados_cliente['ato_final'] = r1_val
         st.session_state.dados_cliente['ato_30'] = r2_val
