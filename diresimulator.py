@@ -4455,6 +4455,8 @@ def configurar_layout():
             margin: var(--dv-stack-gap) 0;
             padding: 0;
             overflow-x: visible;
+            container-type: inline-size;
+            container-name: finansubs;
         }}
         .finan-subsidios-table-bleed .finan-subsidios-tbl {{
             width: 100%;
@@ -4514,6 +4516,62 @@ def configurar_layout():
             font-weight: 600;
             color: #000000;
             -webkit-text-fill-color: #000000;
+        }}
+        /* Vista estreita: legenda dos campos + tabela Faixa 2 + tabela Faixa 3 */
+        .finan-subs-narrow {{
+            display: none;
+        }}
+        .finan-subs-wide {{
+            display: block;
+        }}
+        @supports (container-type: inline-size) {{
+            @container finansubs (max-width: 560px) {{
+                .finan-subs-wide {{ display: none !important; }}
+                .finan-subs-narrow {{ display: block !important; }}
+            }}
+            @container finansubs (min-width: 561px) {{
+                .finan-subs-wide {{ display: block !important; }}
+                .finan-subs-narrow {{ display: none !important; }}
+            }}
+        }}
+        @media not (supports (container-type: inline-size)) {{
+            @media (max-width: 720px) {{
+                .finan-subs-wide {{ display: none !important; }}
+                .finan-subs-narrow {{ display: block !important; }}
+            }}
+        }}
+        .finan-subs-stack-intro {{
+            font-size: clamp(0.8rem, 2.1vw, 0.9rem);
+            color: #334155;
+            line-height: 1.45;
+            margin: 0 0 0.85rem 0;
+            padding: 0.65rem 0.75rem;
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: var(--dv-radius-md, 8px);
+        }}
+        .finan-subs-stack-intro p {{
+            margin: 0 0 0.5rem 0;
+            font-weight: 700;
+            color: #111111;
+        }}
+        .finan-subs-stack-intro ul {{
+            margin: 0;
+            padding-left: 1.15rem;
+        }}
+        .finan-subs-stack-intro li {{
+            margin: 0.25rem 0;
+        }}
+        .finan-subs-mini-heading {{
+            text-align: center;
+            font-weight: 700;
+            font-size: clamp(0.85rem, 2.2vw, 0.95rem);
+            color: #111111;
+            margin: 0.85rem 0 0.35rem 0;
+            line-height: 1.35;
+        }}
+        .finan-subs-narrow .finan-subsidios-tbl {{
+            margin-bottom: 0.15rem;
         }}
         .dv-sinal-com-prosa {{
             color: #111111;
@@ -5479,8 +5537,27 @@ def aba_simulador_automacao(
             f"</tr>"
             for it in _matriz_bd
         )
+        _tbl_rows_f2 = "".join(
+            f"<tr>"
+            f"<td class='finan-subs-flag'>{_sim_nao(it['social'])}</td>"
+            f"<td class='finan-subs-flag'>{_sim_nao(it['cotista'])}</td>"
+            f"<td class='finan-subs-num'>{reais_streamlit_html(fmt_br(it['fin_F2']))}</td>"
+            f"<td class='finan-subs-num'>{reais_streamlit_html(fmt_br(it['sub_F2']))}</td>"
+            f"</tr>"
+            for it in _matriz_bd
+        )
+        _tbl_rows_f3 = "".join(
+            f"<tr>"
+            f"<td class='finan-subs-flag'>{_sim_nao(it['social'])}</td>"
+            f"<td class='finan-subs-flag'>{_sim_nao(it['cotista'])}</td>"
+            f"<td class='finan-subs-num'>{reais_streamlit_html(fmt_br(it['fin_F3']))}</td>"
+            f"<td class='finan-subs-num'>{reais_streamlit_html(fmt_br(it['sub_F3']))}</td>"
+            f"</tr>"
+            for it in _matriz_bd
+        )
         st.markdown(
             f"""<div class="finan-subsidios-table-bleed">
+<div class="finan-subs-wide">
 <table class="finan-subsidios-tbl">
 <caption>Financiamentos e subsídios (base de dados - Financiamentos) - Faixas 2 e 3</caption>
 <thead>
@@ -5498,7 +5575,43 @@ def aba_simulador_automacao(
 </tr>
 </thead>
 <tbody>{_tbl_rows}</tbody>
-</table></div>""",
+</table>
+</div>
+<div class="finan-subs-narrow">
+<div class="finan-subs-stack-intro">
+<p>O que cada coluna significa</p>
+<ul>
+<li><strong>Fator Social</strong>: se a combinação considera fator social (Sim ou Não).</li>
+<li><strong>Cotista do FGTS</strong>: se considera cotista do Fundo de Garantia do Tempo de Serviço (Sim ou Não).</li>
+<li><strong>Financiamento</strong> e <strong>Subsídios</strong>: valores de referência em R$ na base Financiamentos, para a faixa indicada.</li>
+</ul>
+</div>
+<div class="finan-subs-mini-heading">Faixa 2 — imóveis até 275 mil (referência curva)</div>
+<table class="finan-subsidios-tbl">
+<thead>
+<tr>
+<th>Fator Social</th>
+<th>Cotista FGTS</th>
+<th class="finan-subs-num">Financiamento</th>
+<th class="finan-subs-num">Subsídios</th>
+</tr>
+</thead>
+<tbody>{_tbl_rows_f2}</tbody>
+</table>
+<div class="finan-subs-mini-heading">Faixa 3 — imóveis até 400 mil (referência curva)</div>
+<table class="finan-subsidios-tbl">
+<thead>
+<tr>
+<th>Fator Social</th>
+<th>Cotista FGTS</th>
+<th class="finan-subs-num">Financiamento</th>
+<th class="finan-subs-num">Subsídios</th>
+</tr>
+</thead>
+<tbody>{_tbl_rows_f3}</tbody>
+</table>
+</div>
+</div>""",
             unsafe_allow_html=True,
         )
         st.markdown(
