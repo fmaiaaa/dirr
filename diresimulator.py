@@ -41,7 +41,7 @@ COR_BORDA = "#eef2f6"
 COR_TEXTO_MUTED = "#64748b"
 COR_INPUT_BG = "#ffffff"
 COR_INPUT_TEXTO = "#000000"
-COR_TEXTO_LABEL = "#1e293b"
+COR_TEXTO_LABEL = "#000000"
 COR_VERMELHO_ESCURO = "#c40510"
 
 
@@ -3434,6 +3434,28 @@ def configurar_layout():
             margin-right: 0 !important;
             max-width: 100% !important;
         }}
+        /* Exceção: uma linha em row para o botão "Avançar para Resumo" entre dois --- (o resto de st.columns segue em coluna) */
+        .block-container div[data-testid="stElementContainer"]:has(.dv-allow-row-columns-avancar-resumo) {{
+            margin-top: 0 !important;
+            margin-bottom: 0 !important;
+            min-height: 0 !important;
+        }}
+        .block-container div[data-testid="stElementContainer"]:has(.dv-allow-row-columns-avancar-resumo)
+            + div[data-testid="stElementContainer"] [data-testid="stHorizontalBlock"] {{
+            display: flex !important;
+            flex-direction: row !important;
+            justify-content: center !important;
+            align-items: stretch !important;
+            gap: clamp(0.35rem, 1.5vw, 0.85rem) !important;
+            width: 100% !important;
+            max-width: 100% !important;
+        }}
+        .block-container div[data-testid="stElementContainer"]:has(.dv-allow-row-columns-avancar-resumo)
+            + div[data-testid="stElementContainer"] [data-testid="stHorizontalBlock"] > div[data-testid="column"] {{
+            width: auto !important;
+            flex: 1 1 0 !important;
+            min-width: 0 !important;
+        }}
         /* Referência imediatamente após o campo (compensa row-gap do bloco vertical) */
         .block-container [data-testid="stVerticalBlock"] > div[data-testid="stElementContainer"]:has(
                 [data-testid="stTextInput"],
@@ -3582,10 +3604,6 @@ def configurar_layout():
             letter-spacing: -0.02em;
             line-height: 1.28;
         }}
-        h5, h6 {{
-            font-weight: 600 !important;
-            color: {COR_TEXTO_MUTED} !important;
-        }}
         .header-title {{
             font-family: 'Montserrat', 'Inter', sans-serif !important;
             font-size: var(--dv-hero-title-font-size) !important;
@@ -3617,10 +3635,16 @@ def configurar_layout():
         /* Textos de apoio no cartão: centralizados (rótulos de widgets mantêm-se à esquerda) */
         .block-container div[data-testid="stMarkdown"] p,
         .block-container div[data-testid="stMarkdownContainer"] p {{
-            color: #334155;
+            color: #000000;
             line-height: 1.58;
             text-align: center !important;
             text-wrap: pretty;
+        }}
+        .block-container div[data-testid="stMarkdownContainer"] p.inline-ref,
+        .block-container div[data-testid="stMarkdownContainer"] .inline-ref {{
+            color: #000000 !important;
+            -webkit-text-fill-color: #000000 !important;
+            opacity: 1 !important;
         }}
         h1, h2, h3, .home-banners-section-title, .dv-titulo-secao {{
             text-wrap: balance;
@@ -3671,7 +3695,7 @@ def configurar_layout():
         }}
 
         /* Títulos em markdown: margens (tamanho = regra global h1–h6 / .dv-titulo-secao) */
-        .stMarkdown h1 {{ text-align: center !important; margin: 0 !important; font-weight: 800 !important; }}
+        .stMarkdown h1 {{ text-align: center !important; margin: 0 !important; font-weight: 800 !important; color: {COR_AZUL_ESC} !important; }}
         .stMarkdown h1.header-title {{
             margin-top: 0 !important;
             margin-bottom: 0 !important;
@@ -3681,34 +3705,27 @@ def configurar_layout():
             letter-spacing: -0.03em !important;
         }}
         .stMarkdown h2 {{ text-align: center !important; margin: 0 !important; color: {COR_AZUL_ESC} !important; }}
-        .stMarkdown h3 {{ text-align: center !important; margin: 0 !important; }}
-        .stMarkdown h4 {{ text-align: center !important; margin: 0 !important; }}
-        .stMarkdown h5, .stMarkdown h6 {{
-            text-align: center !important;
-            margin: 0 !important;
-            font-weight: 600 !important;
-            color: {COR_TEXTO_MUTED} !important;
+        .stMarkdown h3 {{ text-align: center !important; margin: 0 !important; color: {COR_AZUL_ESC} !important; }}
+        .stMarkdown h4 {{ text-align: center !important; margin: 0 !important; color: {COR_AZUL_ESC} !important; }}
+        .stMarkdown h5, .stMarkdown h6,
+        [data-testid="stMarkdownContainer"] h5,
+        [data-testid="stMarkdownContainer"] h6 {{
+            display: none !important;
         }}
         .dv-titulo-secao {{
             margin: 0 !important;
+            color: {COR_AZUL_ESC} !important;
         }}
-        .block-container [data-testid="stCaption"] {{
-            font-family: 'Inter', sans-serif !important;
-            color: #475569 !important;
-            font-size: var(--dv-body-font-size) !important;
-            line-height: 1.5 !important;
-            text-align: center !important;
-            justify-content: center !important;
-            align-items: center !important;
-            width: 100% !important;
-            display: flex !important;
-            flex-direction: column !important;
-        }}
-        .block-container [data-testid="stCaption"] > *,
-        .block-container [data-testid="stCaption"] [data-testid="stMarkdownContainer"],
-        .block-container [data-testid="stCaption"] [data-testid="stMarkdownContainer"] p {{
-            text-align: center !important;
-            width: 100% !important;
+        /* Sem subtítulos Streamlit (st.caption) em toda a app */
+        [data-testid="stCaption"] {{
+            display: none !important;
+            height: 0 !important;
+            max-height: 0 !important;
+            overflow: hidden !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            visibility: hidden !important;
+            pointer-events: none !important;
         }}
 
         /* Largura total da coluna para todos os widgets editáveis */
@@ -5104,14 +5121,14 @@ def configurar_layout():
             box-shadow: var(--dv-shadow-xs);
         }}
         .dv-prosa-secao {{
-            color: #111111 !important;
+            color: #000000 !important;
             margin: 0 0 var(--dv-stack-gap) 0 !important;
             text-align: center !important;
         }}
         .finan-subsidios-note {{
-            color: #111111;
+            color: #000000;
             margin: 0 0 var(--dv-stack-gap) 0 !important;
-            opacity: 0.72;
+            opacity: 1;
             text-align: center !important;
         }}
         /* Tabela financiamentos/subsídios: quebra linhas na largura disponível (sem esprem texto nem scroll horizontal). */
@@ -5299,7 +5316,7 @@ def configurar_layout():
         }}
         .inline-ref {{
             font-size: var(--dv-body-font-size) !important;
-            color: #111111;
+            color: #000000 !important;
             margin-top: 0 !important;
             margin-bottom: 0 !important;
             padding-top: 0.05rem;
@@ -5309,7 +5326,7 @@ def configurar_layout():
             display: block;
             width: 100%;
             text-align: center !important;
-            opacity: 0.72;
+            opacity: 1;
             position: relative;
             z-index: 0;
         }}
@@ -5336,15 +5353,6 @@ def configurar_layout():
         @media (max-width: 768px) {{
             .block-container div[data-testid="stMarkdown"] p,
             .block-container div[data-testid="stMarkdownContainer"] p {{
-                text-align: justify !important;
-                text-align-last: center !important;
-                hyphens: auto;
-                -webkit-hyphens: auto;
-            }}
-            .block-container [data-testid="stCaption"],
-            .block-container [data-testid="stCaption"] > *,
-            .block-container [data-testid="stCaption"] [data-testid="stMarkdownContainer"],
-            .block-container [data-testid="stCaption"] [data-testid="stMarkdownContainer"] p {{
                 text-align: justify !important;
                 text-align-last: center !important;
                 hyphens: auto;
@@ -5377,8 +5385,8 @@ def configurar_layout():
         }}
 
         .metric-label {{
-            color: {COR_AZUL_ESC} !important;
-            opacity: 0.7;
+            color: #000000 !important;
+            opacity: 1;
             font-size: var(--dv-body-font-size) !important;
             font-weight: 700;
             text-transform: uppercase;
@@ -5386,7 +5394,7 @@ def configurar_layout():
             margin-bottom: 8px;
         }}
         .metric-value {{
-            color: {COR_AZUL_ESC} !important;
+            color: #000000 !important;
             font-size: var(--dv-body-font-size) !important;
             font-weight: 800;
             font-family: 'Montserrat', 'Inter', sans-serif;
@@ -5973,7 +5981,6 @@ def show_export_dialog(d):
         unsafe_allow_html=True,
     )
     st.markdown(f"<h3 style='text-align: center; color: {COR_AZUL_ESC}; margin: 0;'>Resumo da Simulação</h3>", unsafe_allow_html=True)
-    st.caption("Baixe o PDF, envie o relatório por e-mail ao cliente ou abra o WhatsApp.")
 
     d["corretor_nome"] = st.session_state.get("user_name", "")
     d["corretor_email"] = st.session_state.get("user_email", "")
@@ -7030,7 +7037,7 @@ def aba_simulador_automacao(
         _sug_min_meio = _renda_cli / 2.0
         _dv_sug_min_style = (
             "margin:2px 0 0.35rem 0;padding:0;font-size:0.8125rem;line-height:1.35;"
-            "color:var(--gray-70, rgba(49,51,63,0.72));"
+            "color:#000000;"
         )
 
         def _dv_linha_sug_min_apos_campo(val_fmt: str) -> None:
@@ -7267,8 +7274,6 @@ def aba_simulador_automacao(
                     "Com este valor de Pro Soluto e o prazo máximo permitido, a prestação pode "
                     "<strong>ultrapassar</strong> o teto J8. Reduza o PS ou ajuste o perfil."
                 )
-        if is_emcash:
-            st.caption(_EMCASH_NOTA_PARCELAS)
         ps_capacidade = max(0.0, float(v_parc) * float(parc))
         ps_efetivo = min(float(ps_input_val or 0.0), ps_capacidade)
         aj8 = (
@@ -7312,9 +7317,6 @@ def aba_simulador_automacao(
                 '<h3 class="dv-titulo-secao">Condições comerciais: Volta ao Caixa</h3>',
                 unsafe_allow_html=True,
             )
-            st.caption(
-                "Valor de desconto negociado dentro do **limite de Volta ao Caixa** da unidade."
-            )
             if "_dv_volta_caixa_key_deferred" in st.session_state:
                 st.session_state["volta_caixa_key"] = st.session_state.pop("_dv_volta_caixa_key_deferred")
             st.text_input(
@@ -7349,9 +7351,6 @@ def aba_simulador_automacao(
             st.markdown(
                 '<h3 class="dv-titulo-secao">Condições comerciais: demais descontos</h3>',
                 unsafe_allow_html=True,
-            )
-            st.caption(
-                "Outros abatimentos sobre o preço."
             )
             if "_dv_outros_descontos_key_deferred" in st.session_state:
                 st.session_state["outros_descontos_key"] = st.session_state.pop(
@@ -7481,12 +7480,27 @@ def aba_simulador_automacao(
             _parc_fin_ui_raw if _parc_fin_ui_raw > 0 else parcela_fin_auto
         )
         st.markdown("---")
-        if st.button("Avançar para Resumo da Simulação", type="primary", use_container_width=True):
-            if abs(gap_final) <= 1.0: st.session_state.passo_simulacao = 'summary'; scroll_to_top(); st.rerun()
-            else:
-                _dv_alerta_vermelho(
-                    f"Não é possível avançar. Saldo pendente: {reais_streamlit_html(fmt_br(abs(gap_final)))}."
-                )
+        st.markdown(
+            '<p class="dv-allow-row-columns-avancar-resumo" style="display:none;margin:0;padding:0;line-height:0;">'
+            "&nbsp;</p>",
+            unsafe_allow_html=True,
+        )
+        _dv_av_l, _dv_av_m, _dv_av_r = st.columns([1, 1, 1])
+        with _dv_av_l:
+            pass
+        with _dv_av_m:
+            if st.button("Avançar para Resumo da Simulação", type="primary", use_container_width=True):
+                if abs(gap_final) <= 1.0:
+                    st.session_state.passo_simulacao = "summary"
+                    scroll_to_top()
+                    st.rerun()
+                else:
+                    _dv_alerta_vermelho(
+                        f"Não é possível avançar. Saldo pendente: {reais_streamlit_html(fmt_br(abs(gap_final)))}."
+                    )
+        with _dv_av_r:
+            pass
+        st.markdown("---")
     elif passo == 'summary':
         d = st.session_state.dados_cliente
         _vc_sum = texto_moeda_para_float(st.session_state.get("volta_caixa_key"))
