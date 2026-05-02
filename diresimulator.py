@@ -5318,7 +5318,7 @@ def configurar_layout():
             margin-bottom: 0 !important;
             padding-top: 0.05rem;
             padding-bottom: 0.12rem;
-            font-weight: 700;
+            font-weight: 400;
             letter-spacing: 0.02em;
             display: block;
             width: 100%;
@@ -6095,11 +6095,6 @@ def aba_simulador_automacao(
     if passo == 'sim':
         st.markdown(
             '<div class="dv-perfil-simulacao-anchor"><h3 class="dv-titulo-secao">Perfil da simulação</h3></div>',
-            unsafe_allow_html=True,
-        )
-        st.markdown(
-            '<p class="dv-prosa-secao">Informe renda e perfil de crédito. '
-            "Os blocos abaixo atualizam automaticamente ao alterar estes campos.</p>",
             unsafe_allow_html=True,
         )
         _nome_ref = st.text_input(
