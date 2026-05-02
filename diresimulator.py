@@ -873,6 +873,7 @@ _SF_SECRETS_TOML_ALIAS: dict[str, str] = {
     "USER": "SALESFORCE_USER",
     "PASSWORD": "SALESFORCE_PASSWORD",
     "TOKEN": "SALESFORCE_TOKEN",
+    "DOMAIN": "SALESFORCE_DOMAIN",
     "CPF_FIELD": "SALESFORCE_CPF_FIELD",
     "RANKING_FIELD": "SALESFORCE_RANKING_FIELD",
 }
@@ -886,6 +887,10 @@ def _chave_env_salesforce_desde_toml(k: str) -> str:
 
 
 def _injetar_secrets_salesforce_no_env() -> None:
+    """
+    Copia credenciais do st.secrets para os.environ.
+    Usa atribuição (não setdefault): na Cloud os secrets são a fonte de verdade a cada rerun.
+    """
     try:
         sec = getattr(st, "secrets", None)
         if sec is None:
@@ -893,12 +898,13 @@ def _injetar_secrets_salesforce_no_env() -> None:
 
         def _set(key: str, val) -> None:
             if val is not None and str(val).strip():
-                os.environ.setdefault(key, str(val).strip())
+                os.environ[key] = str(val).strip()
 
         for key in (
             "SALESFORCE_USER",
             "SALESFORCE_PASSWORD",
             "SALESFORCE_TOKEN",
+            "SALESFORCE_DOMAIN",
             "SALESFORCE_CPF_FIELD",
             "SALESFORCE_RANKING_FIELD",
         ):
@@ -913,15 +919,218 @@ def _injetar_secrets_salesforce_no_env() -> None:
         pass
 
 
+# ---------------------------------------------------------------------------
+# Salesforce (inlined — não depende do ficheiro ``salesforce_api.py`` no deploy)
+# ---------------------------------------------------------------------------
+try:
+    from simple_salesforce import Salesforce, SalesforceAuthenticationFailed
+except ImportError:  # pragma: no cover
+    Salesforce = None  # type: ignore[misc, assignment]
+    SalesforceAuthenticationFailed = Exception  # type: ignore[misc, assignment]
+
+_sf_logger = logging.getLogger(__name__)
+
+
+def _sf_normalizar_cpf(cpf: str | None) -> str:
+    if cpf is None:
+        return ""
+    return re.sub(r"\D", "", str(cpf).strip())
+
+
+def _sf_conectar_salesforce(verbose: bool = False) -> Any | None:
+    if Salesforce is None:
+        if verbose:
+            _sf_logger.warning("Pacote simple_salesforce não instalado.")
+        return None
+
+    username = (os.environ.get("SALESFORCE_USER") or "").strip()
+    password = (os.environ.get("SALESFORCE_PASSWORD") or "").strip()
+    token = (os.environ.get("SALESFORCE_TOKEN") or "").strip()
+    # Produção: login (login.salesforce.com). Sandbox: test (test.salesforce.com).
+    domain = (os.environ.get("SALESFORCE_DOMAIN") or "login").strip().lower()
+    if domain in ("prod", "production", "login"):
+        domain = "login"
+    elif domain in ("sandbox", "test", "dev"):
+        domain = "test"
+
+    if not username or not password:
+        if verbose:
+            _sf_logger.info("Salesforce: SALESFORCE_USER ou SALESFORCE_PASSWORD ausentes.")
+        return None
+
+    try:
+        if token:
+            sf = Salesforce(
+                username=username,
+                password=password,
+                security_token=token,
+                domain=domain,
+            )
+        else:
+            sf = Salesforce(username=username, password=password, domain=domain)
+        if verbose:
+            _sf_logger.info("Salesforce: conectado como %s", username)
+        return sf
+    except SalesforceAuthenticationFailed as e:
+        _sf_logger.warning("Salesforce: falha de autenticação: %s", e)
+        return None
+    except Exception as e:
+        _sf_logger.warning("Salesforce: erro ao conectar: %s", e)
+        return None
+
+
+def _sf_mapear_ranking_para_ui(valor: Any) -> str | None:
+    if valor is None:
+        return None
+    s = str(valor).strip()
+    if not s:
+        return None
+    key = re.sub(r"\s+", " ", s.lower())
+    key_norm = (
+        key.replace("ç", "c")
+        .replace("ã", "a")
+        .replace("õ", "o")
+        .replace("á", "a")
+        .replace("é", "e")
+        .replace("í", "i")
+        .replace("ó", "o")
+        .replace("ú", "u")
+    )
+    mapping = {
+        "diamante": "DIAMANTE",
+        "diamond": "DIAMANTE",
+        "ouro": "OURO",
+        "gold": "OURO",
+        "prata": "PRATA",
+        "silver": "PRATA",
+        "bronze": "BRONZE",
+        "aco": "AÇO",
+        "aço": "AÇO",
+    }
+    for needle, rank in mapping.items():
+        if needle in key_norm or needle in key:
+            return rank
+    up = s.upper().strip()
+    opts = ("DIAMANTE", "OURO", "PRATA", "BRONZE", "AÇO", "ACO")
+    for o in opts:
+        if up == o or up.replace("Ç", "C") == "ACO" and o == "AÇO":
+            return "AÇO" if o == "ACO" else o
+    if up == "ACO":
+        return "AÇO"
+    return None
+
+
+def _sf_buscar_ranking_por_cpf(sf: Any, cpf_11: str) -> str | None:
+    if len(cpf_11) != 11 or not cpf_11.isdigit():
+        return None
+
+    cpf_field = (os.environ.get("SALESFORCE_CPF_FIELD") or "CPF_Classificar_Clientes__c").strip()
+    rank_field = (os.environ.get("SALESFORCE_RANKING_FIELD") or "Ranking_Cliente__c").strip()
+
+    soql = f"SELECT {rank_field} FROM Contact WHERE {cpf_field} = '{cpf_11}' LIMIT 1"
+    try:
+        res = sf.query(soql)
+        recs = res.get("records") or []
+        if not recs:
+            return None
+        raw = recs[0].get(rank_field)
+        return _sf_mapear_ranking_para_ui(raw)
+    except Exception as e:
+        _sf_logger.warning("Salesforce SOQL falhou (%s): %s", soql[:80], e)
+        return None
+
+
+def _sf_classificar_ranking_cpf_11(cpf_11: str) -> tuple[str | None, str | None]:
+    cpf = _sf_normalizar_cpf(cpf_11)
+    if len(cpf) != 11:
+        return None, "cpf_incompleto"
+
+    if Salesforce is None:
+        return None, "pacote_ausente"
+
+    sf = _sf_conectar_salesforce(verbose=False)
+    if sf is None:
+        return None, "sem_conexao"
+
+    rank = _sf_buscar_ranking_por_cpf(sf, cpf)
+    if rank is None:
+        return None, "sem_registo"
+    return rank, None
+
+
+def _sf_cpf_mascarado_br(cpf_digitos: str) -> str:
+    return f"{cpf_digitos[0:3]}.{cpf_digitos[3:6]}.{cpf_digitos[6:9]}-{cpf_digitos[9:11]}"
+
+
+def _sf_soql_escape_literal(val: str) -> str:
+    return str(val).replace("\\", "\\\\").replace("'", "\\'")
+
+
+def _sf_consultar_opportunity_ranking_por_cpf(sf: Any, cpf_bruto: str) -> tuple[dict | None, str | None]:
+    cpf_digitos = _sf_normalizar_cpf(cpf_bruto)
+    if not cpf_digitos or len(cpf_digitos) != 11 or not cpf_digitos.isdigit():
+        return None, "Informe um CPF válido com 11 dígitos."
+
+    tentativas = [_sf_cpf_mascarado_br(cpf_digitos), cpf_digitos]
+    seen: set[str] = set()
+    ultimo_erro: str | None = None
+
+    for cpf_lit in tentativas:
+        if cpf_lit in seen:
+            continue
+        seen.add(cpf_lit)
+        lit = _sf_soql_escape_literal(cpf_lit)
+        soql = f"""
+            SELECT
+                Id,
+                Name,
+                IDOportunidade__c,
+                AccountId,
+                Account.Name,
+                Account.CPF__c,
+                Account.Ranking__c,
+                Account.Ranking_Score__c,
+                Ranking__c,
+                Ranking_Score__c
+            FROM Opportunity
+            WHERE Account.CPF__c = '{lit}'
+            ORDER BY CreatedDate DESC
+            LIMIT 10
+        """
+        try:
+            res = sf.query(soql)
+            registros = res.get("records", [])
+            if registros:
+                return registros[0], None
+        except Exception as e:
+            ultimo_erro = str(e)
+            continue
+
+    if ultimo_erro is not None:
+        return None, f"Erro ao consultar o Salesforce: {ultimo_erro}"
+    return None, "Nenhum registro encontrado para o CPF informado."
+
+
+def _sf_extrair_ranking_ui_de_opportunity(opp: Any) -> dict[str, Any]:
+    conta = opp.get("Account") or {}
+    raw_acc = conta.get("Ranking__c")
+    raw_opp = opp.get("Ranking__c")
+    m_acc = _sf_mapear_ranking_para_ui(raw_acc)
+    m_opp = _sf_mapear_ranking_para_ui(raw_opp)
+    texto = m_acc or m_opp or (raw_acc if raw_acc else None) or (raw_opp if raw_opp else None)
+    return {
+        "ranking_exibir": texto,
+        "ranking_score_conta": conta.get("Ranking_Score__c"),
+        "ranking_score_opp": opp.get("Ranking_Score__c"),
+        "nome_conta": conta.get("Name"),
+        "nome_opp": opp.get("Name"),
+    }
+
+
 @st.cache_data(ttl=300, show_spinner=False)
 def _lookup_ranking_salesforce_cached(cpf11: str) -> tuple[str | None, str | None]:
     _injetar_secrets_salesforce_no_env()
-    try:
-        from salesforce_api import classificar_ranking_cpf_11
-
-        return classificar_ranking_cpf_11(cpf11)
-    except ImportError:
-        return (None, "pacote_ausente")
+    return _sf_classificar_ranking_cpf_11(cpf11)
 
 
 # Tenta importar fpdf e PIL
@@ -6267,12 +6476,6 @@ def _render_consulta_ranking_sf_oportunidade() -> None:
     Consulta de ranking por CPF (Salesforce): Opportunity + Account.CPF__c.
     CSS escopado em .dv-ranking-sf-scope para não sobrepor o tema global do simulador.
     """
-    from salesforce_api import (
-        conectar_salesforce,
-        consultar_opportunity_ranking_por_cpf,
-        extrair_ranking_ui_de_opportunity,
-    )
-
     st.markdown(
         f"""
 <style>
@@ -6396,18 +6599,20 @@ Digite o <b>CPF do cliente</b> (com ou sem formatação).
             _injetar_secrets_salesforce_no_env()
             if st.session_state.sf_ranking_tool_dv is None:
                 with st.spinner("Conectando ao Salesforce..."):
-                    sf_try = conectar_salesforce()
+                    sf_try = _sf_conectar_salesforce()
                 if not sf_try:
                     st.error(
                         "Não foi possível conectar ao Salesforce. "
-                        "Verifique [salesforce] em .streamlit/secrets.toml (USER, PASSWORD, TOKEN)."
+                        "Confira em **Secrets** (ou `[salesforce]` no TOML): **USER**, **PASSWORD**, **TOKEN** (Security Token). "
+                        "Se a org for **sandbox**, defina **DOMAIN** = `test`. "
+                        "Se a org tiver **restrição por IP**, autorize os IPs da Streamlit Cloud ou use um utilizador API sem IP lock."
                     )
                 else:
                     st.session_state.sf_ranking_tool_dv = sf_try
 
             if st.session_state.sf_ranking_tool_dv is not None:
                 with st.spinner("Consultando..."):
-                    opp, erro = consultar_opportunity_ranking_por_cpf(
+                    opp, erro = _sf_consultar_opportunity_ranking_por_cpf(
                         st.session_state.sf_ranking_tool_dv,
                         texto,
                     )
@@ -6418,7 +6623,7 @@ Digite o <b>CPF do cliente</b> (com ou sem formatação).
                     )
                     st.session_state.ultimo_resultado_ranking_opp = None
                 else:
-                    st.session_state.ultimo_resultado_ranking_opp = extrair_ranking_ui_de_opportunity(opp)
+                    st.session_state.ultimo_resultado_ranking_opp = _sf_extrair_ranking_ui_de_opportunity(opp)
 
     dados = st.session_state.ultimo_resultado_ranking_opp
     if dados:
