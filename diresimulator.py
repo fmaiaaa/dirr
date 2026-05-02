@@ -3557,7 +3557,8 @@ def configurar_layout():
             color: #6b7280 !important;
             opacity: 0.52 !important;
         }}
-        div[data-testid="stNumberInput"] div[data-baseweb="input"] {{
+        div[data-testid="stNumberInput"] div[data-baseweb="input"],
+        div[data-testid="stTextInput"] div[data-baseweb="input"] {{
             height: var(--dv-input-height) !important;
             min-height: var(--dv-input-height) !important;
             display: flex !important;
@@ -3578,6 +3579,7 @@ def configurar_layout():
         /*
          * Picklists (Base Web): desktop = uma linha + ellipsis; só em larguras finas (max 768px)
          * quebra no valor fechado e nas opções. Regras em divs descendentes sobrepõem nowrap interno.
+         * Setinha: coluna com div:has(> svg) + justify-content center; valor com align-items center na linha.
          */
         @media (min-width: 769px) {{
             [data-testid="stSelectbox"] div[data-baseweb="select"] > div,
@@ -3595,6 +3597,13 @@ def configurar_layout():
                 padding: 0 12px !important;
                 box-sizing: border-box !important;
                 overflow: hidden !important;
+            }}
+            [data-testid="stSelectbox"] div[data-baseweb="select"] > div > div:first-of-type,
+            [data-testid="stMultiSelect"] div[data-baseweb="select"] > div > div:first-of-type {{
+                display: flex !important;
+                align-items: center !important;
+                align-self: center !important;
+                min-width: 0 !important;
             }}
             [data-testid="stSelectbox"] div[data-baseweb="select"] > div > div,
             [data-testid="stSelectbox"] div[data-baseweb="select"] > div > p,
@@ -3615,10 +3624,19 @@ def configurar_layout():
                 flex: 1 1 auto !important;
                 min-width: 0 !important;
             }}
+            [data-testid="stSelectbox"] div[data-baseweb="select"] > div > div:has(> svg),
+            [data-testid="stMultiSelect"] div[data-baseweb="select"] > div > div:has(> svg) {{
+                display: flex !important;
+                align-items: center !important;
+                justify-content: center !important;
+                flex-shrink: 0 !important;
+                align-self: center !important;
+            }}
             [data-testid="stSelectbox"] div[data-baseweb="select"] svg,
             [data-testid="stMultiSelect"] div[data-baseweb="select"] svg {{
                 flex-shrink: 0 !important;
                 align-self: center !important;
+                display: block !important;
             }}
             [data-testid="stSelectbox"] div[data-baseweb="select"] p,
             [data-testid="stMultiSelect"] div[data-baseweb="select"] p {{
@@ -3658,7 +3676,7 @@ def configurar_layout():
                 border: 1px solid #e2e8f0 !important;
                 border-radius: var(--dv-input-radius) !important;
                 display: flex !important;
-                align-items: flex-start !important;
+                align-items: center !important;
                 justify-content: space-between !important;
                 gap: 8px !important;
                 min-height: var(--dv-input-height) !important;
@@ -3668,6 +3686,13 @@ def configurar_layout():
                 box-sizing: border-box !important;
                 overflow: visible !important;
                 max-width: 100% !important;
+            }}
+            [data-testid="stSelectbox"] div[data-baseweb="select"] > div > div:first-of-type,
+            [data-testid="stMultiSelect"] div[data-baseweb="select"] > div > div:first-of-type {{
+                display: flex !important;
+                align-items: center !important;
+                align-self: center !important;
+                min-width: 0 !important;
             }}
             [data-testid="stSelectbox"] div[data-baseweb="select"] > div > div,
             [data-testid="stSelectbox"] div[data-baseweb="select"] > div > p,
@@ -3712,11 +3737,20 @@ def configurar_layout():
                 -webkit-line-clamp: unset !important;
                 margin: 0 !important;
             }}
+            [data-testid="stSelectbox"] div[data-baseweb="select"] > div > div:has(> svg),
+            [data-testid="stMultiSelect"] div[data-baseweb="select"] > div > div:has(> svg) {{
+                display: flex !important;
+                align-items: center !important;
+                justify-content: center !important;
+                flex-shrink: 0 !important;
+                align-self: center !important;
+            }}
             [data-testid="stSelectbox"] div[data-baseweb="select"] svg,
             [data-testid="stMultiSelect"] div[data-baseweb="select"] svg {{
                 flex-shrink: 0 !important;
-                align-self: flex-start !important;
-                margin-top: 2px !important;
+                align-self: center !important;
+                display: block !important;
+                margin-top: 0 !important;
             }}
             div[data-baseweb="popover"] ul[role="listbox"] [role="option"],
             ul[role="listbox"] [role="option"] {{
@@ -3728,7 +3762,7 @@ def configurar_layout():
                 height: auto !important;
                 min-height: 2.5rem !important;
                 line-height: 1.35 !important;
-                align-items: flex-start !important;
+                align-items: center !important;
                 -webkit-line-clamp: unset !important;
             }}
             div[data-baseweb="popover"] ul[role="listbox"] [role="option"] div,
