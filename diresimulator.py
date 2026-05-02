@@ -5939,9 +5939,11 @@ def aba_simulador_automacao(
 
         renda_cli = float(d.get("renda", 0) or 0)
         _val_bruto_faixa = float(d.get("imovel_avaliacao") or 0) or 240000.0
-        # Sinal com: só no fechamento, se o valor de venda da unidade estiver até 30k acima de 275k ou até 30k acima de 400k
-        _vu_fech = max(0.0, float(d.get("imovel_valor", 0) or 0))
-        _mostrar_sinal_com = (275_000.0 < _vu_fech <= 305_000.0) or (400_000.0 < _vu_fech <= 430_000.0)
+        # Sinal com: só no fechamento, se a avaliação bancária estiver até ~30k acima de 275k ou de 400k
+        _avaliacao_gate_fech = max(0.0, float(d.get("imovel_avaliacao") or 0))
+        _mostrar_sinal_com = (275_000.0 < _avaliacao_gate_fech <= 305_000.0) or (
+            400_000.0 < _avaliacao_gate_fech <= 430_000.0
+        )
 
         _matriz_bd = motor.obter_quatro_combinacoes_f2_f3_f4(renda_cli)
         _ix_sim_sim = next(
@@ -6457,12 +6459,13 @@ def aba_simulador_automacao(
 
         _d_sinal_pos = st.session_state.dados_cliente
         _vu_sinal_pos = max(0.0, float(_d_sinal_pos.get("imovel_valor", 0) or 0))
-        _mostrar_sinal_pos = (275_000.0 < _vu_sinal_pos <= 305_000.0) or (
-            400_000.0 < _vu_sinal_pos <= 430_000.0
+        _avaliacao_gate_sinal = max(0.0, float(_d_sinal_pos.get("imovel_avaliacao") or 0))
+        _mostrar_sinal_pos = (275_000.0 < _avaliacao_gate_sinal <= 305_000.0) or (
+            400_000.0 < _avaliacao_gate_sinal <= 430_000.0
         )
         _val_bruto_sinal = float(_d_sinal_pos.get("imovel_avaliacao") or 0) or _vu_sinal_pos or 240000.0
         _renda_sinal_pos = float(_d_sinal_pos.get("renda", 0) or 0)
-        if _mostrar_sinal_pos and _vu_sinal_pos > 0.0 and str(_d_sinal_pos.get("unidade_id") or "").strip():
+        if _mostrar_sinal_pos and _avaliacao_gate_sinal > 0.0 and str(_d_sinal_pos.get("unidade_id") or "").strip():
             if "sinal_com_key" not in st.session_state:
                 st.session_state["sinal_com_key"] = float_para_campo_texto(
                     max(0.0, float(_d_sinal_pos.get("sinal_com", 0) or 0)), vazio_se_zero=True
@@ -6493,9 +6496,10 @@ def aba_simulador_automacao(
                 _sug_sinal = max(0.0, _val_bruto_sinal - 400000.0)
                 st.markdown(
                     f'<p class="inline-ref" style="margin-top:0;margin-bottom:0.35rem;line-height:1.45;">'
-                    f"Imóvel na <strong>faixa 4</strong> na avaliação cheia (acima de 400 mil). "
-                    f"É necessário <strong>{reais_streamlit_html(fmt_br(_sug_sinal))}</strong> de abatimento "
-                    f"para que a avaliação efetiva fique na <strong>faixa 3</strong> (limite 400 mil).</p>"
+                    f"<strong>Imóvel na </strong>faixa 4<strong> na avaliação cheia (acima de 400 mil). É necessário </strong>"
+                    f"{reais_streamlit_html(fmt_br(_sug_sinal))}"
+                    f"<strong> de abatimento para que a avaliação efetiva fique na </strong>faixa 3"
+                    f"<strong> (limite 400 mil).</strong></p>"
                     f'<p class="inline-ref" style="margin:0;line-height:1.45;">'
                     f"<strong>Valor de Avaliação com Sinal Com:</strong> "
                     f"{reais_streamlit_html(fmt_br(_val_ef_sinal))}</p>",
@@ -6505,9 +6509,9 @@ def aba_simulador_automacao(
                 _sug_sinal = max(0.0, _val_bruto_sinal - 275000.0)
                 st.markdown(
                     f'<p class="inline-ref" style="margin-top:0;margin-bottom:0.35rem;line-height:1.45;">'
-                    f"Imóvel <strong>faixa 3</strong> no preço cheio. "
-                    f"É necessário <strong>{reais_streamlit_html(fmt_br(_sug_sinal))}</strong> de abatimento "
-                    f"para que seja classificado como <strong>faixa 2</strong>.</p>"
+                    f"<strong>Imóvel </strong>faixa 3<strong> no preço cheio. É necessário </strong>"
+                    f"{reais_streamlit_html(fmt_br(_sug_sinal))}"
+                    f"<strong> de abatimento para que seja classificado como </strong>faixa 2<strong>.</strong></p>"
                     f'<p class="inline-ref" style="margin:0;line-height:1.45;">'
                     f"<strong>Valor de Avaliação com Sinal Com:</strong> "
                     f"{reais_streamlit_html(fmt_br(_val_ef_sinal))}</p>",
@@ -6516,8 +6520,8 @@ def aba_simulador_automacao(
             else:
                 st.markdown(
                     f'<p class="inline-ref" style="margin-top:0;margin-bottom:0.35rem;line-height:1.45;">'
-                    "Avaliação na <strong>faixa 2</strong> (até 275 mil). O <strong>Sinal com</strong> é opcional "
-                    "se quiser ajuste fino da referência da curva.</p>"
+                    "<strong>Avaliação na </strong>faixa 2<strong> (até 275 mil). O </strong>Sinal com"
+                    "<strong> é opcional se quiser ajuste fino da referência da curva.</strong></p>"
                     f'<p class="inline-ref" style="margin:0;line-height:1.45;">'
                     f"<strong>Valor de Avaliação com Sinal Com:</strong> "
                     f"{reais_streamlit_html(fmt_br(_val_ef_sinal))}</p>",
