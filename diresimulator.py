@@ -1032,27 +1032,65 @@ def _sf_mapear_ranking_para_ui(valor: Any) -> str | None:
     return None
 
 
-def _sf_buscar_ranking_por_cpf(sf: Any, cpf_11: str) -> str | None:
-    if len(cpf_11) != 11 or not cpf_11.isdigit():
-        return None
+def _sf_cpf_mascarado_br(cpf_digitos: str) -> str:
+    return f"{cpf_digitos[0:3]}.{cpf_digitos[3:6]}.{cpf_digitos[6:9]}-{cpf_digitos[9:11]}"
 
-    cpf_field = (os.environ.get("SALESFORCE_CPF_FIELD") or "CPF_Classificar_Clientes__c").strip()
-    rank_field = (os.environ.get("SALESFORCE_RANKING_FIELD") or "Ranking_Cliente__c").strip()
 
-    soql = f"SELECT {rank_field} FROM Contact WHERE {cpf_field} = '{cpf_11}' LIMIT 1"
+def _sf_soql_escape_literal(val: str) -> str:
+    return str(val).replace("\\", "\\\\").replace("'", "\\'")
+
+
+def _sf_consultar_por_cpf(sf: Any, cpf_bruto: str) -> tuple[dict | None, str | None]:
+    """
+    Consulta no Salesforce pelo CPF da conta (Account.CPF__c)
+    e retorna a Opportunity mais recente com ranking do cliente.
+
+    O CPF em Account.CPF__c está armazenado com máscara (ex.: 076.086.171-44).
+    """
+    cpf_digitos = _sf_normalizar_cpf(cpf_bruto)
+    if not cpf_digitos or len(cpf_digitos) != 11 or not cpf_digitos.isdigit():
+        return None, "Informe um CPF válido com 11 dígitos."
+
+    cpf_mascarado = _sf_cpf_mascarado_br(cpf_digitos)
+    lit = _sf_soql_escape_literal(cpf_mascarado)
+    soql = f"""
+        SELECT
+            Id,
+            Name,
+            IDOportunidade__c,
+            AccountId,
+            Account.Name,
+            Account.CPF__c,
+            Account.Ranking__c,
+            Account.Ranking_Score__c,
+            Ranking__c,
+            Ranking_Score__c
+        FROM Opportunity
+        WHERE Account.CPF__c = '{lit}'
+        ORDER BY CreatedDate DESC
+        LIMIT 10
+    """
     try:
         res = sf.query(soql)
-        recs = res.get("records") or []
-        if not recs:
-            return None
-        raw = recs[0].get(rank_field)
-        return _sf_mapear_ranking_para_ui(raw)
+        registros = res.get("records", [])
+        if not registros:
+            return None, "Nenhum registro encontrado para o CPF informado."
+        return registros[0], None
     except Exception as e:
-        _sf_logger.warning("Salesforce SOQL falhou (%s): %s", soql[:80], e)
-        return None
+        return None, f"Erro ao consultar o Salesforce: {e}"
+
+
+# Compatível com código que ainda referencia o nome antigo.
+_sf_consultar_opportunity_ranking_por_cpf = _sf_consultar_por_cpf
 
 
 def _sf_classificar_ranking_cpf_11(cpf_11: str) -> tuple[str | None, str | None]:
+    """
+    Conecta (se credenciais existirem), busca ranking pelo CPF (11 dígitos) via Opportunity.
+
+    Retorna (ranking_ui_ou_None, código_informativo_ou_None).
+    Códigos: cpf_incompleto, pacote_ausente, sem_conexao, sem_registo, erro_sf
+    """
     cpf = _sf_normalizar_cpf(cpf_11)
     if len(cpf) != 11:
         return None, "cpf_incompleto"
@@ -1064,66 +1102,25 @@ def _sf_classificar_ranking_cpf_11(cpf_11: str) -> tuple[str | None, str | None]
     if sf is None:
         return None, "sem_conexao"
 
-    rank = _sf_buscar_ranking_por_cpf(sf, cpf)
-    if rank is None:
+    opp, err = _sf_consultar_por_cpf(sf, cpf)
+    if err:
+        if "Informe um CPF válido" in err:
+            return None, "cpf_incompleto"
+        if "Nenhum registro encontrado" in err:
+            return None, "sem_registo"
+        _sf_logger.warning("Salesforce Opportunity: %s", err)
+        return None, "erro_sf"
+    if opp is None:
         return None, "sem_registo"
-    return rank, None
-
-
-def _sf_cpf_mascarado_br(cpf_digitos: str) -> str:
-    return f"{cpf_digitos[0:3]}.{cpf_digitos[3:6]}.{cpf_digitos[6:9]}-{cpf_digitos[9:11]}"
-
-
-def _sf_soql_escape_literal(val: str) -> str:
-    return str(val).replace("\\", "\\\\").replace("'", "\\'")
-
-
-def _sf_consultar_opportunity_ranking_por_cpf(sf: Any, cpf_bruto: str) -> tuple[dict | None, str | None]:
-    cpf_digitos = _sf_normalizar_cpf(cpf_bruto)
-    if not cpf_digitos or len(cpf_digitos) != 11 or not cpf_digitos.isdigit():
-        return None, "Informe um CPF válido com 11 dígitos."
-
-    tentativas = [_sf_cpf_mascarado_br(cpf_digitos), cpf_digitos]
-    seen: set[str] = set()
-    ultimo_erro: str | None = None
-
-    for cpf_lit in tentativas:
-        if cpf_lit in seen:
-            continue
-        seen.add(cpf_lit)
-        lit = _sf_soql_escape_literal(cpf_lit)
-        soql = f"""
-            SELECT
-                Id,
-                Name,
-                IDOportunidade__c,
-                AccountId,
-                Account.Name,
-                Account.CPF__c,
-                Account.Ranking__c,
-                Account.Ranking_Score__c,
-                Ranking__c,
-                Ranking_Score__c
-            FROM Opportunity
-            WHERE Account.CPF__c = '{lit}'
-            ORDER BY CreatedDate DESC
-            LIMIT 10
-        """
-        try:
-            res = sf.query(soql)
-            registros = res.get("records", [])
-            if registros:
-                return registros[0], None
-        except Exception as e:
-            ultimo_erro = str(e)
-            continue
-
-    if ultimo_erro is not None:
-        return None, f"Erro ao consultar o Salesforce: {ultimo_erro}"
-    return None, "Nenhum registro encontrado para o CPF informado."
+    info = _sf_extrair_ranking_ui_de_opportunity(opp)
+    texto = info.get("ranking_exibir")
+    if texto:
+        return str(texto).strip(), None
+    return None, "sem_registo"
 
 
 def _sf_extrair_ranking_ui_de_opportunity(opp: Any) -> dict[str, Any]:
+    """Extrai ranking a partir do registo Opportunity (Account aninhada)."""
     conta = opp.get("Account") or {}
     raw_acc = conta.get("Ranking__c")
     raw_opp = opp.get("Ranking__c")
@@ -1147,7 +1144,7 @@ def _lookup_ranking_salesforce_cached(cpf11: str) -> tuple[str | None, str | Non
 
 @st.cache_data(ttl=300, show_spinner=False)
 def _lookup_ranking_oportunidade_sf_cached(cpf11: str) -> tuple[dict[str, Any] | None, str | None]:
-    """Ranking na Conta via última Opportunity (Account.CPF__c); complementa o Contact do seletor."""
+    """Ranking na Conta via última Opportunity (Account.CPF__c com máscara)."""
     d = re.sub(r"\D", "", str(cpf11 or ""))
     if len(d) != 11:
         return None, "cpf_incompleto"
@@ -1155,7 +1152,7 @@ def _lookup_ranking_oportunidade_sf_cached(cpf11: str) -> tuple[dict[str, Any] |
     sf = _sf_conectar_salesforce()
     if sf is None:
         return None, "sem_conexao"
-    opp, err = _sf_consultar_opportunity_ranking_por_cpf(sf, d)
+    opp, err = _sf_consultar_por_cpf(sf, d)
     if err or opp is None:
         return None, err or "erro"
     return _sf_extrair_ranking_ui_de_opportunity(opp), None
@@ -5254,7 +5251,7 @@ def aba_simulador_automacao(
             "CPF - Classificar Clientes (opcional)",
             key="cpf_classificar_clientes_sf",
             placeholder="000.000.000-00",
-            help="Com 11 dígitos e credenciais Salesforce, o ranking é ajustado conforme o Contact (campo API configurável; padrão CPF_Classificar_Clientes__c).",
+            help="Com 11 dígitos e credenciais Salesforce, o ranking vem da última Oportunidade (Account.CPF__c com máscara e campos Ranking__c).",
         )
         cpf_digits = re.sub(r"\D", "", st.session_state.get("cpf_classificar_clientes_sf") or "")
         rank_opts = ["DIAMANTE", "OURO", "PRATA", "BRONZE", "AÇO"]
@@ -5285,6 +5282,12 @@ def aba_simulador_automacao(
                 st.markdown(
                     '<p class="inline-ref" style="margin-top:0;margin-bottom:0;line-height:1.45;">'
                     "CPF não encontrado. Um novo contato deve ser criado no salesforce</p>",
+                    unsafe_allow_html=True,
+                )
+            elif _sf_code == "erro_sf":
+                st.markdown(
+                    '<p class="inline-ref" style="margin-top:0;margin-bottom:0;line-height:1.45;">'
+                    "Não foi possível consultar o Salesforce. Verifique credenciais e campos da org.</p>",
                     unsafe_allow_html=True,
                 )
         curr_ranking = _rank_now
