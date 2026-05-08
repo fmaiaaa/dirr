@@ -863,6 +863,8 @@ from streamlit_gsheets import GSheetsConnection
 import base64
 from datetime import datetime, date, timedelta, timezone
 import time
+import secrets
+import string
 import locale
 import smtplib
 from email.mime.multipart import MIMEMultipart
@@ -886,6 +888,14 @@ _SF_SECRETS_TOML_ALIAS: dict[str, str] = {
     "DOMAIN": "SALESFORCE_DOMAIN",
     "CPF_FIELD": "SALESFORCE_CPF_FIELD",
     "RANKING_FIELD": "SALESFORCE_RANKING_FIELD",
+    "RECORD_TYPE_CLIENTE_PF": "SALESFORCE_RECORD_TYPE_CLIENTE_PF",
+    "LIGHTNING_ACCOUNT_BASE": "SALESFORCE_LIGHTNING_ACCOUNT_BASE",
+    "RISK3_POLL_SECONDS": "SALESFORCE_RISK3_POLL_SECONDS",
+    "RISK3_POLL_INTERVAL": "SALESFORCE_RISK3_POLL_INTERVAL",
+    "REST_TIMEOUT": "SALESFORCE_REST_TIMEOUT",
+    "RISK3_DUMP_STEPS": "SALESFORCE_RISK3_DUMP_STEPS",
+    "RANKING_PF_AUTOCRIAR": "SALESFORCE_RANKING_PF_AUTOCRIAR",
+    "ACCOUNT_CPF_FIELD": "SALESFORCE_ACCOUNT_CPF_FIELD",
 }
 
 
@@ -917,6 +927,14 @@ def _injetar_secrets_salesforce_no_env() -> None:
             "SALESFORCE_DOMAIN",
             "SALESFORCE_CPF_FIELD",
             "SALESFORCE_RANKING_FIELD",
+            "SALESFORCE_RECORD_TYPE_CLIENTE_PF",
+            "SALESFORCE_LIGHTNING_ACCOUNT_BASE",
+            "SALESFORCE_RISK3_POLL_SECONDS",
+            "SALESFORCE_RISK3_POLL_INTERVAL",
+            "SALESFORCE_REST_TIMEOUT",
+            "SALESFORCE_RISK3_DUMP_STEPS",
+            "SALESFORCE_RANKING_PF_AUTOCRIAR",
+            "SALESFORCE_ACCOUNT_CPF_FIELD",
         ):
             if hasattr(sec, "get"):
                 _set(key, sec.get(key))
@@ -1050,6 +1068,175 @@ def _sf_soql_escape_literal(val: str) -> str:
     return str(val).replace("\\", "\\\\").replace("'", "\\'")
 
 
+# Person Account + poll de Ranking__c na Account (espelha a lógica de
+# conta_pf_poll_ranking_cmd.py — Documentos/Automações Lucas/salesforce).
+_SF_RECORD_TYPE_CLIENTE_PF_PADRAO = "012j0000000L7CjAAK"
+
+
+def _sf_float_env_ranking(name: str, default: float) -> float:
+    raw = (os.environ.get(name) or "").strip()
+    if not raw:
+        return default
+    try:
+        return float(raw)
+    except ValueError:
+        return default
+
+
+def _sf_truthy_env_ranking(name: str) -> bool:
+    return (os.environ.get(name) or "").strip().lower() in ("1", "true", "yes", "on")
+
+
+def _sf_autocriar_pf_account() -> bool:
+    v = (os.environ.get("SALESFORCE_RANKING_PF_AUTOCRIAR") or "1").strip().lower()
+    return v not in ("0", "false", "no", "off")
+
+
+def _sf_account_cpf_field_name() -> str:
+    return (
+        (os.environ.get("SALESFORCE_ACCOUNT_CPF_FIELD") or "").strip()
+        or (os.environ.get("SALESFORCE_CPF_FIELD") or "").strip()
+        or "CPF__c"
+    )
+
+
+def _sf_rand_alnum_sf(n: int) -> str:
+    alphabet = string.ascii_lowercase + string.digits
+    return "".join(secrets.choice(alphabet) for _ in range(n))
+
+
+def _sf_rand_digits_sf(n: int) -> str:
+    return "".join(secrets.choice(string.digits) for _ in range(n))
+
+
+def _sf_montar_payload_conta_pf_ranking(cpf_digitos: str) -> dict[str, Any]:
+    last_name = _sf_rand_alnum_sf(10)
+    email_tag = _sf_rand_alnum_sf(10)
+    email_val = f"diresimulator+{email_tag}@gmail.com"
+    telefone = "219" + _sf_rand_digits_sf(8)
+    record_type = (
+        os.environ.get("SALESFORCE_RECORD_TYPE_CLIENTE_PF") or _SF_RECORD_TYPE_CLIENTE_PF_PADRAO
+    ).strip()
+    return {
+        "RecordTypeId": record_type,
+        "Salutation": "Sr.",
+        "FirstName": "Diresimulator",
+        "LastName": last_name,
+        "AccountSource": "Stand",
+        "Regional__c": "RJ",
+        "Regional_Comercial__c": "RJ",
+        "TelefoneAdicional__c": telefone,
+        "Email_Adicional__c": email_val,
+        "PersonEmail": email_val,
+        "Unidade_de_negocio__c": "Direcional",
+        "CPF__c": cpf_digitos,
+    }
+
+
+def _sf_erro_conta_ja_existe_cpf(mensagem: str) -> bool:
+    u = (mensagem or "").lower()
+    return "cpf" in u and ("já existe" in u or "ja existe" in u or "duplic" in u)
+
+
+def _sf_extrair_account_id_do_erro_validacao(mensagem: str) -> str | None:
+    m = re.search(r"\b(001[0-9A-Za-z]{12,17})\b", mensagem or "")
+    return m.group(1) if m else None
+
+
+def _sf_buscar_account_id_por_cpf(sf: Any, cpf_digitos: str) -> str | None:
+    campo = _sf_account_cpf_field_name()
+    for val in (cpf_digitos, _sf_cpf_mascarado_br(cpf_digitos)):
+        safe = _sf_soql_escape_literal(val)
+        q = f"SELECT Id FROM Account WHERE {campo} = '{safe}' LIMIT 1"
+        try:
+            r = sf.query(q)
+            recs = r.get("records") or []
+            if recs:
+                i = recs[0].get("Id")
+                if i:
+                    return str(i).strip()
+        except Exception:
+            pass
+    return None
+
+
+def _sf_resolver_account_apos_falha_cpf_duplicado(
+    sf: Any, cpf_digitos: str, acc_err: str
+) -> str | None:
+    if not _sf_erro_conta_ja_existe_cpf(acc_err):
+        return None
+    aid = _sf_extrair_account_id_do_erro_validacao(acc_err)
+    if aid:
+        return aid
+    return _sf_buscar_account_id_por_cpf(sf, cpf_digitos)
+
+
+def _sf_criar_conta_pf_ranking(sf: Any, cpf_digitos: str) -> tuple[str | None, str | None]:
+    payload = _sf_montar_payload_conta_pf_ranking(cpf_digitos)
+    try:
+        res = sf.Account.create(payload)
+        aid = (res.get("id") or "").strip()
+        return (aid if aid else None, None)
+    except Exception as e:
+        return (None, str(e))
+
+
+def _sf_get_ranking_account_rest(
+    sf: Any, account_id: str, rfield: str, http_timeout: float
+) -> str | None:
+    aid = account_id.strip()
+    try:
+        rec = sf.restful(f"sobjects/Account/{aid}", method="GET", timeout=http_timeout)
+        if _sf_truthy_env_ranking("SALESFORCE_RISK3_DUMP_STEPS"):
+            try:
+                _sf_logger.debug(
+                    "SF poll GET Account %s: %s",
+                    aid,
+                    json.dumps(rec, ensure_ascii=False, default=str),
+                )
+            except (TypeError, ValueError):
+                _sf_logger.debug("SF poll GET Account %s: %r", aid, rec)
+        if isinstance(rec, dict):
+            val = rec.get(rfield)
+            if val is not None and str(val).strip() != "":
+                return str(val).strip()
+    except Exception as ex:
+        _sf_logger.debug("SF GET Account %s: %s", aid, ex)
+    return None
+
+
+def _sf_poll_ranking_na_account(
+    sf: Any,
+    account_id: str,
+    *,
+    rfield: str,
+    poll_sec: float,
+    poll_iv: float,
+    http_timeout: float,
+) -> str | None:
+    """GET sobjects/Account/<Id> em loop até rfield vir preenchido ou timeout."""
+    aid = account_id.strip()
+    deadline = time.monotonic() + max(1.0, float(poll_sec))
+    last_log = time.monotonic()
+    while time.monotonic() < deadline:
+        rank = _sf_get_ranking_account_rest(sf, aid, rfield, http_timeout)
+        if rank:
+            return rank
+        now = time.monotonic()
+        if now - last_log >= 15.0:
+            _sf_logger.info("Salesforce: aguardando %s na Account %s…", rfield, aid)
+            last_log = now
+        time.sleep(max(0.5, float(poll_iv)))
+    return None
+
+
+def _sf_ranking_bruto_para_ui(valor: str | None) -> str | None:
+    if not valor:
+        return None
+    m = _sf_mapear_ranking_para_ui(valor)
+    return str(m).strip() if m else str(valor).strip()
+
+
 def _sf_consultar_por_cpf(sf: Any, cpf_bruto: str) -> tuple[dict | None, str | None]:
     """
     Consulta no Salesforce pelo CPF da conta (Account.CPF__c)
@@ -1096,11 +1283,13 @@ _sf_consultar_opportunity_ranking_por_cpf = _sf_consultar_por_cpf
 
 def _sf_classificar_ranking_cpf_11(cpf_11: str) -> tuple[str | None, str | None]:
     """
-    Conecta (se credenciais existirem), busca ranking pelo CPF (11 dígitos) via Opportunity.
+    Ranking por CPF: (1) última Opportunity + Account aninhada; (2) Account existente
+    com GET/poll em Ranking__c; (3) se não houver conta e SALESFORCE_RANKING_PF_AUTOCRIAR
+    estiver ativo, cria Person Account (Cliente PF) como em conta_pf_poll_ranking_cmd.py
+    e faz poll até preencher o ranking.
 
     Retorna (ranking_ui_ou_None, código_informativo_ou_None).
-    Códigos: cpf_incompleto, pacote_ausente, sem_registo (sem ranking / sem registo;
-    falhas de ligação, autenticação ou SOQL mapeiam para sem_registo na UI).
+    Códigos: cpf_incompleto, pacote_ausente, sem_registo.
     """
     cpf = _sf_normalizar_cpf(cpf_11)
     if len(cpf) != 11:
@@ -1114,20 +1303,63 @@ def _sf_classificar_ranking_cpf_11(cpf_11: str) -> tuple[str | None, str | None]
         _sf_logger.warning("Salesforce: ligação ou autenticação sem sucesso (detalhe só em log).")
         return None, "sem_registo"
 
+    rfield = (os.environ.get("SALESFORCE_RANKING_FIELD") or "Ranking__c").strip()
+    poll_sec = _sf_float_env_ranking("SALESFORCE_RISK3_POLL_SECONDS", 90.0)
+    poll_iv = _sf_float_env_ranking("SALESFORCE_RISK3_POLL_INTERVAL", 2.0)
+    http_timeout = max(5.0, _sf_float_env_ranking("SALESFORCE_REST_TIMEOUT", 45.0))
+
+    def _ranking_via_account(account_id: str) -> str | None:
+        bruto = _sf_get_ranking_account_rest(sf, account_id, rfield, http_timeout)
+        if bruto:
+            return bruto
+        return _sf_poll_ranking_na_account(
+            sf,
+            account_id,
+            rfield=rfield,
+            poll_sec=poll_sec,
+            poll_iv=poll_iv,
+            http_timeout=http_timeout,
+        )
+
     opp, err = _sf_consultar_por_cpf(sf, cpf)
-    if err:
-        if "Informe um CPF válido" in err:
-            return None, "cpf_incompleto"
-        if "Nenhum registro encontrado" in err:
-            return None, "sem_registo"
+    if err and "Informe um CPF válido" in err:
+        return None, "cpf_incompleto"
+    if err and "Erro ao consultar" in (err or ""):
         _sf_logger.warning("Salesforce Opportunity: %s", err)
+
+    if opp is not None:
+        info = _sf_extrair_ranking_ui_de_opportunity(opp)
+        texto_opp = info.get("ranking_exibir")
+        if texto_opp:
+            return _sf_ranking_bruto_para_ui(str(texto_opp)), None
+
+    aid: str | None = None
+    if opp is not None:
+        raw_aid = opp.get("AccountId")
+        if raw_aid:
+            aid = str(raw_aid).strip()
+    if not aid:
+        aid = _sf_buscar_account_id_por_cpf(sf, cpf)
+
+    if aid:
+        bruto = _ranking_via_account(aid)
+        if bruto:
+            return _sf_ranking_bruto_para_ui(bruto), None
         return None, "sem_registo"
-    if opp is None:
+
+    if not _sf_autocriar_pf_account():
         return None, "sem_registo"
-    info = _sf_extrair_ranking_ui_de_opportunity(opp)
-    texto = info.get("ranking_exibir")
-    if texto:
-        return str(texto).strip(), None
+
+    new_aid, create_err = _sf_criar_conta_pf_ranking(sf, cpf)
+    if not new_aid and create_err:
+        new_aid = _sf_resolver_account_apos_falha_cpf_duplicado(sf, cpf, create_err)
+    if not new_aid:
+        _sf_logger.warning("Salesforce PF Account: %s", create_err or "sem Id")
+        return None, "sem_registo"
+
+    bruto = _ranking_via_account(new_aid)
+    if bruto:
+        return _sf_ranking_bruto_para_ui(bruto), None
     return None, "sem_registo"
 
 
@@ -1156,19 +1388,32 @@ def _lookup_ranking_salesforce_cached(cpf11: str) -> tuple[str | None, str | Non
 
 @st.cache_data(ttl=300, show_spinner=False)
 def _lookup_ranking_oportunidade_sf_cached(cpf11: str) -> tuple[dict[str, Any] | None, str | None]:
-    """Ranking na Conta via última Opportunity (Account.CPF__c com máscara)."""
+    """Detalhe do ranking: Opportunity quando existir; senão valores obtidos na Account/poll."""
     d = re.sub(r"\D", "", str(cpf11 or ""))
     if len(d) != 11:
         return None, "cpf_incompleto"
     _injetar_secrets_salesforce_no_env()
+    texto, code = _sf_classificar_ranking_cpf_11(d)
+    if not texto:
+        if code == "cpf_incompleto":
+            return None, "cpf_incompleto"
+        if code == "pacote_ausente":
+            return None, "pacote_ausente"
+        return None, code or "sem_registo"
     sf = _sf_conectar_salesforce()
-    if sf is None:
-        _sf_logger.warning("Salesforce: ligação ou autenticação sem sucesso (detalhe só em log).")
-        return None, "Nenhum registro encontrado para o CPF informado."
-    opp, err = _sf_consultar_por_cpf(sf, d)
-    if err or opp is None:
-        return None, err or "erro"
-    return _sf_extrair_ranking_ui_de_opportunity(opp), None
+    if sf is not None:
+        opp, _err = _sf_consultar_por_cpf(sf, d)
+        if opp is not None:
+            info = _sf_extrair_ranking_ui_de_opportunity(opp)
+            if info.get("ranking_exibir"):
+                return info, None
+    return {
+        "ranking_exibir": texto,
+        "ranking_score_conta": None,
+        "ranking_score_opp": None,
+        "nome_conta": None,
+        "nome_opp": None,
+    }, None
 
 
 # Tenta importar fpdf e PIL
