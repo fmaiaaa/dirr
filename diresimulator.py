@@ -6424,6 +6424,8 @@ def aba_simulador_automacao(
             # CPF incompleto ou vazio: permite nova consulta ao voltar a 11 dígitos
             st.session_state["_sf_rank_applied_cpf"] = ""
             st.session_state["_sf_rank_naoencontrado_toast_cpf"] = ""
+            # Ao apagar/editar o CPF, remove o ranking aplicado pela consulta Salesforce anterior
+            st.session_state["in_rank_v28"] = rank_opts[0]
         if len(cpf_digits) == 11:
             if _sf_rs:
                 st.markdown(
