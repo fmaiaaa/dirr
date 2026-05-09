@@ -1233,6 +1233,17 @@ def _sf_criar_conta_pf_ranking(sf: Any, cpf_digitos: str) -> tuple[str | None, s
         return (None, str(e))
 
 
+def _sf_excluir_account_criada_simulacao(sf: Any, account_id: str, http_timeout: float) -> None:
+    """Remove Account criada só para leitura do ranking neste fluxo (loga falhas)."""
+    aid = (account_id or "").strip()
+    if not aid or not aid.startswith("001"):
+        return
+    try:
+        sf.restful(f"sobjects/Account/{aid}", method="DELETE", timeout=http_timeout)
+    except Exception as ex:
+        _sf_logger.warning("Salesforce: exclusão da Account %s após simulação falhou: %s", aid, ex)
+
+
 def _sf_get_ranking_account_rest(
     sf: Any, account_id: str, rfield: str, http_timeout: float
 ) -> str | None:
@@ -1359,7 +1370,8 @@ def _sf_classificar_ranking_cpf_11(
     Ranking por CPF: (1) última Opportunity + Account aninhada; (2) Account existente
     com GET/poll em Ranking__c; (3) se não houver conta e SALESFORCE_RANKING_PF_AUTOCRIAR
     estiver ativo, cria Person Account (Cliente PF) como em conta_pf_poll_ranking_cmd.py
-    e faz poll até preencher o ranking.
+    e faz poll até preencher o ranking. Se a conta tiver sido criada neste pedido
+    (não reutilizada por duplicidade de CPF), ela é excluída ao final deste ramo.
 
     ``progress(frac_0_1, mensagem, elapsed_total_s)`` — opcional; barra gradiente na UI.
 
@@ -1454,14 +1466,18 @@ def _sf_classificar_ranking_cpf_11(
 
     _p(0.26, "Cliente não cadastrado. Incluindo no sistema…")
     new_aid, create_err = _sf_criar_conta_pf_ranking(sf, cpf)
+    conta_criada_neste_fluxo = bool(new_aid)
     if not new_aid and create_err:
         new_aid = _sf_resolver_account_apos_falha_cpf_duplicado(sf, cpf, create_err)
+        conta_criada_neste_fluxo = False
     if not new_aid:
         _sf_logger.warning("Salesforce PF Account: %s", create_err or "sem Id")
         return None, "sem_registo"
     _p(0.30, "Cadastro concluído. Obtendo a classificação…")
 
     bruto = _ranking_conta(new_aid)
+    if conta_criada_neste_fluxo:
+        _sf_excluir_account_criada_simulacao(sf, new_aid, http_timeout)
     if bruto:
         return _sf_ranking_bruto_para_ui(bruto), None
     return None, "sem_registo"
