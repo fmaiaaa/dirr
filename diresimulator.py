@@ -1244,6 +1244,46 @@ def _sf_excluir_account_criada_simulacao(sf: Any, account_id: str, http_timeout:
         _sf_logger.warning("Salesforce: exclusão da Account %s após simulação falhou: %s", aid, ex)
 
 
+def _sf_buscar_oportunidade_recente_da_conta(
+    sf: Any, account_id: str, http_timeout: float
+) -> str | None:
+    aid = (account_id or "").strip()
+    if not aid or not aid.startswith("001"):
+        return None
+    soql = (
+        "SELECT Id FROM Opportunity "
+        f"WHERE AccountId = '{_sf_soql_escape_literal(aid)}' "
+        "ORDER BY CreatedDate DESC LIMIT 1"
+    )
+    try:
+        res = sf.query(soql, timeout=http_timeout)
+        recs = (res or {}).get("records") or []
+        if recs:
+            oid = str(recs[0].get("Id") or "").strip()
+            if oid.startswith("006"):
+                return oid
+    except Exception as ex:
+        _sf_logger.warning("Salesforce: busca de Opportunity recente da Account %s falhou: %s", aid, ex)
+    return None
+
+
+def _sf_excluir_oportunidade_criada_simulacao(
+    sf: Any, account_id: str, http_timeout: float
+) -> None:
+    """Remove Opportunity criada no fluxo para permitir limpeza da conta temporária."""
+    oid = _sf_buscar_oportunidade_recente_da_conta(sf, account_id, http_timeout)
+    if not oid:
+        return
+    try:
+        sf.restful(f"sobjects/Opportunity/{oid}", method="DELETE", timeout=http_timeout)
+    except Exception as ex:
+        _sf_logger.warning(
+            "Salesforce: exclusão da Opportunity %s após simulação falhou: %s",
+            oid,
+            ex,
+        )
+
+
 def _sf_get_ranking_account_rest(
     sf: Any, account_id: str, rfield: str, http_timeout: float
 ) -> str | None:
@@ -1371,7 +1411,8 @@ def _sf_classificar_ranking_cpf_11(
     com GET/poll em Ranking__c; (3) se não houver conta e SALESFORCE_RANKING_PF_AUTOCRIAR
     estiver ativo, cria Person Account (Cliente PF) como em conta_pf_poll_ranking_cmd.py
     e faz poll até preencher o ranking. Se a conta tiver sido criada neste pedido
-    (não reutilizada por duplicidade de CPF), ela é excluída ao final deste ramo.
+    (não reutilizada por duplicidade de CPF) e a classificação for encontrada,
+    a Opportunity recente e a Account criada são excluídas ao final deste ramo.
 
     ``progress(frac_0_1, mensagem, elapsed_total_s)`` — opcional; barra gradiente na UI.
 
@@ -1476,9 +1517,10 @@ def _sf_classificar_ranking_cpf_11(
     _p(0.30, "Cadastro concluído. Obtendo a classificação…")
 
     bruto = _ranking_conta(new_aid)
-    if conta_criada_neste_fluxo:
-        _sf_excluir_account_criada_simulacao(sf, new_aid, http_timeout)
     if bruto:
+        if conta_criada_neste_fluxo:
+            _sf_excluir_oportunidade_criada_simulacao(sf, new_aid, http_timeout)
+            _sf_excluir_account_criada_simulacao(sf, new_aid, http_timeout)
         return _sf_ranking_bruto_para_ui(bruto), None
     return None, "sem_registo"
 
