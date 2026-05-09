@@ -972,6 +972,11 @@ _sf_logger = logging.getLogger(__name__)
 
 _DV_SF_RANK_MEMO_TTL_SEC = 300.0
 _DV_SF_RANK_MEMO_KEY = "_dv_sf_rank_memo_v1"
+# Falhas que podem ser transitórias: um reintento automático (por CPF/sessão) após outro rerun.
+_DV_SF_RANK_FAIL_AUTORETRY_KEY = "_dv_sf_rank_fail_autoretried"
+_DV_SF_RANK_MEMO_RETRY_CODES: frozenset[str] = frozenset(
+    {"sem_registo", "sem_conexao", "erro_sf"}
+)
 
 
 def _dv_sf_rank_memo_get(cpf11: str) -> tuple[str | None, str | None] | None:
@@ -1618,6 +1623,30 @@ def _sf_classificar_ranking_cpf_11(
     return None, "sem_registo"
 
 
+def _dv_sf_cpf_classificar_clientes_on_change() -> None:
+    """Confirmação do CPF no campo (Enter ou fim da edição): consulta Salesforce com 11 dígitos."""
+    cpf_raw = st.session_state.get("cpf_classificar_clientes_sf") or ""
+    cpf_d = re.sub(r"\D", "", str(cpf_raw))
+    if len(cpf_d) != 11:
+        return
+    # Nova confirmação no campo: voltar a permitir um reintento automático para este CPF.
+    _ar = st.session_state.get(_DV_SF_RANK_FAIL_AUTORETRY_KEY)
+    if isinstance(_ar, dict) and cpf_d in _ar:
+        _ar = {**_ar}
+        del _ar[cpf_d]
+        st.session_state[_DV_SF_RANK_FAIL_AUTORETRY_KEY] = _ar
+    _injetar_secrets_salesforce_no_env()
+    try:
+        _rs, _code = _sf_classificar_ranking_cpf_11(cpf_d, progress=None)
+    except Exception as _ex:
+        _sf_logger.exception("Classificação ranking Salesforce: %s", _ex)
+        _rs, _code = None, "sem_registo"
+    _dv_sf_rank_memo_set(cpf_d, _rs, _code)
+    st.session_state["_sf_rank_auto_applied_for_cpf"] = ""
+    st.session_state["_sf_rank_toast_ok_cpf"] = ""
+    st.session_state["_sf_rank_naoencontrado_toast_cpf"] = ""
+
+
 def _sf_extrair_ranking_ui_de_opportunity(opp: Any) -> dict[str, Any]:
     """Extrai ranking a partir do registo Opportunity (Account aninhada)."""
     conta = opp.get("Account") or {}
@@ -1635,13 +1664,12 @@ def _sf_extrair_ranking_ui_de_opportunity(opp: Any) -> dict[str, Any]:
     }
 
 
-@st.cache_data(ttl=300, show_spinner=False)
 def _lookup_ranking_salesforce_cached(cpf11: str) -> tuple[str | None, str | None]:
+    """Sem cache: classificação deve refletir o Salesforce em cada chamada (evita resultado obsoleto)."""
     _injetar_secrets_salesforce_no_env()
     return _sf_classificar_ranking_cpf_11(cpf11)
 
 
-@st.cache_data(ttl=300, show_spinner=False)
 def _lookup_ranking_oportunidade_sf_cached(cpf11: str) -> tuple[dict[str, Any] | None, str | None]:
     """Detalhe do ranking: Opportunity quando existir; senão valores obtidos na Account/poll."""
     d = re.sub(r"\D", "", str(cpf11 or ""))
@@ -6567,6 +6595,189 @@ def show_export_dialog(d):
 # APLICAÇÃO PRINCIPAL
 # =============================================================================
 
+# Chaves de widgets da página de simulação (removidas pelo Streamlit quando o passo ≠ 'sim').
+_DV_SIM_WIDGET_KEYS_FIXAS: tuple[str, ...] = (
+    "nome_cliente_imobiliaria_opt_v1",
+    "renda_familiar_total_v1",
+    "cpf_classificar_clientes_sf",
+    "in_rank_v28",
+    "in_pol_v28",
+    "fin_aprovado_key",
+    "sub_aprovado_key",
+    "prazo_aprovado_key",
+    "sist_aprovado_ui_v1",
+    "parcela_fin_edit_key",
+    "sel_emp_rec_v28",
+    "sel_emp_new_v3",
+    "sinal_com_key",
+    "ato_1_key",
+    "ato_2_key",
+    "ato_3_key",
+    "ato_4_key",
+    "ps_u_key",
+    "parc_ps_key",
+    "volta_caixa_key",
+    "outros_descontos_key",
+    "outros_descontos_motivo_key",
+)
+_DV_SIM_WIDGET_KEY_PREFIXO_UNI = "sel_uni_emp_"
+_DV_SIM_SESS_AUX_KEYS: tuple[str, ...] = (
+    "_sim_fechar_last_emp",
+    "_fin_sub_ref_curva_par",
+    "_parc_fin_auto_sig",
+    "_parc_fin_auto_ref_prev",
+    "_parc_fin_last_sistema",
+)
+
+
+def _dv_restore_sim_widget_keys_from_dados(dc: dict) -> None:
+    """Reidrata st.session_state dos widgets após voltar do resumo (widgets não renderizados perdem a chave)."""
+    if not dc:
+        return
+    rank_opts = ("DIAMANTE", "OURO", "PRATA", "BRONZE", "AÇO")
+    if "nome_cliente_imobiliaria_opt_v1" not in st.session_state:
+        st.session_state["nome_cliente_imobiliaria_opt_v1"] = str(dc.get("nome") or "").strip()
+    if "renda_familiar_total_v1" not in st.session_state:
+        try:
+            r = float(dc.get("renda", 0) or 0)
+        except (TypeError, ValueError):
+            r = 0.0
+        st.session_state["renda_familiar_total_v1"] = float_para_campo_texto(
+            max(0.0, r), vazio_se_zero=True
+        )
+    if "cpf_classificar_clientes_sf" not in st.session_state:
+        st.session_state["cpf_classificar_clientes_sf"] = str(dc.get("cpf") or "").strip()
+    if "in_rank_v28" not in st.session_state:
+        r0 = dc.get("ranking")
+        st.session_state["in_rank_v28"] = r0 if r0 in rank_opts else rank_opts[0]
+    if "in_pol_v28" not in st.session_state:
+        p = dc.get("politica")
+        st.session_state["in_pol_v28"] = (
+            p if p in ("Direcional", "Emcash") else "Direcional"
+        )
+    if "fin_aprovado_key" not in st.session_state:
+        try:
+            fv = float(dc.get("finan_usado", 0) or 0)
+        except (TypeError, ValueError):
+            fv = 0.0
+        st.session_state["fin_aprovado_key"] = float_para_campo_texto(
+            max(0.0, fv), vazio_se_zero=True
+        )
+    if "sub_aprovado_key" not in st.session_state:
+        try:
+            sv = float(dc.get("fgts_sub_usado", 0) or 0)
+        except (TypeError, ValueError):
+            sv = 0.0
+        st.session_state["sub_aprovado_key"] = float_para_campo_texto(
+            max(0.0, sv), vazio_se_zero=True
+        )
+    if "prazo_aprovado_key" not in st.session_state:
+        try:
+            pz = int(dc.get("prazo_financiamento", 360) or 360)
+        except (TypeError, ValueError):
+            pz = 360
+        st.session_state["prazo_aprovado_key"] = str(max(12, min(600, pz)))
+    if "sist_aprovado_ui_v1" not in st.session_state:
+        cod = str(dc.get("sistema_amortizacao", "SAC") or "SAC").strip().upper()
+        st.session_state["sist_aprovado_ui_v1"] = _AMORTIZACAO_NOME_COMPLETO.get(
+            cod, _AMORTIZACAO_NOME_COMPLETO["SAC"]
+        )
+    if "parcela_fin_edit_key" not in st.session_state:
+        try:
+            pv = float(dc.get("parcela_financiamento", 0) or 0)
+        except (TypeError, ValueError):
+            pv = 0.0
+        st.session_state["parcela_fin_edit_key"] = float_para_campo_texto(
+            max(0.0, pv), vazio_se_zero=True
+        )
+    if "sinal_com_key" not in st.session_state:
+        try:
+            sc = float(dc.get("sinal_com", 0) or 0)
+        except (TypeError, ValueError):
+            sc = 0.0
+        st.session_state["sinal_com_key"] = float_para_campo_texto(
+            max(0.0, sc), vazio_se_zero=True
+        )
+    if "volta_caixa_key" not in st.session_state:
+        try:
+            vc = float(dc.get("volta_caixa_aplicado", 0) or 0)
+        except (TypeError, ValueError):
+            vc = 0.0
+        st.session_state["volta_caixa_key"] = float_para_campo_texto(
+            max(0.0, vc), vazio_se_zero=True
+        )
+    if "outros_descontos_key" not in st.session_state:
+        try:
+            od = float(dc.get("outros_descontos", 0) or 0)
+        except (TypeError, ValueError):
+            od = 0.0
+        st.session_state["outros_descontos_key"] = float_para_campo_texto(
+            max(0.0, od), vazio_se_zero=True
+        )
+    if "outros_descontos_motivo_key" not in st.session_state:
+        st.session_state["outros_descontos_motivo_key"] = str(
+            dc.get("outros_descontos_motivo") or ""
+        ).strip()
+    if "ps_u_key" not in st.session_state:
+        try:
+            psv = float(dc.get("ps_usado", 0) or 0)
+        except (TypeError, ValueError):
+            psv = 0.0
+        st.session_state["ps_u_key"] = float_para_campo_texto(
+            max(0.0, psv), vazio_se_zero=True
+        )
+    if "parc_ps_key" not in st.session_state:
+        try:
+            pp = int(dc.get("ps_parcelas", 1) or 1)
+        except (TypeError, ValueError):
+            pp = 1
+        st.session_state["parc_ps_key"] = str(max(1, pp))
+    emcash = dc.get("politica") == "Emcash"
+    for sk, dk in (
+        ("ato_1_key", "ato_final"),
+        ("ato_2_key", "ato_30"),
+        ("ato_3_key", "ato_60"),
+    ):
+        if sk not in st.session_state:
+            try:
+                av = float(dc.get(dk, 0) or 0)
+            except (TypeError, ValueError):
+                av = 0.0
+            st.session_state[sk] = float_para_campo_texto(max(0.0, av), vazio_se_zero=True)
+    if emcash:
+        st.session_state.pop("ato_4_key", None)
+    elif "ato_4_key" not in st.session_state:
+        try:
+            a4 = float(dc.get("ato_90", 0) or 0)
+        except (TypeError, ValueError):
+            a4 = 0.0
+        st.session_state["ato_4_key"] = float_para_campo_texto(
+            max(0.0, a4), vazio_se_zero=True
+        )
+
+
+def _dv_limpar_estado_simulacao_apos_concluir() -> None:
+    """Nova simulação: limpa dados persistidos e chaves de widgets auxiliares."""
+    st.session_state.dados_cliente = {}
+    st.session_state.passo_simulacao = "sim"
+    for k in _DV_SIM_WIDGET_KEYS_FIXAS:
+        st.session_state.pop(k, None)
+    for k in list(st.session_state.keys()):
+        if isinstance(k, str) and k.startswith(_DV_SIM_WIDGET_KEY_PREFIXO_UNI):
+            st.session_state.pop(k, None)
+    for k in _DV_SIM_SESS_AUX_KEYS:
+        st.session_state.pop(k, None)
+    for k in (
+        _DV_SF_RANK_TRACK_CPF_KEY,
+        "_sf_rank_auto_applied_for_cpf",
+        "_sf_rank_toast_ok_cpf",
+        "_sf_rank_naoencontrado_toast_cpf",
+        _DV_SF_RANK_MEMO_KEY,
+        _DV_SF_RANK_FAIL_AUTORETRY_KEY,
+    ):
+        st.session_state.pop(k, None)
+
+
 def aba_simulador_automacao(
     df_finan,
     df_estoque,
@@ -6611,6 +6822,7 @@ def aba_simulador_automacao(
 
     # --- PÁGINA ÚNICA: perfil → valores → recomendações → unidade → distribuição (ordem fixa) ---
     if passo == 'sim':
+        _dv_restore_sim_widget_keys_from_dados(st.session_state.dados_cliente)
         st.markdown(
             '<div class="dv-perfil-simulacao-anchor"><h3 class="dv-titulo-secao">Perfil da simulação</h3></div>',
             unsafe_allow_html=True,
@@ -6648,9 +6860,40 @@ def aba_simulador_automacao(
             "CPF - Classificar Clientes (opcional) (CPF)",
             key="cpf_classificar_clientes_sf",
             placeholder="000.000.000-00",
+            on_change=_dv_sf_cpf_classificar_clientes_on_change,
+            help="Com 11 dígitos, pressione Enter para consultar a classificação no Salesforce.",
         )
         cpf_digits = re.sub(r"\D", "", st.session_state.get("cpf_classificar_clientes_sf") or "")
         rank_opts = ["DIAMANTE", "OURO", "PRATA", "BRONZE", "AÇO"]
+        if len(cpf_digits) == 11:
+            _memo_pre = _dv_sf_rank_memo_get(cpf_digits)
+            if (
+                _memo_pre is not None
+                and not _memo_pre[0]
+                and (_memo_pre[1] in _DV_SF_RANK_MEMO_RETRY_CODES)
+            ):
+                _ar_dict = st.session_state.get(_DV_SF_RANK_FAIL_AUTORETRY_KEY)
+                if not isinstance(_ar_dict, dict):
+                    _ar_dict = {}
+                if not _ar_dict.get(cpf_digits):
+                    _ar_dict = {**_ar_dict, cpf_digits: True}
+                    st.session_state[_DV_SF_RANK_FAIL_AUTORETRY_KEY] = _ar_dict
+                    _injetar_secrets_salesforce_no_env()
+                    try:
+                        _rs_r, _cd_r = _sf_classificar_ranking_cpf_11(
+                            cpf_digits, progress=None
+                        )
+                    except Exception as _ex_r:
+                        _sf_logger.exception(
+                            "Classificação ranking Salesforce (reintento automático): %s",
+                            _ex_r,
+                        )
+                        _rs_r, _cd_r = None, "sem_registo"
+                    _dv_sf_rank_memo_set(cpf_digits, _rs_r, _cd_r)
+                    st.session_state["_sf_rank_auto_applied_for_cpf"] = ""
+                    st.session_state["_sf_rank_toast_ok_cpf"] = ""
+                    st.session_state["_sf_rank_naoencontrado_toast_cpf"] = ""
+                    st.rerun()
         if st.session_state.get(_DV_SF_RANK_TRACK_CPF_KEY) != cpf_digits:
             st.session_state[_DV_SF_RANK_TRACK_CPF_KEY] = cpf_digits
             # Um único preenchimento automático por “snapshot” de CPF; depois o utilizador pode alterar à vontade.
@@ -6661,54 +6904,6 @@ def aba_simulador_automacao(
         _dv_sf_memo_cpf: tuple[str | None, str | None] | None = (
             _dv_sf_rank_memo_get(cpf_digits) if len(cpf_digits) == 11 else None
         )
-        if len(cpf_digits) == 11 and _dv_sf_memo_cpf is None:
-            if st.button(
-                "Consultar classificação no Salesforce",
-                type="secondary",
-                key="dv_sf_lookup_rank_btn",
-                use_container_width=True,
-            ):
-                _injetar_secrets_salesforce_no_env()
-                _sf_rank_prog_ph = st.empty()
-
-                def _sf_prog_cb(frac: float, msg: str, elapsed: float) -> None:
-                    _sf_rank_prog_ph.markdown(
-                        _sf_ranking_progress_markup(
-                            frac,
-                            msg,
-                            elapsed_s=elapsed,
-                            meter_n=int(round(frac * 100)),
-                            meter_total=100,
-                        ),
-                        unsafe_allow_html=True,
-                    )
-
-                _sf_lookup_rs: str | None = None
-                _sf_lookup_code: str | None = "sem_registo"
-                try:
-                    _sf_lookup_rs, _sf_lookup_code = _sf_classificar_ranking_cpf_11(
-                        cpf_digits,
-                        progress=_sf_prog_cb,
-                    )
-                except Exception as _sf_ex:
-                    _sf_logger.exception("Classificação ranking Salesforce: %s", _sf_ex)
-                    _sf_lookup_rs, _sf_lookup_code = None, "sem_registo"
-                finally:
-                    _sf_rank_prog_ph.markdown(
-                        _sf_ranking_progress_markup(
-                            1.0,
-                            _SF_RANK_PROGRESS_MSG_SUCESSO if _sf_lookup_rs else "Verificação concluída.",
-                            elapsed_s=0.0,
-                            meter_n=100,
-                            meter_total=100,
-                        ),
-                        unsafe_allow_html=True,
-                    )
-                _dv_sf_rank_memo_set(cpf_digits, _sf_lookup_rs, _sf_lookup_code)
-                st.session_state["_sf_rank_auto_applied_for_cpf"] = ""
-                st.session_state["_sf_rank_toast_ok_cpf"] = ""
-                st.session_state["_sf_rank_naoencontrado_toast_cpf"] = ""
-                st.rerun()
         if len(cpf_digits) == 11:
             if _dv_sf_memo_cpf is not None:
                 _sf_rs, _sf_code = _dv_sf_memo_cpf
@@ -7426,10 +7621,22 @@ def aba_simulador_automacao(
         # Valores da unidade vêm do cadastro (Valor de Venda); demais valores do fluxo anterior
         u_valor = float(d.get('imovel_valor', 0) or 0)
         vc_ref_top = float(d.get('volta_caixa_ref', 0) or 0)
-        if 'volta_caixa_key' not in st.session_state:
-            st.session_state['volta_caixa_key'] = ""
-        if 'outros_descontos_key' not in st.session_state:
-            st.session_state['outros_descontos_key'] = ""
+        if "volta_caixa_key" not in st.session_state:
+            try:
+                _vc_seed = float(st.session_state.dados_cliente.get("volta_caixa_aplicado") or 0)
+            except (TypeError, ValueError):
+                _vc_seed = 0.0
+            st.session_state["volta_caixa_key"] = float_para_campo_texto(
+                max(0.0, _vc_seed), vazio_se_zero=True
+            )
+        if "outros_descontos_key" not in st.session_state:
+            try:
+                _od_seed = float(st.session_state.dados_cliente.get("outros_descontos") or 0)
+            except (TypeError, ValueError):
+                _od_seed = 0.0
+            st.session_state["outros_descontos_key"] = float_para_campo_texto(
+                max(0.0, _od_seed), vazio_se_zero=True
+            )
         if "outros_descontos_motivo_key" not in st.session_state:
             st.session_state["outros_descontos_motivo_key"] = str(
                 st.session_state.dados_cliente.get("outros_descontos_motivo") or ""
@@ -8304,7 +8511,14 @@ def aba_simulador_automacao(
                 except: df_final_save = df_novo
                 conn_save.update(spreadsheet=ID_GERAL, worksheet=aba_destino, data=df_final_save)
                 st.cache_data.clear()
-                st.markdown(f'<div class="custom-alert">Registro salvo na aba Simulações da base de dados.</div>', unsafe_allow_html=True); time.sleep(2); st.session_state.dados_cliente = {}; st.session_state.passo_simulacao = 'sim'; scroll_to_top(); st.rerun()
+                st.markdown(
+                    '<div class="custom-alert">Registro salvo na aba Simulações da base de dados.</div>',
+                    unsafe_allow_html=True,
+                )
+                time.sleep(2)
+                _dv_limpar_estado_simulacao_apos_concluir()
+                scroll_to_top()
+                st.rerun()
             except Exception as e:
                 _dv_alerta_vermelho_texto(f"Erro ao salvar: {e}")
         if st.button("Voltar à simulação", use_container_width=True):
