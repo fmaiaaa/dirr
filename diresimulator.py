@@ -1280,14 +1280,14 @@ def _sf_poll_ranking_na_account(
         rank = _sf_get_ranking_account_rest(sf, aid, rfield, http_timeout)
         if rank:
             if progress_p:
-                progress_p(1.0, f"{rfield} recebido na conta.")
+                progress_p(1.0, "Classificação recebida.")
             return rank
         elapsed = time.monotonic() - t0
         if progress_p:
             frac = float(prog_lo) + min(span, (elapsed / ps) * span)
             progress_p(
                 frac,
-                f"A aguardar {rfield} na conta ({int(elapsed)}s / {int(ps)}s)…",
+                f"Aguardando a classificação do cliente… ({int(elapsed)} s)",
             )
         now = time.monotonic()
         if now - last_log >= 15.0:
@@ -1377,12 +1377,12 @@ def _sf_classificar_ranking_cpf_11(
         if progress:
             progress(max(0.0, min(1.0, float(frac))), msg, time.monotonic() - t_all)
 
-    _p(0.02, "A ligar ao Salesforce…")
+    _p(0.02, "Conectando ao sistema…")
     sf = _sf_conectar_salesforce(verbose=False)
     if sf is None:
         _sf_logger.warning("Salesforce: ligação ou autenticação sem sucesso (detalhe só em log).")
         return None, "sem_registo"
-    _p(0.12, "Conectado. A consultar oportunidades…")
+    _p(0.12, "Buscando informações do cliente…")
 
     rfield = (os.environ.get("SALESFORCE_RANKING_FIELD") or "Ranking__c").strip()
     poll_sec = _sf_float_env_ranking("SALESFORCE_RISK3_POLL_SECONDS", 90.0)
@@ -1390,12 +1390,12 @@ def _sf_classificar_ranking_cpf_11(
     http_timeout = max(5.0, _sf_float_env_ranking("SALESFORCE_REST_TIMEOUT", 45.0))
 
     def _ranking_via_account(account_id: str) -> str | None:
-        _p(0.28, "A ler ranking na conta (GET)…")
+        _p(0.28, "Consultando a classificação do cliente…")
         bruto = _sf_get_ranking_account_rest(sf, account_id, rfield, http_timeout)
         if bruto:
-            _p(1.0, "Ranking obtido na conta.")
+            _p(1.0, "Classificação encontrada.")
             return bruto
-        _p(0.35, f"A aguardar preenchimento de {rfield} (polling)…")
+        _p(0.35, "Aguardando a classificação ficar disponível…")
 
         def _pp_sub(frac: float, m: str) -> None:
             _p(frac, m)
@@ -1413,7 +1413,7 @@ def _sf_classificar_ranking_cpf_11(
         )
 
     opp, err = _sf_consultar_por_cpf(sf, cpf)
-    _p(0.22, "Consulta às oportunidades concluída.")
+    _p(0.22, "Busca nas vendas concluída.")
     if err and "Informe um CPF válido" in err:
         return None, "cpf_incompleto"
     if err and "Erro ao consultar" in (err or ""):
@@ -1423,8 +1423,14 @@ def _sf_classificar_ranking_cpf_11(
         info = _sf_extrair_ranking_ui_de_opportunity(opp)
         texto_opp = info.get("ranking_exibir")
         if texto_opp:
-            _p(1.0, "Ranking obtido na oportunidade/conta.")
+            _p(1.0, "Classificação encontrada.")
             return _sf_ranking_bruto_para_ui(str(texto_opp)), None
+
+    _p(
+        0.23,
+        "Classificação ainda não localizada nas vendas. "
+        "Verificando o cadastro do cliente…",
+    )
 
     aid: str | None = None
     if opp is not None:
@@ -1432,7 +1438,7 @@ def _sf_classificar_ranking_cpf_11(
         if raw_aid:
             aid = str(raw_aid).strip()
     if not aid:
-        _p(0.24, "A localizar conta pelo CPF…")
+        _p(0.24, "Procurando cadastro com este CPF…")
         aid = _sf_buscar_account_id_por_cpf(sf, cpf)
 
     if aid:
@@ -1444,14 +1450,14 @@ def _sf_classificar_ranking_cpf_11(
     if not _sf_autocriar_pf_account():
         return None, "sem_registo"
 
-    _p(0.26, "A criar conta Pessoa Física (Cliente)…")
+    _p(0.26, "Cliente não cadastrado. Incluindo no sistema…")
     new_aid, create_err = _sf_criar_conta_pf_ranking(sf, cpf)
     if not new_aid and create_err:
         new_aid = _sf_resolver_account_apos_falha_cpf_duplicado(sf, cpf, create_err)
     if not new_aid:
         _sf_logger.warning("Salesforce PF Account: %s", create_err or "sem Id")
         return None, "sem_registo"
-    _p(0.30, "Conta resolvida. A obter ranking…")
+    _p(0.30, "Cadastro concluído. Obtendo a classificação…")
 
     bruto = _ranking_via_account(new_aid)
     if bruto:
@@ -6495,7 +6501,6 @@ def aba_simulador_automacao(
         _sf_rs: str | None = None
         _sf_code: str | None = None
         if len(cpf_digits) == 11:
-            st.caption("Consulta ao ranking — progresso (gradiente Direcional)")
             _sf_rank_prog_ph = st.empty()
             _memo_hit = _dv_sf_rank_memo_get(cpf_digits)
             if _memo_hit is not None:
@@ -6503,7 +6508,7 @@ def aba_simulador_automacao(
                 _sf_rank_prog_ph.markdown(
                     _sf_ranking_progress_markup(
                         1.0,
-                        "Resultado em cache em sessão (~300s). Sem nova chamada à API.",
+                        "Usando o resultado da verificação feita há pouco nesta tela.",
                         elapsed_s=0.0,
                         meter_n=100,
                         meter_total=100,
@@ -6537,7 +6542,7 @@ def aba_simulador_automacao(
                     _sf_rank_prog_ph.markdown(
                         _sf_ranking_progress_markup(
                             1.0,
-                            "Consulta concluída.",
+                            "Verificação concluída.",
                             elapsed_s=0.0,
                             meter_n=100,
                             meter_total=100,
