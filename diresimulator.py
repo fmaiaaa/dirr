@@ -6613,60 +6613,17 @@ def aba_simulador_automacao(
         _sf_rs: str | None = None
         _sf_code: str | None = None
         if len(cpf_digits) == 11:
-            _sf_rank_prog_ph = st.empty()
             _memo_hit = _dv_sf_rank_memo_get(cpf_digits)
             if _memo_hit is not None:
                 _sf_rs, _sf_code = _memo_hit
-                _sf_rank_prog_ph.markdown(
-                    _sf_ranking_progress_markup(
-                        1.0,
-                        _SF_RANK_PROGRESS_MSG_SUCESSO if _sf_rs else "Verificação concluída.",
-                        elapsed_s=0.0,
-                        meter_n=100,
-                        meter_total=100,
-                    ),
-                    unsafe_allow_html=True,
-                )
-            else:
-                _injetar_secrets_salesforce_no_env()
-
-                def _sf_prog_cb(frac: float, msg: str, elapsed: float) -> None:
-                    _sf_rank_prog_ph.markdown(
-                        _sf_ranking_progress_markup(
-                            frac,
-                            msg,
-                            elapsed_s=elapsed,
-                            meter_n=int(round(frac * 100)),
-                            meter_total=100,
-                        ),
-                        unsafe_allow_html=True,
-                    )
-
-                try:
-                    _sf_rs, _sf_code = _sf_classificar_ranking_cpf_11(
-                        cpf_digits,
-                        progress=_sf_prog_cb,
-                    )
-                except Exception as _sf_ex:
-                    _sf_logger.exception("Classificação ranking Salesforce: %s", _sf_ex)
-                    _sf_rs, _sf_code = None, "sem_registo"
-                finally:
-                    _sf_rank_prog_ph.markdown(
-                        _sf_ranking_progress_markup(
-                            1.0,
-                            _SF_RANK_PROGRESS_MSG_SUCESSO if _sf_rs else "Verificação concluída.",
-                            elapsed_s=0.0,
-                            meter_n=100,
-                            meter_total=100,
-                        ),
-                        unsafe_allow_html=True,
-                    )
-                _dv_sf_rank_memo_set(cpf_digits, _sf_rs, _sf_code)
-            if _sf_rs and _sf_rs in rank_opts:
-                if st.session_state.get("_sf_rank_auto_applied_for_cpf") != cpf_digits:
-                    st.session_state["in_rank_v28"] = _sf_rs
-                    st.session_state["_sf_rank_auto_applied_for_cpf"] = cpf_digits
-                if st.session_state.get("_sf_rank_toast_ok_cpf") != cpf_digits:
+                if _sf_rs and _sf_rs in rank_opts:
+                    if st.session_state.get("_sf_rank_auto_applied_for_cpf") != cpf_digits:
+                        st.session_state["in_rank_v28"] = _sf_rs
+                        st.session_state["_sf_rank_auto_applied_for_cpf"] = cpf_digits
+                if (
+                    _sf_rs
+                    and st.session_state.get("_sf_rank_toast_ok_cpf") != cpf_digits
+                ):
                     st.session_state["_sf_rank_toast_ok_cpf"] = cpf_digits
                     st.session_state["_sf_rank_naoencontrado_toast_cpf"] = ""
                     if hasattr(st, "toast"):
@@ -6674,17 +6631,17 @@ def aba_simulador_automacao(
                             st.toast(f"Ranking encontrado: {_sf_rs}", icon="✅")
                         except Exception:
                             pass
-            elif (
-                not _sf_rs
-                and _sf_code in ("sem_registo", "sem_conexao", "erro_sf")
-                and st.session_state.get("_sf_rank_naoencontrado_toast_cpf") != cpf_digits
-            ):
-                st.session_state["_sf_rank_naoencontrado_toast_cpf"] = cpf_digits
-                if hasattr(st, "toast"):
-                    try:
-                        st.toast("Ranking não encontrado.", icon="❌")
-                    except Exception:
-                        pass
+                elif (
+                    not _sf_rs
+                    and _sf_code in ("sem_registo", "sem_conexao", "erro_sf")
+                    and st.session_state.get("_sf_rank_naoencontrado_toast_cpf") != cpf_digits
+                ):
+                    st.session_state["_sf_rank_naoencontrado_toast_cpf"] = cpf_digits
+                    if hasattr(st, "toast"):
+                        try:
+                            st.toast("Ranking não encontrado.", icon="❌")
+                        except Exception:
+                            pass
         else:
             # CPF incompleto ou vazio: não forçar ranking (o utilizador pode mudar PRATA, etc. sem CPF completo).
             st.session_state[_DV_SF_RANK_TRACK_CPF_KEY] = ""
@@ -6697,25 +6654,7 @@ def aba_simulador_automacao(
                     "CPF não cadastrado. Contate o Comercial.</p>",
                     unsafe_allow_html=True,
                 )
-        if len(cpf_digits) == 11:
-            if _sf_rs:
-                st.markdown(
-                    f'<p class="inline-ref" style="margin-top:0;margin-bottom:0;line-height:1.45;">'
-                    f"Ranking encontrado: <strong>{html_std.escape(str(_sf_rs))}</strong></p>",
-                    unsafe_allow_html=True,
-                )
-            elif _sf_code == "cpf_incompleto":
-                st.markdown(
-                    '<p class="inline-ref" style="margin-top:0;margin-bottom:0;line-height:1.45;">'
-                    "CPF não cadastrado. Contate o Comercial.</p>",
-                    unsafe_allow_html=True,
-                )
-            elif _sf_code in ("sem_registo", "sem_conexao", "erro_sf"):
-                st.markdown(
-                    '<p class="inline-ref" style="margin-top:0;margin-bottom:0;line-height:1.45;">'
-                    "CPF não encontrado. Um novo contato deve ser criado no salesforce</p>",
-                    unsafe_allow_html=True,
-                )
+
         if "in_rank_v28" not in st.session_state:
             _r0 = st.session_state.dados_cliente.get("ranking")
             st.session_state["in_rank_v28"] = (
@@ -6734,6 +6673,83 @@ def aba_simulador_automacao(
             index=_pol_idx,
             key="in_pol_v28",
         )
+
+        # Consulta Salesforce: só com botão (evita bloquear a página enquanto digita o 11.º dígito).
+        if len(cpf_digits) == 11 and _dv_sf_rank_memo_get(cpf_digits) is None:
+            st.caption(
+                "Com o CPF completo, pode **consultar a classificação** no sistema. "
+                "O ranking acima pode ser alterado a qualquer momento, antes ou depois da consulta."
+            )
+            if st.button(
+                "Consultar classificação no Salesforce",
+                type="secondary",
+                key="dv_sf_lookup_rank_btn",
+            ):
+                _injetar_secrets_salesforce_no_env()
+                _sf_rank_prog_ph = st.empty()
+
+                def _sf_prog_cb(frac: float, msg: str, elapsed: float) -> None:
+                    _sf_rank_prog_ph.markdown(
+                        _sf_ranking_progress_markup(
+                            frac,
+                            msg,
+                            elapsed_s=elapsed,
+                            meter_n=int(round(frac * 100)),
+                            meter_total=100,
+                        ),
+                        unsafe_allow_html=True,
+                    )
+
+                _sf_lookup_rs: str | None = None
+                _sf_lookup_code: str | None = "sem_registo"
+                try:
+                    _sf_lookup_rs, _sf_lookup_code = _sf_classificar_ranking_cpf_11(
+                        cpf_digits,
+                        progress=_sf_prog_cb,
+                    )
+                except Exception as _sf_ex:
+                    _sf_logger.exception("Classificação ranking Salesforce: %s", _sf_ex)
+                    _sf_lookup_rs, _sf_lookup_code = None, "sem_registo"
+                finally:
+                    _sf_rank_prog_ph.markdown(
+                        _sf_ranking_progress_markup(
+                            1.0,
+                            _SF_RANK_PROGRESS_MSG_SUCESSO if _sf_lookup_rs else "Verificação concluída.",
+                            elapsed_s=0.0,
+                            meter_n=100,
+                            meter_total=100,
+                        ),
+                        unsafe_allow_html=True,
+                    )
+                _dv_sf_rank_memo_set(cpf_digits, _sf_lookup_rs, _sf_lookup_code)
+                st.session_state["_sf_rank_auto_applied_for_cpf"] = ""
+                st.session_state["_sf_rank_toast_ok_cpf"] = ""
+                st.session_state["_sf_rank_naoencontrado_toast_cpf"] = ""
+                st.rerun()
+
+        if len(cpf_digits) == 11:
+            _memo_show = _dv_sf_rank_memo_get(cpf_digits)
+            if _memo_show is not None:
+                _sf_rs, _sf_code = _memo_show
+            if _sf_rs:
+                st.markdown(
+                    f'<p class="inline-ref" style="margin-top:0;margin-bottom:0;line-height:1.45;">'
+                    f"Classificação obtida pelo CPF: <strong>{html_std.escape(str(_sf_rs))}</strong> "
+                    f"(pode alterar o <strong>Ranking do Cliente</strong> acima a qualquer momento).</p>",
+                    unsafe_allow_html=True,
+                )
+            elif _sf_code == "cpf_incompleto":
+                st.markdown(
+                    '<p class="inline-ref" style="margin-top:0;margin-bottom:0;line-height:1.45;">'
+                    "CPF não cadastrado. Contate o Comercial.</p>",
+                    unsafe_allow_html=True,
+                )
+            elif _sf_code in ("sem_registo", "sem_conexao", "erro_sf"):
+                st.markdown(
+                    '<p class="inline-ref" style="margin-top:0;margin-bottom:0;line-height:1.45;">'
+                    "CPF não encontrado. Um novo contato deve ser criado no salesforce</p>",
+                    unsafe_allow_html=True,
+                )
 
         prazo_ps_max = 84 if politica_ps == "Emcash" else 84
         st.session_state.dados_cliente.update({
