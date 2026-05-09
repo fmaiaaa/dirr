@@ -997,11 +997,6 @@ def _dv_sf_rank_memo_set(cpf11: str, rs: str | None, code: str | None) -> None:
 _DV_SF_RANK_TRACK_CPF_KEY = "_sf_rank_tracked_cpf_ui"
 
 
-def _dv_sf_rank_cliente_selectbox_changed() -> None:
-    """Utilizador alterou o ranking na lista — não voltar a impor o valor vindo do CPF/Salesforce."""
-    st.session_state["_sf_rank_user_manual"] = True
-
-
 def _sf_ranking_progress_markup(
     frac: float,
     status: str,
@@ -6612,7 +6607,8 @@ def aba_simulador_automacao(
         rank_opts = ["DIAMANTE", "OURO", "PRATA", "BRONZE", "AÇO"]
         if st.session_state.get(_DV_SF_RANK_TRACK_CPF_KEY) != cpf_digits:
             st.session_state[_DV_SF_RANK_TRACK_CPF_KEY] = cpf_digits
-            st.session_state["_sf_rank_user_manual"] = False
+            # Um único preenchimento automático por “snapshot” de CPF; depois o utilizador pode alterar à vontade.
+            st.session_state["_sf_rank_auto_applied_for_cpf"] = ""
             st.session_state["_sf_rank_toast_ok_cpf"] = ""
         _sf_rs: str | None = None
         _sf_code: str | None = None
@@ -6667,8 +6663,9 @@ def aba_simulador_automacao(
                     )
                 _dv_sf_rank_memo_set(cpf_digits, _sf_rs, _sf_code)
             if _sf_rs and _sf_rs in rank_opts:
-                if not st.session_state.get("_sf_rank_user_manual"):
+                if st.session_state.get("_sf_rank_auto_applied_for_cpf") != cpf_digits:
                     st.session_state["in_rank_v28"] = _sf_rs
+                    st.session_state["_sf_rank_auto_applied_for_cpf"] = cpf_digits
                 if st.session_state.get("_sf_rank_toast_ok_cpf") != cpf_digits:
                     st.session_state["_sf_rank_toast_ok_cpf"] = cpf_digits
                     st.session_state["_sf_rank_naoencontrado_toast_cpf"] = ""
@@ -6689,13 +6686,11 @@ def aba_simulador_automacao(
                     except Exception:
                         pass
         else:
-            # CPF incompleto ou vazio: permite nova consulta ao voltar a 11 dígitos
+            # CPF incompleto ou vazio: não forçar ranking (o utilizador pode mudar PRATA, etc. sem CPF completo).
             st.session_state[_DV_SF_RANK_TRACK_CPF_KEY] = ""
-            st.session_state["_sf_rank_user_manual"] = False
+            st.session_state["_sf_rank_auto_applied_for_cpf"] = ""
             st.session_state["_sf_rank_toast_ok_cpf"] = ""
             st.session_state["_sf_rank_naoencontrado_toast_cpf"] = ""
-            # Ao apagar/editar o CPF, remove o ranking aplicado pela consulta Salesforce anterior
-            st.session_state["in_rank_v28"] = rank_opts[0]
             if cpf_digits:
                 st.markdown(
                     '<p class="inline-ref" style="margin-top:0;margin-bottom:0;line-height:1.45;">'
@@ -6730,7 +6725,6 @@ def aba_simulador_automacao(
             "Ranking do Cliente (lista)",
             options=rank_opts,
             key="in_rank_v28",
-            on_change=_dv_sf_rank_cliente_selectbox_changed,
         )
         _pol_saved = st.session_state.dados_cliente.get("politica")
         _pol_idx = 0 if _pol_saved == "Direcional" else 1
