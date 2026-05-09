@@ -897,7 +897,6 @@ _SF_SECRETS_TOML_ALIAS: dict[str, str] = {
     "RISK3_DUMP_STEPS": "SALESFORCE_RISK3_DUMP_STEPS",
     "RANKING_PF_AUTOCRIAR": "SALESFORCE_RANKING_PF_AUTOCRIAR",
     "ACCOUNT_CPF_FIELD": "SALESFORCE_ACCOUNT_CPF_FIELD",
-    "RANKING_DEBUG": "SALESFORCE_RANKING_DEBUG",
 }
 
 
@@ -937,7 +936,6 @@ def _injetar_secrets_salesforce_no_env() -> None:
             "SALESFORCE_RISK3_DUMP_STEPS",
             "SALESFORCE_RANKING_PF_AUTOCRIAR",
             "SALESFORCE_ACCOUNT_CPF_FIELD",
-            "SALESFORCE_RANKING_DEBUG",
         ):
             if hasattr(sec, "get"):
                 _set(key, sec.get(key))
@@ -972,37 +970,6 @@ except ImportError:  # pragma: no cover
 
 _sf_logger = logging.getLogger(__name__)
 
-_SF_DEBUG_LIVE_HOOK: Callable[[], None] | None = None
-
-
-def _sf_set_debug_live_hook(hook: Callable[[], None] | None) -> None:
-    """Callback sem argumentos: chamado após cada linha de debug (UI atualiza logs em tempo real)."""
-    global _SF_DEBUG_LIVE_HOOK
-    _SF_DEBUG_LIVE_HOOK = hook
-
-
-def _sf_debug_append(debug_log: list[str] | None, msg: str) -> None:
-    if debug_log is None:
-        return
-    ts = datetime.now().strftime("%H:%M:%S.%f")[:-3]
-    debug_log.append(f"{ts}  {msg}")
-    hk = _SF_DEBUG_LIVE_HOOK
-    if hk is not None:
-        try:
-            hk()
-        except Exception:
-            pass
-
-
-def _sf_ranking_debug_env_on() -> bool:
-    return (os.environ.get("SALESFORCE_RANKING_DEBUG") or "").strip().lower() in (
-        "1",
-        "true",
-        "yes",
-        "on",
-    )
-
-
 _DV_SF_RANK_MEMO_TTL_SEC = 300.0
 _DV_SF_RANK_MEMO_KEY = "_dv_sf_rank_memo_v1"
 
@@ -1027,24 +994,6 @@ def _dv_sf_rank_memo_set(cpf11: str, rs: str | None, code: str | None) -> None:
     st.session_state[_DV_SF_RANK_MEMO_KEY] = memo
 
 
-def _sf_format_tqdm_meter_line(n: int, total: int, elapsed: float, prefix: str = "") -> str:
-    if total <= 0:
-        total = 100
-    try:
-        from tqdm.std import tqdm as _TqdmCl
-
-        return _TqdmCl.format_meter(
-            max(0, min(total, n)),
-            total,
-            max(0.0, elapsed),
-            ncols=88,
-            prefix=(prefix + ": ") if prefix else "",
-        )
-    except Exception:
-        p = int(100 * n / total) if total else 0
-        return f"{prefix} {p}% [{elapsed:.1f}s]" if prefix else f"{p}% [{elapsed:.1f}s]"
-
-
 def _sf_ranking_progress_markup(
     frac: float,
     status: str,
@@ -1053,20 +1002,14 @@ def _sf_ranking_progress_markup(
     meter_n: int | None = None,
     meter_total: int = 100,
 ) -> str:
+    _ = (elapsed_s, meter_n, meter_total)  # assinatura compatível com chamadas antigas
     f = max(0.0, min(1.0, float(frac)))
     pct_int = int(round(f * 100))
     esc_status = html_std.escape(status or "")
     c_r = COR_VERMELHO
     c_b = COR_AZUL_ESC
-    elapsed = 0.0 if elapsed_s is None else float(elapsed_s)
-    n = int(meter_n) if meter_n is not None else pct_int
-    tqdm_line = html_std.escape(
-        _sf_format_tqdm_meter_line(n, meter_total, elapsed, prefix="Ranking Salesforce")
-    )
     return (
-        '<div class="dv-sf-rank-progress" style="font-family:system-ui,Consolas,monospace;margin:0.25rem 0 0.5rem 0;">'
-        f'<div style="font-size:0.72rem;font-weight:600;color:{c_b};letter-spacing:0.02em;margin-bottom:6px;">'
-        "tqdm · gradiente Direcional (vermelho → azul)</div>"
+        '<div class="dv-sf-rank-progress" style="font-family:system-ui,sans-serif;margin:0.25rem 0 0.5rem 0;">'
         '<div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px;margin-bottom:6px;">'
         f'<span style="color:#334155;font-size:0.88rem;font-weight:500;">{esc_status}</span>'
         f'<span style="color:{c_b};font-size:0.82rem;font-weight:600;">{pct_int}%</span>'
@@ -1075,9 +1018,6 @@ def _sf_ranking_progress_markup(
         f'<div style="height:100%;width:{pct_int}%;min-width:2px;border-radius:8px;'
         f"background:linear-gradient(90deg,{c_r} 0%,{c_b} 100%);"
         'transition:width 0.18s ease-out;"></div></div>'
-        '<pre style="margin:8px 0 0 0;padding:8px 10px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;'
-        'font-size:0.78rem;line-height:1.35;color:#0f172a;white-space:pre-wrap;word-break:break-all;">'
-        f"{tqdm_line}</pre>"
         "</div>"
     )
 
@@ -1255,73 +1195,46 @@ def _sf_extrair_account_id_do_erro_validacao(mensagem: str) -> str | None:
     return m.group(1) if m else None
 
 
-def _sf_buscar_account_id_por_cpf(
-    sf: Any, cpf_digitos: str, debug_log: list[str] | None = None
-) -> str | None:
+def _sf_buscar_account_id_por_cpf(sf: Any, cpf_digitos: str) -> str | None:
     campo = _sf_account_cpf_field_name()
     for val in (cpf_digitos, _sf_cpf_mascarado_br(cpf_digitos)):
         safe = _sf_soql_escape_literal(val)
         q = f"SELECT Id FROM Account WHERE {campo} = '{safe}' LIMIT 1"
-        _sf_debug_append(
-            debug_log,
-            f"SOQL Account por CPF: campo={campo!r} literal_formato={'só dígitos' if val == cpf_digitos else 'mascarado'}",
-        )
         try:
             r = sf.query(q)
             recs = r.get("records") or []
             if recs:
                 i = recs[0].get("Id")
                 if i:
-                    aid = str(i).strip()
-                    _sf_debug_append(debug_log, f"Account encontrada Id={aid}")
-                    return aid
-            _sf_debug_append(debug_log, "Account: 0 linhas para este literal.")
-        except Exception as ex:
-            _sf_debug_append(debug_log, f"Account SOQL erro: {ex!r}")
+                    return str(i).strip()
+        except Exception:
+            pass
     return None
 
 
 def _sf_resolver_account_apos_falha_cpf_duplicado(
-    sf: Any,
-    cpf_digitos: str,
-    acc_err: str,
-    debug_log: list[str] | None = None,
+    sf: Any, cpf_digitos: str, acc_err: str
 ) -> str | None:
-    _sf_debug_append(debug_log, f"resolver_duplicado: analisando erro ({len(acc_err or '')} chars)")
     if not _sf_erro_conta_ja_existe_cpf(acc_err):
-        _sf_debug_append(debug_log, "resolver_duplicado: mensagem não indica CPF duplicado — ignorado.")
         return None
     aid = _sf_extrair_account_id_do_erro_validacao(acc_err)
     if aid:
-        _sf_debug_append(debug_log, f"resolver_duplicado: Account Id extraído da mensagem Id={aid}")
         return aid
-    _sf_debug_append(debug_log, "resolver_duplicado: a buscar Account por CPF…")
-    return _sf_buscar_account_id_por_cpf(sf, cpf_digitos, debug_log)
+    return _sf_buscar_account_id_por_cpf(sf, cpf_digitos)
 
 
-def _sf_criar_conta_pf_ranking(
-    sf: Any, cpf_digitos: str, debug_log: list[str] | None = None
-) -> tuple[str | None, str | None]:
+def _sf_criar_conta_pf_ranking(sf: Any, cpf_digitos: str) -> tuple[str | None, str | None]:
     payload = _sf_montar_payload_conta_pf_ranking(cpf_digitos)
-    resumo = {k: payload[k] for k in payload if k not in ("PersonEmail", "Email_Adicional__c")}
-    resumo["email_domínio"] = "gmail.com (diresimulator+*)"
-    _sf_debug_append(debug_log, f"Account.create payload (sem e-mail literal): {json.dumps(resumo, ensure_ascii=False)}")
     try:
         res = sf.Account.create(payload)
         aid = (res.get("id") or "").strip()
-        _sf_debug_append(debug_log, f"Account.create OK id={aid!r} res_keys={list(res.keys())}")
         return (aid if aid else None, None)
     except Exception as e:
-        _sf_debug_append(debug_log, f"Account.create FALHOU: {e!r}")
         return (None, str(e))
 
 
 def _sf_get_ranking_account_rest(
-    sf: Any,
-    account_id: str,
-    rfield: str,
-    http_timeout: float,
-    debug_log: list[str] | None = None,
+    sf: Any, account_id: str, rfield: str, http_timeout: float
 ) -> str | None:
     aid = account_id.strip()
     try:
@@ -1338,28 +1251,8 @@ def _sf_get_ranking_account_rest(
         if isinstance(rec, dict):
             val = rec.get(rfield)
             if val is not None and str(val).strip() != "":
-                _sf_debug_append(
-                    debug_log,
-                    f"GET Account/{aid}: {rfield}={str(val).strip()!r}",
-                )
                 return str(val).strip()
-            keys_preview = list(rec.keys())[:40]
-            _sf_debug_append(
-                debug_log,
-                f"GET Account/{aid}: {rfield} vazio ou ausente. Chaves (até 40): {keys_preview}",
-            )
-            if debug_log is not None and len(rec) <= 80:
-                try:
-                    _sf_debug_append(
-                        debug_log,
-                        f"GET Account corpo (truncado 4000 chars): {json.dumps(rec, ensure_ascii=False, default=str)[:4000]}",
-                    )
-                except (TypeError, ValueError):
-                    _sf_debug_append(debug_log, f"GET Account corpo repr (trunc): {repr(rec)[:4000]}")
-        else:
-            _sf_debug_append(debug_log, f"GET Account/{aid}: resposta não-dict: {type(rec)!r}")
     except Exception as ex:
-        _sf_debug_append(debug_log, f"GET Account/{aid} exceção: {ex!r}")
         _sf_logger.debug("SF GET Account %s: %s", aid, ex)
     return None
 
@@ -1375,7 +1268,6 @@ def _sf_poll_ranking_na_account(
     progress_p: Callable[[float, str], None] | None = None,
     prog_lo: float = 0.42,
     prog_hi: float = 0.92,
-    debug_log: list[str] | None = None,
 ) -> str | None:
     """GET sobjects/Account/<Id> em loop até rfield vir preenchido ou timeout."""
     aid = account_id.strip()
@@ -1384,24 +1276,13 @@ def _sf_poll_ranking_na_account(
     last_log = time.monotonic()
     ps = max(1.0, float(poll_sec))
     span = max(float(prog_hi) - float(prog_lo), 1e-6)
-    n_iter = 0
-    _sf_debug_append(
-        debug_log,
-        f"poll início Account={aid} campo={rfield} timeout≈{ps:.0f}s intervalo≈{poll_iv:.1f}s",
-    )
     while time.monotonic() < deadline:
-        n_iter += 1
-        rank = _sf_get_ranking_account_rest(sf, aid, rfield, http_timeout, debug_log)
+        rank = _sf_get_ranking_account_rest(sf, aid, rfield, http_timeout)
         if rank:
-            _sf_debug_append(debug_log, f"poll fim SUcesso após {n_iter} iterações valor={rank!r}")
             if progress_p:
                 progress_p(1.0, f"{rfield} recebido na conta.")
             return rank
         elapsed = time.monotonic() - t0
-        _sf_debug_append(
-            debug_log,
-            f"poll iteração {n_iter} elapsed={elapsed:.1f}s — {rfield} ainda vazio",
-        )
         if progress_p:
             frac = float(prog_lo) + min(span, (elapsed / ps) * span)
             progress_p(
@@ -1413,7 +1294,6 @@ def _sf_poll_ranking_na_account(
             _sf_logger.info("Salesforce: aguardando %s na Account %s…", rfield, aid)
             last_log = now
         time.sleep(max(0.5, float(poll_iv)))
-    _sf_debug_append(debug_log, f"poll FIM sem {rfield} após {n_iter} iterações (timeout)")
     return None
 
 
@@ -1424,11 +1304,7 @@ def _sf_ranking_bruto_para_ui(valor: str | None) -> str | None:
     return str(m).strip() if m else str(valor).strip()
 
 
-def _sf_consultar_por_cpf(
-    sf: Any,
-    cpf_bruto: str,
-    debug_log: list[str] | None = None,
-) -> tuple[dict | None, str | None]:
+def _sf_consultar_por_cpf(sf: Any, cpf_bruto: str) -> tuple[dict | None, str | None]:
     """
     Consulta no Salesforce pelo CPF da conta (Account.CPF__c)
     e retorna a Opportunity mais recente com ranking do cliente.
@@ -1437,15 +1313,10 @@ def _sf_consultar_por_cpf(
     """
     cpf_digitos = _sf_normalizar_cpf(cpf_bruto)
     if not cpf_digitos or len(cpf_digitos) != 11 or not cpf_digitos.isdigit():
-        _sf_debug_append(debug_log, "Opportunity SOQL: CPF inválido (não 11 dígitos).")
         return None, "Informe um CPF válido com 11 dígitos."
 
     cpf_mascarado = _sf_cpf_mascarado_br(cpf_digitos)
     lit = _sf_soql_escape_literal(cpf_mascarado)
-    _sf_debug_append(
-        debug_log,
-        f"Opportunity SOQL: filtro Account.CPF__c mascarado = {cpf_mascarado!r}",
-    )
     soql = f"""
         SELECT
             Id,
@@ -1466,20 +1337,10 @@ def _sf_consultar_por_cpf(
     try:
         res = sf.query(soql)
         registros = res.get("records", [])
-        _sf_debug_append(debug_log, f"Opportunity SOQL: {len(registros)} registo(s) devolvido(s).")
         if not registros:
             return None, "Nenhum registro encontrado para o CPF informado."
-        top = registros[0]
-        acc = top.get("Account") or {}
-        _sf_debug_append(
-            debug_log,
-            "Opportunity escolhida (mais recente): "
-            f"Opp.Id={top.get('Id')!r} AccountId={top.get('AccountId')!r} "
-            f"Account.Ranking__c={acc.get('Ranking__c')!r} Opp.Ranking__c={top.get('Ranking__c')!r}",
-        )
-        return top, None
+        return registros[0], None
     except Exception as e:
-        _sf_debug_append(debug_log, f"Opportunity SOQL exceção: {e!r}")
         return None, f"Erro ao consultar o Salesforce: {e}"
 
 
@@ -1491,7 +1352,6 @@ def _sf_classificar_ranking_cpf_11(
     cpf_11: str,
     *,
     progress: Callable[[float, str, float], None] | None = None,
-    debug_log: list[str] | None = None,
 ) -> tuple[str | None, str | None]:
     """
     Ranking por CPF: (1) última Opportunity + Account aninhada; (2) Account existente
@@ -1499,63 +1359,39 @@ def _sf_classificar_ranking_cpf_11(
     estiver ativo, cria Person Account (Cliente PF) como em conta_pf_poll_ranking_cmd.py
     e faz poll até preencher o ranking.
 
-    ``progress(frac_0_1, mensagem, elapsed_total_s)`` — opcional; usado pela UI (gradiente + tqdm).
-    ``debug_log`` — se lista, recebe linhas com timestamp de todo o fluxo (modo debug).
+    ``progress(frac_0_1, mensagem, elapsed_total_s)`` — opcional; barra gradiente na UI.
 
     Retorna (ranking_ui_ou_None, código_informativo_ou_None).
     Códigos: cpf_incompleto, pacote_ausente, sem_registo.
     """
     cpf = _sf_normalizar_cpf(cpf_11)
     if len(cpf) != 11:
-        _sf_debug_append(debug_log, "FIM: CPF incompleto (≠11 dígitos).")
         return None, "cpf_incompleto"
 
     if Salesforce is None:
-        _sf_debug_append(debug_log, "FIM: pacote simple_salesforce não instalado.")
         return None, "pacote_ausente"
-
-    _sf_debug_append(debug_log, "=== Início classificação ranking (Salesforce) ===")
-    _sf_debug_append(
-        debug_log,
-        "Config: DOMAIN="
-        f"{(os.environ.get('SALESFORCE_DOMAIN') or 'login')!r} "
-        "RANKING_FIELD="
-        f"{(os.environ.get('SALESFORCE_RANKING_FIELD') or 'Ranking__c')!r} "
-        f"PF_AUTOCRIAR={_sf_autocriar_pf_account()}",
-    )
 
     t_all = time.monotonic()
 
     def _p(frac: float, msg: str) -> None:
-        _sf_debug_append(debug_log, f"[{int(min(100, max(0, frac * 100)))}%] {msg}")
         if progress:
             progress(max(0.0, min(1.0, float(frac))), msg, time.monotonic() - t_all)
 
     _p(0.02, "A ligar ao Salesforce…")
-    uname = (os.environ.get("SALESFORCE_USER") or "").strip()
-    _sf_debug_append(debug_log, f"Credenciais: utilizador={uname!r} (password/token omitidos)")
     sf = _sf_conectar_salesforce(verbose=False)
     if sf is None:
-        _sf_debug_append(debug_log, "FIM: falha de ligação ou autenticação Salesforce.")
         _sf_logger.warning("Salesforce: ligação ou autenticação sem sucesso (detalhe só em log).")
         return None, "sem_registo"
-    inst = getattr(sf, "sf_instance", "") or ""
-    _sf_debug_append(debug_log, f"Ligação OK. sf_instance={inst!r}")
     _p(0.12, "Conectado. A consultar oportunidades…")
 
     rfield = (os.environ.get("SALESFORCE_RANKING_FIELD") or "Ranking__c").strip()
     poll_sec = _sf_float_env_ranking("SALESFORCE_RISK3_POLL_SECONDS", 90.0)
     poll_iv = _sf_float_env_ranking("SALESFORCE_RISK3_POLL_INTERVAL", 2.0)
     http_timeout = max(5.0, _sf_float_env_ranking("SALESFORCE_REST_TIMEOUT", 45.0))
-    _sf_debug_append(
-        debug_log,
-        f"Polling: campo={rfield!r} POLL_SEC={poll_sec} INTERVAL={poll_iv} REST_TIMEOUT={http_timeout}",
-    )
 
     def _ranking_via_account(account_id: str) -> str | None:
         _p(0.28, "A ler ranking na conta (GET)…")
-        _sf_debug_append(debug_log, f"_ranking_via_account: AccountId={account_id!r}")
-        bruto = _sf_get_ranking_account_rest(sf, account_id, rfield, http_timeout, debug_log)
+        bruto = _sf_get_ranking_account_rest(sf, account_id, rfield, http_timeout)
         if bruto:
             _p(1.0, "Ranking obtido na conta.")
             return bruto
@@ -1574,15 +1410,11 @@ def _sf_classificar_ranking_cpf_11(
             progress_p=_pp_sub,
             prog_lo=0.35,
             prog_hi=0.94,
-            debug_log=debug_log,
         )
 
-    opp, err = _sf_consultar_por_cpf(sf, cpf, debug_log)
+    opp, err = _sf_consultar_por_cpf(sf, cpf)
     _p(0.22, "Consulta às oportunidades concluída.")
-    if err:
-        _sf_debug_append(debug_log, f"Opportunity consulta: err={err!r}")
     if err and "Informe um CPF válido" in err:
-        _sf_debug_append(debug_log, "FIM: cpf_incompleto (validação Opportunity).")
         return None, "cpf_incompleto"
     if err and "Erro ao consultar" in (err or ""):
         _sf_logger.warning("Salesforce Opportunity: %s", err)
@@ -1590,56 +1422,40 @@ def _sf_classificar_ranking_cpf_11(
     if opp is not None:
         info = _sf_extrair_ranking_ui_de_opportunity(opp)
         texto_opp = info.get("ranking_exibir")
-        _sf_debug_append(
-            debug_log,
-            f"Extrair ranking UI: ranking_exibir={texto_opp!r} scores conta/opp="
-            f"{info.get('ranking_score_conta')!r}/{info.get('ranking_score_opp')!r}",
-        )
         if texto_opp:
-            ui_val = _sf_ranking_bruto_para_ui(str(texto_opp))
             _p(1.0, "Ranking obtido na oportunidade/conta.")
-            _sf_debug_append(debug_log, f"FIM SUCESSO (Opportunity): ranking UI={ui_val!r}")
-            return ui_val, None
+            return _sf_ranking_bruto_para_ui(str(texto_opp)), None
 
     aid: str | None = None
     if opp is not None:
         raw_aid = opp.get("AccountId")
         if raw_aid:
             aid = str(raw_aid).strip()
-            _sf_debug_append(debug_log, f"AccountId a partir da Opportunity: {aid!r}")
     if not aid:
         _p(0.24, "A localizar conta pelo CPF…")
-        aid = _sf_buscar_account_id_por_cpf(sf, cpf, debug_log)
+        aid = _sf_buscar_account_id_por_cpf(sf, cpf)
 
     if aid:
         bruto = _ranking_via_account(aid)
         if bruto:
-            ui_val = _sf_ranking_bruto_para_ui(bruto)
-            _sf_debug_append(debug_log, f"FIM SUCESSO (Account): bruto={bruto!r} UI={ui_val!r}")
-            return ui_val, None
-        _sf_debug_append(debug_log, "FIM: conta existia mas ranking vazio após poll.")
+            return _sf_ranking_bruto_para_ui(bruto), None
         return None, "sem_registo"
 
     if not _sf_autocriar_pf_account():
-        _sf_debug_append(debug_log, "FIM: sem conta, SALESFORCE_RANKING_PF_AUTOCRIAR desativado.")
         return None, "sem_registo"
 
     _p(0.26, "A criar conta Pessoa Física (Cliente)…")
-    new_aid, create_err = _sf_criar_conta_pf_ranking(sf, cpf, debug_log)
+    new_aid, create_err = _sf_criar_conta_pf_ranking(sf, cpf)
     if not new_aid and create_err:
-        new_aid = _sf_resolver_account_apos_falha_cpf_duplicado(sf, cpf, create_err, debug_log)
+        new_aid = _sf_resolver_account_apos_falha_cpf_duplicado(sf, cpf, create_err)
     if not new_aid:
-        _sf_debug_append(debug_log, f"FIM: não foi possível obter Account Id. Último erro: {create_err!r}")
         _sf_logger.warning("Salesforce PF Account: %s", create_err or "sem Id")
         return None, "sem_registo"
     _p(0.30, "Conta resolvida. A obter ranking…")
 
     bruto = _ranking_via_account(new_aid)
     if bruto:
-        ui_val = _sf_ranking_bruto_para_ui(bruto)
-        _sf_debug_append(debug_log, f"FIM SUCESSO (pós-criação): bruto={bruto!r} UI={ui_val!r}")
-        return ui_val, None
-    _sf_debug_append(debug_log, "FIM: conta criada/resolvida mas ranking não preenchido a tempo.")
+        return _sf_ranking_bruto_para_ui(bruto), None
     return None, "sem_registo"
 
 
@@ -6669,13 +6485,6 @@ def aba_simulador_automacao(
             st.session_state["cpf_classificar_clientes_sf"] = str(
                 st.session_state.dados_cliente.get("cpf") or ""
             ).strip()
-        if "dv_sf_ranking_debug_ui" not in st.session_state:
-            st.session_state["dv_sf_ranking_debug_ui"] = _sf_ranking_debug_env_on()
-        st.checkbox(
-            "Modo debug: exibir logs completos do processo de ranking (Salesforce)",
-            key="dv_sf_ranking_debug_ui",
-            help="Também pode ativar com variável de ambiente ou secrets: SALESFORCE_RANKING_DEBUG=1",
-        )
         st.text_input(
             "CPF - Classificar Clientes (opcional) (CPF)",
             key="cpf_classificar_clientes_sf",
@@ -6685,97 +6494,57 @@ def aba_simulador_automacao(
         rank_opts = ["DIAMANTE", "OURO", "PRATA", "BRONZE", "AÇO"]
         _sf_rs: str | None = None
         _sf_code: str | None = None
-        _sf_rank_memo_hit = False
-        _sf_debug_requested = _sf_ranking_debug_env_on() or bool(
-            st.session_state.get("dv_sf_ranking_debug_ui")
-        )
-        _sf_debug_lines: list[str] | None = [] if _sf_debug_requested else None
         if len(cpf_digits) == 11:
-            st.caption("Progresso da consulta ao ranking (Salesforce) — barra estilo tqdm")
+            st.caption("Consulta ao ranking — progresso (gradiente Direcional)")
             _sf_rank_prog_ph = st.empty()
-            _sf_rank_log_ph = None
-            if _sf_debug_requested:
-                st.caption("Logs do processo (tempo real)")
-                _sf_rank_log_ph = st.empty()
-
-            def _live_refresh_logs() -> None:
-                if _sf_rank_log_ph is not None and _sf_debug_lines is not None:
-                    _sf_rank_log_ph.code("\n".join(_sf_debug_lines), language="text")
-
-            if _sf_rank_log_ph is not None:
-                _sf_rank_log_ph.code(
-                    "Aguardando início da consulta… (logs em tempo real)",
-                    language="text",
+            _memo_hit = _dv_sf_rank_memo_get(cpf_digits)
+            if _memo_hit is not None:
+                _sf_rs, _sf_code = _memo_hit
+                _sf_rank_prog_ph.markdown(
+                    _sf_ranking_progress_markup(
+                        1.0,
+                        "Resultado em cache em sessão (~300s). Sem nova chamada à API.",
+                        elapsed_s=0.0,
+                        meter_n=100,
+                        meter_total=100,
+                    ),
+                    unsafe_allow_html=True,
                 )
+            else:
+                _injetar_secrets_salesforce_no_env()
 
-            _sf_set_debug_live_hook(_live_refresh_logs if _sf_debug_requested else None)
-            try:
-                _memo_hit = _dv_sf_rank_memo_get(cpf_digits)
-                if _memo_hit is not None:
-                    _sf_rank_memo_hit = True
-                    _sf_rs, _sf_code = _memo_hit
-                    if _sf_rank_prog_ph is not None:
-                        _sf_rank_prog_ph.markdown(
-                            _sf_ranking_progress_markup(
-                                1.0,
-                                "Resultado em cache em sessão (~300s). Sem nova chamada à API.",
-                                elapsed_s=0.0,
-                                meter_n=100,
-                                meter_total=100,
-                            ),
-                            unsafe_allow_html=True,
-                        )
-                    _sf_debug_append(
-                        _sf_debug_lines,
-                        "[memo] Esta resposta veio do cache em sessão (~300s); a API não foi chamada neste rerun.",
+                def _sf_prog_cb(frac: float, msg: str, elapsed: float) -> None:
+                    _sf_rank_prog_ph.markdown(
+                        _sf_ranking_progress_markup(
+                            frac,
+                            msg,
+                            elapsed_s=elapsed,
+                            meter_n=int(round(frac * 100)),
+                            meter_total=100,
+                        ),
+                        unsafe_allow_html=True,
                     )
-                else:
-                    _injetar_secrets_salesforce_no_env()
 
-                    def _sf_prog_cb(frac: float, msg: str, elapsed: float) -> None:
-                        if _sf_rank_prog_ph is not None:
-                            _sf_rank_prog_ph.markdown(
-                                _sf_ranking_progress_markup(
-                                    frac,
-                                    msg,
-                                    elapsed_s=elapsed,
-                                    meter_n=int(round(frac * 100)),
-                                    meter_total=100,
-                                ),
-                                unsafe_allow_html=True,
-                            )
-
-                    try:
-                        _sf_rs, _sf_code = _sf_classificar_ranking_cpf_11(
-                            cpf_digits,
-                            progress=_sf_prog_cb,
-                            debug_log=_sf_debug_lines,
-                        )
-                    except Exception as _sf_ex:
-                        _sf_logger.exception("Classificação ranking Salesforce: %s", _sf_ex)
-                        _sf_debug_append(_sf_debug_lines, f"EXCEÇÃO não tratada: {_sf_ex!r}")
-                        _sf_rs, _sf_code = None, "sem_registo"
-                    finally:
-                        if _sf_rank_prog_ph is not None:
-                            _sf_rank_prog_ph.markdown(
-                                _sf_ranking_progress_markup(
-                                    1.0,
-                                    "Consulta concluída.",
-                                    elapsed_s=0.0,
-                                    meter_n=100,
-                                    meter_total=100,
-                                ),
-                                unsafe_allow_html=True,
-                            )
-                    _dv_sf_rank_memo_set(cpf_digits, _sf_rs, _sf_code)
-                    if _sf_debug_lines is not None:
-                        st.session_state.setdefault("_dv_sf_rank_debug_by_cpf", {})[
-                            cpf_digits
-                        ] = list(_sf_debug_lines)
-            finally:
-                _sf_set_debug_live_hook(None)
-                if _sf_rank_log_ph is not None and _sf_debug_lines is not None:
-                    _sf_rank_log_ph.code("\n".join(_sf_debug_lines), language="text")
+                try:
+                    _sf_rs, _sf_code = _sf_classificar_ranking_cpf_11(
+                        cpf_digits,
+                        progress=_sf_prog_cb,
+                    )
+                except Exception as _sf_ex:
+                    _sf_logger.exception("Classificação ranking Salesforce: %s", _sf_ex)
+                    _sf_rs, _sf_code = None, "sem_registo"
+                finally:
+                    _sf_rank_prog_ph.markdown(
+                        _sf_ranking_progress_markup(
+                            1.0,
+                            "Consulta concluída.",
+                            elapsed_s=0.0,
+                            meter_n=100,
+                            meter_total=100,
+                        ),
+                        unsafe_allow_html=True,
+                    )
+                _dv_sf_rank_memo_set(cpf_digits, _sf_rs, _sf_code)
             if _sf_rs and _sf_rs in rank_opts and st.session_state.get("_sf_rank_applied_cpf") != cpf_digits:
                 st.session_state["in_rank_v28"] = _sf_rs
                 st.session_state["_sf_rank_applied_cpf"] = cpf_digits
@@ -6815,16 +6584,6 @@ def aba_simulador_automacao(
                     "CPF não encontrado. Um novo contato deve ser criado no salesforce</p>",
                     unsafe_allow_html=True,
                 )
-            if _sf_debug_requested and _sf_rank_memo_hit:
-                _prev_cmp = (st.session_state.get("_dv_sf_rank_debug_by_cpf") or {}).get(
-                    cpf_digits
-                ) or []
-                if _prev_cmp:
-                    with st.expander(
-                        "Comparar: última consulta completa à API (mesmo CPF, antes do cache)",
-                        expanded=False,
-                    ):
-                        st.code("\n".join(_prev_cmp), language="text")
         _rank_now = st.session_state.get("in_rank_v28", st.session_state.dados_cliente.get("ranking", "DIAMANTE"))
         curr_ranking = _rank_now
         idx_ranking = rank_opts.index(curr_ranking) if curr_ranking in rank_opts else 0
