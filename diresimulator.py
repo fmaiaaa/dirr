@@ -1461,7 +1461,7 @@ def _sf_consultar_por_cpf(sf: Any, cpf_bruto: str) -> tuple[dict | None, str | N
         return None, "Informe um CPF válido com 11 dígitos."
 
     cpf_vals = _sf_cpf_valores_equivalentes_soql(cpf_digitos)
-    in_list = ",".join(f"'{_soql_escape_literal(v)}'" for v in cpf_vals)
+    in_list = ",".join(f"'{_sf_soql_escape_literal(v)}'" for v in cpf_vals)
     _acct_cpf = _sf_account_cpf_soql_dotted()
     soql = f"""
         SELECT
