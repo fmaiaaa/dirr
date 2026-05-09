@@ -873,6 +873,7 @@ from email.mime.application import MIMEApplication
 import os
 import hashlib
 from pathlib import Path
+import copy
 import json
 import pytz
 import altair as alt
@@ -1000,6 +1001,8 @@ def _dv_sf_rank_memo_set(cpf11: str, rs: str | None, code: str | None) -> None:
 
 
 _DV_SF_RANK_TRACK_CPF_KEY = "_sf_rank_tracked_cpf_ui"
+# Só exibir "Classificação obtida" / mensagens pós-consulta após consulta ao SF para este CPF (evita texto do cliente anterior).
+_DV_SF_RANK_CLASSIF_OK_CPF_KEY = "_sf_rank_classificacao_exibir_somente_cpf"
 # Pedido de consulta CPF→Salesforce: processado no corpo do script (para permitir barra de progresso).
 _DV_SF_CPF_RANK_LOOKUP_PENDING_KEY = "_dv_sf_cpf_rank_lookup_pending"
 
@@ -6662,16 +6665,22 @@ _DV_SIM_SESS_AUX_KEYS: tuple[str, ...] = (
     "_parc_fin_auto_ref_prev",
     "_parc_fin_last_sistema",
 )
+# Cópia de dados_cliente ao avançar para o resumo; ao voltar, repõe tudo (PDF/e-mail não alteram isto).
+_DV_SIM_DADOS_SNAPSHOT_KEY = "_dv_sim_dados_cliente_snapshot"
+_DV_SIM_FORCAR_RESTORE_KEY = "_dv_forcar_restore_widgets_apos_resumo"
 
 
-def _dv_restore_sim_widget_keys_from_dados(dc: dict) -> None:
-    """Reidrata st.session_state dos widgets após voltar do resumo (widgets não renderizados perdem a chave)."""
+def _dv_restore_sim_widget_keys_from_dados(dc: dict, *, force: bool = False) -> None:
+    """Reidrata st.session_state dos widgets após voltar do resumo (widgets não renderizados perdem a chave).
+
+    ``force=True`` sobrescreve chaves existentes (Streamlit por vezes mantém estado obsoleto).
+    """
     if not dc:
         return
     rank_opts = ("DIAMANTE", "OURO", "PRATA", "BRONZE", "AÇO")
-    if "nome_cliente_imobiliaria_opt_v1" not in st.session_state:
+    if force or "nome_cliente_imobiliaria_opt_v1" not in st.session_state:
         st.session_state["nome_cliente_imobiliaria_opt_v1"] = str(dc.get("nome") or "").strip()
-    if "renda_familiar_total_v1" not in st.session_state:
+    if force or "renda_familiar_total_v1" not in st.session_state:
         try:
             r = float(dc.get("renda", 0) or 0)
         except (TypeError, ValueError):
@@ -6679,17 +6688,26 @@ def _dv_restore_sim_widget_keys_from_dados(dc: dict) -> None:
         st.session_state["renda_familiar_total_v1"] = float_para_campo_texto(
             max(0.0, r), vazio_se_zero=True
         )
-    if "cpf_classificar_clientes_sf" not in st.session_state:
+    if force or "cpf_classificar_clientes_sf" not in st.session_state:
         st.session_state["cpf_classificar_clientes_sf"] = str(dc.get("cpf") or "").strip()
-    if "in_rank_v28" not in st.session_state:
+    if force or "in_rank_v28" not in st.session_state:
         r0 = dc.get("ranking")
         st.session_state["in_rank_v28"] = r0 if r0 in rank_opts else rank_opts[0]
-    if "in_pol_v28" not in st.session_state:
+    if force or "in_pol_v28" not in st.session_state:
         p = dc.get("politica")
         st.session_state["in_pol_v28"] = (
             p if p in ("Direcional", "Emcash") else "Direcional"
         )
-    if "fin_aprovado_key" not in st.session_state:
+    if force or "sel_emp_rec_v28" not in st.session_state:
+        fe = dc.get("filtro_emp_rec_v28")
+        st.session_state["sel_emp_rec_v28"] = (
+            fe if isinstance(fe, str) and fe.strip() else "Todos"
+        )
+    if force or "sel_emp_new_v3" not in st.session_state:
+        en = dc.get("empreendimento_nome")
+        if isinstance(en, str) and en.strip():
+            st.session_state["sel_emp_new_v3"] = en.strip()
+    if force or "fin_aprovado_key" not in st.session_state:
         try:
             fv = float(dc.get("finan_usado", 0) or 0)
         except (TypeError, ValueError):
@@ -6697,7 +6715,7 @@ def _dv_restore_sim_widget_keys_from_dados(dc: dict) -> None:
         st.session_state["fin_aprovado_key"] = float_para_campo_texto(
             max(0.0, fv), vazio_se_zero=True
         )
-    if "sub_aprovado_key" not in st.session_state:
+    if force or "sub_aprovado_key" not in st.session_state:
         try:
             sv = float(dc.get("fgts_sub_usado", 0) or 0)
         except (TypeError, ValueError):
@@ -6705,18 +6723,18 @@ def _dv_restore_sim_widget_keys_from_dados(dc: dict) -> None:
         st.session_state["sub_aprovado_key"] = float_para_campo_texto(
             max(0.0, sv), vazio_se_zero=True
         )
-    if "prazo_aprovado_key" not in st.session_state:
+    if force or "prazo_aprovado_key" not in st.session_state:
         try:
             pz = int(dc.get("prazo_financiamento", 360) or 360)
         except (TypeError, ValueError):
             pz = 360
         st.session_state["prazo_aprovado_key"] = str(max(12, min(600, pz)))
-    if "sist_aprovado_ui_v1" not in st.session_state:
+    if force or "sist_aprovado_ui_v1" not in st.session_state:
         cod = str(dc.get("sistema_amortizacao", "SAC") or "SAC").strip().upper()
         st.session_state["sist_aprovado_ui_v1"] = _AMORTIZACAO_NOME_COMPLETO.get(
             cod, _AMORTIZACAO_NOME_COMPLETO["SAC"]
         )
-    if "parcela_fin_edit_key" not in st.session_state:
+    if force or "parcela_fin_edit_key" not in st.session_state:
         try:
             pv = float(dc.get("parcela_financiamento", 0) or 0)
         except (TypeError, ValueError):
@@ -6724,7 +6742,7 @@ def _dv_restore_sim_widget_keys_from_dados(dc: dict) -> None:
         st.session_state["parcela_fin_edit_key"] = float_para_campo_texto(
             max(0.0, pv), vazio_se_zero=True
         )
-    if "sinal_com_key" not in st.session_state:
+    if force or "sinal_com_key" not in st.session_state:
         try:
             sc = float(dc.get("sinal_com", 0) or 0)
         except (TypeError, ValueError):
@@ -6732,7 +6750,7 @@ def _dv_restore_sim_widget_keys_from_dados(dc: dict) -> None:
         st.session_state["sinal_com_key"] = float_para_campo_texto(
             max(0.0, sc), vazio_se_zero=True
         )
-    if "volta_caixa_key" not in st.session_state:
+    if force or "volta_caixa_key" not in st.session_state:
         try:
             vc = float(dc.get("volta_caixa_aplicado", 0) or 0)
         except (TypeError, ValueError):
@@ -6740,7 +6758,7 @@ def _dv_restore_sim_widget_keys_from_dados(dc: dict) -> None:
         st.session_state["volta_caixa_key"] = float_para_campo_texto(
             max(0.0, vc), vazio_se_zero=True
         )
-    if "outros_descontos_key" not in st.session_state:
+    if force or "outros_descontos_key" not in st.session_state:
         try:
             od = float(dc.get("outros_descontos", 0) or 0)
         except (TypeError, ValueError):
@@ -6748,11 +6766,11 @@ def _dv_restore_sim_widget_keys_from_dados(dc: dict) -> None:
         st.session_state["outros_descontos_key"] = float_para_campo_texto(
             max(0.0, od), vazio_se_zero=True
         )
-    if "outros_descontos_motivo_key" not in st.session_state:
+    if force or "outros_descontos_motivo_key" not in st.session_state:
         st.session_state["outros_descontos_motivo_key"] = str(
             dc.get("outros_descontos_motivo") or ""
         ).strip()
-    if "ps_u_key" not in st.session_state:
+    if force or "ps_u_key" not in st.session_state:
         try:
             psv = float(dc.get("ps_usado", 0) or 0)
         except (TypeError, ValueError):
@@ -6760,7 +6778,7 @@ def _dv_restore_sim_widget_keys_from_dados(dc: dict) -> None:
         st.session_state["ps_u_key"] = float_para_campo_texto(
             max(0.0, psv), vazio_se_zero=True
         )
-    if "parc_ps_key" not in st.session_state:
+    if force or "parc_ps_key" not in st.session_state:
         try:
             pp = int(dc.get("ps_parcelas", 1) or 1)
         except (TypeError, ValueError):
@@ -6772,7 +6790,7 @@ def _dv_restore_sim_widget_keys_from_dados(dc: dict) -> None:
         ("ato_2_key", "ato_30"),
         ("ato_3_key", "ato_60"),
     ):
-        if sk not in st.session_state:
+        if force or sk not in st.session_state:
             try:
                 av = float(dc.get(dk, 0) or 0)
             except (TypeError, ValueError):
@@ -6780,7 +6798,7 @@ def _dv_restore_sim_widget_keys_from_dados(dc: dict) -> None:
             st.session_state[sk] = float_para_campo_texto(max(0.0, av), vazio_se_zero=True)
     if emcash:
         st.session_state.pop("ato_4_key", None)
-    elif "ato_4_key" not in st.session_state:
+    elif force or "ato_4_key" not in st.session_state:
         try:
             a4 = float(dc.get("ato_90", 0) or 0)
         except (TypeError, ValueError):
@@ -6788,12 +6806,21 @@ def _dv_restore_sim_widget_keys_from_dados(dc: dict) -> None:
         st.session_state["ato_4_key"] = float_para_campo_texto(
             max(0.0, a4), vazio_se_zero=True
         )
+    _emp_snap = str(dc.get("empreendimento_nome") or "").strip()
+    _uid_snap = dc.get("unidade_id")
+    if _emp_snap and _uid_snap:
+        _slug_u = hashlib.sha1(_emp_snap.encode("utf-8", errors="replace")).hexdigest()[:14]
+        _uk_uni = f"{_DV_SIM_WIDGET_KEY_PREFIXO_UNI}{_slug_u}"
+        if force or _uk_uni not in st.session_state:
+            st.session_state[_uk_uni] = _uid_snap
 
 
 def _dv_limpar_estado_simulacao_apos_concluir() -> None:
     """Nova simulação: limpa dados persistidos e chaves de widgets auxiliares."""
     st.session_state.dados_cliente = {}
     st.session_state.passo_simulacao = "sim"
+    st.session_state.pop(_DV_SIM_DADOS_SNAPSHOT_KEY, None)
+    st.session_state.pop(_DV_SIM_FORCAR_RESTORE_KEY, None)
     for k in _DV_SIM_WIDGET_KEYS_FIXAS:
         st.session_state.pop(k, None)
     for k in list(st.session_state.keys()):
@@ -6803,6 +6830,7 @@ def _dv_limpar_estado_simulacao_apos_concluir() -> None:
         st.session_state.pop(k, None)
     for k in (
         _DV_SF_RANK_TRACK_CPF_KEY,
+        _DV_SF_RANK_CLASSIF_OK_CPF_KEY,
         "_sf_rank_auto_applied_for_cpf",
         "_sf_rank_toast_ok_cpf",
         "_sf_rank_naoencontrado_toast_cpf",
@@ -6857,7 +6885,13 @@ def aba_simulador_automacao(
 
     # --- PÁGINA ÚNICA: perfil → valores → recomendações → unidade → distribuição (ordem fixa) ---
     if passo == 'sim':
-        _dv_restore_sim_widget_keys_from_dados(st.session_state.dados_cliente)
+        _forcar_restore = bool(st.session_state.pop(_DV_SIM_FORCAR_RESTORE_KEY, False))
+        _snap_dc = st.session_state.get(_DV_SIM_DADOS_SNAPSHOT_KEY)
+        if _forcar_restore and isinstance(_snap_dc, dict) and _snap_dc:
+            st.session_state.dados_cliente = copy.deepcopy(_snap_dc)
+        _dv_restore_sim_widget_keys_from_dados(
+            st.session_state.dados_cliente, force=_forcar_restore
+        )
         st.markdown(
             '<div class="dv-perfil-simulacao-anchor"><h3 class="dv-titulo-secao">Perfil da simulação</h3></div>',
             unsafe_allow_html=True,
@@ -6900,6 +6934,15 @@ def aba_simulador_automacao(
         )
         cpf_digits = re.sub(r"\D", "", st.session_state.get("cpf_classificar_clientes_sf") or "")
         rank_opts = ["DIAMANTE", "OURO", "PRATA", "BRONZE", "AÇO"]
+        _prev_trk_cpf = st.session_state.get(_DV_SF_RANK_TRACK_CPF_KEY)
+        if (
+            isinstance(_prev_trk_cpf, str)
+            and len(_prev_trk_cpf) == 11
+            and len(cpf_digits) == 11
+            and _prev_trk_cpf != cpf_digits
+        ):
+            st.session_state[_DV_SF_RANK_CLASSIF_OK_CPF_KEY] = ""
+        _dv_sf_cpf_lookup_correu_neste_run = False
         _lookup_pending = st.session_state.get(_DV_SF_CPF_RANK_LOOKUP_PENDING_KEY)
         if _lookup_pending is not None:
             if len(cpf_digits) == 11 and str(_lookup_pending).strip() == cpf_digits:
@@ -6907,12 +6950,14 @@ def aba_simulador_automacao(
                 _injetar_secrets_salesforce_no_env()
                 _rs_p, _cd_p = _dv_sf_classificar_ranking_cpf_com_barra_progresso(cpf_digits)
                 _dv_sf_rank_memo_set(cpf_digits, _rs_p, _cd_p)
+                st.session_state[_DV_SF_RANK_CLASSIF_OK_CPF_KEY] = cpf_digits
                 st.session_state["_sf_rank_auto_applied_for_cpf"] = ""
                 st.session_state["_sf_rank_toast_ok_cpf"] = ""
                 st.session_state["_sf_rank_naoencontrado_toast_cpf"] = ""
+                _dv_sf_cpf_lookup_correu_neste_run = True
             else:
                 st.session_state.pop(_DV_SF_CPF_RANK_LOOKUP_PENDING_KEY, None)
-        if len(cpf_digits) == 11:
+        if len(cpf_digits) == 11 and not _dv_sf_cpf_lookup_correu_neste_run:
             _memo_pre = _dv_sf_rank_memo_get(cpf_digits)
             if (
                 _memo_pre is not None
@@ -6937,6 +6982,7 @@ def aba_simulador_automacao(
                         )
                         _rs_r, _cd_r = None, "sem_registo"
                     _dv_sf_rank_memo_set(cpf_digits, _rs_r, _cd_r)
+                    st.session_state[_DV_SF_RANK_CLASSIF_OK_CPF_KEY] = cpf_digits
                     st.session_state["_sf_rank_auto_applied_for_cpf"] = ""
                     st.session_state["_sf_rank_toast_ok_cpf"] = ""
                     st.session_state["_sf_rank_naoencontrado_toast_cpf"] = ""
@@ -6954,13 +7000,18 @@ def aba_simulador_automacao(
         if len(cpf_digits) == 11:
             if _dv_sf_memo_cpf is not None:
                 _sf_rs, _sf_code = _dv_sf_memo_cpf
-                if _sf_rs and _sf_rs in rank_opts:
+                if (
+                    _sf_rs
+                    and _sf_rs in rank_opts
+                    and st.session_state.get(_DV_SF_RANK_CLASSIF_OK_CPF_KEY) == cpf_digits
+                ):
                     if st.session_state.get("_sf_rank_auto_applied_for_cpf") != cpf_digits:
                         st.session_state["in_rank_v28"] = _sf_rs
                         st.session_state["_sf_rank_auto_applied_for_cpf"] = cpf_digits
                 if (
                     _sf_rs
                     and st.session_state.get("_sf_rank_toast_ok_cpf") != cpf_digits
+                    and st.session_state.get(_DV_SF_RANK_CLASSIF_OK_CPF_KEY) == cpf_digits
                 ):
                     st.session_state["_sf_rank_toast_ok_cpf"] = cpf_digits
                     st.session_state["_sf_rank_naoencontrado_toast_cpf"] = ""
@@ -6973,6 +7024,7 @@ def aba_simulador_automacao(
                     not _sf_rs
                     and _sf_code in ("sem_registo", "sem_conexao", "erro_sf")
                     and st.session_state.get("_sf_rank_naoencontrado_toast_cpf") != cpf_digits
+                    and st.session_state.get(_DV_SF_RANK_CLASSIF_OK_CPF_KEY) == cpf_digits
                 ):
                     st.session_state["_sf_rank_naoencontrado_toast_cpf"] = cpf_digits
                     if hasattr(st, "toast"):
@@ -6983,6 +7035,7 @@ def aba_simulador_automacao(
         else:
             # CPF incompleto ou vazio: não forçar ranking (o utilizador pode mudar PRATA, etc. sem CPF completo).
             st.session_state[_DV_SF_RANK_TRACK_CPF_KEY] = ""
+            st.session_state.pop(_DV_SF_RANK_CLASSIF_OK_CPF_KEY, None)
             st.session_state["_sf_rank_auto_applied_for_cpf"] = ""
             st.session_state["_sf_rank_toast_ok_cpf"] = ""
             st.session_state["_sf_rank_naoencontrado_toast_cpf"] = ""
@@ -6994,19 +7047,24 @@ def aba_simulador_automacao(
                 )
 
         if len(cpf_digits) == 11:
-            if _sf_rs:
+            _classif_ok_cpf = st.session_state.get(_DV_SF_RANK_CLASSIF_OK_CPF_KEY)
+            _pode_exibir_pos_sf = _classif_ok_cpf == cpf_digits
+            if _sf_rs and _pode_exibir_pos_sf:
                 st.markdown(
                     f'<p class="inline-ref" style="margin-top:0;margin-bottom:0.35rem;line-height:1.45;">'
                     f"Classificação obtida: <strong>{html_std.escape(str(_sf_rs))}</strong></p>",
                     unsafe_allow_html=True,
                 )
-            elif _sf_code == "cpf_incompleto":
+            elif _sf_code == "cpf_incompleto" and _pode_exibir_pos_sf:
                 st.markdown(
                     '<p class="inline-ref" style="margin-top:0;margin-bottom:0.35rem;line-height:1.45;">'
                     "CPF não cadastrado. Contate o Comercial.</p>",
                     unsafe_allow_html=True,
                 )
-            elif _sf_code in ("sem_registo", "sem_conexao", "erro_sf"):
+            elif (
+                _sf_code in ("sem_registo", "sem_conexao", "erro_sf")
+                and _pode_exibir_pos_sf
+            ):
                 st.markdown(
                     '<p class="inline-ref" style="margin-top:0;margin-bottom:0.35rem;line-height:1.45;">'
                     "CPF não encontrado. Um novo contato deve ser criado no salesforce</p>",
@@ -7367,6 +7425,7 @@ def aba_simulador_automacao(
                 options=["Todos"] + emp_names_rec,
                 key="sel_emp_rec_v28",
             )
+            st.session_state.dados_cliente["filtro_emp_rec_v28"] = str(emp_rec or "Todos")
             df_pool = df_disp_total if emp_rec == "Todos" else df_disp_total[df_disp_total["Empreendimento"] == emp_rec]
 
             if df_pool.empty:
@@ -8354,6 +8413,9 @@ def aba_simulador_automacao(
             key="dv_btn_avancar_resumo",
         ):
             if abs(gap_final) <= 1.0:
+                st.session_state[_DV_SIM_DADOS_SNAPSHOT_KEY] = copy.deepcopy(
+                    st.session_state.dados_cliente
+                )
                 st.session_state.passo_simulacao = "summary"
                 scroll_to_top()
                 st.rerun()
@@ -8568,6 +8630,7 @@ def aba_simulador_automacao(
             except Exception as e:
                 _dv_alerta_vermelho_texto(f"Erro ao salvar: {e}")
         if st.button("Voltar à simulação", use_container_width=True):
+            st.session_state[_DV_SIM_FORCAR_RESTORE_KEY] = True
             st.session_state.passo_simulacao = 'sim'
             scroll_to_top()
             st.rerun()
