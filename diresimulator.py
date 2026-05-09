@@ -1000,6 +1000,8 @@ def _dv_sf_rank_memo_set(cpf11: str, rs: str | None, code: str | None) -> None:
 
 
 _DV_SF_RANK_TRACK_CPF_KEY = "_sf_rank_tracked_cpf_ui"
+# Pedido de consulta CPF→Salesforce: processado no corpo do script (para permitir barra de progresso).
+_DV_SF_CPF_RANK_LOOKUP_PENDING_KEY = "_dv_sf_cpf_rank_lookup_pending"
 
 
 def _sf_ranking_progress_markup(
@@ -1623,28 +1625,60 @@ def _sf_classificar_ranking_cpf_11(
     return None, "sem_registo"
 
 
+def _dv_sf_classificar_ranking_cpf_com_barra_progresso(
+    cpf11: str,
+) -> tuple[str | None, str | None]:
+    """Classificação no Salesforce com barra/estados na UI (executar só no corpo principal, não em on_change)."""
+    _sf_rank_prog_ph = st.empty()
+
+    def _sf_prog_cb(frac: float, msg: str, elapsed: float) -> None:
+        _sf_rank_prog_ph.markdown(
+            _sf_ranking_progress_markup(
+                frac,
+                msg,
+                elapsed_s=elapsed,
+                meter_n=int(round(frac * 100)),
+                meter_total=100,
+            ),
+            unsafe_allow_html=True,
+        )
+
+    _rs: str | None = None
+    _code: str | None = "sem_registo"
+    try:
+        _rs, _code = _sf_classificar_ranking_cpf_11(cpf11, progress=_sf_prog_cb)
+    except Exception as _ex:
+        _sf_logger.exception("Classificação ranking Salesforce: %s", _ex)
+        _rs, _code = None, "sem_registo"
+    finally:
+        try:
+            _sf_rank_prog_ph.markdown(
+                _sf_ranking_progress_markup(
+                    1.0,
+                    _SF_RANK_PROGRESS_MSG_SUCESSO if _rs else "Verificação concluída.",
+                    elapsed_s=0.0,
+                    meter_n=100,
+                    meter_total=100,
+                ),
+                unsafe_allow_html=True,
+            )
+        except Exception:
+            pass
+    return _rs, _code
+
+
 def _dv_sf_cpf_classificar_clientes_on_change() -> None:
-    """Confirmação do CPF no campo (Enter ou fim da edição): consulta Salesforce com 11 dígitos."""
+    """Enter/blur no CPF: agenda consulta no próximo run (on_change não atualiza st.empty durante a chamada)."""
     cpf_raw = st.session_state.get("cpf_classificar_clientes_sf") or ""
     cpf_d = re.sub(r"\D", "", str(cpf_raw))
     if len(cpf_d) != 11:
         return
-    # Nova confirmação no campo: voltar a permitir um reintento automático para este CPF.
     _ar = st.session_state.get(_DV_SF_RANK_FAIL_AUTORETRY_KEY)
     if isinstance(_ar, dict) and cpf_d in _ar:
         _ar = {**_ar}
         del _ar[cpf_d]
         st.session_state[_DV_SF_RANK_FAIL_AUTORETRY_KEY] = _ar
-    _injetar_secrets_salesforce_no_env()
-    try:
-        _rs, _code = _sf_classificar_ranking_cpf_11(cpf_d, progress=None)
-    except Exception as _ex:
-        _sf_logger.exception("Classificação ranking Salesforce: %s", _ex)
-        _rs, _code = None, "sem_registo"
-    _dv_sf_rank_memo_set(cpf_d, _rs, _code)
-    st.session_state["_sf_rank_auto_applied_for_cpf"] = ""
-    st.session_state["_sf_rank_toast_ok_cpf"] = ""
-    st.session_state["_sf_rank_naoencontrado_toast_cpf"] = ""
+    st.session_state[_DV_SF_CPF_RANK_LOOKUP_PENDING_KEY] = cpf_d
 
 
 def _sf_extrair_ranking_ui_de_opportunity(opp: Any) -> dict[str, Any]:
@@ -6774,6 +6808,7 @@ def _dv_limpar_estado_simulacao_apos_concluir() -> None:
         "_sf_rank_naoencontrado_toast_cpf",
         _DV_SF_RANK_MEMO_KEY,
         _DV_SF_RANK_FAIL_AUTORETRY_KEY,
+        _DV_SF_CPF_RANK_LOOKUP_PENDING_KEY,
     ):
         st.session_state.pop(k, None)
 
@@ -6865,6 +6900,18 @@ def aba_simulador_automacao(
         )
         cpf_digits = re.sub(r"\D", "", st.session_state.get("cpf_classificar_clientes_sf") or "")
         rank_opts = ["DIAMANTE", "OURO", "PRATA", "BRONZE", "AÇO"]
+        _lookup_pending = st.session_state.get(_DV_SF_CPF_RANK_LOOKUP_PENDING_KEY)
+        if _lookup_pending is not None:
+            if len(cpf_digits) == 11 and str(_lookup_pending).strip() == cpf_digits:
+                st.session_state.pop(_DV_SF_CPF_RANK_LOOKUP_PENDING_KEY, None)
+                _injetar_secrets_salesforce_no_env()
+                _rs_p, _cd_p = _dv_sf_classificar_ranking_cpf_com_barra_progresso(cpf_digits)
+                _dv_sf_rank_memo_set(cpf_digits, _rs_p, _cd_p)
+                st.session_state["_sf_rank_auto_applied_for_cpf"] = ""
+                st.session_state["_sf_rank_toast_ok_cpf"] = ""
+                st.session_state["_sf_rank_naoencontrado_toast_cpf"] = ""
+            else:
+                st.session_state.pop(_DV_SF_CPF_RANK_LOOKUP_PENDING_KEY, None)
         if len(cpf_digits) == 11:
             _memo_pre = _dv_sf_rank_memo_get(cpf_digits)
             if (
@@ -6880,8 +6927,8 @@ def aba_simulador_automacao(
                     st.session_state[_DV_SF_RANK_FAIL_AUTORETRY_KEY] = _ar_dict
                     _injetar_secrets_salesforce_no_env()
                     try:
-                        _rs_r, _cd_r = _sf_classificar_ranking_cpf_11(
-                            cpf_digits, progress=None
+                        _rs_r, _cd_r = _dv_sf_classificar_ranking_cpf_com_barra_progresso(
+                            cpf_digits
                         )
                     except Exception as _ex_r:
                         _sf_logger.exception(
@@ -6946,6 +6993,26 @@ def aba_simulador_automacao(
                     unsafe_allow_html=True,
                 )
 
+        if len(cpf_digits) == 11:
+            if _sf_rs:
+                st.markdown(
+                    f'<p class="inline-ref" style="margin-top:0;margin-bottom:0.35rem;line-height:1.45;">'
+                    f"Classificação obtida: <strong>{html_std.escape(str(_sf_rs))}</strong></p>",
+                    unsafe_allow_html=True,
+                )
+            elif _sf_code == "cpf_incompleto":
+                st.markdown(
+                    '<p class="inline-ref" style="margin-top:0;margin-bottom:0.35rem;line-height:1.45;">'
+                    "CPF não cadastrado. Contate o Comercial.</p>",
+                    unsafe_allow_html=True,
+                )
+            elif _sf_code in ("sem_registo", "sem_conexao", "erro_sf"):
+                st.markdown(
+                    '<p class="inline-ref" style="margin-top:0;margin-bottom:0.35rem;line-height:1.45;">'
+                    "CPF não encontrado. Um novo contato deve ser criado no salesforce</p>",
+                    unsafe_allow_html=True,
+                )
+
         if "in_rank_v28" not in st.session_state:
             _r0 = st.session_state.dados_cliente.get("ranking")
             st.session_state["in_rank_v28"] = (
@@ -6964,27 +7031,6 @@ def aba_simulador_automacao(
             index=_pol_idx,
             key="in_pol_v28",
         )
-
-        if len(cpf_digits) == 11:
-            if _sf_rs:
-                st.markdown(
-                    f'<p class="inline-ref" style="margin-top:0;margin-bottom:0;line-height:1.45;">'
-                    f"Classificação obtida pelo CPF: <strong>{html_std.escape(str(_sf_rs))}</strong> "
-                    f"(pode alterar o <strong>Ranking do Cliente</strong> acima a qualquer momento).</p>",
-                    unsafe_allow_html=True,
-                )
-            elif _sf_code == "cpf_incompleto":
-                st.markdown(
-                    '<p class="inline-ref" style="margin-top:0;margin-bottom:0;line-height:1.45;">'
-                    "CPF não cadastrado. Contate o Comercial.</p>",
-                    unsafe_allow_html=True,
-                )
-            elif _sf_code in ("sem_registo", "sem_conexao", "erro_sf"):
-                st.markdown(
-                    '<p class="inline-ref" style="margin-top:0;margin-bottom:0;line-height:1.45;">'
-                    "CPF não encontrado. Um novo contato deve ser criado no salesforce</p>",
-                    unsafe_allow_html=True,
-                )
 
         prazo_ps_max = 84 if politica_ps == "Emcash" else 84
         st.session_state.dados_cliente.update({
