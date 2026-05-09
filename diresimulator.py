@@ -994,6 +994,14 @@ def _dv_sf_rank_memo_set(cpf11: str, rs: str | None, code: str | None) -> None:
     st.session_state[_DV_SF_RANK_MEMO_KEY] = memo
 
 
+_DV_SF_RANK_TRACK_CPF_KEY = "_sf_rank_tracked_cpf_ui"
+
+
+def _dv_sf_rank_cliente_selectbox_changed() -> None:
+    """Utilizador alterou o ranking na lista — não voltar a impor o valor vindo do CPF/Salesforce."""
+    st.session_state["_sf_rank_user_manual"] = True
+
+
 def _sf_ranking_progress_markup(
     frac: float,
     status: str,
@@ -6602,6 +6610,10 @@ def aba_simulador_automacao(
         )
         cpf_digits = re.sub(r"\D", "", st.session_state.get("cpf_classificar_clientes_sf") or "")
         rank_opts = ["DIAMANTE", "OURO", "PRATA", "BRONZE", "AÇO"]
+        if st.session_state.get(_DV_SF_RANK_TRACK_CPF_KEY) != cpf_digits:
+            st.session_state[_DV_SF_RANK_TRACK_CPF_KEY] = cpf_digits
+            st.session_state["_sf_rank_user_manual"] = False
+            st.session_state["_sf_rank_toast_ok_cpf"] = ""
         _sf_rs: str | None = None
         _sf_code: str | None = None
         if len(cpf_digits) == 11:
@@ -6654,15 +6666,17 @@ def aba_simulador_automacao(
                         unsafe_allow_html=True,
                     )
                 _dv_sf_rank_memo_set(cpf_digits, _sf_rs, _sf_code)
-            if _sf_rs and _sf_rs in rank_opts and st.session_state.get("_sf_rank_applied_cpf") != cpf_digits:
-                st.session_state["in_rank_v28"] = _sf_rs
-                st.session_state["_sf_rank_applied_cpf"] = cpf_digits
-                st.session_state["_sf_rank_naoencontrado_toast_cpf"] = ""
-                if hasattr(st, "toast"):
-                    try:
-                        st.toast(f"Ranking encontrado: {_sf_rs}", icon="✅")
-                    except Exception:
-                        pass
+            if _sf_rs and _sf_rs in rank_opts:
+                if not st.session_state.get("_sf_rank_user_manual"):
+                    st.session_state["in_rank_v28"] = _sf_rs
+                if st.session_state.get("_sf_rank_toast_ok_cpf") != cpf_digits:
+                    st.session_state["_sf_rank_toast_ok_cpf"] = cpf_digits
+                    st.session_state["_sf_rank_naoencontrado_toast_cpf"] = ""
+                    if hasattr(st, "toast"):
+                        try:
+                            st.toast(f"Ranking encontrado: {_sf_rs}", icon="✅")
+                        except Exception:
+                            pass
             elif (
                 not _sf_rs
                 and _sf_code in ("sem_registo", "sem_conexao", "erro_sf")
@@ -6676,7 +6690,9 @@ def aba_simulador_automacao(
                         pass
         else:
             # CPF incompleto ou vazio: permite nova consulta ao voltar a 11 dígitos
-            st.session_state["_sf_rank_applied_cpf"] = ""
+            st.session_state[_DV_SF_RANK_TRACK_CPF_KEY] = ""
+            st.session_state["_sf_rank_user_manual"] = False
+            st.session_state["_sf_rank_toast_ok_cpf"] = ""
             st.session_state["_sf_rank_naoencontrado_toast_cpf"] = ""
             # Ao apagar/editar o CPF, remove o ranking aplicado pela consulta Salesforce anterior
             st.session_state["in_rank_v28"] = rank_opts[0]
@@ -6705,14 +6721,16 @@ def aba_simulador_automacao(
                     "CPF não encontrado. Um novo contato deve ser criado no salesforce</p>",
                     unsafe_allow_html=True,
                 )
-        _rank_now = st.session_state.get("in_rank_v28", st.session_state.dados_cliente.get("ranking", "DIAMANTE"))
-        curr_ranking = _rank_now
-        idx_ranking = rank_opts.index(curr_ranking) if curr_ranking in rank_opts else 0
+        if "in_rank_v28" not in st.session_state:
+            _r0 = st.session_state.dados_cliente.get("ranking")
+            st.session_state["in_rank_v28"] = (
+                _r0 if _r0 in rank_opts else rank_opts[0]
+            )
         ranking = st.selectbox(
             "Ranking do Cliente (lista)",
             options=rank_opts,
-            index=idx_ranking,
             key="in_rank_v28",
+            on_change=_dv_sf_rank_cliente_selectbox_changed,
         )
         _pol_saved = st.session_state.dados_cliente.get("politica")
         _pol_idx = 0 if _pol_saved == "Direcional" else 1
