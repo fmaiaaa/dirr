@@ -972,12 +972,26 @@ except ImportError:  # pragma: no cover
 
 _sf_logger = logging.getLogger(__name__)
 
+_SF_DEBUG_LIVE_HOOK: Callable[[], None] | None = None
+
+
+def _sf_set_debug_live_hook(hook: Callable[[], None] | None) -> None:
+    """Callback sem argumentos: chamado após cada linha de debug (UI atualiza logs em tempo real)."""
+    global _SF_DEBUG_LIVE_HOOK
+    _SF_DEBUG_LIVE_HOOK = hook
+
 
 def _sf_debug_append(debug_log: list[str] | None, msg: str) -> None:
     if debug_log is None:
         return
     ts = datetime.now().strftime("%H:%M:%S.%f")[:-3]
     debug_log.append(f"{ts}  {msg}")
+    hk = _SF_DEBUG_LIVE_HOOK
+    if hk is not None:
+        try:
+            hk()
+        except Exception:
+            pass
 
 
 def _sf_ranking_debug_env_on() -> bool:
@@ -1050,16 +1064,18 @@ def _sf_ranking_progress_markup(
         _sf_format_tqdm_meter_line(n, meter_total, elapsed, prefix="Ranking Salesforce")
     )
     return (
-        '<div class="dv-sf-rank-progress" style="font-family:system-ui,sans-serif;margin:0.35rem 0 0.75rem 0;">'
+        '<div class="dv-sf-rank-progress" style="font-family:system-ui,Consolas,monospace;margin:0.25rem 0 0.5rem 0;">'
+        f'<div style="font-size:0.72rem;font-weight:600;color:{c_b};letter-spacing:0.02em;margin-bottom:6px;">'
+        "tqdm · gradiente Direcional (vermelho → azul)</div>"
         '<div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px;margin-bottom:6px;">'
         f'<span style="color:#334155;font-size:0.88rem;font-weight:500;">{esc_status}</span>'
         f'<span style="color:{c_b};font-size:0.82rem;font-weight:600;">{pct_int}%</span>'
         "</div>"
-        '<div style="height:12px;border-radius:8px;background:#e8eef3;overflow:hidden;box-shadow:inset 0 1px 2px rgba(0,0,0,0.06);">'
+        '<div style="height:14px;border-radius:8px;background:#e8eef3;overflow:hidden;box-shadow:inset 0 1px 2px rgba(0,0,0,0.06);">'
         f'<div style="height:100%;width:{pct_int}%;min-width:2px;border-radius:8px;'
         f"background:linear-gradient(90deg,{c_r} 0%,{c_b} 100%);"
         'transition:width 0.18s ease-out;"></div></div>'
-        '<pre style="margin:8px 0 0 0;padding:8px 10px;background:#f1f5f9;border-radius:6px;'
+        '<pre style="margin:8px 0 0 0;padding:8px 10px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;'
         'font-size:0.78rem;line-height:1.35;color:#0f172a;white-space:pre-wrap;word-break:break-all;">'
         f"{tqdm_line}</pre>"
         "</div>"
@@ -6675,47 +6691,91 @@ def aba_simulador_automacao(
         )
         _sf_debug_lines: list[str] | None = [] if _sf_debug_requested else None
         if len(cpf_digits) == 11:
-            _memo_hit = _dv_sf_rank_memo_get(cpf_digits)
-            if _memo_hit is not None:
-                _sf_rank_memo_hit = True
-                _sf_rs, _sf_code = _memo_hit
-                _sf_debug_append(
-                    _sf_debug_lines,
-                    "[memo] Esta resposta veio do cache em sessão (~300s); a API não foi chamada neste rerun.",
+            st.caption("Progresso da consulta ao ranking (Salesforce) — barra estilo tqdm")
+            _sf_rank_prog_ph = st.empty()
+            _sf_rank_log_ph = None
+            if _sf_debug_requested:
+                st.caption("Logs do processo (tempo real)")
+                _sf_rank_log_ph = st.empty()
+
+            def _live_refresh_logs() -> None:
+                if _sf_rank_log_ph is not None and _sf_debug_lines is not None:
+                    _sf_rank_log_ph.code("\n".join(_sf_debug_lines), language="text")
+
+            if _sf_rank_log_ph is not None:
+                _sf_rank_log_ph.code(
+                    "Aguardando início da consulta… (logs em tempo real)",
+                    language="text",
                 )
-            else:
-                _sf_rank_prog_ph = st.empty()
-                _injetar_secrets_salesforce_no_env()
 
-                def _sf_prog_cb(frac: float, msg: str, elapsed: float) -> None:
-                    _sf_rank_prog_ph.markdown(
-                        _sf_ranking_progress_markup(
-                            frac,
-                            msg,
-                            elapsed_s=elapsed,
-                            meter_n=int(round(frac * 100)),
-                            meter_total=100,
-                        ),
-                        unsafe_allow_html=True,
+            _sf_set_debug_live_hook(_live_refresh_logs if _sf_debug_requested else None)
+            try:
+                _memo_hit = _dv_sf_rank_memo_get(cpf_digits)
+                if _memo_hit is not None:
+                    _sf_rank_memo_hit = True
+                    _sf_rs, _sf_code = _memo_hit
+                    if _sf_rank_prog_ph is not None:
+                        _sf_rank_prog_ph.markdown(
+                            _sf_ranking_progress_markup(
+                                1.0,
+                                "Resultado em cache em sessão (~300s). Sem nova chamada à API.",
+                                elapsed_s=0.0,
+                                meter_n=100,
+                                meter_total=100,
+                            ),
+                            unsafe_allow_html=True,
+                        )
+                    _sf_debug_append(
+                        _sf_debug_lines,
+                        "[memo] Esta resposta veio do cache em sessão (~300s); a API não foi chamada neste rerun.",
                     )
+                else:
+                    _injetar_secrets_salesforce_no_env()
 
-                try:
-                    _sf_rs, _sf_code = _sf_classificar_ranking_cpf_11(
-                        cpf_digits,
-                        progress=_sf_prog_cb,
-                        debug_log=_sf_debug_lines,
-                    )
-                except Exception as _sf_ex:
-                    _sf_logger.exception("Classificação ranking Salesforce: %s", _sf_ex)
-                    _sf_debug_append(_sf_debug_lines, f"EXCEÇÃO não tratada: {_sf_ex!r}")
-                    _sf_rs, _sf_code = None, "sem_registo"
-                finally:
-                    _sf_rank_prog_ph.empty()
-                _dv_sf_rank_memo_set(cpf_digits, _sf_rs, _sf_code)
-                if _sf_debug_lines is not None:
-                    st.session_state.setdefault("_dv_sf_rank_debug_by_cpf", {})[cpf_digits] = list(
-                        _sf_debug_lines
-                    )
+                    def _sf_prog_cb(frac: float, msg: str, elapsed: float) -> None:
+                        if _sf_rank_prog_ph is not None:
+                            _sf_rank_prog_ph.markdown(
+                                _sf_ranking_progress_markup(
+                                    frac,
+                                    msg,
+                                    elapsed_s=elapsed,
+                                    meter_n=int(round(frac * 100)),
+                                    meter_total=100,
+                                ),
+                                unsafe_allow_html=True,
+                            )
+
+                    try:
+                        _sf_rs, _sf_code = _sf_classificar_ranking_cpf_11(
+                            cpf_digits,
+                            progress=_sf_prog_cb,
+                            debug_log=_sf_debug_lines,
+                        )
+                    except Exception as _sf_ex:
+                        _sf_logger.exception("Classificação ranking Salesforce: %s", _sf_ex)
+                        _sf_debug_append(_sf_debug_lines, f"EXCEÇÃO não tratada: {_sf_ex!r}")
+                        _sf_rs, _sf_code = None, "sem_registo"
+                    finally:
+                        if _sf_rank_prog_ph is not None:
+                            _sf_rank_prog_ph.markdown(
+                                _sf_ranking_progress_markup(
+                                    1.0,
+                                    "Consulta concluída.",
+                                    elapsed_s=0.0,
+                                    meter_n=100,
+                                    meter_total=100,
+                                ),
+                                unsafe_allow_html=True,
+                            )
+                    _dv_sf_rank_memo_set(cpf_digits, _sf_rs, _sf_code)
+                    if _sf_debug_lines is not None:
+                        st.session_state.setdefault("_dv_sf_rank_debug_by_cpf", {})[
+                            cpf_digits
+                        ] = list(_sf_debug_lines)
+            finally:
+                _sf_set_debug_live_hook(None)
+                if _sf_rank_log_ph is not None and _sf_debug_lines is not None:
+                    _sf_rank_log_ph.code("\n".join(_sf_debug_lines), language="text")
             if _sf_rs and _sf_rs in rank_opts and st.session_state.get("_sf_rank_applied_cpf") != cpf_digits:
                 st.session_state["in_rank_v28"] = _sf_rs
                 st.session_state["_sf_rank_applied_cpf"] = cpf_digits
@@ -6755,26 +6815,16 @@ def aba_simulador_automacao(
                     "CPF não encontrado. Um novo contato deve ser criado no salesforce</p>",
                     unsafe_allow_html=True,
                 )
-            if _sf_debug_requested:
-                _parts: list[str] = []
-                if _sf_debug_lines:
-                    _parts.extend(_sf_debug_lines)
-                _prev_full = (st.session_state.get("_dv_sf_rank_debug_by_cpf") or {}).get(
+            if _sf_debug_requested and _sf_rank_memo_hit:
+                _prev_cmp = (st.session_state.get("_dv_sf_rank_debug_by_cpf") or {}).get(
                     cpf_digits
                 ) or []
-                if _sf_rank_memo_hit and _prev_full:
-                    _parts.append("")
-                    _parts.append(
-                        "--- Última execução completa à API (mesmo CPF), para comparar com o memo ---"
-                    )
-                    _parts.extend(_prev_full)
-                elif not _parts:
-                    _parts.extend(
-                        _prev_full
-                        or ["(Sem logs ainda. Ative o debug e aguarde uma consulta que não venha do cache.)"]
-                    )
-                with st.expander("Logs de debug — fluxo de ranking Salesforce", expanded=True):
-                    st.code("\n".join(_parts), language="text")
+                if _prev_cmp:
+                    with st.expander(
+                        "Comparar: última consulta completa à API (mesmo CPF, antes do cache)",
+                        expanded=False,
+                    ):
+                        st.code("\n".join(_prev_cmp), language="text")
         _rank_now = st.session_state.get("in_rank_v28", st.session_state.dados_cliente.get("ranking", "DIAMANTE"))
         curr_ranking = _rank_now
         idx_ranking = rank_opts.index(curr_ranking) if curr_ranking in rank_opts else 0
