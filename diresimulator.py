@@ -1119,6 +1119,42 @@ def _sf_cpf_mascarado_br(cpf_digitos: str) -> str:
     return f"{cpf_digitos[0:3]}.{cpf_digitos[3:6]}.{cpf_digitos[6:9]}-{cpf_digitos[9:11]}"
 
 
+def _sf_cpf_mascarado_sem_primeiro_zero(cpf_digitos: str) -> str | None:
+    """Máscara tipo 57.884.991-78 quando o cadastro omite o 0 inicial do primeiro bloco."""
+    if len(cpf_digitos) != 11 or not cpf_digitos.isdigit() or cpf_digitos[0] != "0":
+        return None
+    r = cpf_digitos[1:]
+    if len(r) != 10:
+        return None
+    return f"{r[0:2]}.{r[2:5]}.{r[5:8]}-{r[8:10]}"
+
+
+def _sf_cpf_valores_equivalentes_soql(cpf_digitos: str) -> list[str]:
+    """
+    Valores frequentes em Account.CPF__c / Opportunity: só dígitos, máscara padrão,
+    10 dígitos sem zero inicial, máscara sem primeiro zero.
+    """
+    if len(cpf_digitos) != 11 or not cpf_digitos.isdigit():
+        return []
+    seen: set[str] = set()
+    out: list[str] = []
+
+    def add(x: str | None) -> None:
+        if x and x not in seen:
+            seen.add(x)
+            out.append(x)
+
+    add(cpf_digitos)
+    add(_sf_cpf_mascarado_br(cpf_digitos))
+    alt_mask = _sf_cpf_mascarado_sem_primeiro_zero(cpf_digitos)
+    add(alt_mask)
+    if cpf_digitos.startswith("0"):
+        r = cpf_digitos[1:]
+        if len(r) == 10 and r.isdigit():
+            add(r)
+    return out
+
+
 def _sf_soql_escape_literal(val: str) -> str:
     return str(val).replace("\\", "\\\\").replace("'", "\\'")
 
@@ -1153,6 +1189,14 @@ def _sf_account_cpf_field_name() -> str:
         or (os.environ.get("SALESFORCE_CPF_FIELD") or "").strip()
         or "CPF__c"
     )
+
+
+def _sf_account_cpf_soql_dotted() -> str:
+    """Campo CPF na conta para SOQL a partir de Opportunity (ex.: Account.CPF__c)."""
+    f = _sf_account_cpf_field_name()
+    if f.lower().startswith("account."):
+        return f
+    return f"Account.{f}"
 
 
 def _sf_rand_alnum_sf(n: int) -> str:
@@ -1200,7 +1244,7 @@ def _sf_extrair_account_id_do_erro_validacao(mensagem: str) -> str | None:
 
 def _sf_buscar_account_id_por_cpf(sf: Any, cpf_digitos: str) -> str | None:
     campo = _sf_account_cpf_field_name()
-    for val in (cpf_digitos, _sf_cpf_mascarado_br(cpf_digitos)):
+    for val in _sf_cpf_valores_equivalentes_soql(cpf_digitos):
         safe = _sf_soql_escape_literal(val)
         q = f"SELECT Id FROM Account WHERE {campo} = '{safe}' LIMIT 1"
         try:
@@ -1404,14 +1448,16 @@ def _sf_consultar_por_cpf(sf: Any, cpf_bruto: str) -> tuple[dict | None, str | N
     Consulta no Salesforce pelo CPF da conta (Account.CPF__c)
     e retorna a Opportunity mais recente com ranking do cliente.
 
-    O CPF em Account.CPF__c está armazenado com máscara (ex.: 076.086.171-44).
+    O CPF em Account.CPF__c pode estar só com dígitos, com máscara (ex.: 076.086.171-44)
+    ou sem o zero inicial no primeiro bloco (ex.: 76.086.171-44); a consulta cobre variantes.
     """
     cpf_digitos = _sf_normalizar_cpf(cpf_bruto)
     if not cpf_digitos or len(cpf_digitos) != 11 or not cpf_digitos.isdigit():
         return None, "Informe um CPF válido com 11 dígitos."
 
-    cpf_mascarado = _sf_cpf_mascarado_br(cpf_digitos)
-    lit = _sf_soql_escape_literal(cpf_mascarado)
+    cpf_vals = _sf_cpf_valores_equivalentes_soql(cpf_digitos)
+    in_list = ",".join(f"'{_soql_escape_literal(v)}'" for v in cpf_vals)
+    _acct_cpf = _sf_account_cpf_soql_dotted()
     soql = f"""
         SELECT
             Id,
@@ -1419,13 +1465,13 @@ def _sf_consultar_por_cpf(sf: Any, cpf_bruto: str) -> tuple[dict | None, str | N
             IDOportunidade__c,
             AccountId,
             Account.Name,
-            Account.CPF__c,
+            {_acct_cpf},
             Account.Ranking__c,
             Account.Ranking_Score__c,
             Ranking__c,
             Ranking_Score__c
         FROM Opportunity
-        WHERE Account.CPF__c = '{lit}'
+        WHERE {_acct_cpf} IN ({in_list})
         ORDER BY CreatedDate DESC
         LIMIT 10
     """
@@ -6612,10 +6658,60 @@ def aba_simulador_automacao(
             st.session_state["_sf_rank_toast_ok_cpf"] = ""
         _sf_rs: str | None = None
         _sf_code: str | None = None
+        _dv_sf_memo_cpf: tuple[str | None, str | None] | None = (
+            _dv_sf_rank_memo_get(cpf_digits) if len(cpf_digits) == 11 else None
+        )
+        if len(cpf_digits) == 11 and _dv_sf_memo_cpf is None:
+            if st.button(
+                "Consultar classificação no Salesforce",
+                type="secondary",
+                key="dv_sf_lookup_rank_btn",
+                use_container_width=True,
+            ):
+                _injetar_secrets_salesforce_no_env()
+                _sf_rank_prog_ph = st.empty()
+
+                def _sf_prog_cb(frac: float, msg: str, elapsed: float) -> None:
+                    _sf_rank_prog_ph.markdown(
+                        _sf_ranking_progress_markup(
+                            frac,
+                            msg,
+                            elapsed_s=elapsed,
+                            meter_n=int(round(frac * 100)),
+                            meter_total=100,
+                        ),
+                        unsafe_allow_html=True,
+                    )
+
+                _sf_lookup_rs: str | None = None
+                _sf_lookup_code: str | None = "sem_registo"
+                try:
+                    _sf_lookup_rs, _sf_lookup_code = _sf_classificar_ranking_cpf_11(
+                        cpf_digits,
+                        progress=_sf_prog_cb,
+                    )
+                except Exception as _sf_ex:
+                    _sf_logger.exception("Classificação ranking Salesforce: %s", _sf_ex)
+                    _sf_lookup_rs, _sf_lookup_code = None, "sem_registo"
+                finally:
+                    _sf_rank_prog_ph.markdown(
+                        _sf_ranking_progress_markup(
+                            1.0,
+                            _SF_RANK_PROGRESS_MSG_SUCESSO if _sf_lookup_rs else "Verificação concluída.",
+                            elapsed_s=0.0,
+                            meter_n=100,
+                            meter_total=100,
+                        ),
+                        unsafe_allow_html=True,
+                    )
+                _dv_sf_rank_memo_set(cpf_digits, _sf_lookup_rs, _sf_lookup_code)
+                st.session_state["_sf_rank_auto_applied_for_cpf"] = ""
+                st.session_state["_sf_rank_toast_ok_cpf"] = ""
+                st.session_state["_sf_rank_naoencontrado_toast_cpf"] = ""
+                st.rerun()
         if len(cpf_digits) == 11:
-            _memo_hit = _dv_sf_rank_memo_get(cpf_digits)
-            if _memo_hit is not None:
-                _sf_rs, _sf_code = _memo_hit
+            if _dv_sf_memo_cpf is not None:
+                _sf_rs, _sf_code = _dv_sf_memo_cpf
                 if _sf_rs and _sf_rs in rank_opts:
                     if st.session_state.get("_sf_rank_auto_applied_for_cpf") != cpf_digits:
                         st.session_state["in_rank_v28"] = _sf_rs
@@ -6674,63 +6770,7 @@ def aba_simulador_automacao(
             key="in_pol_v28",
         )
 
-        # Consulta Salesforce: só com botão (evita bloquear a página enquanto digita o 11.º dígito).
-        if len(cpf_digits) == 11 and _dv_sf_rank_memo_get(cpf_digits) is None:
-            st.caption(
-                "Com o CPF completo, pode **consultar a classificação** no sistema. "
-                "O ranking acima pode ser alterado a qualquer momento, antes ou depois da consulta."
-            )
-            if st.button(
-                "Consultar classificação no Salesforce",
-                type="secondary",
-                key="dv_sf_lookup_rank_btn",
-            ):
-                _injetar_secrets_salesforce_no_env()
-                _sf_rank_prog_ph = st.empty()
-
-                def _sf_prog_cb(frac: float, msg: str, elapsed: float) -> None:
-                    _sf_rank_prog_ph.markdown(
-                        _sf_ranking_progress_markup(
-                            frac,
-                            msg,
-                            elapsed_s=elapsed,
-                            meter_n=int(round(frac * 100)),
-                            meter_total=100,
-                        ),
-                        unsafe_allow_html=True,
-                    )
-
-                _sf_lookup_rs: str | None = None
-                _sf_lookup_code: str | None = "sem_registo"
-                try:
-                    _sf_lookup_rs, _sf_lookup_code = _sf_classificar_ranking_cpf_11(
-                        cpf_digits,
-                        progress=_sf_prog_cb,
-                    )
-                except Exception as _sf_ex:
-                    _sf_logger.exception("Classificação ranking Salesforce: %s", _sf_ex)
-                    _sf_lookup_rs, _sf_lookup_code = None, "sem_registo"
-                finally:
-                    _sf_rank_prog_ph.markdown(
-                        _sf_ranking_progress_markup(
-                            1.0,
-                            _SF_RANK_PROGRESS_MSG_SUCESSO if _sf_lookup_rs else "Verificação concluída.",
-                            elapsed_s=0.0,
-                            meter_n=100,
-                            meter_total=100,
-                        ),
-                        unsafe_allow_html=True,
-                    )
-                _dv_sf_rank_memo_set(cpf_digits, _sf_lookup_rs, _sf_lookup_code)
-                st.session_state["_sf_rank_auto_applied_for_cpf"] = ""
-                st.session_state["_sf_rank_toast_ok_cpf"] = ""
-                st.session_state["_sf_rank_naoencontrado_toast_cpf"] = ""
-                st.rerun()
-
         if len(cpf_digits) == 11:
-            _memo_show = _dv_sf_rank_memo_get(cpf_digits)
-            if _memo_show is not None:
-                _sf_rs, _sf_code = _memo_show
             if _sf_rs:
                 st.markdown(
                     f'<p class="inline-ref" style="margin-top:0;margin-bottom:0;line-height:1.45;">'
