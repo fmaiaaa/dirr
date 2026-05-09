@@ -1003,6 +1003,8 @@ def _dv_sf_rank_memo_set(cpf11: str, rs: str | None, code: str | None) -> None:
 _DV_SF_RANK_TRACK_CPF_KEY = "_sf_rank_tracked_cpf_ui"
 # Só exibir "Classificação obtida" / mensagens pós-consulta após consulta ao SF para este CPF (evita texto do cliente anterior).
 _DV_SF_RANK_CLASSIF_OK_CPF_KEY = "_sf_rank_classificacao_exibir_somente_cpf"
+# Último CPF com 11 dígitos visto no campo (não é limpo quando o utilizador apaga dígitos); detecta troca A→B mesmo passando por estado incompleto.
+_DV_SF_CPF11_ANTERIOR_CAMPO_KEY = "_dv_sf_cpf11_anterior_no_campo"
 # Pedido de consulta CPF→Salesforce: processado no corpo do script (para permitir barra de progresso).
 _DV_SF_CPF_RANK_LOOKUP_PENDING_KEY = "_dv_sf_cpf_rank_lookup_pending"
 
@@ -6837,6 +6839,7 @@ def _dv_limpar_estado_simulacao_apos_concluir() -> None:
         _DV_SF_RANK_MEMO_KEY,
         _DV_SF_RANK_FAIL_AUTORETRY_KEY,
         _DV_SF_CPF_RANK_LOOKUP_PENDING_KEY,
+        _DV_SF_CPF11_ANTERIOR_CAMPO_KEY,
     ):
         st.session_state.pop(k, None)
 
@@ -6934,14 +6937,18 @@ def aba_simulador_automacao(
         )
         cpf_digits = re.sub(r"\D", "", st.session_state.get("cpf_classificar_clientes_sf") or "")
         rank_opts = ["DIAMANTE", "OURO", "PRATA", "BRONZE", "AÇO"]
-        _prev_trk_cpf = st.session_state.get(_DV_SF_RANK_TRACK_CPF_KEY)
-        if (
-            isinstance(_prev_trk_cpf, str)
-            and len(_prev_trk_cpf) == 11
-            and len(cpf_digits) == 11
-            and _prev_trk_cpf != cpf_digits
-        ):
-            st.session_state[_DV_SF_RANK_CLASSIF_OK_CPF_KEY] = ""
+        _cpf11_ant = st.session_state.get(_DV_SF_CPF11_ANTERIOR_CAMPO_KEY)
+        if len(cpf_digits) == 11:
+            if (
+                isinstance(_cpf11_ant, str)
+                and len(_cpf11_ant) == 11
+                and _cpf11_ant != cpf_digits
+            ):
+                st.session_state[_DV_SF_RANK_CLASSIF_OK_CPF_KEY] = ""
+                st.session_state["_sf_rank_auto_applied_for_cpf"] = ""
+                st.session_state["_sf_rank_toast_ok_cpf"] = ""
+                st.session_state["_sf_rank_naoencontrado_toast_cpf"] = ""
+            st.session_state[_DV_SF_CPF11_ANTERIOR_CAMPO_KEY] = cpf_digits
         _dv_sf_cpf_lookup_correu_neste_run = False
         _lookup_pending = st.session_state.get(_DV_SF_CPF_RANK_LOOKUP_PENDING_KEY)
         if _lookup_pending is not None:
