@@ -1280,7 +1280,7 @@ def _sf_poll_ranking_na_account(
         rank = _sf_get_ranking_account_rest(sf, aid, rfield, http_timeout)
         if rank:
             if progress_p:
-                progress_p(1.0, "Classificação recebida.")
+                progress_p(1.0, _SF_RANK_PROGRESS_MSG_SUCESSO)
             return rank
         elapsed = time.monotonic() - t0
         if progress_p:
@@ -1347,6 +1347,8 @@ def _sf_consultar_por_cpf(sf: Any, cpf_bruto: str) -> tuple[dict | None, str | N
 # Compatível com código que ainda referencia o nome antigo.
 _sf_consultar_opportunity_ranking_por_cpf = _sf_consultar_por_cpf
 
+_SF_RANK_PROGRESS_MSG_SUCESSO = "Processo finalizado: classificação encontrada!"
+
 
 def _sf_classificar_ranking_cpf_11(
     cpf_11: str,
@@ -1389,11 +1391,11 @@ def _sf_classificar_ranking_cpf_11(
     poll_iv = _sf_float_env_ranking("SALESFORCE_RISK3_POLL_INTERVAL", 2.0)
     http_timeout = max(5.0, _sf_float_env_ranking("SALESFORCE_REST_TIMEOUT", 45.0))
 
-    def _ranking_via_account(account_id: str) -> str | None:
+    def _ranking_conta(account_id: str) -> str | None:
         _p(0.28, "Consultando a classificação do cliente…")
         bruto = _sf_get_ranking_account_rest(sf, account_id, rfield, http_timeout)
         if bruto:
-            _p(1.0, "Classificação encontrada.")
+            _p(1.0, _SF_RANK_PROGRESS_MSG_SUCESSO)
             return bruto
         _p(0.35, "Aguardando a classificação ficar disponível…")
 
@@ -1423,12 +1425,12 @@ def _sf_classificar_ranking_cpf_11(
         info = _sf_extrair_ranking_ui_de_opportunity(opp)
         texto_opp = info.get("ranking_exibir")
         if texto_opp:
-            _p(1.0, "Classificação encontrada.")
+            _p(1.0, _SF_RANK_PROGRESS_MSG_SUCESSO)
             return _sf_ranking_bruto_para_ui(str(texto_opp)), None
 
     _p(
         0.23,
-        "Classificação ainda não localizada nas vendas. "
+        "Classificação ainda não encontrada nas vendas. "
         "Verificando o cadastro do cliente…",
     )
 
@@ -1442,7 +1444,7 @@ def _sf_classificar_ranking_cpf_11(
         aid = _sf_buscar_account_id_por_cpf(sf, cpf)
 
     if aid:
-        bruto = _ranking_via_account(aid)
+        bruto = _ranking_conta(aid)
         if bruto:
             return _sf_ranking_bruto_para_ui(bruto), None
         return None, "sem_registo"
@@ -1459,7 +1461,7 @@ def _sf_classificar_ranking_cpf_11(
         return None, "sem_registo"
     _p(0.30, "Cadastro concluído. Obtendo a classificação…")
 
-    bruto = _ranking_via_account(new_aid)
+    bruto = _ranking_conta(new_aid)
     if bruto:
         return _sf_ranking_bruto_para_ui(bruto), None
     return None, "sem_registo"
@@ -6508,7 +6510,7 @@ def aba_simulador_automacao(
                 _sf_rank_prog_ph.markdown(
                     _sf_ranking_progress_markup(
                         1.0,
-                        "Usando o resultado da verificação feita há pouco nesta tela.",
+                        _SF_RANK_PROGRESS_MSG_SUCESSO if _sf_rs else "Verificação concluída.",
                         elapsed_s=0.0,
                         meter_n=100,
                         meter_total=100,
@@ -6542,7 +6544,7 @@ def aba_simulador_automacao(
                     _sf_rank_prog_ph.markdown(
                         _sf_ranking_progress_markup(
                             1.0,
-                            "Verificação concluída.",
+                            _SF_RANK_PROGRESS_MSG_SUCESSO if _sf_rs else "Verificação concluída.",
                             elapsed_s=0.0,
                             meter_n=100,
                             meter_total=100,
@@ -6576,11 +6578,23 @@ def aba_simulador_automacao(
             st.session_state["_sf_rank_naoencontrado_toast_cpf"] = ""
             # Ao apagar/editar o CPF, remove o ranking aplicado pela consulta Salesforce anterior
             st.session_state["in_rank_v28"] = rank_opts[0]
+            if cpf_digits:
+                st.markdown(
+                    '<p class="inline-ref" style="margin-top:0;margin-bottom:0;line-height:1.45;">'
+                    "CPF não cadastrado. Contate o Comercial.</p>",
+                    unsafe_allow_html=True,
+                )
         if len(cpf_digits) == 11:
             if _sf_rs:
                 st.markdown(
                     f'<p class="inline-ref" style="margin-top:0;margin-bottom:0;line-height:1.45;">'
                     f"Ranking encontrado: <strong>{html_std.escape(str(_sf_rs))}</strong></p>",
+                    unsafe_allow_html=True,
+                )
+            elif _sf_code == "cpf_incompleto":
+                st.markdown(
+                    '<p class="inline-ref" style="margin-top:0;margin-bottom:0;line-height:1.45;">'
+                    "CPF não cadastrado. Contate o Comercial.</p>",
                     unsafe_allow_html=True,
                 )
             elif _sf_code in ("sem_registo", "sem_conexao", "erro_sf"):
