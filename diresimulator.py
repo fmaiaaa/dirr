@@ -302,9 +302,53 @@ def resolve_politica_row(
 # ========================================================================
 
 # -*- coding: utf-8 -*-
+import json
+import urllib.request
 from typing import Any, Dict, Optional
 
 import pandas as pd
+
+# SGS BCB: IPCA - percentual acumulado nos últimos 12 meses (mensal; último = ao vivo publicado)
+BCB_SGS_IPCA_ACUMULADO_12M: int = 13522
+
+
+def fetch_ipca_aa_decimal_bcb(timeout_s: float = 12.0) -> Optional[float]:
+    """
+    Último IPCA acumulado em 12 meses do BCB, em decimal (ex.: 5,307% → 0.05307).
+    Retorna None se a API falhar ou o valor for inválido.
+    """
+    url = (
+        "https://api.bcb.gov.br/dados/serie/bcdata.sgs."
+        f"{BCB_SGS_IPCA_ACUMULADO_12M}/dados/ultimos/1?formato=json"
+    )
+    try:
+        req = urllib.request.Request(
+            url,
+            headers={"User-Agent": "SimuladorDV/1.0"},
+        )
+        with urllib.request.urlopen(req, timeout=timeout_s) as resp:
+            raw = resp.read().decode("utf-8")
+        data = json.loads(raw)
+        if not isinstance(data, list) or not data:
+            return None
+        val = data[-1].get("valor")
+        if val is None:
+            return None
+        pct = float(str(val).strip().replace(",", "."))
+        if pct <= 0.0:
+            return None
+        return pct / 100.0
+    except Exception:
+        return None
+
+
+def aplicar_ipca_aa_ao_vivo(premissas: Dict[str, float]) -> Dict[str, float]:
+    """Sobrescreve ``ipca_aa`` com o último valor divulgado pelo BCB quando disponível."""
+    live = fetch_ipca_aa_decimal_bcb()
+    if live is not None:
+        premissas["ipca_aa"] = float(live)
+    return premissas
+
 
 # Valores extraídos de excel_extracao_celulas.txt (aba PREMISSAS)
 DEFAULT_PREMISSAS: Dict[str, float] = {
@@ -3014,7 +3058,7 @@ def carregar_dados_sistema():
                 pd.DataFrame(),
                 pd.DataFrame(),
                 pd.DataFrame(),
-                dict(DEFAULT_PREMISSAS),
+                aplicar_ipca_aa_ao_vivo(dict(DEFAULT_PREMISSAS)),
                 pd.DataFrame(columns=list(_COLS_CAMPANHAS_TEXTO)),
             )
         conn = st.connection("gsheets", type=GSheetsConnection)
@@ -3157,6 +3201,7 @@ def carregar_dados_sistema():
                 break
             except Exception:
                 continue
+        premissas_dict = aplicar_ipca_aa_ao_vivo(premissas_dict)
 
         try:
             df_hb_raw = conn.read(spreadsheet=ID_GERAL, worksheet="BD Home Banners")
@@ -3195,7 +3240,7 @@ def carregar_dados_sistema():
             pd.DataFrame(),
             pd.DataFrame(),
             pd.DataFrame(),
-            dict(DEFAULT_PREMISSAS),
+            aplicar_ipca_aa_ao_vivo(dict(DEFAULT_PREMISSAS)),
             pd.DataFrame(columns=list(_COLS_CAMPANHAS_TEXTO)),
         )
 
