@@ -3333,7 +3333,9 @@ class MotorRecomendacao:
         return linhas
 
     def calcular_poder_compra(self, renda, finan, fgts_sub, val_ps_limite):
-        return float(renda or 0) + finan + fgts_sub + val_ps_limite, val_ps_limite
+        _ = renda
+        tot = float(finan or 0) + float(fgts_sub or 0) + float(val_ps_limite or 0)
+        return tot, val_ps_limite
 
 
 def _ps_max_estoque_row_cliente(row: pd.Series, d: dict) -> float:
@@ -3363,45 +3365,24 @@ def _soma_atos_entrada_cliente(d: dict) -> float:
 
 
 def poder_compra_cliente_exibicao(d: dict) -> float:
-    """Poder de compra global (renda + fin + FGTS/subsídio + soma dos atos) — valor exibido nos cards compatíveis."""
-    ren = float(d.get("renda", 0) or 0)
+    """Base sem preço de unidade: financiamento aprovado + FGTS/subsídio + soma dos atos (PS/VCX dependem da linha de estoque)."""
     fin = float(d.get("finan_usado", 0) or 0)
     sub = float(d.get("fgts_sub_usado", 0) or 0)
-    return ren + fin + sub + _soma_atos_entrada_cliente(d)
+    return fin + sub + _soma_atos_entrada_cliente(d)
 
 
-def _calcular_poder_compra_linha_estoque(
+def _poder_compra_total_linha(
     row: pd.Series, d: dict, df_politicas: pd.DataFrame, prem: dict
-) -> pd.Series:
-    """Poder de compra por linha (alinhado à ETAPA Recomendação)."""
-    try:
-        v_venda = float(row.get("Valor de Venda", 0) or 0)
-    except (TypeError, ValueError):
-        v_venda = 0.0
+) -> tuple[float, float, float, float, float]:
+    """
+    Poder de compra na linha: fin + FGTS/subsídio + atos + Pro Soluto (resíduo V−atos−fin−sub)
+    até ao teto efetivo; o que exceder o teto conta com Volta ao Caixa até Volta_Caixa_Ref.
+
+    Retorna (poder_total, ps_res_bruto, ps_part, vcx_part, ps_cap).
+    """
     fin = float(d.get("finan_usado", 0) or 0)
     sub = float(d.get("fgts_sub_usado", 0) or 0)
-    try:
-        vc_folga = max(0.0, float(row.get("Volta_Caixa_Ref", 0) or 0))
-    except (TypeError, ValueError):
-        vc_folga = 0.0
-    B = poder_compra_cliente_exibicao(d)
-    poder = B + vc_folga
-    cobertura = (poder / v_venda) * 100.0 if v_venda > 0 else 0.0
-    return pd.Series([poder, cobertura, fin, sub])
-
-
-def _metricas_lucro_unidade(
-    row: pd.Series, d: dict, df_politicas: pd.DataFrame, prem: dict
-) -> pd.Series:
-    """
-    Recomendação com entrada por atos + fin + subsídio; Pro Soluto implícito como resíduo (V − atos − fin − sub).
-
-    Volta ao caixa específico do caso: diferença entre o poder de compra do cliente (B) e
-    (valor de venda real − Volta_Caixa_Ref da unidade). Quando essa diferença é não negativa,
-    o VCX usado na linha é o mínimo entre o teto, essa diferença e a lacuna (V − B); quando é
-    negativa, usa-se o fluxo clássico min(teto, lacuna).
-    Compatível se V ≤ B + VCX_ref e o resíduo de PS cabe no teto (política Direcional).
-    """
+    soma_atos = _soma_atos_entrada_cliente(d)
     try:
         v_venda = float(row.get("Valor de Venda", 0) or 0)
     except (TypeError, ValueError):
@@ -3411,16 +3392,8 @@ def _metricas_lucro_unidade(
     except (TypeError, ValueError):
         vcx_teto = 0.0
     ren = float(d.get("renda", 0) or 0)
-    fin = float(d.get("finan_usado", 0) or 0)
-    sub = float(d.get("fgts_sub_usado", 0) or 0)
-    soma_atos = _soma_atos_entrada_cliente(d)
-    B_global = poder_compra_cliente_exibicao(d)
-    eps = 1e-6
-
     ps_stock = max(0.0, _ps_max_estoque_row_cliente(row, d))
-    ps_res = v_venda - soma_atos - fin - sub
-
-    ps_cap_calc = float(ps_stock)
+    ps_cap = float(ps_stock)
     try:
         mps = metricas_pro_soluto(
             ren,
@@ -3431,27 +3404,64 @@ def _metricas_lucro_unidade(
             df_politicas,
             ps_cap_estoque=ps_stock if ps_stock > 1e-9 else None,
         )
-        ps_cap_calc = float(mps.get("ps_max_efetivo", 0) or 0)
+        ps_cap = float(mps.get("ps_max_efetivo", 0) or 0)
     except Exception:
-        ps_cap_calc = float(ps_stock)
+        ps_cap = float(ps_stock)
 
-    ok_cap = v_venda <= B_global + vcx_teto + eps
-    ok_ps = (-eps <= ps_res <= ps_cap_calc + eps) if v_venda > 0 else False
-    compativel = bool(v_venda > 0 and ok_cap and ok_ps)
+    ps_res = float(v_venda) - soma_atos - fin - sub
+    ps_res_n = max(0.0, ps_res)
+    ps_part = min(ps_res_n, ps_cap)
+    overflow = max(0.0, ps_res_n - ps_cap)
+    vcx_part = min(vcx_teto, overflow)
+    poder_total = fin + sub + soma_atos + ps_part + vcx_part
+    return poder_total, ps_res, ps_part, vcx_part, ps_cap
 
-    lacuna_vcx = max(0.0, v_venda - B_global)
-    termo_v_menos_vcx = float(v_venda) - float(vcx_teto)
-    vcx_especifico = float(B_global) - termo_v_menos_vcx
-    if v_venda <= B_global + eps:
-        vcx_usado = 0.0
-    elif vcx_especifico >= 0.0:
-        vcx_usado = max(0.0, min(float(vcx_teto), vcx_especifico, lacuna_vcx))
-    else:
-        vcx_usado = max(0.0, min(float(vcx_teto), lacuna_vcx))
 
-    necessidade_vcx = lacuna_vcx
-    saldo_teto_vcx = vcx_teto - necessidade_vcx
-    vcx_preservado = max(0.0, vcx_teto - vcx_usado)
+def _calcular_poder_compra_linha_estoque(
+    row: pd.Series, d: dict, df_politicas: pd.DataFrame, prem: dict
+) -> pd.Series:
+    """Anexa Poder_Compra (fin+sub+atos+PS até teto+VCX do excedente) e cobertura vs valor de venda."""
+    try:
+        v_venda = float(row.get("Valor de Venda", 0) or 0)
+    except (TypeError, ValueError):
+        v_venda = 0.0
+    fin = float(d.get("finan_usado", 0) or 0)
+    sub = float(d.get("fgts_sub_usado", 0) or 0)
+    poder_total, _, _, _, _ = _poder_compra_total_linha(row, d, df_politicas, prem)
+    cobertura = (poder_total / v_venda) * 100.0 if v_venda > 0 else 0.0
+    return pd.Series([poder_total, cobertura, fin, sub])
+
+
+def _metricas_lucro_unidade(
+    row: pd.Series, d: dict, df_politicas: pd.DataFrame, prem: dict
+) -> pd.Series:
+    """
+    Compatível quando o poder de compra na linha cobre o valor de venda: fin + FGTS + atos
+    + min(PS_resíduo, teto PS) + min(VCX_ref, excedente de PS face ao teto) ≥ V.
+    Lucro recomendado = 1,9% do valor de venda + 50% do VCX preservado (não utilizado na linha).
+    """
+    try:
+        v_venda = float(row.get("Valor de Venda", 0) or 0)
+    except (TypeError, ValueError):
+        v_venda = 0.0
+    try:
+        vcx_teto = max(0.0, float(row.get("Volta_Caixa_Ref", 0) or 0))
+    except (TypeError, ValueError):
+        vcx_teto = 0.0
+    fin = float(d.get("finan_usado", 0) or 0)
+    sub = float(d.get("fgts_sub_usado", 0) or 0)
+    soma_atos = _soma_atos_entrada_cliente(d)
+    eps = 1e-6
+
+    poder_total, ps_res, ps_part, vcx_usado, ps_cap_calc = _poder_compra_total_linha(
+        row, d, df_politicas, prem
+    )
+    ps_res_n = max(0.0, ps_res)
+    compativel = bool(v_venda > 0 and poder_total + eps >= v_venda)
+
+    necessidade_vcx = max(0.0, ps_res_n - ps_cap_calc)
+    saldo_teto_vcx = float(vcx_teto) - necessidade_vcx
+    vcx_preservado = max(0.0, float(vcx_teto) - float(vcx_usado))
     comissao = 0.019 * v_venda
     lucro = (comissao + (0.5 * vcx_preservado)) if compativel else -1e18
     return pd.Series([compativel, vcx_usado, vcx_preservado, lucro, saldo_teto_vcx])
@@ -7582,7 +7592,6 @@ def aba_simulador_automacao(
                         cand_rec = fit_all.groupby("Empreendimento", as_index=False).head(1)
                 comp_col = pd.to_numeric(df_pool.get("Unidade_Compativel", pd.Series(dtype=float)), errors="coerce").fillna(0.0)
                 alguma_cabe = (comp_col > 0).any()
-                b_exib = poder_compra_cliente_exibicao(st.session_state.dados_cliente)
                 label_rec, css_rec = ("MAIOR LUCRO", "badge-ideal") if alguma_cabe else ("MENOR PREÇO", "badge-seguro")
 
                 def add_cards_group(label, df_group, css_class):
@@ -7612,7 +7621,11 @@ def aba_simulador_automacao(
                              _vv_real = float(row.get("Valor de Venda", 0) or 0)
                          except (TypeError, ValueError):
                              _vv_real = 0.0
-                         _v_card = float(b_exib) if _mostrar_poder else _vv_real
+                         try:
+                             _poder_lin = float(row.get("Poder_Compra", 0) or 0)
+                         except (TypeError, ValueError):
+                             _poder_lin = 0.0
+                         _v_card = _poder_lin if _mostrar_poder else _vv_real
                          val_fmt = fmt_br(_v_card)
                          aval_fmt = fmt_br(row['Valor de Avaliação Bancária'])
                          lucro_fmt = fmt_br(float(row.get("Lucro_Recomendacao", 0) or 0))
@@ -8522,7 +8535,9 @@ def aba_simulador_automacao(
                     "Política de Pro Soluto": d.get('politica'), "Fator Social": "Sim" if d.get('social') else "Não",
                     "Cotista FGTS": "Sim" if d.get('cotista') else "Não", "Financiamento Aprovado": d.get('finan_f_ref', 0),
                     "Subsídio Máximo": d.get('sub_f_ref', 0), "Pro Soluto Médio": d.get('ps_usado', 0), "Capacidade de Entrada": capacidade_entrada,
-                    "Poder de Aquisição Médio": float(d.get('renda', 0) or 0) + d.get('finan_f_ref', 0) + d.get('sub_f_ref', 0) + (d.get('imovel_valor', 0) * 0.10),
+                    "Poder de Aquisição Médio": float(d.get("finan_usado", 0) or 0)
+                    + float(d.get("fgts_sub_usado", 0) or 0)
+                    + _soma_atos_entrada_cliente(d),
                     "Empreendimento Final": d.get('empreendimento_nome'), "Unidade Final": d.get('unidade_id'),
                     "Preço Unidade Final": d.get('imovel_valor', 0), "Financiamento Final": d.get('finan_usado', 0),
                     "FGTS + Subsídio Final": d.get('fgts_sub_usado', 0), "Pro Soluto Final": d.get('ps_usado', 0),
