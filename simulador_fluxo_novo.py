@@ -7142,9 +7142,6 @@ def aba_simulador_automacao(
             '<h3 class="dv-titulo-secao">Valores Aprovados</h3>',
             unsafe_allow_html=True,
         )
-        st.caption(
-            "Prazo do financiamento fixo em 420 meses e sistema de amortização PRICE (sem alteração nesta tela)."
-        )
 
         renda_cli = float(d.get("renda", 0) or 0)
         _val_bruto_faixa = float(d.get("imovel_avaliacao") or 0) or 240000.0
@@ -7350,10 +7347,22 @@ def aba_simulador_automacao(
         s_u = clamp_moeda_positiva(texto_moeda_para_float(st.session_state.get("sub_aprovado_key")), None)
         st.session_state.dados_cliente['fgts_sub_usado'] = s_u
 
+        # Ordem fixa pedida: após FGTS/subsídio → prazo 420 meses → PRICE → referência de parcela → campo parcela.
         st.session_state.dados_cliente["prazo_financiamento"] = 420
         st.session_state.dados_cliente["sistema_amortizacao"] = "PRICE"
         prazo_sel = 420
         sist_sel = "PRICE"
+        st.markdown(
+            '<p class="inline-ref" style="margin-top:0.35rem;margin-bottom:0.2rem;line-height:1.45;">'
+            "Prazo do financiamento: <strong>420 meses</strong> (fixo).</p>",
+            unsafe_allow_html=True,
+        )
+        _amort_fixo_label = _AMORTIZACAO_NOME_COMPLETO.get("PRICE", "PRICE")
+        st.markdown(
+            f'<p class="inline-ref" style="margin-top:0;margin-bottom:0.45rem;line-height:1.45;">'
+            f"Sistema de amortização: <strong>{html_std.escape(str(_amort_fixo_label))}</strong> (fixo).</p>",
+            unsafe_allow_html=True,
+        )
         taxa_padrao = taxa_fin_vigente(d)
         _comp_sac_price = calcular_comparativo_sac_price(f_u, int(prazo_sel), taxa_padrao)
         sac_details = _comp_sac_price["SAC"]
