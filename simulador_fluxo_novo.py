@@ -2157,7 +2157,10 @@ def nome_sistema_amortizacao_completo(codigo: str) -> str:
 
 def calcular_comparativo_sac_price(valor, meses, taxa_anual):
     if valor is None or valor <= 0 or meses <= 0:
-        return {"SAC": {"primeira": 0, "ultima": 0, "juros": 0}, "PRICE": {"parcela": 0, "juros": 0}}
+        return {
+            "SAC": {"primeira": 0, "ultima": 0, "juros": 0, "montante_total": 0},
+            "PRICE": {"parcela": 0, "juros": 0, "montante_total": 0},
+        }
     i = (1 + taxa_anual/100)**(1/12) - 1
     
     # PRICE
@@ -2165,7 +2168,7 @@ def calcular_comparativo_sac_price(valor, meses, taxa_anual):
         pmt_price = valor * (i * (1 + i)**meses) / ((1 + i)**meses - 1)
         total_pago_price = pmt_price * meses
         juros_price = total_pago_price - valor
-    except: pmt_price = 0; juros_price = 0
+    except: pmt_price = 0; juros_price = 0; total_pago_price = 0.0
 
     # SAC
     try:
@@ -2174,11 +2177,20 @@ def calcular_comparativo_sac_price(valor, meses, taxa_anual):
         pmt_sac_fim = amort + (amort * i)
         total_pago_sac = (pmt_sac_ini + pmt_sac_fim) * meses / 2
         juros_sac = total_pago_sac - valor
-    except: pmt_sac_ini = 0; pmt_sac_fim = 0; juros_sac = 0
-    
+    except: pmt_sac_ini = 0; pmt_sac_fim = 0; juros_sac = 0; total_pago_sac = 0.0
+
     return {
-        "SAC": {"primeira": pmt_sac_ini, "ultima": pmt_sac_fim, "juros": juros_sac},
-        "PRICE": {"parcela": pmt_price, "juros": juros_price}
+        "SAC": {
+            "primeira": pmt_sac_ini,
+            "ultima": pmt_sac_fim,
+            "juros": juros_sac,
+            "montante_total": float(total_pago_sac),
+        },
+        "PRICE": {
+            "parcela": pmt_price,
+            "juros": juros_price,
+            "montante_total": float(total_pago_price),
+        },
     }
 
 def calcular_parcela_financiamento(valor_financiado, meses, taxa_anual_pct, sistema):
@@ -6703,6 +6715,8 @@ _DV_SIM_WIDGET_KEYS_FIXAS: tuple[str, ...] = (
     "in_rank_v28",
     "fin_aprovado_key",
     "sub_aprovado_key",
+    "prazo_aprovado_key",
+    "sist_aprovado_ui_v1",
     "parcela_fin_edit_key",
     "sel_emp_rec_v28",
     "sel_emp_new_v3",
@@ -6776,6 +6790,20 @@ def _dv_restore_sim_widget_keys_from_dados(dc: dict, *, force: bool = False) -> 
             sv = 0.0
         st.session_state["sub_aprovado_key"] = float_para_campo_texto(
             max(0.0, sv), vazio_se_zero=True
+        )
+    if force or "prazo_aprovado_key" not in st.session_state:
+        try:
+            pz = int(dc.get("prazo_financiamento", 420) or 420)
+        except (TypeError, ValueError):
+            pz = 420
+        pz = max(12, min(600, pz))
+        st.session_state["prazo_aprovado_key"] = str(pz)
+    if force or "sist_aprovado_ui_v1" not in st.session_state:
+        cod = str(dc.get("sistema_amortizacao", "PRICE") or "PRICE").strip().upper()
+        if cod not in ("SAC", "PRICE"):
+            cod = "PRICE"
+        st.session_state["sist_aprovado_ui_v1"] = _AMORTIZACAO_NOME_COMPLETO.get(
+            cod, _AMORTIZACAO_NOME_COMPLETO["PRICE"]
         )
     if force or "parcela_fin_edit_key" not in st.session_state:
         try:
@@ -7347,22 +7375,43 @@ def aba_simulador_automacao(
         s_u = clamp_moeda_positiva(texto_moeda_para_float(st.session_state.get("sub_aprovado_key")), None)
         st.session_state.dados_cliente['fgts_sub_usado'] = s_u
 
-        # Ordem fixa pedida: após FGTS/subsídio → prazo 420 meses → PRICE → referência de parcela → campo parcela.
-        st.session_state.dados_cliente["prazo_financiamento"] = 420
-        st.session_state.dados_cliente["sistema_amortizacao"] = "PRICE"
-        prazo_sel = 420
-        sist_sel = "PRICE"
-        st.markdown(
-            '<p class="inline-ref" style="margin-top:0.35rem;margin-bottom:0.2rem;line-height:1.45;">'
-            "Prazo do financiamento: <strong>420 meses</strong> (fixo).</p>",
-            unsafe_allow_html=True,
+        # Após FGTS: prazo e amortização editáveis (valores iniciais 420 meses e PRICE).
+        d = st.session_state.dados_cliente
+        prazo_atual = d.get("prazo_financiamento", 420)
+        try:
+            prazo_atual = int(prazo_atual) if prazo_atual is not None else 420
+        except (TypeError, ValueError):
+            prazo_atual = 420
+        prazo_atual = max(12, min(600, prazo_atual))
+        if "prazo_aprovado_key" not in st.session_state:
+            st.session_state["prazo_aprovado_key"] = str(int(prazo_atual))
+        st.text_input(
+            "Prazo do financiamento (meses)",
+            key="prazo_aprovado_key",
+            placeholder="420",
+            help="Sugestão padrão: 420 meses. Entre 12 e 600.",
         )
-        _amort_fixo_label = _AMORTIZACAO_NOME_COMPLETO.get("PRICE", "PRICE")
-        st.markdown(
-            f'<p class="inline-ref" style="margin-top:0;margin-bottom:0.45rem;line-height:1.45;">'
-            f"Sistema de amortização: <strong>{html_std.escape(str(_amort_fixo_label))}</strong> (fixo).</p>",
-            unsafe_allow_html=True,
+        _pz = texto_inteiro(st.session_state.get("prazo_aprovado_key"), default=420, min_v=12, max_v=600)
+        prazo_sel = int(_pz) if _pz is not None else 420
+
+        _opcoes_amort = list(_AMORTIZACAO_NOME_COMPLETO.values())
+        _cod_amort_atual = str(d.get("sistema_amortizacao", "PRICE")).strip().upper()
+        if _cod_amort_atual not in ("SAC", "PRICE"):
+            _cod_amort_atual = "PRICE"
+        _idx_amort = 1 if _cod_amort_atual == "PRICE" else 0
+        sist_sel_label = st.selectbox(
+            "Sistema de amortização do financiamento (lista)",
+            options=_opcoes_amort,
+            index=_idx_amort,
+            key="sist_aprovado_ui_v1",
         )
+        sist_sel = (
+            "PRICE"
+            if sist_sel_label == _AMORTIZACAO_NOME_COMPLETO["PRICE"]
+            else "SAC"
+        )
+        st.session_state.dados_cliente["prazo_financiamento"] = int(prazo_sel)
+        st.session_state.dados_cliente["sistema_amortizacao"] = sist_sel
         taxa_padrao = taxa_fin_vigente(d)
         _comp_sac_price = calcular_comparativo_sac_price(f_u, int(prazo_sel), taxa_padrao)
         sac_details = _comp_sac_price["SAC"]
@@ -7370,13 +7419,13 @@ def aba_simulador_automacao(
         if sist_sel == "PRICE":
             _ref_comp_html = (
                 f"Valor estimado da parcela: <strong>{reais_streamlit_html(fmt_br(price_details['parcela']))}</strong> "
-                f"parcelas fixas (juros totais: <strong>{reais_streamlit_html(fmt_br(price_details['juros']))}</strong>)"
+                f"parcelas fixas (montante total: <strong>{reais_streamlit_html(fmt_br(price_details['montante_total']))}</strong>)"
             )
         else:
             _ref_comp_html = (
                 f"Valor estimado da parcela: <strong>{reais_streamlit_html(fmt_br(sac_details['primeira']))}</strong> "
                 f"a <strong>{reais_streamlit_html(fmt_br(sac_details['ultima']))}</strong> "
-                f"(juros totais: <strong>{reais_streamlit_html(fmt_br(sac_details['juros']))}</strong>)"
+                f"(montante total: <strong>{reais_streamlit_html(fmt_br(sac_details['montante_total']))}</strong>)"
             )
         st.markdown(
             f'<div class="dv-ref-prox-campo">{_ref_comp_html}</div>',
