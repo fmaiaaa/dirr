@@ -3333,7 +3333,7 @@ class MotorRecomendacao:
         return linhas
 
     def calcular_poder_compra(self, renda, finan, fgts_sub, val_ps_limite):
-        return (2 * renda) + finan + fgts_sub + val_ps_limite, val_ps_limite
+        return float(renda or 0) + finan + fgts_sub + val_ps_limite, val_ps_limite
 
 
 def _ps_max_estoque_row_cliente(row: pd.Series, d: dict) -> float:
@@ -3363,11 +3363,11 @@ def _soma_atos_entrada_cliente(d: dict) -> float:
 
 
 def poder_compra_cliente_exibicao(d: dict) -> float:
-    """Poder de compra global (2×renda + fin + FGTS/subsídio + soma dos atos) — valor exibido nos cards compatíveis."""
+    """Poder de compra global (renda + fin + FGTS/subsídio + soma dos atos) — valor exibido nos cards compatíveis."""
     ren = float(d.get("renda", 0) or 0)
     fin = float(d.get("finan_usado", 0) or 0)
     sub = float(d.get("fgts_sub_usado", 0) or 0)
-    return (2.0 * ren) + fin + sub + _soma_atos_entrada_cliente(d)
+    return ren + fin + sub + _soma_atos_entrada_cliente(d)
 
 
 def _calcular_poder_compra_linha_estoque(
@@ -3394,8 +3394,13 @@ def _metricas_lucro_unidade(
     row: pd.Series, d: dict, df_politicas: pd.DataFrame, prem: dict
 ) -> pd.Series:
     """
-    Recomendação com entrada definida por atos + fin + subsídio; Pro Soluto implícito como resíduo (V − atos − fin − sub).
-    Compatível se V ≤ poder_global + VCX e o resíduo cabe no teto de PS (política Direcional no comparador).
+    Recomendação com entrada por atos + fin + subsídio; Pro Soluto implícito como resíduo (V − atos − fin − sub).
+
+    Volta ao caixa específico do caso: diferença entre o poder de compra do cliente (B) e
+    (valor de venda real − Volta_Caixa_Ref da unidade). Quando essa diferença é não negativa,
+    o VCX usado na linha é o mínimo entre o teto, essa diferença e a lacuna (V − B); quando é
+    negativa, usa-se o fluxo clássico min(teto, lacuna).
+    Compatível se V ≤ B + VCX_ref e o resíduo de PS cabe no teto (política Direcional).
     """
     try:
         v_venda = float(row.get("Valor de Venda", 0) or 0)
@@ -3434,9 +3439,18 @@ def _metricas_lucro_unidade(
     ok_ps = (-eps <= ps_res <= ps_cap_calc + eps) if v_venda > 0 else False
     compativel = bool(v_venda > 0 and ok_cap and ok_ps)
 
-    necessidade_vcx = max(0.0, v_venda - B_global)
+    lacuna_vcx = max(0.0, v_venda - B_global)
+    termo_v_menos_vcx = float(v_venda) - float(vcx_teto)
+    vcx_especifico = float(B_global) - termo_v_menos_vcx
+    if v_venda <= B_global + eps:
+        vcx_usado = 0.0
+    elif vcx_especifico >= 0.0:
+        vcx_usado = max(0.0, min(float(vcx_teto), vcx_especifico, lacuna_vcx))
+    else:
+        vcx_usado = max(0.0, min(float(vcx_teto), lacuna_vcx))
+
+    necessidade_vcx = lacuna_vcx
     saldo_teto_vcx = vcx_teto - necessidade_vcx
-    vcx_usado = min(vcx_teto, necessidade_vcx)
     vcx_preservado = max(0.0, vcx_teto - vcx_usado)
     comissao = 0.019 * v_venda
     lucro = (comissao + (0.5 * vcx_preservado)) if compativel else -1e18
@@ -8508,7 +8522,7 @@ def aba_simulador_automacao(
                     "Política de Pro Soluto": d.get('politica'), "Fator Social": "Sim" if d.get('social') else "Não",
                     "Cotista FGTS": "Sim" if d.get('cotista') else "Não", "Financiamento Aprovado": d.get('finan_f_ref', 0),
                     "Subsídio Máximo": d.get('sub_f_ref', 0), "Pro Soluto Médio": d.get('ps_usado', 0), "Capacidade de Entrada": capacidade_entrada,
-                    "Poder de Aquisição Médio": (2 * d.get('renda', 0)) + d.get('finan_f_ref', 0) + d.get('sub_f_ref', 0) + (d.get('imovel_valor', 0) * 0.10),
+                    "Poder de Aquisição Médio": float(d.get('renda', 0) or 0) + d.get('finan_f_ref', 0) + d.get('sub_f_ref', 0) + (d.get('imovel_valor', 0) * 0.10),
                     "Empreendimento Final": d.get('empreendimento_nome'), "Unidade Final": d.get('unidade_id'),
                     "Preço Unidade Final": d.get('imovel_valor', 0), "Financiamento Final": d.get('finan_usado', 0),
                     "FGTS + Subsídio Final": d.get('fgts_sub_usado', 0), "Pro Soluto Final": d.get('ps_usado', 0),
