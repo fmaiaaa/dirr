@@ -9144,14 +9144,29 @@ def aba_simulador_automacao(
             0.0,
             float(d.get("poder_compra_unidade", 0) or 0),
         )
+        _desconto_pedido_fechamento = max(
+            0.0,
+            float(d.get("desconto_parcela_mensal", 0) or 0),
+        )
+        _faltante_poder_compra = max(
+            0.0,
+            float(_valor_real_fechamento) - float(_poder_compra_fechamento),
+        )
         _cobre_valor_real = (
             _valor_real_fechamento > 0
             and _poder_compra_fechamento >= (_valor_real_fechamento - 0.01)
         )
         gap_final_validacao = 0.0 if (_cobre_valor_real and gap_final > 0) else gap_final
-        if abs(gap_final_validacao) > 1.0:
+        _saldo_pendente_fechamento = max(0.0, float(gap_final_validacao))
+        if _desconto_pedido_fechamento <= 0.01 and _faltante_poder_compra > 1.0:
+            _saldo_pendente_fechamento = float(_faltante_poder_compra)
             _dv_alerta_vermelho(
-                f"Atenção: {'Falta cobrir' if gap_final_validacao > 0 else 'Valor excedente de'} "
+                f"Atenção: Falta cobrir "
+                f"<strong>{reais_streamlit_html(fmt_br(_saldo_pendente_fechamento))}</strong>."
+            )
+        elif gap_final_validacao < -1.0:
+            _dv_alerta_vermelho(
+                f"Atenção: Valor excedente de "
                 f"<strong>{reais_streamlit_html(fmt_br(abs(gap_final_validacao)))}</strong>."
             )
         parcela_fin_auto = calcular_parcela_financiamento(f_u_input, prazo_finan, taxa_fin_vigente(d), tab_fin)
@@ -9166,7 +9181,7 @@ def aba_simulador_automacao(
             use_container_width=True,
             key="dv_btn_avancar_resumo",
         ):
-            if abs(gap_final_validacao) <= 1.0:
+            if _saldo_pendente_fechamento <= 1.0 and gap_final_validacao >= -1.0:
                 st.session_state[_DV_SIM_DADOS_SNAPSHOT_KEY] = copy.deepcopy(
                     st.session_state.dados_cliente
                 )
@@ -9175,7 +9190,7 @@ def aba_simulador_automacao(
                 st.rerun()
             else:
                 _dv_alerta_vermelho(
-                    f"Não é possível avançar. Saldo pendente: <strong>{reais_streamlit_html(fmt_br(abs(gap_final_validacao)))}</strong>."
+                    f"Não é possível avançar. Saldo pendente: <strong>{reais_streamlit_html(fmt_br(_saldo_pendente_fechamento if _saldo_pendente_fechamento > 1.0 else abs(gap_final_validacao)))}</strong>."
                 )
         st.markdown('<hr class="dv-avancar-rule" />', unsafe_allow_html=True)
     elif passo == 'summary':
