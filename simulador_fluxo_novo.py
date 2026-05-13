@@ -8032,11 +8032,6 @@ def aba_simulador_automacao(
             '<h3 class="dv-titulo-secao">Distribuição da entrada (atos)</h3>',
             unsafe_allow_html=True,
         )
-        st.caption(
-            "Informe Ato 1, 30, 60 e 90 antes da recomendação. "
-            "O Pro Soluto não é escolhido manualmente: na etapa de fechamento será usado "
-            "o teto cheio permitido para a unidade, respeitando a política e o ranking."
-        )
 
         st.text_input(
             "Ato 1 (Entrada Imediata) (R$)",
@@ -8186,11 +8181,6 @@ def aba_simulador_automacao(
                 st.markdown(cards_html, unsafe_allow_html=True)
 
             if _permitir_outras_unidades or not cand_rec.empty:
-                st.caption(
-                    "Escolha abaixo uma das unidades recomendadas."
-                    if not _permitir_outras_unidades
-                    else "A trava foi liberada: agora voce pode escolher outras unidades do filtro."
-                )
                 _ids_recomendados = {
                     f"{str(r.get('Empreendimento') or '').strip()}|||{str(r.get('Identificador') or '').strip()}"
                     for _, r in cand_rec.iterrows()
@@ -8408,7 +8398,7 @@ def aba_simulador_automacao(
             st.session_state["_parc_fin_auto_sig"] = _parc_sig_now
             st.session_state["_parc_fin_auto_ref_prev"] = float(_parc_fin_ref)
             st.text_input(
-                "Parcela estimada do financiamento (editável) (R$)",
+                "Parcela estimada do financiamento (editável - em caso de divergências) (R$)",
                 key="parcela_fin_edit_key",
                 placeholder="0,00",
             )
@@ -8419,11 +8409,6 @@ def aba_simulador_automacao(
             if _parc_fin_ui <= 0:
                 _parc_fin_ui = _parc_fin_ref
             st.session_state.dados_cliente["parcela_financiamento"] = float(_parc_fin_ui)
-            st.markdown(
-                f'<span class="inline-ref">Referência automática: <strong>{reais_streamlit_html(fmt_br(_parc_fin_ref))}</strong></span>',
-                unsafe_allow_html=True,
-            )
-
             rank_prev = d.get("ranking", "DIAMANTE")
             col_rank_prev = f"PS_{str(rank_prev).title()}" if rank_prev else "PS_Diamante"
             if str(rank_prev) == "AÇO":
@@ -8542,11 +8527,6 @@ def aba_simulador_automacao(
             st.session_state["_parc_ps_auto_sig"] = _parc_ps_auto_sig
             st.session_state["_parc_ps_auto_ref_prev"] = int(_parc_ps_auto_ref)
 
-            st.markdown(
-                '<p class="inline-ref" style="margin:0.5rem 0 0.25rem 0;line-height:1.45;">'
-                + f"Pro Soluto: <strong>{reais_streamlit_html(fmt_br(ps_input_prev))}</strong></p>",
-                unsafe_allow_html=True,
-            )
             st.text_input(
                 "Número de parcelas do Pro Soluto (inteiro)",
                 key="parc_ps_key",
@@ -8666,9 +8646,6 @@ def aba_simulador_automacao(
             st.session_state.dados_cliente["ps_reducao_por_desconto_parcela"] = 0.0
             st.caption("Selecione uma unidade recomendada acima para simular o desconto.")
         else:
-            st.caption(
-                "Informe quanto deseja reduzir na soma das parcelas (Fin + PS) da unidade escolhida."
-            )
             if "desconto_parcela_key" not in st.session_state:
                 st.session_state["desconto_parcela_key"] = float_para_campo_texto(
                     0.0, vazio_se_zero=True
@@ -8741,9 +8718,7 @@ def aba_simulador_automacao(
             _tot_n = _p_ps_n + _p_fin_n
             st.markdown(
                 f'<p class="inline-ref" style="margin-top:0.5rem;line-height:1.5;">'
-                f"Parcela mensal estimada após desconto: <strong>{reais_streamlit_html(fmt_br(_tot_n))}</strong> "
-                f"({reais_streamlit_html(fmt_br(_p_fin_n))} financ. + "
-                f"{reais_streamlit_html(fmt_br(_p_ps_n))} PS em {_parc_ps_sel}x).</p>",
+                f"Parcela mensal estimada após desconto: <strong>{reais_streamlit_html(fmt_br(_tot_n))}</strong></p>",
                 unsafe_allow_html=True,
             )
             _r1_desc = max(0.0, texto_moeda_para_float(st.session_state.get("ato_1_key")))
@@ -8779,13 +8754,6 @@ def aba_simulador_automacao(
             st.session_state.dados_cliente["imovel_valor"] = float(_valor_oferta_pos_desc)
             st.session_state.dados_cliente["imovel_avaliacao"] = float(_valor_oferta_pos_desc)
             st.session_state.dados_cliente["valor_final_unidade"] = float(_valor_oferta_pos_desc)
-            st.markdown(
-                f'<p class="inline-ref" style="margin-top:0.35rem;line-height:1.5;">'
-                f"Valor da unidade (real): <strong>{reais_streamlit_html(fmt_br(_valor_real_desc))}</strong><br>"
-                f"Poder de compra do cliente: <strong>{reais_streamlit_html(fmt_br(_total_pos_desc))}</strong>"
-                f"</p>",
-                unsafe_allow_html=True,
-            )
             _exibiu_alerta_desc = False
             if _valor_real_desc > 0 and _total_pos_desc < _valor_real_desc - 0.01:
                 _faltante_desc = _valor_real_desc - _total_pos_desc
@@ -9212,133 +9180,99 @@ def aba_simulador_automacao(
             '<h3 class="dv-titulo-secao">Resumo da simulação</h3>',
             unsafe_allow_html=True,
         )
-        _nome_cli = str(d.get("nome", "") or "").strip()
-        if _nome_cli:
-            st.markdown(
-                f'<p style="text-align:center;margin:0 0 var(--dv-stack-gap) 0;line-height:1.5;color:#111;font-weight:600;">'
-                f"<b>Nome do Cliente ou Imobiliária:</b> {html_std.escape(_nome_cli)}</p>",
-                unsafe_allow_html=True,
+        _imovel_linhas: list[str] = []
+        _empreendimento_sum = str(d.get("empreendimento_nome") or "").strip()
+        if _empreendimento_sum:
+            _imovel_linhas.append(
+                f"<b>Empreendimento:</b> {html_std.escape(_empreendimento_sum)}"
             )
-        _cpf_d = re.sub(r"\D", "", str(d.get("cpf") or ""))
-        _cpf_linha = ""
-        if len(_cpf_d) == 11:
-            _cpf_linha = f"<b>CPF:</b> {_sf_cpf_mascarado_br(_cpf_d)}<br>"
-        elif str(d.get("cpf") or "").strip():
-            _cpf_linha = f"<b>CPF:</b> {html_std.escape(str(d.get('cpf') or '').strip())}<br>"
-        _rank_s = str(d.get("ranking") or "").strip()
-        _rank_linha = (
-            f"<b>Ranking do cliente:</b> {html_std.escape(_rank_s)}<br>" if _rank_s else ""
-        )
-        _cliente_inner = (
-            f"{_cpf_linha}"
-            f"{_rank_linha}"
-            f"<b>Renda familiar total:</b> {reais_streamlit_html(fmt_br(d.get('renda', 0)))}<br>"
-        )
-        _imovel_inner = (
-            f"<b>Empreendimento:</b> {html_std.escape(str(d.get('empreendimento_nome') or '—'))}<br>"
-            f"<b>Unidade:</b> {html_std.escape(str(d.get('unidade_id') or '—'))}<br>"
-            f"<b>Valor de venda (lista):</b> <span style=\"color: #111111; font-weight: 700;\">"
-            f"{reais_streamlit_html(fmt_br(v_emp_total))}</span><br>"
-        )
-        _desc_combinado = _vc_sum + _out_sum
-        if _desc_combinado > 0.009:
-            _imovel_inner += (
-                f"<b>Descontos Concedidos:</b> {reais_streamlit_html(fmt_br(_desc_combinado))}<br>"
+        _unidade_sum = str(d.get("unidade_id") or "").strip()
+        if _unidade_sum:
+            _imovel_linhas.append(f"<b>Unidade:</b> {html_std.escape(_unidade_sum)}")
+        _entrega_sum = str(d.get("unid_entrega") or "").strip()
+        if _entrega_sum:
+            _imovel_linhas.append(
+                f"<b>Previsão de entrega:</b> {html_std.escape(_entrega_sum)}"
             )
-        _mot_sum = str(d.get("outros_descontos_motivo") or "").strip()
-        if _out_sum > 0.009 and _mot_sum:
-            _imovel_inner += (
-                f"<b>Origem dos outros descontos:</b> "
-                f"<span style=\"color:#334155;\">{html_std.escape(_mot_sum)}</span><br>"
+        _area_sum = str(d.get("unid_area") or "").strip()
+        if _area_sum:
+            _imovel_linhas.append(
+                f"<b>Área privativa:</b> {html_std.escape(_area_sum)} m²"
             )
-        _imovel_inner += (
-            f"<b>Valor final da unidade:</b> <span style=\"color: #111111; font-weight: 700;\">"
-            f"{reais_streamlit_html(fmt_br(v_final_sum))}</span><br>"
-        )
-        if d.get("unid_entrega"):
-            _imovel_inner += (
-                f"<b>Previsão de entrega:</b> {html_std.escape(str(d.get('unid_entrega')))}<br>"
+        _tipo_sum = str(d.get("unid_tipo") or "").strip()
+        if _tipo_sum:
+            _imovel_linhas.append(f"<b>Tipologia:</b> {html_std.escape(_tipo_sum)}")
+        _loc_partes = [
+            str(d.get("unid_endereco") or "").strip(),
+            str(d.get("unid_bairro") or "").strip(),
+        ]
+        _loc_partes = [p for p in _loc_partes if p]
+        if _loc_partes:
+            _imovel_linhas.append(
+                f"<b>Localização:</b> {html_std.escape(' — '.join(_loc_partes))}"
             )
-        if d.get("unid_area"):
-            _imovel_inner += (
-                f"<b>Área privativa:</b> {html_std.escape(str(d.get('unid_area')))} m²<br>"
-            )
-        if d.get("unid_tipo"):
-            _imovel_inner += f"<b>Tipologia:</b> {html_std.escape(str(d.get('unid_tipo')))}<br>"
-        if d.get("unid_endereco") and d.get("unid_bairro"):
-            _imovel_inner += (
-                f"<b>Localização:</b> {html_std.escape(str(d.get('unid_endereco')))} — "
-                f"{html_std.escape(str(d.get('unid_bairro')))}"
-            )
+        _imovel_inner = "<br>".join(_imovel_linhas)
 
-        prazo_txt = d.get("prazo_financiamento", 420)
-        _amort_res = nome_sistema_amortizacao_completo(str(d.get("sistema_amortizacao", "SAC")))
-        _valor_real_resumo = max(0.0, float(d.get("imovel_valor_real_cadastro", 0) or 0))
-        _poder_compra_resumo = max(
-            0.0,
-            float(d.get("poder_compra_unidade", 0) or 0),
-        )
-        _fin_inner = (
-            f"<b>Financiamento utilizado:</b> {reais_streamlit_html(fmt_br(d.get('finan_usado', 0)))}<br>"
-            f"<b>Sistema de amortização e prazo:</b> {_amort_res} — {prazo_txt} meses<br>"
-            f"<b>Parcela estimada do financiamento:</b> "
-            f"{reais_streamlit_html(fmt_br(d.get('parcela_financiamento', 0)))}<br>"
-            f"<b>FGTS + subsídio:</b> {reais_streamlit_html(fmt_br(d.get('fgts_sub_usado', 0)))}<br>"
-        )
-
-        _em_sum = _politica_emcash(d.get("politica"))
-        _linha_resumo_ato_90 = (
-            ""
-            if _em_sum
-            else f"<b>Ato 90:</b> {reais_streamlit_html(fmt_br(d.get('ato_90', 0)))}<br>"
-        )
-        _a1 = float(d.get("ato_final", 0) or 0)
-        _a2 = float(d.get("ato_30", 0) or 0)
-        _a3 = float(d.get("ato_60", 0) or 0)
-        _ent_resumo = float(d.get("entrada_total", 0) or 0) + float(d.get("ps_usado", 0) or 0)
-        _nota_emcash_paren = html_std.escape(_EMCASH_NOTA_PARCELAS)
-        _entrada_pro_inner = ""
-        if _em_sum:
-            _entrada_pro_inner += (
-                f"<b>Política de Pro Soluto:</b> {html_std.escape(_pol_sum_label)} "
-                f"<span style=\"color:#334155;font-weight:400;\">({_nota_emcash_paren})</span><br>"
+        _fin_total_sum = max(0.0, float(d.get("finan_usado", 0) or 0))
+        _ps_total_sum = max(0.0, float(d.get("ps_usado", 0) or 0))
+        _atos_total_sum = max(0.0, float(d.get("entrada_total", 0) or 0))
+        _financeiro_linhas: list[str] = []
+        if v_final_sum > 0.0:
+            _financeiro_linhas.append(
+                f"<b>Valor final da unidade:</b> {reais_streamlit_html(fmt_br(v_final_sum))}"
             )
-        else:
-            _entrada_pro_inner += f"<b>Política de Pro Soluto:</b> {html_std.escape(_pol_sum_label)}<br>"
-        _entrada_pro_inner += (
-            f"<b>Pro Soluto (valor):</b> {reais_streamlit_html(fmt_br(d.get('ps_usado', 0)))}<br>"
-            f"<b>Número de parcelas do Pro Soluto:</b> {html_std.escape(str(d.get('ps_parcelas')))}<br>"
-            f"<b>Mensalidade do Pro Soluto:</b> {reais_streamlit_html(fmt_br(d.get('ps_mensal', 0)))}<br>"
-            f"<b>Ato 1 (Entrada Imediata):</b> {reais_streamlit_html(fmt_br(_a1))}<br>"
-            f"<b>Ato 30:</b> {reais_streamlit_html(fmt_br(_a2))}<br>"
-            f"<b>Ato 60:</b> {reais_streamlit_html(fmt_br(_a3))}<br>"
-            f"{_linha_resumo_ato_90}"
-            f"<hr style=\"border:0;border-top:1px solid #e2e8f0;margin:var(--dv-stack-gap) 0;\">"
-            f"<b>Entrada total (atos e Pro Soluto):</b> {reais_streamlit_html(fmt_br(_ent_resumo))}<br>"
-            f"<b>Valor real da unidade:</b> {reais_streamlit_html(fmt_br(_valor_real_resumo))}<br>"
-            f"<b>Poder de compra:</b> {reais_streamlit_html(fmt_br(_poder_compra_resumo))}<br>"
-        )
+        if _fin_total_sum > 0.0:
+            _financeiro_linhas.append(
+                f"<b>Financiamento:</b> {reais_streamlit_html(fmt_br(_fin_total_sum))}"
+            )
+        if _ps_total_sum > 0.0:
+            _financeiro_linhas.append(
+                f"<b>Pro Soluto total utilizado:</b> {reais_streamlit_html(fmt_br(_ps_total_sum))}"
+            )
+        if _atos_total_sum > 0.0:
+            _financeiro_linhas.append(
+                f"<b>Atos totais utilizados:</b> {reais_streamlit_html(fmt_br(_atos_total_sum))}"
+            )
+        _financeiro_inner = "<br>".join(_financeiro_linhas)
 
-        _cartoes = (
-            _html_cartao_resumo_secao("Dados do cliente", _cliente_inner)
-            + _html_cartao_resumo_secao("Dados do imóvel", _imovel_inner)
-            + _html_cartao_resumo_secao("Financiamento", _fin_inner)
-            + _html_cartao_resumo_secao("Entrada e Pro Soluto", _entrada_pro_inner)
+        _detalhamento_linhas: list[str] = []
+        _prazo_fin_sum = int(d.get("prazo_financiamento", 0) or 0)
+        _parcela_fin_sum = max(0.0, float(d.get("parcela_financiamento", 0) or 0))
+        if _prazo_fin_sum > 0 and _parcela_fin_sum > 0.0:
+            _detalhamento_linhas.append(
+                f"<b>Parcela do financiamento:</b> "
+                f"{html_std.escape(str(_prazo_fin_sum))}x de {reais_streamlit_html(fmt_br(_parcela_fin_sum))}"
+            )
+        _parc_ps_sum = int(d.get("ps_parcelas", 0) or 0)
+        _mensal_ps_sum = max(0.0, float(d.get("ps_mensal", 0) or 0))
+        if _parc_ps_sum > 0 and _mensal_ps_sum > 0.0:
+            _detalhamento_linhas.append(
+                f"<b>Parcela do Pro Soluto:</b> "
+                f"{html_std.escape(str(_parc_ps_sum))}x de {reais_streamlit_html(fmt_br(_mensal_ps_sum))}"
+            )
+        _atos_labels = (
+            ("Ato 1", float(d.get("ato_final", 0) or 0)),
+            ("Ato 30", float(d.get("ato_30", 0) or 0)),
+            ("Ato 60", float(d.get("ato_60", 0) or 0)),
+            ("Ato 90", float(d.get("ato_90", 0) or 0)),
         )
+        for _ato_label, _ato_val in _atos_labels:
+            if _ato_val > 0.0:
+                _detalhamento_linhas.append(
+                    f"<b>{html_std.escape(_ato_label)}:</b> {reais_streamlit_html(fmt_br(_ato_val))}"
+                )
+        _detalhamento_inner = "<br>".join(_detalhamento_linhas)
+
+        _cartoes_lista: list[str] = []
+        if _imovel_inner:
+            _cartoes_lista.append(_html_cartao_resumo_secao("Dados do imóvel", _imovel_inner))
+        if _financeiro_inner:
+            _cartoes_lista.append(_html_cartao_resumo_secao("Dados financeiros", _financeiro_inner))
+        if _detalhamento_inner:
+            _cartoes_lista.append(_html_cartao_resumo_secao("Detalhamento", _detalhamento_inner))
+        _cartoes = "".join(_cartoes_lista)
         st.markdown(
             f'<div class="dv-summary-stack">{_cartoes}</div>',
-            unsafe_allow_html=True,
-        )
-        _cn_sum = (st.session_state.get("user_name", "") or "").strip()
-        if _cn_sum:
-            st.markdown(
-                f'<p style="text-align:center;margin:0 0 var(--dv-stack-gap) 0;font-weight:600;color:{COR_AZUL_ESC};">'
-                f"Consultor: {html_std.escape(_cn_sum)}</p>",
-                unsafe_allow_html=True,
-            )
-        st.markdown(
-            f'<p style="text-align:center;margin:0;color:#64748b;font-style:italic;">'
-            f"Simulação em {html_std.escape(str(d.get('data_simulacao', date.today().strftime('%d/%m/%Y'))))}</p>",
             unsafe_allow_html=True,
         )
         st.markdown("---")
