@@ -3800,10 +3800,11 @@ def _poder_compra_total_linha(
     row: pd.Series, d: dict, df_politicas: pd.DataFrame, prem: dict
 ) -> tuple[float, float, float, float, float]:
     """
-    Poder de compra na linha: fin + FGTS/subsídio + atos + Pro Soluto (resíduo V−atos−fin−sub)
-    até ao teto efetivo; o que exceder o teto conta com Volta ao Caixa até Volta_Caixa_Ref.
+    Poder de compra na linha: atos + financiamento + FGTS/subsídio + PS máximo da unidade.
+    Valor real da unidade: valor de venda menos volta ao caixa de referência.
+    Valor de oferta: valor real da unidade quando o poder não cobre, senão o próprio poder de compra.
 
-    Retorna (poder_total, ps_res_bruto, ps_part, vcx_part, ps_cap).
+    Retorna (poder_total, valor_real_unidade, ps_part, valor_oferta, falta_para_comprar).
     """
     fin = float(d.get("finan_usado", 0) or 0)
     sub = float(d.get("fgts_sub_usado", 0) or 0)
@@ -3816,6 +3817,7 @@ def _poder_compra_total_linha(
         vcx_teto = max(0.0, float(row.get("Volta_Caixa_Ref", 0) or 0))
     except (TypeError, ValueError):
         vcx_teto = 0.0
+    valor_real_unidade = max(0.0, v_venda - vcx_teto)
     ren = float(d.get("renda", 0) or 0)
     ps_stock = max(0.0, _ps_max_estoque_row_cliente(row, d))
     ps_cap = float(ps_stock)
@@ -3832,14 +3834,11 @@ def _poder_compra_total_linha(
         ps_cap = float(mps.get("ps_max_efetivo", 0) or 0)
     except Exception:
         ps_cap = float(ps_stock)
-
-    ps_res = float(v_venda) - soma_atos - fin - sub
-    ps_res_n = max(0.0, ps_res)
-    ps_part = min(ps_res_n, ps_cap)
-    overflow = max(0.0, ps_res_n - ps_cap)
-    vcx_part = min(vcx_teto, overflow)
-    poder_total = fin + sub + soma_atos + ps_part + vcx_part
-    return poder_total, ps_res, ps_part, vcx_part, ps_cap
+    ps_part = max(0.0, ps_cap)
+    poder_total = fin + sub + soma_atos + ps_part
+    falta_para_comprar = max(0.0, valor_real_unidade - poder_total)
+    valor_oferta = max(valor_real_unidade, poder_total)
+    return poder_total, valor_real_unidade, ps_part, valor_oferta, falta_para_comprar
 
 
 def _meses_entrega_row_estoque(row: pd.Series) -> int:
@@ -3933,26 +3932,23 @@ def _delta_ps_para_reducao_parcela_mensal(
 def _calcular_poder_compra_linha_estoque(
     row: pd.Series, d: dict, df_politicas: pd.DataFrame, prem: dict
 ) -> pd.Series:
-    """Anexa Poder_Compra (fin+sub+atos+PS até teto+VCX do excedente) e cobertura vs valor de venda."""
-    try:
-        v_venda = float(row.get("Valor de Venda", 0) or 0)
-    except (TypeError, ValueError):
-        v_venda = 0.0
+    """Anexa poder de compra, valor real líquido, valor de oferta e falta para compra."""
     fin = float(d.get("finan_usado", 0) or 0)
     sub = float(d.get("fgts_sub_usado", 0) or 0)
-    poder_total, _, _, _, _ = _poder_compra_total_linha(row, d, df_politicas, prem)
-    cobertura = (poder_total / v_venda) * 100.0 if v_venda > 0 else 0.0
-    return pd.Series([poder_total, cobertura, fin, sub])
+    poder_total, valor_real_unidade, _, valor_oferta, falta_para_comprar = _poder_compra_total_linha(
+        row, d, df_politicas, prem
+    )
+    cobertura = (poder_total / valor_real_unidade) * 100.0 if valor_real_unidade > 0 else 0.0
+    return pd.Series([poder_total, cobertura, fin, sub, valor_real_unidade, valor_oferta, falta_para_comprar])
 
 
 def _metricas_lucro_unidade(
     row: pd.Series, d: dict, df_politicas: pd.DataFrame, prem: dict
 ) -> pd.Series:
     """
-    Compatível quando o poder de compra na linha cobre o valor de venda: fin + FGTS + atos
-    + min(PS_resíduo, teto PS) + min(VCX_ref, excedente de PS face ao teto) ≥ V.
-    Lucro recomendado = 1,9% do valor de venda + 50% do VCX preservado (não utilizado na linha).
+    Compatível quando o poder de compra cobre o valor real da unidade (valor de venda menos VCX).
     """
+    eps = 1e-6
     try:
         v_venda = float(row.get("Valor de Venda", 0) or 0)
     except (TypeError, ValueError):
@@ -3961,22 +3957,14 @@ def _metricas_lucro_unidade(
         vcx_teto = max(0.0, float(row.get("Volta_Caixa_Ref", 0) or 0))
     except (TypeError, ValueError):
         vcx_teto = 0.0
-    fin = float(d.get("finan_usado", 0) or 0)
-    sub = float(d.get("fgts_sub_usado", 0) or 0)
-    soma_atos = _soma_atos_entrada_cliente(d)
-    eps = 1e-6
-
-    poder_total, ps_res, ps_part, vcx_usado, ps_cap_calc = _poder_compra_total_linha(
+    poder_total, valor_real_unidade, _, _, falta_para_comprar = _poder_compra_total_linha(
         row, d, df_politicas, prem
     )
-    ps_res_n = max(0.0, ps_res)
-    compativel = bool(v_venda > 0 and poder_total + eps >= v_venda)
-
-    necessidade_vcx = max(0.0, ps_res_n - ps_cap_calc)
-    saldo_teto_vcx = float(vcx_teto) - necessidade_vcx
-    vcx_preservado = max(0.0, float(vcx_teto) - float(vcx_usado))
-    comissao = 0.019 * v_venda
-    lucro = (comissao + (0.5 * vcx_preservado)) if compativel else -1e18
+    compativel = bool(valor_real_unidade > 0 and poder_total + eps >= valor_real_unidade)
+    vcx_usado = 0.0
+    vcx_preservado = float(vcx_teto)
+    lucro = float(valor_real_unidade if compativel else -1e18)
+    saldo_teto_vcx = float(vcx_teto - max(0.0, falta_para_comprar))
     return pd.Series([compativel, vcx_usado, vcx_preservado, lucro, saldo_teto_vcx])
 
 
@@ -3987,7 +3975,7 @@ def df_estoque_com_poder_compra(
     out = df.copy()
     if out.empty:
         return out
-    out[["Poder_Compra", "Cobertura", "Finan_Unid", "Sub_Unid"]] = out.apply(
+    out[["Poder_Compra", "Cobertura", "Finan_Unid", "Sub_Unid", "Valor_Real_Unidade", "Valor_Oferta", "Falta_Para_Comprar"]] = out.apply(
         lambda r: _calcular_poder_compra_linha_estoque(r, d, df_politicas, prem),
         axis=1,
     )
@@ -4005,16 +3993,16 @@ def df_estoque_com_poder_compra(
 def candidatos_df_recomendados(df_pool: pd.DataFrame, *, top_n: int = 3) -> pd.DataFrame:
     """
     Até ``top_n`` unidades mais caras dentro do poder de compra (compatíveis).
-    Espera colunas: Unidade_Compativel, Valor de Venda.
+    Espera colunas: Unidade_Compativel, Valor_Real_Unidade.
     """
     if df_pool.empty:
         return pd.DataFrame()
-    if "Unidade_Compativel" not in df_pool.columns or "Valor de Venda" not in df_pool.columns:
+    if "Unidade_Compativel" not in df_pool.columns or "Valor_Real_Unidade" not in df_pool.columns:
         return pd.DataFrame()
     n = max(1, int(top_n))
     fit_sub = df_pool[df_pool["Unidade_Compativel"] == True].copy()
     if not fit_sub.empty:
-        fit_sub["_v_sort"] = pd.to_numeric(fit_sub["Valor de Venda"], errors="coerce").fillna(0.0)
+        fit_sub["_v_sort"] = pd.to_numeric(fit_sub["Valor_Real_Unidade"], errors="coerce").fillna(0.0)
         fit_sub = fit_sub.sort_values(
             ["_v_sort", "Empreendimento", "Identificador"],
             ascending=[False, True, True],
@@ -7981,13 +7969,12 @@ def aba_simulador_automacao(
         if sist_sel == "PRICE":
             _ref_comp_html = (
                 f"Valor estimado da parcela: <strong>{reais_streamlit_html(fmt_br(price_details['parcela']))}</strong> "
-                f"parcelas fixas (montante total: <strong>{reais_streamlit_html(fmt_br(price_details['montante_total']))}</strong>)"
+                "parcelas fixas"
             )
         else:
             _ref_comp_html = (
                 f"Valor estimado da parcela: <strong>{reais_streamlit_html(fmt_br(sac_details['primeira']))}</strong> "
-                f"a <strong>{reais_streamlit_html(fmt_br(sac_details['ultima']))}</strong> "
-                f"(montante total: <strong>{reais_streamlit_html(fmt_br(sac_details['montante_total']))}</strong>)"
+                f"a <strong>{reais_streamlit_html(fmt_br(sac_details['ultima']))}</strong>"
             )
         st.markdown(
             f'<div class="dv-ref-prox-campo">{_ref_comp_html}</div>',
@@ -8114,10 +8101,6 @@ def aba_simulador_automacao(
                 else df_disp_total[df_disp_total["Empreendimento"] == emp_rec]
             )
             cand_rec = candidatos_df_recomendados(df_pool, top_n=3)
-            st.checkbox(
-                "Permitir escolher outras unidades",
-                key="permitir_outras_unidades_key",
-            )
             _permitir_outras_unidades = bool(
                 st.session_state.get("permitir_outras_unidades_key", False)
             )
@@ -8134,6 +8117,13 @@ def aba_simulador_automacao(
                 st.session_state.dados_cliente["ps_reducao_por_desconto_parcela"] = 0.0
                 st.info(
                     "Nenhuma unidade está dentro do poder de compra informado para este filtro."
+                )
+                st.checkbox(
+                    "Permitir escolher outras unidades",
+                    key="permitir_outras_unidades_key",
+                )
+                st.session_state.dados_cliente["permitir_outras_unidades"] = bool(
+                    st.session_state.get("permitir_outras_unidades_key", False)
                 )
             else:
                 final_cards: list[dict] = []
@@ -8248,6 +8238,13 @@ def aba_simulador_automacao(
                         format_func=label_uni,
                         key="sel_uni_rec_v1",
                     )
+                    st.checkbox(
+                        "Permitir escolher outras unidades",
+                        key="permitir_outras_unidades_key",
+                    )
+                    st.session_state.dados_cliente["permitir_outras_unidades"] = bool(
+                        st.session_state.get("permitir_outras_unidades_key", False)
+                    )
                     if choice_sel:
                         u_row = unidades_disp[unidades_disp["_choice_key"] == choice_sel].iloc[0]
                         unidade_escolhida_row = u_row
@@ -8258,11 +8255,32 @@ def aba_simulador_automacao(
                         except (TypeError, ValueError):
                             v_venda_real = 0.0
                         try:
-                            v_negocio = float(u_row.get("Poder_Compra", 0) or 0)
+                            v_poder = float(u_row.get("Poder_Compra", 0) or 0)
                         except (TypeError, ValueError):
-                            v_negocio = 0.0
-                        if v_negocio <= 0.0:
-                            v_negocio = v_venda_real
+                            v_poder = 0.0
+                        try:
+                            v_real_liq = float(u_row.get("Valor_Real_Unidade", 0) or 0)
+                        except (TypeError, ValueError):
+                            v_real_liq = 0.0
+                        if v_real_liq <= 0.0:
+                            try:
+                                _vcx_ref_row = float(u_row.get("Volta_Caixa_Ref", 0) or 0)
+                            except (TypeError, ValueError):
+                                _vcx_ref_row = 0.0
+                            v_real_liq = max(
+                                0.0,
+                                v_venda_real - _vcx_ref_row,
+                            )
+                        try:
+                            v_oferta = float(u_row.get("Valor_Oferta", 0) or 0)
+                        except (TypeError, ValueError):
+                            v_oferta = 0.0
+                        if v_oferta <= 0.0:
+                            v_oferta = max(v_poder, v_real_liq)
+                        try:
+                            v_falta = float(u_row.get("Falta_Para_Comprar", 0) or 0)
+                        except (TypeError, ValueError):
+                            v_falta = 0.0
                         try:
                             v_aval_real = float(
                                 u_row.get("Valor de Avaliação Bancária", 0) or 0
@@ -8273,9 +8291,13 @@ def aba_simulador_automacao(
                             {
                                 "unidade_id": uni_escolhida_id,
                                 "empreendimento_nome": emp_escolhido,
-                                "imovel_valor": float(v_negocio),
-                                "imovel_avaliacao": float(v_negocio),
-                                "imovel_valor_real_cadastro": float(v_venda_real),
+                                "imovel_valor": float(v_oferta),
+                                "imovel_avaliacao": float(v_oferta),
+                                "imovel_valor_real_cadastro": float(v_real_liq),
+                                "imovel_valor_tabela": float(v_venda_real),
+                                "poder_compra_unidade": float(v_poder),
+                                "valor_oferta_unidade": float(v_oferta),
+                                "falta_para_comprar_unidade": float(v_falta),
                                 "imovel_avaliacao_bancaria_real": float(v_aval_real),
                                 "finan_estimado": d.get("finan_usado", 0),
                                 "fgts_sub": d.get("fgts_sub_usado", 0),
@@ -8288,6 +8310,16 @@ def aba_simulador_automacao(
                             }
                         )
                         st.session_state.dados_cliente["prazo_ps_max"] = 84
+                        if v_falta > 0.01:
+                            st.warning(
+                                f"Faltam R$ {fmt_br(v_falta)} para comprar esta unidade pelo valor real. "
+                                "A oferta considerada permanece no valor real da unidade."
+                            )
+                        elif v_oferta > v_real_liq + 0.01:
+                            st.info(
+                                f"O poder de compra supera o valor real da unidade. "
+                                f"A oferta considerada será de R$ {fmt_br(v_oferta)}."
+                            )
 
         st.markdown("---")
         st.markdown(
@@ -8329,7 +8361,7 @@ def aba_simulador_automacao(
             price_details = _comp_sac_price["PRICE"]
             _ref_comp_html = (
                 f"Valor estimado da parcela: <strong>{reais_streamlit_html(fmt_br(price_details['parcela']))}</strong> "
-                f"parcelas fixas (montante total: <strong>{reais_streamlit_html(fmt_br(price_details['montante_total']))}</strong>)"
+                "parcelas fixas"
             )
             st.markdown(
                 f'<div class="dv-ref-prox-campo">{_ref_comp_html}</div>',
@@ -8602,18 +8634,11 @@ def aba_simulador_automacao(
             )
             _total_componentes_real = float(soma_atos_prev) + float(f_prev) + float(s_prev) + float(ps_input_prev)
             if _valor_real_unid > 0:
-                if _total_componentes_real > _valor_real_unid + 0.01:
+                if _total_componentes_real < _valor_real_unid - 0.01:
+                    _faltante_real = _valor_real_unid - _total_componentes_real
                     _dv_alerta_vermelho(
-                        f"A soma de atos + financiamento + FGTS/subsidio + Pro Soluto "
-                        f"(<strong>{reais_streamlit_html(fmt_br(_total_componentes_real))}</strong>) "
-                        f"ultrapassa o valor real da unidade "
-                        f"(<strong>{reais_streamlit_html(fmt_br(_valor_real_unid))}</strong>)."
-                    )
-                elif _total_componentes_real < _valor_real_unid - 0.01:
-                    _dv_alerta_vermelho(
-                        f"A soma de atos + financiamento + FGTS/subsidio + Pro Soluto "
-                        f"(<strong>{reais_streamlit_html(fmt_br(_total_componentes_real))}</strong>) "
-                        f"ainda nao compra a unidade pelo valor real "
+                        f"Faltam <strong>{reais_streamlit_html(fmt_br(_faltante_real))}</strong> "
+                        f"para comprar a unidade pelo valor real "
                         f"(<strong>{reais_streamlit_html(fmt_br(_valor_real_unid))}</strong>)."
                     )
 
@@ -8720,10 +8745,11 @@ def aba_simulador_automacao(
                 + float(_ps_reduzido_principal)
             )
             if _valor_real_desc > 0 and _total_pos_desc < _valor_real_desc - 0.01:
+                _faltante_desc = _valor_real_desc - _total_pos_desc
                 _dv_alerta_vermelho(
-                    f"Com o desconto aplicado, a soma de atos + financiamento + FGTS/subsidio + Pro Soluto reduzido "
-                    f"(<strong>{reais_streamlit_html(fmt_br(_total_pos_desc))}</strong>) "
-                    f"nao compra a unidade pelo valor real "
+                    f"O desconto pedido não é possível. Após reduzir o Pro Soluto, "
+                    f"faltariam <strong>{reais_streamlit_html(fmt_br(_faltante_desc))}</strong> "
+                    f"para atingir o valor real da unidade "
                     f"(<strong>{reais_streamlit_html(fmt_br(_valor_real_desc))}</strong>)."
                 )
 
