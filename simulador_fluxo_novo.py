@@ -3928,7 +3928,7 @@ def _delta_ps_para_reducao_parcela_mensal(
 def _calcular_poder_compra_linha_estoque(
     row: pd.Series, d: dict, df_politicas: pd.DataFrame, prem: dict
 ) -> pd.Series:
-    """Anexa poder de compra, valor real líquido, valor de oferta e falta para compra."""
+    """Anexa poder de compra, valor da unidade, valor de oferta e falta para compra."""
     fin = float(d.get("finan_usado", 0) or 0)
     sub = float(d.get("fgts_sub_usado", 0) or 0)
     poder_total, valor_unidade, _, valor_oferta, falta_para_comprar = _poder_compra_total_linha(
@@ -8014,9 +8014,8 @@ def aba_simulador_automacao(
         )
         st.caption(
             "Informe Ato 1, 30, 60 e 90 antes da recomendação. "
-            "O Pro Soluto não é escolhido manualmente: na etapa de fechamento será o resíduo "
-            "(valor líquido da unidade menos financiamento, FGTS/subsídio e soma dos atos), "
-            "respeitando o teto de Pro Soluto da política."
+            "O Pro Soluto não é escolhido manualmente: na etapa de fechamento será usado "
+            "o teto cheio permitido para a unidade, respeitando a política e o ranking."
         )
         _renda_cli_pre = max(0.0, float(st.session_state.dados_cliente.get("renda", 0) or 0))
         _sug_min_ato1_pre = 2.0 * _renda_cli_pre
@@ -8525,7 +8524,7 @@ def aba_simulador_automacao(
 
             st.markdown(
                 '<p class="inline-ref" style="margin:0.5rem 0 0.25rem 0;line-height:1.45;">'
-                + f"Pro Soluto (resíduo): <strong>{reais_streamlit_html(fmt_br(ps_input_prev))}</strong></p>",
+                + f"Pro Soluto: <strong>{reais_streamlit_html(fmt_br(ps_input_prev))}</strong></p>",
                 unsafe_allow_html=True,
             )
             st.text_input(
@@ -8731,7 +8730,7 @@ def aba_simulador_automacao(
                 _dv_alerta_vermelho(
                     f"O desconto pedido não é possível. Após reduzir o Pro Soluto, "
                     f"faltariam <strong>{reais_streamlit_html(fmt_br(_faltante_desc))}</strong> "
-                    f"para atingir o valor real da unidade "
+                    f"para atingir o valor da unidade "
                     f"(<strong>{reais_streamlit_html(fmt_br(_valor_real_desc))}</strong>)."
                 )
 
