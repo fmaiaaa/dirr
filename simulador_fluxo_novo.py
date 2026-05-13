@@ -7630,15 +7630,9 @@ def aba_simulador_automacao(
                 for k, v in _snapshot_dbg.items()
             )
             st.markdown(_snapshot_lines, unsafe_allow_html=True)
-            st.caption(
-                "Leitura rápida: veja se a busca ficou pendente, se houve memoização, "
-                "qual código retornou e quantas linhas de log foram capturadas."
-            )
             _rank_debug_text = _dv_sf_rank_debug_text()
             if _rank_debug_text:
                 st.code(_rank_debug_text, language="text")
-            else:
-                st.caption("Nenhum log de busca disponível ainda.")
         if st.session_state.get(_DV_SF_RANK_TRACK_CPF_KEY) != cpf_digits:
             st.session_state[_DV_SF_RANK_TRACK_CPF_KEY] = cpf_digits
             # Um único preenchimento automático por “snapshot” de CPF; depois o utilizador pode alterar à vontade.
@@ -8111,7 +8105,7 @@ def aba_simulador_automacao(
                 st.session_state.dados_cliente["imovel_avaliacao"] = 0.0
                 st.session_state.dados_cliente["desconto_parcela_mensal"] = 0.0
                 st.session_state.dados_cliente["ps_reducao_por_desconto_parcela"] = 0.0
-                st.info(
+                _dv_alerta_vermelho(
                     "Nenhuma unidade está dentro do poder de compra informado para este filtro."
                 )
                 st.checkbox(
@@ -8318,11 +8312,7 @@ def aba_simulador_automacao(
             '<h3 class="dv-titulo-secao">Condições de parcelas</h3>',
             unsafe_allow_html=True,
         )
-        if unidade_escolhida_row is None:
-            st.caption(
-                "Selecione uma unidade recomendada acima para definir prazo, parcela do financiamento e parcelas do Pro Soluto."
-            )
-        else:
+        if unidade_escolhida_row is not None:
             d = st.session_state.dados_cliente
             prazo_atual = d.get("prazo_financiamento", 420)
             try:
@@ -8644,7 +8634,6 @@ def aba_simulador_automacao(
         if unidade_escolhida_row is None:
             st.session_state.dados_cliente["desconto_parcela_mensal"] = 0.0
             st.session_state.dados_cliente["ps_reducao_por_desconto_parcela"] = 0.0
-            st.caption("Selecione uma unidade recomendada acima para simular o desconto.")
         else:
             if "desconto_parcela_key" not in st.session_state:
                 st.session_state["desconto_parcela_key"] = float_para_campo_texto(
@@ -8887,6 +8876,7 @@ def aba_simulador_automacao(
             st.session_state.dados_cliente['ato_90'] = 0.0
 
         row_u_sel = None
+        ps_max_real = 0.0
         if "unidade_id" in d and "empreendimento_nome" in d:
             _df_r = df_estoque[
                 (df_estoque["Identificador"] == d["unidade_id"])
@@ -9180,6 +9170,13 @@ def aba_simulador_automacao(
             '<h3 class="dv-titulo-secao">Resumo da simulação</h3>',
             unsafe_allow_html=True,
         )
+        _nome_cliente_sum = str(d.get("nome", "") or "").strip()
+        if _nome_cliente_sum:
+            st.markdown(
+                f'<p style="margin:0 0 var(--dv-stack-gap) 0;line-height:1.45;">'
+                f"<b>Nome do cliente:</b> {html_std.escape(_nome_cliente_sum)}</p>",
+                unsafe_allow_html=True,
+            )
         _imovel_linhas: list[str] = []
         _empreendimento_sum = str(d.get("empreendimento_nome") or "").strip()
         if _empreendimento_sum:
@@ -9549,8 +9546,9 @@ def main():
         return
 
     with st.sidebar:
-        st.caption("Sessão")
-        st.caption(str(st.session_state.get("user_email") or ""))
+        _user_email_sidebar = str(st.session_state.get("user_email") or "").strip()
+        if _user_email_sidebar:
+            st.markdown(html_std.escape(_user_email_sidebar), unsafe_allow_html=True)
         if st.button("Sair", key="dv_logout_btn"):
             st.session_state["logged_in"] = False
             for _k in (
