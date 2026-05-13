@@ -8744,11 +8744,11 @@ def aba_simulador_automacao(
             st.session_state.dados_cliente["imovel_avaliacao"] = float(_valor_oferta_pos_desc)
             st.session_state.dados_cliente["valor_final_unidade"] = float(_valor_oferta_pos_desc)
             _exibiu_alerta_desc = False
-            if _valor_real_desc > 0 and _total_pos_desc < _valor_real_desc - 0.01:
-                _faltante_desc = _valor_real_desc - _total_pos_desc
+            _aumento_ato_desc = max(0.0, float(_d_ps or 0.0))
+            if float(_desc_p or 0.0) > 0.01 and _aumento_ato_desc > 0.01:
                 _dv_alerta_vermelho(
                     f"Para ter o desconto pedido, deve aumentar o ato em "
-                    f"<strong>{reais_streamlit_html(fmt_br(_faltante_desc))}</strong>."
+                    f"<strong>{reais_streamlit_html(fmt_br(_aumento_ato_desc))}</strong>."
                 )
                 _exibiu_alerta_desc = True
             _desconto_risco_ref = max(0.0, float(_total_base_desc))
