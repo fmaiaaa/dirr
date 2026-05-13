@@ -1069,10 +1069,26 @@ def _dv_sf_rank_log_attach_session_handler() -> None:
         _sf_logger.setLevel(logging.DEBUG)
     except Exception:
         pass
+    _handlers_existentes = list(getattr(_sf_logger, "handlers", []) or [])
+    _handlers_rank: list[logging.Handler] = []
+    for h in _handlers_existentes:
+        _is_rank_handler = bool(getattr(h, "_dv_sf_rank_session_handler", False))
+        if not _is_rank_handler and h.__class__.__name__ == "_DvSfRankSessionLogHandler":
+            _is_rank_handler = True
+        if _is_rank_handler:
+            _handlers_rank.append(h)
+    for h in _handlers_rank[1:]:
+        try:
+            _sf_logger.removeHandler(h)
+        except Exception:
+            pass
+    if _handlers_rank:
+        return
     for h in _sf_logger.handlers:
         if isinstance(h, _DvSfRankSessionLogHandler):
             return
     h = _DvSfRankSessionLogHandler(level=logging.DEBUG)
+    h._dv_sf_rank_session_handler = True  # type: ignore[attr-defined]
     h.setFormatter(logging.Formatter("[%(asctime)s] %(levelname)s: %(message)s", "%H:%M:%S"))
     _sf_logger.addHandler(h)
 
@@ -1127,6 +1143,22 @@ def _dv_sf_rank_debug_status_snapshot(
         "ranking_aplicado_no_campo": "sim" if auto_applied == cpf_digits and cpf_digits else "nao",
         "linhas_log": str(len(st.session_state.get(_DV_SF_RANK_LOG_LINES_KEY) or [])),
     }
+
+
+def _sf_ranking_field_candidates() -> list[str]:
+    seen: set[str] = set()
+    out: list[str] = []
+    for raw in (
+        (os.environ.get("SALESFORCE_RANKING_FIELD") or "").strip(),
+        "Ranking_Cliente__c",
+        "Ranking__c",
+    ):
+        fld = str(raw or "").strip()
+        if not fld or fld in seen:
+            continue
+        seen.add(fld)
+        out.append(fld)
+    return out
 
 
 _DV_SF_RANK_TRACK_CPF_KEY = "_sf_rank_tracked_cpf_ui"
@@ -1547,42 +1579,62 @@ def _sf_excluir_oportunidade_criada_simulacao(
 
 
 def _sf_get_ranking_account_rest(
-    sf: Any, account_id: str, rfield: str, http_timeout: float
+    sf: Any, account_id: str, rfield: str | list[str] | tuple[str, ...], http_timeout: float
 ) -> str | None:
     aid = account_id.strip()
+    if isinstance(rfield, (list, tuple)):
+        campos_rank = [str(x).strip() for x in rfield if str(x).strip()]
+    else:
+        campos_rank = [str(rfield).strip()] if str(rfield).strip() else []
+    if not campos_rank:
+        campos_rank = _sf_ranking_field_candidates()
     _sf_logger.debug(
-        "Salesforce Account REST: lendo campo de ranking. account_id=%s campo=%s timeout=%s",
+        "Salesforce Account REST: lendo campo(s) de ranking. account_id=%s campos=%s timeout=%s",
         aid,
-        rfield,
+        campos_rank,
         http_timeout,
     )
-    try:
-        rec = sf.restful(f"sobjects/Account/{aid}", method="GET", timeout=http_timeout)
-        if _sf_truthy_env_ranking("SALESFORCE_RISK3_DUMP_STEPS"):
-            try:
+    for campo in campos_rank:
+        soql = (
+            "SELECT Id, "
+            f"{campo} "
+            "FROM Account "
+            f"WHERE Id = '{_sf_soql_escape_literal(aid)}' "
+            "LIMIT 1"
+        )
+        try:
+            rec = sf.query(soql, timeout=http_timeout)
+            recs = (rec or {}).get("records") or []
+            if not recs:
                 _sf_logger.debug(
-                    "SF poll GET Account %s: %s",
+                    "Salesforce Account REST: query sem registros para account_id=%s campo=%s",
                     aid,
-                    json.dumps(rec, ensure_ascii=False, default=str),
+                    campo,
                 )
-            except (TypeError, ValueError):
-                _sf_logger.debug("SF poll GET Account %s: %r", aid, rec)
-        if isinstance(rec, dict):
-            val = rec.get(rfield)
+                continue
+            row = recs[0] or {}
+            val = row.get(campo)
             if val is not None and str(val).strip() != "":
                 _sf_logger.info(
-                    "Salesforce Account REST: ranking encontrado na conta. account_id=%s valor=%s",
+                    "Salesforce Account REST: ranking encontrado na conta. account_id=%s campo=%s valor=%s",
                     aid,
+                    campo,
                     str(val).strip(),
                 )
                 return str(val).strip()
             _sf_logger.debug(
-                "Salesforce Account REST: resposta sem ranking preenchido. account_id=%s chaves=%s",
+                "Salesforce Account REST: resposta sem ranking preenchido. account_id=%s campo=%s chaves=%s",
                 aid,
-                list(rec.keys())[:20],
+                campo,
+                list(row.keys())[:20],
             )
-    except Exception as ex:
-        _sf_logger.debug("SF GET Account %s: %s", aid, ex)
+        except Exception as ex:
+            _sf_logger.warning(
+                "Salesforce Account REST: falha ao consultar account_id=%s campo=%s erro=%s",
+                aid,
+                campo,
+                ex,
+            )
     return None
 
 
@@ -1590,7 +1642,7 @@ def _sf_poll_ranking_na_account(
     sf: Any,
     account_id: str,
     *,
-    rfield: str,
+    rfield: str | list[str] | tuple[str, ...],
     poll_sec: float,
     poll_iv: float,
     http_timeout: float,
@@ -1600,10 +1652,15 @@ def _sf_poll_ranking_na_account(
 ) -> str | None:
     """GET sobjects/Account/<Id> em loop até rfield vir preenchido ou timeout."""
     aid = account_id.strip()
+    _campos_rank = (
+        [str(x).strip() for x in rfield if str(x).strip()]
+        if isinstance(rfield, (list, tuple))
+        else [str(rfield).strip()]
+    )
     _sf_logger.info(
-        "Salesforce Poll: iniciando espera por ranking na conta. account_id=%s campo=%s timeout_total=%ss intervalo=%ss",
+        "Salesforce Poll: iniciando espera por ranking na conta. account_id=%s campos=%s timeout_total=%ss intervalo=%ss",
         aid,
-        rfield,
+        _campos_rank,
         poll_sec,
         poll_iv,
     )
@@ -1641,13 +1698,13 @@ def _sf_poll_ranking_na_account(
             )
         now = time.monotonic()
         if now - last_log >= 15.0:
-            _sf_logger.info("Salesforce: aguardando %s na Account %s…", rfield, aid)
+            _sf_logger.info("Salesforce: aguardando %s na Account %s…", _campos_rank, aid)
             last_log = now
         time.sleep(max(0.5, float(poll_iv)))
     _sf_logger.warning(
-        "Salesforce Poll: tempo esgotado sem ranking. account_id=%s campo=%s timeout_total=%ss tentativas=%s",
+        "Salesforce Poll: tempo esgotado sem ranking. account_id=%s campos=%s timeout_total=%ss tentativas=%s",
         aid,
-        rfield,
+        _campos_rank,
         poll_sec,
         tentativa,
     )
@@ -1685,49 +1742,81 @@ def _sf_consultar_por_cpf(sf: Any, cpf_bruto: str) -> tuple[dict | None, str | N
     )
     in_list = ",".join(f"'{_sf_soql_escape_literal(v)}'" for v in cpf_vals)
     _acct_cpf = _sf_account_cpf_soql_dotted()
-    soql = f"""
+    _campos_rank = _sf_ranking_field_candidates()
+    _ultimo_erro: Exception | None = None
+    for _campo_rank in _campos_rank:
+        soql = f"""
+            SELECT
+                Id,
+                Name,
+                IDOportunidade__c,
+                AccountId,
+                Account.Name,
+                {_acct_cpf},
+                Account.{_campo_rank},
+                Account.Ranking_Score__c,
+                {_campo_rank},
+                Ranking_Score__c
+            FROM Opportunity
+            WHERE {_acct_cpf} IN ({in_list})
+            ORDER BY CreatedDate DESC
+            LIMIT 10
+        """
+        try:
+            _sf_logger.debug(
+                "Salesforce Opportunity: tentando consulta com campo de ranking=%s",
+                _campo_rank,
+            )
+            res = sf.query(soql)
+            registros = res.get("records", [])
+            _sf_logger.info(
+                "Salesforce Opportunity: consulta concluída. campo=%s quantidade_registros=%s",
+                _campo_rank,
+                len(registros),
+            )
+            if not registros:
+                continue
+            try:
+                registros[0]["_ranking_field_used"] = _campo_rank
+            except Exception:
+                pass
+            return registros[0], None
+        except Exception as e:
+            _ultimo_erro = e
+            _sf_logger.warning(
+                "Salesforce Opportunity: falha ao consultar com campo=%s erro=%s",
+                _campo_rank,
+                e,
+            )
+
+    soql_base = f"""
         SELECT
             Id,
             Name,
             IDOportunidade__c,
             AccountId,
             Account.Name,
-            {_acct_cpf},
-            Account.Ranking__c,
-            Account.Ranking_Score__c,
-            Ranking__c,
-            Ranking_Score__c
+            {_acct_cpf}
         FROM Opportunity
         WHERE {_acct_cpf} IN ({in_list})
         ORDER BY CreatedDate DESC
         LIMIT 10
     """
     try:
-        res = sf.query(soql)
-        registros = res.get("records", [])
-        _sf_logger.info(
-            "Salesforce Opportunity: consulta concluída. quantidade_registros=%s",
-            len(registros),
+        _sf_logger.debug(
+            "Salesforce Opportunity: executando fallback sem campo de ranking para obter AccountId."
         )
+        res = sf.query(soql_base)
+        registros = res.get("records", [])
         if not registros:
             _sf_logger.info(
                 "Salesforce Opportunity: nenhuma Opportunity encontrada para o CPF informado."
             )
             return None, "Nenhum registro encontrado para o CPF informado."
-        try:
-            _sf_logger.debug(
-                "Salesforce Opportunity: primeiro registro encontrado. opp_id=%s account_id=%s ranking_opp=%s ranking_account=%s",
-                str(registros[0].get("Id") or "").strip(),
-                str(registros[0].get("AccountId") or "").strip(),
-                str(registros[0].get("Ranking__c") or "").strip(),
-                str((registros[0].get("Account") or {}).get("Ranking__c") or "").strip(),
-            )
-        except Exception:
-            pass
         return registros[0], None
     except Exception as e:
         _sf_logger.exception("Salesforce Opportunity: falha ao consultar Opportunity por CPF.")
-        return None, f"Erro ao consultar o Salesforce: {e}"
+        return None, f"Erro ao consultar o Salesforce: {e if _ultimo_erro is None else _ultimo_erro}"
 
 
 # Compatível com código que ainda referencia o nome antigo.
@@ -1781,12 +1870,12 @@ def _sf_classificar_ranking_cpf_11(
         return None, "sem_registo"
     _p(0.12, "Buscando informações do cliente…")
 
-    rfield = (os.environ.get("SALESFORCE_RANKING_FIELD") or "Ranking__c").strip()
+    rfield = _sf_ranking_field_candidates()
     poll_sec = _sf_float_env_ranking("SALESFORCE_RISK3_POLL_SECONDS", 90.0)
     poll_iv = _sf_float_env_ranking("SALESFORCE_RISK3_POLL_INTERVAL", 2.0)
     http_timeout = max(5.0, _sf_float_env_ranking("SALESFORCE_REST_TIMEOUT", 45.0))
     _sf_logger.debug(
-        "Fluxo Ranking: parâmetros resolvidos. campo_ranking=%s poll_sec=%s poll_interval=%s http_timeout=%s autocriar_pf=%s",
+        "Fluxo Ranking: parâmetros resolvidos. campos_ranking=%s poll_sec=%s poll_interval=%s http_timeout=%s autocriar_pf=%s",
         rfield,
         poll_sec,
         poll_iv,
@@ -2013,8 +2102,18 @@ def _dv_sf_cpf_classificar_clientes_on_change() -> None:
 def _sf_extrair_ranking_ui_de_opportunity(opp: Any) -> dict[str, Any]:
     """Extrai ranking a partir do registo Opportunity (Account aninhada)."""
     conta = opp.get("Account") or {}
-    raw_acc = conta.get("Ranking__c")
-    raw_opp = opp.get("Ranking__c")
+    _campos_rank = _sf_ranking_field_candidates()
+    _campo_usado = str(opp.get("_ranking_field_used") or "").strip()
+    if _campo_usado and _campo_usado not in _campos_rank:
+        _campos_rank = [_campo_usado] + _campos_rank
+    raw_acc = next(
+        (conta.get(_f) for _f in _campos_rank if conta.get(_f) not in (None, "")),
+        None,
+    )
+    raw_opp = next(
+        (opp.get(_f) for _f in _campos_rank if opp.get(_f) not in (None, "")),
+        None,
+    )
     m_acc = _sf_mapear_ranking_para_ui(raw_acc)
     m_opp = _sf_mapear_ranking_para_ui(raw_opp)
     texto = m_acc or m_opp or (raw_acc if raw_acc else None) or (raw_opp if raw_opp else None)
@@ -7348,16 +7447,22 @@ def aba_simulador_automacao(
         _dv_restore_sim_widget_keys_from_dados(
             st.session_state.dados_cliente, force=_forcar_restore
         )
+
+        def _dv_cols(qtd: int = 4):
+            return st.columns(int(max(1, qtd)), gap="small")
+
         st.markdown(
             '<div class="dv-perfil-simulacao-anchor"><h3 class="dv-titulo-secao">Perfil da simulação</h3></div>',
             unsafe_allow_html=True,
         )
-        _nome_ref = st.text_input(
-            "Nome do Cliente ou Imobiliária (opcional) (texto)",
-            value=str(st.session_state.dados_cliente.get("nome", "") or ""),
-            key="nome_cliente_imobiliaria_opt_v1",
-            placeholder="Exemplo: João da Silva ou Imobiliária Exemplo",
-        )
+        _perfil_cols_top = _dv_cols(4)
+        with _perfil_cols_top[0]:
+            _nome_ref = st.text_input(
+                "Nome do Cliente ou Imobiliária (opcional) (texto)",
+                value=str(st.session_state.dados_cliente.get("nome", "") or ""),
+                key="nome_cliente_imobiliaria_opt_v1",
+                placeholder="Exemplo: João da Silva ou Imobiliária Exemplo",
+            )
 
         _dc_in = st.session_state.dados_cliente
         if "renda_familiar_total_v1" not in st.session_state:
@@ -7371,29 +7476,32 @@ def aba_simulador_automacao(
             st.session_state["renda_familiar_total_v1"] = float_para_campo_texto(
                 max(0.0, _soma_ant), vazio_se_zero=True
             )
-        st.text_input(
-            "Renda familiar total (R$)",
-            key="renda_familiar_total_v1",
-            placeholder="R$ 0,00",
-        )
+        with _perfil_cols_top[1]:
+            st.text_input(
+                "Renda familiar total (R$)",
+                key="renda_familiar_total_v1",
+                placeholder="R$ 0,00",
+            )
         renda_total_calc = max(0.0, texto_moeda_para_float(st.session_state.get("renda_familiar_total_v1")))
         if "cpf_classificar_clientes_sf" not in st.session_state:
             st.session_state["cpf_classificar_clientes_sf"] = str(
                 st.session_state.dados_cliente.get("cpf") or ""
             ).strip()
-        st.text_input(
-            "CPF - Classificar Clientes (opcional) (CPF)",
-            key="cpf_classificar_clientes_sf",
-            placeholder="000.000.000-00",
-            help="Informe o CPF com 11 dígitos e clique no botão abaixo para consultar a classificação no Salesforce.",
-        )
+        with _perfil_cols_top[2]:
+            st.text_input(
+                "CPF - Classificar Clientes (opcional) (CPF)",
+                key="cpf_classificar_clientes_sf",
+                placeholder="000.000.000-00",
+                help="Informe o CPF com 11 dígitos e clique no botão abaixo para consultar a classificação no Salesforce.",
+            )
         cpf_digits = re.sub(r"\D", "", st.session_state.get("cpf_classificar_clientes_sf") or "")
         _dv_sf_rank_log_attach_session_handler()
-        _buscar_ranking_cpf = st.button(
-            "Buscar ranking no Salesforce",
-            key="buscar_ranking_cpf_sf_btn",
-            use_container_width=True,
-        )
+        with _perfil_cols_top[3]:
+            _buscar_ranking_cpf = st.button(
+                "Buscar ranking no Salesforce",
+                key="buscar_ranking_cpf_sf_btn",
+                use_container_width=True,
+            )
         rank_opts = ["DIAMANTE", "OURO", "PRATA", "BRONZE", "AÇO"]
         _cpf11_ant = st.session_state.get(_DV_SF_CPF11_ANTERIOR_CAMPO_KEY)
         if len(cpf_digits) == 11:
@@ -7574,11 +7682,13 @@ def aba_simulador_automacao(
             st.session_state["in_rank_v28"] = (
                 _r0 if _r0 in rank_opts else rank_opts[0]
             )
-        ranking = st.selectbox(
-            "Ranking do Cliente (lista)",
-            options=rank_opts,
-            key="in_rank_v28",
-        )
+        _perfil_cols_bottom = _dv_cols(4)
+        with _perfil_cols_bottom[0]:
+            ranking = st.selectbox(
+                "Ranking do Cliente (lista)",
+                options=rank_opts,
+                key="in_rank_v28",
+            )
         st.session_state.dados_cliente.update({
             'nome': str(_nome_ref or "").strip(),
             'nome_imobiliaria': "",
@@ -7782,11 +7892,13 @@ def aba_simulador_automacao(
             _f_ok = clamp_moeda_positiva(_f_raw, None)
             if abs(_f_raw - _f_ok) > 0.009:
                 st.session_state["fin_aprovado_key"] = float_para_campo_texto(_f_ok, vazio_se_zero=True)
-        st.text_input(
-            "Financiamento estimado (R$)",
-            key="fin_aprovado_key",
-            placeholder="Exemplo: 250000 ou 250.000,00",
-        )
+        _valores_cols = _dv_cols(4)
+        with _valores_cols[0]:
+            st.text_input(
+                "Financiamento estimado (R$)",
+                key="fin_aprovado_key",
+                placeholder="Exemplo: 250000 ou 250.000,00",
+            )
         f_u = clamp_moeda_positiva(texto_moeda_para_float(st.session_state.get("fin_aprovado_key")), None)
         st.session_state.dados_cliente['finan_usado'] = f_u
 
@@ -7800,11 +7912,12 @@ def aba_simulador_automacao(
             _s_ok = clamp_moeda_positiva(_s_raw, None)
             if abs(_s_raw - _s_ok) > 0.009:
                 st.session_state["sub_aprovado_key"] = float_para_campo_texto(_s_ok, vazio_se_zero=True)
-        st.text_input(
-            "FGTS e subsídio estimados (R$)",
-            key="sub_aprovado_key",
-            placeholder="Exemplo: 50000 ou 50.000,00",
-        )
+        with _valores_cols[1]:
+            st.text_input(
+                "FGTS e subsídio estimados (R$)",
+                key="sub_aprovado_key",
+                placeholder="Exemplo: 50000 ou 50.000,00",
+            )
         s_u = clamp_moeda_positiva(texto_moeda_para_float(st.session_state.get("sub_aprovado_key")), None)
         st.session_state.dados_cliente['fgts_sub_usado'] = s_u
 
@@ -7900,22 +8013,27 @@ def aba_simulador_automacao(
                 unsafe_allow_html=True,
             )
 
-        st.text_input(
-            "Ato 1 (Entrada Imediata) (R$)",
-            key="ato_1_key",
-            placeholder="0,00",
-        )
-        if _renda_cli_pre > 0:
-            _dv_linha_sug_pre(fmt_br(_sug_min_ato1_pre))
-        st.text_input("Ato 30 (R$)", key="ato_2_key", placeholder="0,00")
-        if _renda_cli_pre > 0:
-            _dv_linha_sug_pre(fmt_br(_sug_min_meio_pre))
-        st.text_input("Ato 60 (R$)", key="ato_3_key", placeholder="0,00")
-        if _renda_cli_pre > 0:
-            _dv_linha_sug_pre(fmt_br(_sug_min_meio_pre))
-        st.text_input("Ato 90 (R$)", key="ato_4_key", placeholder="0,00")
-        if _renda_cli_pre > 0:
-            _dv_linha_sug_pre(fmt_br(_sug_min_meio_pre))
+        _atos_cols = _dv_cols(4)
+        with _atos_cols[0]:
+            st.text_input(
+                "Ato 1 (Entrada Imediata) (R$)",
+                key="ato_1_key",
+                placeholder="0,00",
+            )
+            if _renda_cli_pre > 0:
+                _dv_linha_sug_pre(fmt_br(_sug_min_ato1_pre))
+        with _atos_cols[1]:
+            st.text_input("Ato 30 (R$)", key="ato_2_key", placeholder="0,00")
+            if _renda_cli_pre > 0:
+                _dv_linha_sug_pre(fmt_br(_sug_min_meio_pre))
+        with _atos_cols[2]:
+            st.text_input("Ato 60 (R$)", key="ato_3_key", placeholder="0,00")
+            if _renda_cli_pre > 0:
+                _dv_linha_sug_pre(fmt_br(_sug_min_meio_pre))
+        with _atos_cols[3]:
+            st.text_input("Ato 90 (R$)", key="ato_4_key", placeholder="0,00")
+            if _renda_cli_pre > 0:
+                _dv_linha_sug_pre(fmt_br(_sug_min_meio_pre))
         _r1p = max(0.0, texto_moeda_para_float(st.session_state.get("ato_1_key")))
         _r2p = max(0.0, texto_moeda_para_float(st.session_state.get("ato_2_key")))
         _r3p = max(0.0, texto_moeda_para_float(st.session_state.get("ato_3_key")))
@@ -7952,11 +8070,13 @@ def aba_simulador_automacao(
             )
 
             emp_names_rec = sorted(df_disp_total["Empreendimento"].unique().tolist())
-            emp_rec = st.selectbox(
-                "Escolha o empreendimento para recomendar: (lista)",
-                options=["Todos"] + emp_names_rec,
-                key="sel_emp_rec_v28",
-            )
+            _imoveis_cols_top = _dv_cols(4)
+            with _imoveis_cols_top[0]:
+                emp_rec = st.selectbox(
+                    "Escolha o empreendimento para recomendar: (lista)",
+                    options=["Todos"] + emp_names_rec,
+                    key="sel_emp_rec_v28",
+                )
             st.session_state.dados_cliente["filtro_emp_rec_v28"] = str(emp_rec or "Todos")
             df_pool = (
                 df_disp_total
@@ -8034,7 +8154,9 @@ def aba_simulador_automacao(
                 cards_html += "</div></div>"
                 st.markdown(cards_html, unsafe_allow_html=True)
 
-                st.caption("Escolha abaixo uma das unidades recomendadas.")
+                _imoveis_cols_bottom = _dv_cols(4)
+                with _imoveis_cols_bottom[0]:
+                    st.caption("Escolha abaixo uma das unidades recomendadas.")
                 unidades_disp = cand_rec.drop_duplicates(
                     subset=["Empreendimento", "Identificador"], keep="first"
                 ).copy()
@@ -8068,12 +8190,13 @@ def aba_simulador_automacao(
                             return f"{_emp_u} | Unidade {_uid_u}"
                         return f"Unidade {_uid_u}"
 
-                    choice_sel = st.selectbox(
-                        "Escolha a unidade recomendada: (lista)",
-                        options=current_choices,
-                        format_func=label_uni,
-                        key="sel_uni_rec_v1",
-                    )
+                    with _imoveis_cols_bottom[1]:
+                        choice_sel = st.selectbox(
+                            "Escolha a unidade recomendada: (lista)",
+                            options=current_choices,
+                            format_func=label_uni,
+                            key="sel_uni_rec_v1",
+                        )
                     if choice_sel:
                         u_row = unidades_disp[unidades_disp["_choice_key"] == choice_sel].iloc[0]
                         unidade_escolhida_row = u_row
@@ -8125,6 +8248,7 @@ def aba_simulador_automacao(
                 "Selecione uma unidade recomendada acima para definir prazo, parcela do financiamento e parcelas do Pro Soluto."
             )
         else:
+            _cond_cols = _dv_cols(4)
             d = st.session_state.dados_cliente
             prazo_atual = d.get("prazo_financiamento", 420)
             try:
@@ -8134,12 +8258,13 @@ def aba_simulador_automacao(
             prazo_atual = max(12, min(600, prazo_atual))
             if "prazo_aprovado_key" not in st.session_state:
                 st.session_state["prazo_aprovado_key"] = str(int(prazo_atual))
-            st.text_input(
-                "Prazo do financiamento (meses)",
-                key="prazo_aprovado_key",
-                placeholder="420",
-                help="Sugestão padrão: 420 meses. Entre 12 e 600.",
-            )
+            with _cond_cols[0]:
+                st.text_input(
+                    "Prazo do financiamento (meses)",
+                    key="prazo_aprovado_key",
+                    placeholder="420",
+                    help="Sugestão padrão: 420 meses. Entre 12 e 600.",
+                )
             _pz = texto_inteiro(
                 st.session_state.get("prazo_aprovado_key"),
                 default=420,
@@ -8199,11 +8324,12 @@ def aba_simulador_automacao(
                     )
             st.session_state["_parc_fin_auto_sig"] = _parc_sig_now
             st.session_state["_parc_fin_auto_ref_prev"] = float(_parc_fin_ref)
-            st.text_input(
-                "Parcela estimada do financiamento (editável) (R$)",
-                key="parcela_fin_edit_key",
-                placeholder="0,00",
-            )
+            with _cond_cols[1]:
+                st.text_input(
+                    "Parcela estimada do financiamento (editável) (R$)",
+                    key="parcela_fin_edit_key",
+                    placeholder="0,00",
+                )
             _parc_fin_ui = clamp_moeda_positiva(
                 texto_moeda_para_float(st.session_state.get("parcela_fin_edit_key")),
                 None,
@@ -8211,10 +8337,11 @@ def aba_simulador_automacao(
             if _parc_fin_ui <= 0:
                 _parc_fin_ui = _parc_fin_ref
             st.session_state.dados_cliente["parcela_financiamento"] = float(_parc_fin_ui)
-            st.markdown(
-                f'<span class="inline-ref">Referência automática: <strong>{reais_streamlit_html(fmt_br(_parc_fin_ref))}</strong></span>',
-                unsafe_allow_html=True,
-            )
+            with _cond_cols[1]:
+                st.markdown(
+                    f'<span class="inline-ref">Referência automática: <strong>{reais_streamlit_html(fmt_br(_parc_fin_ref))}</strong></span>',
+                    unsafe_allow_html=True,
+                )
 
             rank_prev = d.get("ranking", "DIAMANTE")
             col_rank_prev = f"PS_{str(rank_prev).title()}" if rank_prev else "PS_Diamante"
@@ -8316,16 +8443,12 @@ def aba_simulador_automacao(
             st.session_state["_parc_ps_auto_sig"] = _parc_ps_auto_sig
             st.session_state["_parc_ps_auto_ref_prev"] = int(_parc_ps_auto_ref)
 
-            st.markdown(
-                '<p class="inline-ref" style="margin:0.5rem 0 0.25rem 0;line-height:1.45;">'
-                + f"Pro Soluto (resíduo): <strong>{reais_streamlit_html(fmt_br(ps_input_prev))}</strong></p>",
-                unsafe_allow_html=True,
-            )
-            st.text_input(
-                "Número de parcelas do Pro Soluto (inteiro)",
-                key="parc_ps_key",
-                placeholder=f"1 a {parc_max_prev}",
-            )
+            with _cond_cols[2]:
+                st.text_input(
+                    "Número de parcelas do Pro Soluto (inteiro)",
+                    key="parc_ps_key",
+                    placeholder=f"1 a {parc_max_prev}",
+                )
             _parc_prev = texto_inteiro(
                 st.session_state.get("parc_ps_key"),
                 default=1,
@@ -8349,10 +8472,21 @@ def aba_simulador_automacao(
             st.session_state.dados_cliente["ps_mensal_simples"] = (
                 (float(ps_input_prev or 0) / float(_parc_prev)) if _parc_prev > 0 else 0.0
             )
-            st.markdown(
-                f'<span class="inline-ref">Parcela estimada do Pro Soluto: <strong>{reais_streamlit_html(fmt_br(_ps_mensal_prev))}</strong></span>',
-                unsafe_allow_html=True,
-            )
+            with _cond_cols[2]:
+                st.markdown(
+                    f'<span class="inline-ref">Min: <strong>{html_std.escape(str(_parc_ps_auto_ref))}x</strong> | Max: <strong>{html_std.escape(str(parc_max_prev))}x</strong></span>',
+                    unsafe_allow_html=True,
+                )
+            with _cond_cols[3]:
+                st.markdown(
+                    '<p class="inline-ref" style="margin:0.2rem 0 0.25rem 0;line-height:1.45;">'
+                    + f"Pro Soluto (resíduo): <strong>{reais_streamlit_html(fmt_br(ps_input_prev))}</strong></p>",
+                    unsafe_allow_html=True,
+                )
+                st.markdown(
+                    f'<span class="inline-ref">Parcela estimada do Pro Soluto: <strong>{reais_streamlit_html(fmt_br(_ps_mensal_prev))}</strong></span>',
+                    unsafe_allow_html=True,
+                )
 
         st.markdown("---")
         st.markdown(
@@ -8364,6 +8498,7 @@ def aba_simulador_automacao(
             st.session_state.dados_cliente["ps_reducao_por_desconto_parcela"] = 0.0
             st.caption("Selecione uma unidade recomendada acima para simular o desconto.")
         else:
+            _desc_cols = _dv_cols(4)
             st.caption(
                 "Informe quanto deseja reduzir na soma das parcelas (Fin + PS) da unidade escolhida."
             )
@@ -8371,11 +8506,12 @@ def aba_simulador_automacao(
                 st.session_state["desconto_parcela_key"] = float_para_campo_texto(
                     0.0, vazio_se_zero=True
                 )
-            st.text_input(
-                "Desconto desejado na parcela mensal total (R$)",
-                key="desconto_parcela_key",
-                placeholder="0,00",
-            )
+            with _desc_cols[0]:
+                st.text_input(
+                    "Desconto desejado na parcela mensal total (R$)",
+                    key="desconto_parcela_key",
+                    placeholder="0,00",
+                )
             _desc_p = max(
                 0.0,
                 texto_moeda_para_float(st.session_state.get("desconto_parcela_key")),
@@ -8428,16 +8564,25 @@ def aba_simulador_automacao(
             )
             _p_fin_n = float(st.session_state.dados_cliente.get("parcela_financiamento", 0) or 0)
             _tot_n = _p_ps_n + _p_fin_n
-            st.markdown(
-                f'<p class="inline-ref" style="margin-top:0.5rem;line-height:1.5;">'
-                f"Parcela mensal estimada após desconto: <strong>{reais_streamlit_html(fmt_br(_tot_n))}</strong> "
-                f"({reais_streamlit_html(fmt_br(_p_fin_n))} financ. + "
-                f"{reais_streamlit_html(fmt_br(_p_ps_n))} PS em {_parc_ps_sel}x).</p>"
-                f'<p class="inline-ref" style="margin-top:0.35rem;">'
-                f"Redução equivalente de Pro Soluto (principal): "
-                f"<strong>{reais_streamlit_html(fmt_br(_d_ps))}</strong>.</p>",
-                unsafe_allow_html=True,
-            )
+            with _desc_cols[1]:
+                st.markdown(
+                    f'<p class="inline-ref" style="margin-top:0.5rem;line-height:1.5;">'
+                    f"Parcela mensal após desconto: <strong>{reais_streamlit_html(fmt_br(_tot_n))}</strong></p>",
+                    unsafe_allow_html=True,
+                )
+            with _desc_cols[2]:
+                st.markdown(
+                    f'<p class="inline-ref" style="margin-top:0.5rem;line-height:1.5;">'
+                    f"Composição: {reais_streamlit_html(fmt_br(_p_fin_n))} financ. + "
+                    f"{reais_streamlit_html(fmt_br(_p_ps_n))} PS em {_parc_ps_sel}x</p>",
+                    unsafe_allow_html=True,
+                )
+            with _desc_cols[3]:
+                st.markdown(
+                    f'<p class="inline-ref" style="margin-top:0.5rem;line-height:1.5;">'
+                    f"Redução equivalente de Pro Soluto: <strong>{reais_streamlit_html(fmt_br(_d_ps))}</strong></p>",
+                    unsafe_allow_html=True,
+                )
 
         _d_sinal_pos = st.session_state.dados_cliente
         _vu_sinal_pos = max(0.0, float(_d_sinal_pos.get("imovel_valor", 0) or 0))
