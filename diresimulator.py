@@ -302,53 +302,9 @@ def resolve_politica_row(
 # ========================================================================
 
 # -*- coding: utf-8 -*-
-import json
-import urllib.request
 from typing import Any, Dict, Optional
 
 import pandas as pd
-
-# SGS BCB: IPCA - percentual acumulado nos últimos 12 meses (mensal; último = ao vivo publicado)
-BCB_SGS_IPCA_ACUMULADO_12M: int = 13522
-
-
-def fetch_ipca_aa_decimal_bcb(timeout_s: float = 12.0) -> Optional[float]:
-    """
-    Último IPCA acumulado em 12 meses do BCB, em decimal (ex.: 5,307% → 0.05307).
-    Retorna None se a API falhar ou o valor for inválido.
-    """
-    url = (
-        "https://api.bcb.gov.br/dados/serie/bcdata.sgs."
-        f"{BCB_SGS_IPCA_ACUMULADO_12M}/dados/ultimos/1?formato=json"
-    )
-    try:
-        req = urllib.request.Request(
-            url,
-            headers={"User-Agent": "SimuladorDV/1.0"},
-        )
-        with urllib.request.urlopen(req, timeout=timeout_s) as resp:
-            raw = resp.read().decode("utf-8")
-        data = json.loads(raw)
-        if not isinstance(data, list) or not data:
-            return None
-        val = data[-1].get("valor")
-        if val is None:
-            return None
-        pct = float(str(val).strip().replace(",", "."))
-        if pct <= 0.0:
-            return None
-        return pct / 100.0
-    except Exception:
-        return None
-
-
-def aplicar_ipca_aa_ao_vivo(premissas: Dict[str, float]) -> Dict[str, float]:
-    """Sobrescreve ``ipca_aa`` com o último valor divulgado pelo BCB quando disponível."""
-    live = fetch_ipca_aa_decimal_bcb()
-    if live is not None:
-        premissas["ipca_aa"] = float(live)
-    return premissas
-
 
 # Valores extraídos de excel_extracao_celulas.txt (aba PREMISSAS)
 DEFAULT_PREMISSAS: Dict[str, float] = {
@@ -907,8 +863,6 @@ from streamlit_gsheets import GSheetsConnection
 import base64
 from datetime import datetime, date, timedelta, timezone
 import time
-import secrets
-import string
 import locale
 import smtplib
 from email.mime.multipart import MIMEMultipart
@@ -917,14 +871,12 @@ from email.mime.application import MIMEApplication
 import os
 import hashlib
 from pathlib import Path
-import copy
 import json
 import pytz
 import altair as alt
 import urllib.parse
 import html as html_std
 import jwt as jwt_lib
-from typing import Callable
 
 # Bloco [salesforce] no secrets.toml: USER / PASSWORD / TOKEN → variáveis SALESFORCE_* (mesma pasta, sem import circular)
 _SF_SECRETS_TOML_ALIAS: dict[str, str] = {
@@ -934,14 +886,6 @@ _SF_SECRETS_TOML_ALIAS: dict[str, str] = {
     "DOMAIN": "SALESFORCE_DOMAIN",
     "CPF_FIELD": "SALESFORCE_CPF_FIELD",
     "RANKING_FIELD": "SALESFORCE_RANKING_FIELD",
-    "RECORD_TYPE_CLIENTE_PF": "SALESFORCE_RECORD_TYPE_CLIENTE_PF",
-    "LIGHTNING_ACCOUNT_BASE": "SALESFORCE_LIGHTNING_ACCOUNT_BASE",
-    "RISK3_POLL_SECONDS": "SALESFORCE_RISK3_POLL_SECONDS",
-    "RISK3_POLL_INTERVAL": "SALESFORCE_RISK3_POLL_INTERVAL",
-    "REST_TIMEOUT": "SALESFORCE_REST_TIMEOUT",
-    "RISK3_DUMP_STEPS": "SALESFORCE_RISK3_DUMP_STEPS",
-    "RANKING_PF_AUTOCRIAR": "SALESFORCE_RANKING_PF_AUTOCRIAR",
-    "ACCOUNT_CPF_FIELD": "SALESFORCE_ACCOUNT_CPF_FIELD",
 }
 
 
@@ -973,14 +917,6 @@ def _injetar_secrets_salesforce_no_env() -> None:
             "SALESFORCE_DOMAIN",
             "SALESFORCE_CPF_FIELD",
             "SALESFORCE_RANKING_FIELD",
-            "SALESFORCE_RECORD_TYPE_CLIENTE_PF",
-            "SALESFORCE_LIGHTNING_ACCOUNT_BASE",
-            "SALESFORCE_RISK3_POLL_SECONDS",
-            "SALESFORCE_RISK3_POLL_INTERVAL",
-            "SALESFORCE_REST_TIMEOUT",
-            "SALESFORCE_RISK3_DUMP_STEPS",
-            "SALESFORCE_RANKING_PF_AUTOCRIAR",
-            "SALESFORCE_ACCOUNT_CPF_FIELD",
         ):
             if hasattr(sec, "get"):
                 _set(key, sec.get(key))
@@ -1014,71 +950,6 @@ except ImportError:  # pragma: no cover
     SalesforceAuthenticationFailed = Exception  # type: ignore[misc, assignment]
 
 _sf_logger = logging.getLogger(__name__)
-
-_DV_SF_RANK_MEMO_TTL_SEC = 300.0
-_DV_SF_RANK_MEMO_KEY = "_dv_sf_rank_memo_v1"
-# Falhas que podem ser transitórias: um reintento automático (por CPF/sessão) após outro rerun.
-_DV_SF_RANK_FAIL_AUTORETRY_KEY = "_dv_sf_rank_fail_autoretried"
-_DV_SF_RANK_MEMO_RETRY_CODES: frozenset[str] = frozenset(
-    {"sem_registo", "sem_conexao", "erro_sf"}
-)
-
-
-def _dv_sf_rank_memo_get(cpf11: str) -> tuple[str | None, str | None] | None:
-    memo = st.session_state.get(_DV_SF_RANK_MEMO_KEY)
-    if not isinstance(memo, dict):
-        return None
-    ent = memo.get(cpf11)
-    if not isinstance(ent, dict):
-        return None
-    if time.time() - float(ent.get("t", 0) or 0) > _DV_SF_RANK_MEMO_TTL_SEC:
-        return None
-    return ent.get("rs"), ent.get("code")
-
-
-def _dv_sf_rank_memo_set(cpf11: str, rs: str | None, code: str | None) -> None:
-    memo = st.session_state.get(_DV_SF_RANK_MEMO_KEY)
-    if not isinstance(memo, dict):
-        memo = {}
-    memo[cpf11] = {"t": time.time(), "rs": rs, "code": code}
-    st.session_state[_DV_SF_RANK_MEMO_KEY] = memo
-
-
-_DV_SF_RANK_TRACK_CPF_KEY = "_sf_rank_tracked_cpf_ui"
-# Só exibir "Classificação obtida" / mensagens pós-consulta após consulta ao SF para este CPF (evita texto do cliente anterior).
-_DV_SF_RANK_CLASSIF_OK_CPF_KEY = "_sf_rank_classificacao_exibir_somente_cpf"
-# Último CPF com 11 dígitos visto no campo (não é limpo quando o utilizador apaga dígitos); detecta troca A→B mesmo passando por estado incompleto.
-_DV_SF_CPF11_ANTERIOR_CAMPO_KEY = "_dv_sf_cpf11_anterior_no_campo"
-# Pedido de consulta CPF→Salesforce: processado no corpo do script (para permitir barra de progresso).
-_DV_SF_CPF_RANK_LOOKUP_PENDING_KEY = "_dv_sf_cpf_rank_lookup_pending"
-
-
-def _sf_ranking_progress_markup(
-    frac: float,
-    status: str,
-    *,
-    elapsed_s: float | None = None,
-    meter_n: int | None = None,
-    meter_total: int = 100,
-) -> str:
-    _ = (elapsed_s, meter_n, meter_total)  # assinatura compatível com chamadas antigas
-    f = max(0.0, min(1.0, float(frac)))
-    pct_int = int(round(f * 100))
-    esc_status = html_std.escape(status or "")
-    c_r = COR_VERMELHO
-    c_b = COR_AZUL_ESC
-    return (
-        '<div class="dv-sf-rank-progress" style="font-family:system-ui,sans-serif;margin:0.25rem 0 0.5rem 0;">'
-        '<div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px;margin-bottom:6px;">'
-        f'<span style="color:#334155;font-size:0.88rem;font-weight:500;">{esc_status}</span>'
-        f'<span style="color:{c_b};font-size:0.82rem;font-weight:600;">{pct_int}%</span>'
-        "</div>"
-        '<div style="height:14px;border-radius:8px;background:#e8eef3;overflow:hidden;box-shadow:inset 0 1px 2px rgba(0,0,0,0.06);">'
-        f'<div style="height:100%;width:{pct_int}%;min-width:2px;border-radius:8px;'
-        f"background:linear-gradient(90deg,{c_r} 0%,{c_b} 100%);"
-        'transition:width 0.18s ease-out;"></div></div>'
-        "</div>"
-    )
 
 
 def _sf_normalizar_cpf(cpf: str | None) -> str:
@@ -1175,328 +1046,8 @@ def _sf_cpf_mascarado_br(cpf_digitos: str) -> str:
     return f"{cpf_digitos[0:3]}.{cpf_digitos[3:6]}.{cpf_digitos[6:9]}-{cpf_digitos[9:11]}"
 
 
-def _sf_cpf_mascarado_sem_primeiro_zero(cpf_digitos: str) -> str | None:
-    """Máscara tipo 57.884.991-78 quando o cadastro omite o 0 inicial do primeiro bloco."""
-    if len(cpf_digitos) != 11 or not cpf_digitos.isdigit() or cpf_digitos[0] != "0":
-        return None
-    r = cpf_digitos[1:]
-    if len(r) != 10:
-        return None
-    return f"{r[0:2]}.{r[2:5]}.{r[5:8]}-{r[8:10]}"
-
-
-def _sf_cpf_valores_equivalentes_soql(cpf_digitos: str) -> list[str]:
-    """
-    Valores frequentes em Account.CPF__c / Opportunity: só dígitos, máscara padrão,
-    10 dígitos sem zero inicial, máscara sem primeiro zero.
-    """
-    if len(cpf_digitos) != 11 or not cpf_digitos.isdigit():
-        return []
-    seen: set[str] = set()
-    out: list[str] = []
-
-    def add(x: str | None) -> None:
-        if x and x not in seen:
-            seen.add(x)
-            out.append(x)
-
-    add(cpf_digitos)
-    add(_sf_cpf_mascarado_br(cpf_digitos))
-    alt_mask = _sf_cpf_mascarado_sem_primeiro_zero(cpf_digitos)
-    add(alt_mask)
-    if cpf_digitos.startswith("0"):
-        r = cpf_digitos[1:]
-        if len(r) == 10 and r.isdigit():
-            add(r)
-    return out
-
-
 def _sf_soql_escape_literal(val: str) -> str:
     return str(val).replace("\\", "\\\\").replace("'", "\\'")
-
-
-# Person Account + poll de Ranking__c na Account (espelha a lógica de
-# conta_pf_poll_ranking_cmd.py — Documentos/Automações Lucas/salesforce).
-_SF_RECORD_TYPE_CLIENTE_PF_PADRAO = "012j0000000L7CjAAK"
-
-
-def _sf_float_env_ranking(name: str, default: float) -> float:
-    raw = (os.environ.get(name) or "").strip()
-    if not raw:
-        return default
-    try:
-        return float(raw)
-    except ValueError:
-        return default
-
-
-def _sf_truthy_env_ranking(name: str) -> bool:
-    return (os.environ.get(name) or "").strip().lower() in ("1", "true", "yes", "on")
-
-
-def _sf_autocriar_pf_account() -> bool:
-    v = (os.environ.get("SALESFORCE_RANKING_PF_AUTOCRIAR") or "1").strip().lower()
-    return v not in ("0", "false", "no", "off")
-
-
-def _sf_account_cpf_field_name() -> str:
-    return (
-        (os.environ.get("SALESFORCE_ACCOUNT_CPF_FIELD") or "").strip()
-        or (os.environ.get("SALESFORCE_CPF_FIELD") or "").strip()
-        or "CPF__c"
-    )
-
-
-def _sf_account_cpf_soql_dotted() -> str:
-    """Campo CPF na conta para SOQL a partir de Opportunity (ex.: Account.CPF__c)."""
-    f = _sf_account_cpf_field_name()
-    if f.lower().startswith("account."):
-        return f
-    return f"Account.{f}"
-
-
-def _sf_rand_alnum_sf(n: int) -> str:
-    alphabet = string.ascii_lowercase + string.digits
-    return "".join(secrets.choice(alphabet) for _ in range(n))
-
-
-def _sf_rand_digits_sf(n: int) -> str:
-    return "".join(secrets.choice(string.digits) for _ in range(n))
-
-
-def _sf_montar_payload_conta_pf_ranking(cpf_digitos: str) -> dict[str, Any]:
-    last_name = _sf_rand_alnum_sf(10)
-    email_tag = _sf_rand_alnum_sf(10)
-    email_val = f"diresimulator+{email_tag}@gmail.com"
-    telefone = "219" + _sf_rand_digits_sf(8)
-    record_type = (
-        os.environ.get("SALESFORCE_RECORD_TYPE_CLIENTE_PF") or _SF_RECORD_TYPE_CLIENTE_PF_PADRAO
-    ).strip()
-    return {
-        "RecordTypeId": record_type,
-        "Salutation": "Sr.",
-        "FirstName": "Diresimulator",
-        "LastName": last_name,
-        "AccountSource": "Stand",
-        "Regional__c": "RJ",
-        "Regional_Comercial__c": "RJ",
-        "TelefoneAdicional__c": telefone,
-        "Email_Adicional__c": email_val,
-        "PersonEmail": email_val,
-        "Unidade_de_negocio__c": "Direcional",
-        "CPF__c": cpf_digitos,
-    }
-
-
-def _sf_erro_conta_ja_existe_cpf(mensagem: str) -> bool:
-    u = (mensagem or "").lower()
-    return "cpf" in u and ("já existe" in u or "ja existe" in u or "duplic" in u)
-
-
-def _sf_extrair_account_id_do_erro_validacao(mensagem: str) -> str | None:
-    m = re.search(r"\b(001[0-9A-Za-z]{12,17})\b", mensagem or "")
-    return m.group(1) if m else None
-
-
-def _sf_buscar_account_id_por_cpf(sf: Any, cpf_digitos: str) -> str | None:
-    campo = _sf_account_cpf_field_name()
-    for val in _sf_cpf_valores_equivalentes_soql(cpf_digitos):
-        safe = _sf_soql_escape_literal(val)
-        q = f"SELECT Id FROM Account WHERE {campo} = '{safe}' LIMIT 1"
-        try:
-            r = sf.query(q)
-            recs = r.get("records") or []
-            if recs:
-                i = recs[0].get("Id")
-                if i:
-                    return str(i).strip()
-        except Exception:
-            pass
-    return None
-
-
-def _sf_resolver_account_apos_falha_cpf_duplicado(
-    sf: Any, cpf_digitos: str, acc_err: str
-) -> str | None:
-    if not _sf_erro_conta_ja_existe_cpf(acc_err):
-        return None
-    aid = _sf_extrair_account_id_do_erro_validacao(acc_err)
-    if aid:
-        return aid
-    return _sf_buscar_account_id_por_cpf(sf, cpf_digitos)
-
-
-def _sf_criar_conta_pf_ranking(sf: Any, cpf_digitos: str) -> tuple[str | None, str | None]:
-    payload = _sf_montar_payload_conta_pf_ranking(cpf_digitos)
-    try:
-        res = sf.Account.create(payload)
-        aid = (res.get("id") or "").strip()
-        return (aid if aid else None, None)
-    except Exception as e:
-        return (None, str(e))
-
-
-def _sf_excluir_account_criada_simulacao(sf: Any, account_id: str, http_timeout: float) -> None:
-    """Remove Account criada só para leitura do ranking neste fluxo (loga falhas)."""
-    aid = (account_id or "").strip()
-    if not aid or not aid.startswith("001"):
-        return
-    try:
-        sf.restful(f"sobjects/Account/{aid}", method="DELETE", timeout=http_timeout)
-    except Exception as ex:
-        _sf_logger.warning("Salesforce: exclusão da Account %s após simulação falhou: %s", aid, ex)
-
-
-def _sf_buscar_oportunidade_recente_da_conta(
-    sf: Any, account_id: str, http_timeout: float
-) -> str | None:
-    aid = (account_id or "").strip()
-    if not aid or not aid.startswith("001"):
-        return None
-    soql = (
-        "SELECT Id FROM Opportunity "
-        f"WHERE AccountId = '{_sf_soql_escape_literal(aid)}' "
-        "ORDER BY CreatedDate DESC LIMIT 1"
-    )
-    try:
-        res = sf.query(soql, timeout=http_timeout)
-        recs = (res or {}).get("records") or []
-        if recs:
-            oid = str(recs[0].get("Id") or "").strip()
-            if oid.startswith("006"):
-                return oid
-    except Exception as ex:
-        _sf_logger.warning("Salesforce: busca de Opportunity recente da Account %s falhou: %s", aid, ex)
-    return None
-
-
-def _sf_excluir_relacionamento_comprador_da_oportunidade(
-    sf: Any, opportunity_id: str, http_timeout: float
-) -> None:
-    """Remove RelacionamentoComprador__c vinculados à Opportunity (se existirem)."""
-    oid = (opportunity_id or "").strip()
-    if not oid or not oid.startswith("006"):
-        return
-    campos_oportunidade = ("Oportunidade__c", "Opportunity__c")
-    rel_ids: list[str] = []
-    for campo in campos_oportunidade:
-        soql = (
-            "SELECT Id FROM RelacionamentoComprador__c "
-            f"WHERE {campo} = '{_sf_soql_escape_literal(oid)}' LIMIT 200"
-        )
-        try:
-            res = sf.query(soql, timeout=http_timeout)
-            recs = (res or {}).get("records") or []
-            rel_ids = [
-                str(r.get("Id") or "").strip()
-                for r in recs
-                if str(r.get("Id") or "").strip().startswith("a")
-            ]
-            break
-        except Exception:
-            continue
-    for rid in rel_ids:
-        try:
-            sf.restful(f"sobjects/RelacionamentoComprador__c/{rid}", method="DELETE", timeout=http_timeout)
-        except Exception as ex:
-            _sf_logger.warning(
-                "Salesforce: exclusão do RelacionamentoComprador__c %s falhou: %s",
-                rid,
-                ex,
-            )
-
-
-def _sf_excluir_oportunidade_por_id(sf: Any, opportunity_id: str, http_timeout: float) -> None:
-    oid = (opportunity_id or "").strip()
-    if not oid:
-        return
-    try:
-        sf.restful(f"sobjects/Opportunity/{oid}", method="DELETE", timeout=http_timeout)
-    except Exception as ex:
-        _sf_logger.warning(
-            "Salesforce: exclusão da Opportunity %s após simulação falhou: %s",
-            oid,
-            ex,
-        )
-
-
-def _sf_excluir_oportunidade_criada_simulacao(
-    sf: Any, account_id: str, http_timeout: float
-) -> None:
-    """Remove Opportunity criada no fluxo para permitir limpeza da conta temporária."""
-    oid = _sf_buscar_oportunidade_recente_da_conta(sf, account_id, http_timeout)
-    _sf_excluir_oportunidade_por_id(sf, oid, http_timeout)
-
-
-def _sf_get_ranking_account_rest(
-    sf: Any, account_id: str, rfield: str, http_timeout: float
-) -> str | None:
-    aid = account_id.strip()
-    try:
-        rec = sf.restful(f"sobjects/Account/{aid}", method="GET", timeout=http_timeout)
-        if _sf_truthy_env_ranking("SALESFORCE_RISK3_DUMP_STEPS"):
-            try:
-                _sf_logger.debug(
-                    "SF poll GET Account %s: %s",
-                    aid,
-                    json.dumps(rec, ensure_ascii=False, default=str),
-                )
-            except (TypeError, ValueError):
-                _sf_logger.debug("SF poll GET Account %s: %r", aid, rec)
-        if isinstance(rec, dict):
-            val = rec.get(rfield)
-            if val is not None and str(val).strip() != "":
-                return str(val).strip()
-    except Exception as ex:
-        _sf_logger.debug("SF GET Account %s: %s", aid, ex)
-    return None
-
-
-def _sf_poll_ranking_na_account(
-    sf: Any,
-    account_id: str,
-    *,
-    rfield: str,
-    poll_sec: float,
-    poll_iv: float,
-    http_timeout: float,
-    progress_p: Callable[[float, str], None] | None = None,
-    prog_lo: float = 0.42,
-    prog_hi: float = 0.92,
-) -> str | None:
-    """GET sobjects/Account/<Id> em loop até rfield vir preenchido ou timeout."""
-    aid = account_id.strip()
-    t0 = time.monotonic()
-    deadline = t0 + max(1.0, float(poll_sec))
-    last_log = time.monotonic()
-    ps = max(1.0, float(poll_sec))
-    span = max(float(prog_hi) - float(prog_lo), 1e-6)
-    while time.monotonic() < deadline:
-        rank = _sf_get_ranking_account_rest(sf, aid, rfield, http_timeout)
-        if rank:
-            if progress_p:
-                progress_p(1.0, _SF_RANK_PROGRESS_MSG_SUCESSO)
-            return rank
-        elapsed = time.monotonic() - t0
-        if progress_p:
-            frac = float(prog_lo) + min(span, (elapsed / ps) * span)
-            progress_p(
-                frac,
-                f"Aguardando a classificação do cliente… ({int(elapsed)} s)",
-            )
-        now = time.monotonic()
-        if now - last_log >= 15.0:
-            _sf_logger.info("Salesforce: aguardando %s na Account %s…", rfield, aid)
-            last_log = now
-        time.sleep(max(0.5, float(poll_iv)))
-    return None
-
-
-def _sf_ranking_bruto_para_ui(valor: str | None) -> str | None:
-    if not valor:
-        return None
-    m = _sf_mapear_ranking_para_ui(valor)
-    return str(m).strip() if m else str(valor).strip()
 
 
 def _sf_consultar_por_cpf(sf: Any, cpf_bruto: str) -> tuple[dict | None, str | None]:
@@ -1504,16 +1055,14 @@ def _sf_consultar_por_cpf(sf: Any, cpf_bruto: str) -> tuple[dict | None, str | N
     Consulta no Salesforce pelo CPF da conta (Account.CPF__c)
     e retorna a Opportunity mais recente com ranking do cliente.
 
-    O CPF em Account.CPF__c pode estar só com dígitos, com máscara (ex.: 076.086.171-44)
-    ou sem o zero inicial no primeiro bloco (ex.: 76.086.171-44); a consulta cobre variantes.
+    O CPF em Account.CPF__c está armazenado com máscara (ex.: 076.086.171-44).
     """
     cpf_digitos = _sf_normalizar_cpf(cpf_bruto)
     if not cpf_digitos or len(cpf_digitos) != 11 or not cpf_digitos.isdigit():
         return None, "Informe um CPF válido com 11 dígitos."
 
-    cpf_vals = _sf_cpf_valores_equivalentes_soql(cpf_digitos)
-    in_list = ",".join(f"'{_sf_soql_escape_literal(v)}'" for v in cpf_vals)
-    _acct_cpf = _sf_account_cpf_soql_dotted()
+    cpf_mascarado = _sf_cpf_mascarado_br(cpf_digitos)
+    lit = _sf_soql_escape_literal(cpf_mascarado)
     soql = f"""
         SELECT
             Id,
@@ -1521,13 +1070,13 @@ def _sf_consultar_por_cpf(sf: Any, cpf_bruto: str) -> tuple[dict | None, str | N
             IDOportunidade__c,
             AccountId,
             Account.Name,
-            {_acct_cpf},
+            Account.CPF__c,
             Account.Ranking__c,
             Account.Ranking_Score__c,
             Ranking__c,
             Ranking_Score__c
         FROM Opportunity
-        WHERE {_acct_cpf} IN ({in_list})
+        WHERE Account.CPF__c = '{lit}'
         ORDER BY CreatedDate DESC
         LIMIT 10
     """
@@ -1544,27 +1093,14 @@ def _sf_consultar_por_cpf(sf: Any, cpf_bruto: str) -> tuple[dict | None, str | N
 # Compatível com código que ainda referencia o nome antigo.
 _sf_consultar_opportunity_ranking_por_cpf = _sf_consultar_por_cpf
 
-_SF_RANK_PROGRESS_MSG_SUCESSO = "Processo finalizado: classificação encontrada!"
 
-
-def _sf_classificar_ranking_cpf_11(
-    cpf_11: str,
-    *,
-    progress: Callable[[float, str, float], None] | None = None,
-) -> tuple[str | None, str | None]:
+def _sf_classificar_ranking_cpf_11(cpf_11: str) -> tuple[str | None, str | None]:
     """
-    Ranking por CPF: (1) última Opportunity + Account aninhada; (2) Account existente
-    com GET/poll em Ranking__c; (3) se não houver conta e SALESFORCE_RANKING_PF_AUTOCRIAR
-    estiver ativo, cria Person Account (Cliente PF) como em conta_pf_poll_ranking_cmd.py
-    e faz poll até preencher o ranking. Se a conta tiver sido criada neste pedido
-    (não reutilizada por duplicidade de CPF) e a classificação for encontrada,
-    o RelacionamentoComprador__c, a Opportunity recente e a Account criada
-    são excluídos ao final deste ramo (nessa ordem).
-
-    ``progress(frac_0_1, mensagem, elapsed_total_s)`` — opcional; barra gradiente na UI.
+    Conecta (se credenciais existirem), busca ranking pelo CPF (11 dígitos) via Opportunity.
 
     Retorna (ranking_ui_ou_None, código_informativo_ou_None).
-    Códigos: cpf_incompleto, pacote_ausente, sem_registo.
+    Códigos: cpf_incompleto, pacote_ausente, sem_registo (sem ranking / sem registo;
+    falhas de ligação, autenticação ou SOQL mapeiam para sem_registo na UI).
     """
     cpf = _sf_normalizar_cpf(cpf_11)
     if len(cpf) != 11:
@@ -1573,161 +1109,26 @@ def _sf_classificar_ranking_cpf_11(
     if Salesforce is None:
         return None, "pacote_ausente"
 
-    t_all = time.monotonic()
-
-    def _p(frac: float, msg: str) -> None:
-        if progress:
-            progress(max(0.0, min(1.0, float(frac))), msg, time.monotonic() - t_all)
-
-    _p(0.02, "Conectando ao sistema…")
     sf = _sf_conectar_salesforce(verbose=False)
     if sf is None:
         _sf_logger.warning("Salesforce: ligação ou autenticação sem sucesso (detalhe só em log).")
         return None, "sem_registo"
-    _p(0.12, "Buscando informações do cliente…")
-
-    rfield = (os.environ.get("SALESFORCE_RANKING_FIELD") or "Ranking__c").strip()
-    poll_sec = _sf_float_env_ranking("SALESFORCE_RISK3_POLL_SECONDS", 90.0)
-    poll_iv = _sf_float_env_ranking("SALESFORCE_RISK3_POLL_INTERVAL", 2.0)
-    http_timeout = max(5.0, _sf_float_env_ranking("SALESFORCE_REST_TIMEOUT", 45.0))
-
-    def _ranking_conta(account_id: str) -> str | None:
-        _p(0.28, "Consultando a classificação do cliente…")
-        bruto = _sf_get_ranking_account_rest(sf, account_id, rfield, http_timeout)
-        if bruto:
-            _p(1.0, _SF_RANK_PROGRESS_MSG_SUCESSO)
-            return bruto
-        _p(0.35, "Aguardando a classificação ficar disponível…")
-
-        def _pp_sub(frac: float, m: str) -> None:
-            _p(frac, m)
-
-        return _sf_poll_ranking_na_account(
-            sf,
-            account_id,
-            rfield=rfield,
-            poll_sec=poll_sec,
-            poll_iv=poll_iv,
-            http_timeout=http_timeout,
-            progress_p=_pp_sub,
-            prog_lo=0.35,
-            prog_hi=0.94,
-        )
 
     opp, err = _sf_consultar_por_cpf(sf, cpf)
-    _p(0.22, "Busca nas vendas concluída.")
-    if err and "Informe um CPF válido" in err:
-        return None, "cpf_incompleto"
-    if err and "Erro ao consultar" in (err or ""):
+    if err:
+        if "Informe um CPF válido" in err:
+            return None, "cpf_incompleto"
+        if "Nenhum registro encontrado" in err:
+            return None, "sem_registo"
         _sf_logger.warning("Salesforce Opportunity: %s", err)
-
-    if opp is not None:
-        info = _sf_extrair_ranking_ui_de_opportunity(opp)
-        texto_opp = info.get("ranking_exibir")
-        if texto_opp:
-            _p(1.0, _SF_RANK_PROGRESS_MSG_SUCESSO)
-            return _sf_ranking_bruto_para_ui(str(texto_opp)), None
-
-    _p(
-        0.23,
-        "Classificação ainda não encontrada nas vendas. "
-        "Verificando o cadastro do cliente…",
-    )
-
-    aid: str | None = None
-    if opp is not None:
-        raw_aid = opp.get("AccountId")
-        if raw_aid:
-            aid = str(raw_aid).strip()
-    if not aid:
-        _p(0.24, "Procurando cadastro com este CPF…")
-        aid = _sf_buscar_account_id_por_cpf(sf, cpf)
-
-    if aid:
-        bruto = _ranking_conta(aid)
-        if bruto:
-            return _sf_ranking_bruto_para_ui(bruto), None
         return None, "sem_registo"
-
-    if not _sf_autocriar_pf_account():
+    if opp is None:
         return None, "sem_registo"
-
-    _p(0.26, "Cliente não cadastrado. Incluindo no sistema…")
-    new_aid, create_err = _sf_criar_conta_pf_ranking(sf, cpf)
-    conta_criada_neste_fluxo = bool(new_aid)
-    if not new_aid and create_err:
-        new_aid = _sf_resolver_account_apos_falha_cpf_duplicado(sf, cpf, create_err)
-        conta_criada_neste_fluxo = False
-    if not new_aid:
-        _sf_logger.warning("Salesforce PF Account: %s", create_err or "sem Id")
-        return None, "sem_registo"
-    _p(0.30, "Cadastro concluído. Obtendo a classificação…")
-
-    bruto = _ranking_conta(new_aid)
-    if bruto:
-        if conta_criada_neste_fluxo:
-            opp_id_limpeza = _sf_buscar_oportunidade_recente_da_conta(sf, new_aid, http_timeout)
-            _sf_excluir_relacionamento_comprador_da_oportunidade(sf, opp_id_limpeza, http_timeout)
-            _sf_excluir_oportunidade_por_id(sf, opp_id_limpeza, http_timeout)
-            _sf_excluir_account_criada_simulacao(sf, new_aid, http_timeout)
-        return _sf_ranking_bruto_para_ui(bruto), None
+    info = _sf_extrair_ranking_ui_de_opportunity(opp)
+    texto = info.get("ranking_exibir")
+    if texto:
+        return str(texto).strip(), None
     return None, "sem_registo"
-
-
-def _dv_sf_classificar_ranking_cpf_com_barra_progresso(
-    cpf11: str,
-) -> tuple[str | None, str | None]:
-    """Classificação no Salesforce com barra/estados na UI (executar só no corpo principal, não em on_change)."""
-    _sf_rank_prog_ph = st.empty()
-
-    def _sf_prog_cb(frac: float, msg: str, elapsed: float) -> None:
-        _sf_rank_prog_ph.markdown(
-            _sf_ranking_progress_markup(
-                frac,
-                msg,
-                elapsed_s=elapsed,
-                meter_n=int(round(frac * 100)),
-                meter_total=100,
-            ),
-            unsafe_allow_html=True,
-        )
-
-    _rs: str | None = None
-    _code: str | None = "sem_registo"
-    try:
-        _rs, _code = _sf_classificar_ranking_cpf_11(cpf11, progress=_sf_prog_cb)
-    except Exception as _ex:
-        _sf_logger.exception("Classificação ranking Salesforce: %s", _ex)
-        _rs, _code = None, "sem_registo"
-    finally:
-        try:
-            _sf_rank_prog_ph.markdown(
-                _sf_ranking_progress_markup(
-                    1.0,
-                    _SF_RANK_PROGRESS_MSG_SUCESSO if _rs else "Verificação concluída.",
-                    elapsed_s=0.0,
-                    meter_n=100,
-                    meter_total=100,
-                ),
-                unsafe_allow_html=True,
-            )
-        except Exception:
-            pass
-    return _rs, _code
-
-
-def _dv_sf_cpf_classificar_clientes_on_change() -> None:
-    """Enter/blur no CPF: agenda consulta no próximo run (on_change não atualiza st.empty durante a chamada)."""
-    cpf_raw = st.session_state.get("cpf_classificar_clientes_sf") or ""
-    cpf_d = re.sub(r"\D", "", str(cpf_raw))
-    if len(cpf_d) != 11:
-        return
-    _ar = st.session_state.get(_DV_SF_RANK_FAIL_AUTORETRY_KEY)
-    if isinstance(_ar, dict) and cpf_d in _ar:
-        _ar = {**_ar}
-        del _ar[cpf_d]
-        st.session_state[_DV_SF_RANK_FAIL_AUTORETRY_KEY] = _ar
-    st.session_state[_DV_SF_CPF_RANK_LOOKUP_PENDING_KEY] = cpf_d
 
 
 def _sf_extrair_ranking_ui_de_opportunity(opp: Any) -> dict[str, Any]:
@@ -1747,39 +1148,27 @@ def _sf_extrair_ranking_ui_de_opportunity(opp: Any) -> dict[str, Any]:
     }
 
 
+@st.cache_data(ttl=300, show_spinner=False)
 def _lookup_ranking_salesforce_cached(cpf11: str) -> tuple[str | None, str | None]:
-    """Sem cache: classificação deve refletir o Salesforce em cada chamada (evita resultado obsoleto)."""
     _injetar_secrets_salesforce_no_env()
     return _sf_classificar_ranking_cpf_11(cpf11)
 
 
+@st.cache_data(ttl=300, show_spinner=False)
 def _lookup_ranking_oportunidade_sf_cached(cpf11: str) -> tuple[dict[str, Any] | None, str | None]:
-    """Detalhe do ranking: Opportunity quando existir; senão valores obtidos na Account/poll."""
+    """Ranking na Conta via última Opportunity (Account.CPF__c com máscara)."""
     d = re.sub(r"\D", "", str(cpf11 or ""))
     if len(d) != 11:
         return None, "cpf_incompleto"
     _injetar_secrets_salesforce_no_env()
-    texto, code = _sf_classificar_ranking_cpf_11(d)
-    if not texto:
-        if code == "cpf_incompleto":
-            return None, "cpf_incompleto"
-        if code == "pacote_ausente":
-            return None, "pacote_ausente"
-        return None, code or "sem_registo"
     sf = _sf_conectar_salesforce()
-    if sf is not None:
-        opp, _err = _sf_consultar_por_cpf(sf, d)
-        if opp is not None:
-            info = _sf_extrair_ranking_ui_de_opportunity(opp)
-            if info.get("ranking_exibir"):
-                return info, None
-    return {
-        "ranking_exibir": texto,
-        "ranking_score_conta": None,
-        "ranking_score_opp": None,
-        "nome_conta": None,
-        "nome_opp": None,
-    }, None
+    if sf is None:
+        _sf_logger.warning("Salesforce: ligação ou autenticação sem sucesso (detalhe só em log).")
+        return None, "Nenhum registro encontrado para o CPF informado."
+    opp, err = _sf_consultar_por_cpf(sf, d)
+    if err or opp is None:
+        return None, err or "erro"
+    return _sf_extrair_ranking_ui_de_opportunity(opp), None
 
 
 # Tenta importar fpdf e PIL
@@ -3058,7 +2447,7 @@ def carregar_dados_sistema():
                 pd.DataFrame(),
                 pd.DataFrame(),
                 pd.DataFrame(),
-                aplicar_ipca_aa_ao_vivo(dict(DEFAULT_PREMISSAS)),
+                dict(DEFAULT_PREMISSAS),
                 pd.DataFrame(columns=list(_COLS_CAMPANHAS_TEXTO)),
             )
         conn = st.connection("gsheets", type=GSheetsConnection)
@@ -3201,7 +2590,6 @@ def carregar_dados_sistema():
                 break
             except Exception:
                 continue
-        premissas_dict = aplicar_ipca_aa_ao_vivo(premissas_dict)
 
         try:
             df_hb_raw = conn.read(spreadsheet=ID_GERAL, worksheet="BD Home Banners")
@@ -3240,7 +2628,7 @@ def carregar_dados_sistema():
             pd.DataFrame(),
             pd.DataFrame(),
             pd.DataFrame(),
-            aplicar_ipca_aa_ao_vivo(dict(DEFAULT_PREMISSAS)),
+            dict(DEFAULT_PREMISSAS),
             pd.DataFrame(columns=list(_COLS_CAMPANHAS_TEXTO)),
         )
 
@@ -6679,216 +6067,6 @@ def show_export_dialog(d):
 # APLICAÇÃO PRINCIPAL
 # =============================================================================
 
-# Chaves de widgets da página de simulação (removidas pelo Streamlit quando o passo ≠ 'sim').
-_DV_SIM_WIDGET_KEYS_FIXAS: tuple[str, ...] = (
-    "nome_cliente_imobiliaria_opt_v1",
-    "renda_familiar_total_v1",
-    "cpf_classificar_clientes_sf",
-    "in_rank_v28",
-    "in_pol_v28",
-    "fin_aprovado_key",
-    "sub_aprovado_key",
-    "prazo_aprovado_key",
-    "sist_aprovado_ui_v1",
-    "parcela_fin_edit_key",
-    "sel_emp_rec_v28",
-    "sel_emp_new_v3",
-    "sinal_com_key",
-    "ato_1_key",
-    "ato_2_key",
-    "ato_3_key",
-    "ato_4_key",
-    "ps_u_key",
-    "parc_ps_key",
-    "volta_caixa_key",
-    "outros_descontos_key",
-    "outros_descontos_motivo_key",
-)
-_DV_SIM_WIDGET_KEY_PREFIXO_UNI = "sel_uni_emp_"
-_DV_SIM_SESS_AUX_KEYS: tuple[str, ...] = (
-    "_sim_fechar_last_emp",
-    "_fin_sub_ref_curva_par",
-    "_parc_fin_auto_sig",
-    "_parc_fin_auto_ref_prev",
-    "_parc_fin_last_sistema",
-)
-# Cópia de dados_cliente ao avançar para o resumo; ao voltar, repõe tudo (PDF/e-mail não alteram isto).
-_DV_SIM_DADOS_SNAPSHOT_KEY = "_dv_sim_dados_cliente_snapshot"
-_DV_SIM_FORCAR_RESTORE_KEY = "_dv_forcar_restore_widgets_apos_resumo"
-
-
-def _dv_restore_sim_widget_keys_from_dados(dc: dict, *, force: bool = False) -> None:
-    """Reidrata st.session_state dos widgets após voltar do resumo (widgets não renderizados perdem a chave).
-
-    ``force=True`` sobrescreve chaves existentes (Streamlit por vezes mantém estado obsoleto).
-    """
-    if not dc:
-        return
-    rank_opts = ("DIAMANTE", "OURO", "PRATA", "BRONZE", "AÇO")
-    if force or "nome_cliente_imobiliaria_opt_v1" not in st.session_state:
-        st.session_state["nome_cliente_imobiliaria_opt_v1"] = str(dc.get("nome") or "").strip()
-    if force or "renda_familiar_total_v1" not in st.session_state:
-        try:
-            r = float(dc.get("renda", 0) or 0)
-        except (TypeError, ValueError):
-            r = 0.0
-        st.session_state["renda_familiar_total_v1"] = float_para_campo_texto(
-            max(0.0, r), vazio_se_zero=True
-        )
-    if force or "cpf_classificar_clientes_sf" not in st.session_state:
-        st.session_state["cpf_classificar_clientes_sf"] = str(dc.get("cpf") or "").strip()
-    if force or "in_rank_v28" not in st.session_state:
-        r0 = dc.get("ranking")
-        st.session_state["in_rank_v28"] = r0 if r0 in rank_opts else rank_opts[0]
-    if force or "in_pol_v28" not in st.session_state:
-        p = dc.get("politica")
-        st.session_state["in_pol_v28"] = (
-            p if p in ("Direcional", "Emcash") else "Direcional"
-        )
-    if force or "sel_emp_rec_v28" not in st.session_state:
-        fe = dc.get("filtro_emp_rec_v28")
-        st.session_state["sel_emp_rec_v28"] = (
-            fe if isinstance(fe, str) and fe.strip() else "Todos"
-        )
-    if force or "sel_emp_new_v3" not in st.session_state:
-        en = dc.get("empreendimento_nome")
-        if isinstance(en, str) and en.strip():
-            st.session_state["sel_emp_new_v3"] = en.strip()
-    if force or "fin_aprovado_key" not in st.session_state:
-        try:
-            fv = float(dc.get("finan_usado", 0) or 0)
-        except (TypeError, ValueError):
-            fv = 0.0
-        st.session_state["fin_aprovado_key"] = float_para_campo_texto(
-            max(0.0, fv), vazio_se_zero=True
-        )
-    if force or "sub_aprovado_key" not in st.session_state:
-        try:
-            sv = float(dc.get("fgts_sub_usado", 0) or 0)
-        except (TypeError, ValueError):
-            sv = 0.0
-        st.session_state["sub_aprovado_key"] = float_para_campo_texto(
-            max(0.0, sv), vazio_se_zero=True
-        )
-    if force or "prazo_aprovado_key" not in st.session_state:
-        try:
-            pz = int(dc.get("prazo_financiamento", 360) or 360)
-        except (TypeError, ValueError):
-            pz = 360
-        st.session_state["prazo_aprovado_key"] = str(max(12, min(600, pz)))
-    if force or "sist_aprovado_ui_v1" not in st.session_state:
-        cod = str(dc.get("sistema_amortizacao", "SAC") or "SAC").strip().upper()
-        st.session_state["sist_aprovado_ui_v1"] = _AMORTIZACAO_NOME_COMPLETO.get(
-            cod, _AMORTIZACAO_NOME_COMPLETO["SAC"]
-        )
-    if force or "parcela_fin_edit_key" not in st.session_state:
-        try:
-            pv = float(dc.get("parcela_financiamento", 0) or 0)
-        except (TypeError, ValueError):
-            pv = 0.0
-        st.session_state["parcela_fin_edit_key"] = float_para_campo_texto(
-            max(0.0, pv), vazio_se_zero=True
-        )
-    if force or "sinal_com_key" not in st.session_state:
-        try:
-            sc = float(dc.get("sinal_com", 0) or 0)
-        except (TypeError, ValueError):
-            sc = 0.0
-        st.session_state["sinal_com_key"] = float_para_campo_texto(
-            max(0.0, sc), vazio_se_zero=True
-        )
-    if force or "volta_caixa_key" not in st.session_state:
-        try:
-            vc = float(dc.get("volta_caixa_aplicado", 0) or 0)
-        except (TypeError, ValueError):
-            vc = 0.0
-        st.session_state["volta_caixa_key"] = float_para_campo_texto(
-            max(0.0, vc), vazio_se_zero=True
-        )
-    if force or "outros_descontos_key" not in st.session_state:
-        try:
-            od = float(dc.get("outros_descontos", 0) or 0)
-        except (TypeError, ValueError):
-            od = 0.0
-        st.session_state["outros_descontos_key"] = float_para_campo_texto(
-            max(0.0, od), vazio_se_zero=True
-        )
-    if force or "outros_descontos_motivo_key" not in st.session_state:
-        st.session_state["outros_descontos_motivo_key"] = str(
-            dc.get("outros_descontos_motivo") or ""
-        ).strip()
-    if force or "ps_u_key" not in st.session_state:
-        try:
-            psv = float(dc.get("ps_usado", 0) or 0)
-        except (TypeError, ValueError):
-            psv = 0.0
-        st.session_state["ps_u_key"] = float_para_campo_texto(
-            max(0.0, psv), vazio_se_zero=True
-        )
-    if force or "parc_ps_key" not in st.session_state:
-        try:
-            pp = int(dc.get("ps_parcelas", 1) or 1)
-        except (TypeError, ValueError):
-            pp = 1
-        st.session_state["parc_ps_key"] = str(max(1, pp))
-    emcash = dc.get("politica") == "Emcash"
-    for sk, dk in (
-        ("ato_1_key", "ato_final"),
-        ("ato_2_key", "ato_30"),
-        ("ato_3_key", "ato_60"),
-    ):
-        if force or sk not in st.session_state:
-            try:
-                av = float(dc.get(dk, 0) or 0)
-            except (TypeError, ValueError):
-                av = 0.0
-            st.session_state[sk] = float_para_campo_texto(max(0.0, av), vazio_se_zero=True)
-    if emcash:
-        st.session_state.pop("ato_4_key", None)
-    elif force or "ato_4_key" not in st.session_state:
-        try:
-            a4 = float(dc.get("ato_90", 0) or 0)
-        except (TypeError, ValueError):
-            a4 = 0.0
-        st.session_state["ato_4_key"] = float_para_campo_texto(
-            max(0.0, a4), vazio_se_zero=True
-        )
-    _emp_snap = str(dc.get("empreendimento_nome") or "").strip()
-    _uid_snap = dc.get("unidade_id")
-    if _emp_snap and _uid_snap:
-        _slug_u = hashlib.sha1(_emp_snap.encode("utf-8", errors="replace")).hexdigest()[:14]
-        _uk_uni = f"{_DV_SIM_WIDGET_KEY_PREFIXO_UNI}{_slug_u}"
-        if force or _uk_uni not in st.session_state:
-            st.session_state[_uk_uni] = _uid_snap
-
-
-def _dv_limpar_estado_simulacao_apos_concluir() -> None:
-    """Nova simulação: limpa dados persistidos e chaves de widgets auxiliares."""
-    st.session_state.dados_cliente = {}
-    st.session_state.passo_simulacao = "sim"
-    st.session_state.pop(_DV_SIM_DADOS_SNAPSHOT_KEY, None)
-    st.session_state.pop(_DV_SIM_FORCAR_RESTORE_KEY, None)
-    for k in _DV_SIM_WIDGET_KEYS_FIXAS:
-        st.session_state.pop(k, None)
-    for k in list(st.session_state.keys()):
-        if isinstance(k, str) and k.startswith(_DV_SIM_WIDGET_KEY_PREFIXO_UNI):
-            st.session_state.pop(k, None)
-    for k in _DV_SIM_SESS_AUX_KEYS:
-        st.session_state.pop(k, None)
-    for k in (
-        _DV_SF_RANK_TRACK_CPF_KEY,
-        _DV_SF_RANK_CLASSIF_OK_CPF_KEY,
-        "_sf_rank_auto_applied_for_cpf",
-        "_sf_rank_toast_ok_cpf",
-        "_sf_rank_naoencontrado_toast_cpf",
-        _DV_SF_RANK_MEMO_KEY,
-        _DV_SF_RANK_FAIL_AUTORETRY_KEY,
-        _DV_SF_CPF_RANK_LOOKUP_PENDING_KEY,
-        _DV_SF_CPF11_ANTERIOR_CAMPO_KEY,
-    ):
-        st.session_state.pop(k, None)
-
-
 def aba_simulador_automacao(
     df_finan,
     df_estoque,
@@ -6933,13 +6111,6 @@ def aba_simulador_automacao(
 
     # --- PÁGINA ÚNICA: perfil → valores → recomendações → unidade → distribuição (ordem fixa) ---
     if passo == 'sim':
-        _forcar_restore = bool(st.session_state.pop(_DV_SIM_FORCAR_RESTORE_KEY, False))
-        _snap_dc = st.session_state.get(_DV_SIM_DADOS_SNAPSHOT_KEY)
-        if _forcar_restore and isinstance(_snap_dc, dict) and _snap_dc:
-            st.session_state.dados_cliente = copy.deepcopy(_snap_dc)
-        _dv_restore_sim_widget_keys_from_dados(
-            st.session_state.dados_cliente, force=_forcar_restore
-        )
         st.markdown(
             '<div class="dv-perfil-simulacao-anchor"><h3 class="dv-titulo-secao">Perfil da simulação</h3></div>',
             unsafe_allow_html=True,
@@ -6977,160 +6148,57 @@ def aba_simulador_automacao(
             "CPF - Classificar Clientes (opcional) (CPF)",
             key="cpf_classificar_clientes_sf",
             placeholder="000.000.000-00",
-            on_change=_dv_sf_cpf_classificar_clientes_on_change,
-            help="Com 11 dígitos, pressione Enter para consultar a classificação no Salesforce.",
         )
         cpf_digits = re.sub(r"\D", "", st.session_state.get("cpf_classificar_clientes_sf") or "")
         rank_opts = ["DIAMANTE", "OURO", "PRATA", "BRONZE", "AÇO"]
-        _cpf11_ant = st.session_state.get(_DV_SF_CPF11_ANTERIOR_CAMPO_KEY)
-        if len(cpf_digits) == 11:
-            if (
-                isinstance(_cpf11_ant, str)
-                and len(_cpf11_ant) == 11
-                and _cpf11_ant != cpf_digits
-            ):
-                st.session_state[_DV_SF_RANK_CLASSIF_OK_CPF_KEY] = ""
-                st.session_state["_sf_rank_auto_applied_for_cpf"] = ""
-                st.session_state["_sf_rank_toast_ok_cpf"] = ""
-                st.session_state["_sf_rank_naoencontrado_toast_cpf"] = ""
-            st.session_state[_DV_SF_CPF11_ANTERIOR_CAMPO_KEY] = cpf_digits
-        _dv_sf_cpf_lookup_correu_neste_run = False
-        _lookup_pending = st.session_state.get(_DV_SF_CPF_RANK_LOOKUP_PENDING_KEY)
-        if _lookup_pending is not None:
-            if len(cpf_digits) == 11 and str(_lookup_pending).strip() == cpf_digits:
-                st.session_state.pop(_DV_SF_CPF_RANK_LOOKUP_PENDING_KEY, None)
-                _injetar_secrets_salesforce_no_env()
-                _rs_p, _cd_p = _dv_sf_classificar_ranking_cpf_com_barra_progresso(cpf_digits)
-                _dv_sf_rank_memo_set(cpf_digits, _rs_p, _cd_p)
-                st.session_state[_DV_SF_RANK_CLASSIF_OK_CPF_KEY] = cpf_digits
-                st.session_state["_sf_rank_auto_applied_for_cpf"] = ""
-                st.session_state["_sf_rank_toast_ok_cpf"] = ""
-                st.session_state["_sf_rank_naoencontrado_toast_cpf"] = ""
-                _dv_sf_cpf_lookup_correu_neste_run = True
-            else:
-                st.session_state.pop(_DV_SF_CPF_RANK_LOOKUP_PENDING_KEY, None)
-        if len(cpf_digits) == 11 and not _dv_sf_cpf_lookup_correu_neste_run:
-            _memo_pre = _dv_sf_rank_memo_get(cpf_digits)
-            if (
-                _memo_pre is not None
-                and not _memo_pre[0]
-                and (_memo_pre[1] in _DV_SF_RANK_MEMO_RETRY_CODES)
-            ):
-                _ar_dict = st.session_state.get(_DV_SF_RANK_FAIL_AUTORETRY_KEY)
-                if not isinstance(_ar_dict, dict):
-                    _ar_dict = {}
-                if not _ar_dict.get(cpf_digits):
-                    _ar_dict = {**_ar_dict, cpf_digits: True}
-                    st.session_state[_DV_SF_RANK_FAIL_AUTORETRY_KEY] = _ar_dict
-                    _injetar_secrets_salesforce_no_env()
-                    try:
-                        _rs_r, _cd_r = _dv_sf_classificar_ranking_cpf_com_barra_progresso(
-                            cpf_digits
-                        )
-                    except Exception as _ex_r:
-                        _sf_logger.exception(
-                            "Classificação ranking Salesforce (reintento automático): %s",
-                            _ex_r,
-                        )
-                        _rs_r, _cd_r = None, "sem_registo"
-                    _dv_sf_rank_memo_set(cpf_digits, _rs_r, _cd_r)
-                    st.session_state[_DV_SF_RANK_CLASSIF_OK_CPF_KEY] = cpf_digits
-                    st.session_state["_sf_rank_auto_applied_for_cpf"] = ""
-                    st.session_state["_sf_rank_toast_ok_cpf"] = ""
-                    st.session_state["_sf_rank_naoencontrado_toast_cpf"] = ""
-                    st.rerun()
-        if st.session_state.get(_DV_SF_RANK_TRACK_CPF_KEY) != cpf_digits:
-            st.session_state[_DV_SF_RANK_TRACK_CPF_KEY] = cpf_digits
-            # Um único preenchimento automático por “snapshot” de CPF; depois o utilizador pode alterar à vontade.
-            st.session_state["_sf_rank_auto_applied_for_cpf"] = ""
-            st.session_state["_sf_rank_toast_ok_cpf"] = ""
         _sf_rs: str | None = None
         _sf_code: str | None = None
-        _dv_sf_memo_cpf: tuple[str | None, str | None] | None = (
-            _dv_sf_rank_memo_get(cpf_digits) if len(cpf_digits) == 11 else None
-        )
         if len(cpf_digits) == 11:
-            if _dv_sf_memo_cpf is not None:
-                _sf_rs, _sf_code = _dv_sf_memo_cpf
-                if (
-                    _sf_rs
-                    and _sf_rs in rank_opts
-                    and st.session_state.get(_DV_SF_RANK_CLASSIF_OK_CPF_KEY) == cpf_digits
-                ):
-                    if st.session_state.get("_sf_rank_auto_applied_for_cpf") != cpf_digits:
-                        st.session_state["in_rank_v28"] = _sf_rs
-                        st.session_state["_sf_rank_auto_applied_for_cpf"] = cpf_digits
-                if (
-                    _sf_rs
-                    and st.session_state.get("_sf_rank_toast_ok_cpf") != cpf_digits
-                    and st.session_state.get(_DV_SF_RANK_CLASSIF_OK_CPF_KEY) == cpf_digits
-                ):
-                    st.session_state["_sf_rank_toast_ok_cpf"] = cpf_digits
-                    st.session_state["_sf_rank_naoencontrado_toast_cpf"] = ""
-                    if hasattr(st, "toast"):
-                        try:
-                            st.toast(f"Ranking encontrado: {_sf_rs}", icon="✅")
-                        except Exception:
-                            pass
-                elif (
-                    not _sf_rs
-                    and _sf_code in ("sem_registo", "sem_conexao", "erro_sf")
-                    and st.session_state.get("_sf_rank_naoencontrado_toast_cpf") != cpf_digits
-                    and st.session_state.get(_DV_SF_RANK_CLASSIF_OK_CPF_KEY) == cpf_digits
-                ):
-                    st.session_state["_sf_rank_naoencontrado_toast_cpf"] = cpf_digits
-                    if hasattr(st, "toast"):
-                        try:
-                            st.toast("Ranking não encontrado.", icon="❌")
-                        except Exception:
-                            pass
+            _sf_rs, _sf_code = _lookup_ranking_salesforce_cached(cpf_digits)
+            if _sf_rs and _sf_rs in rank_opts and st.session_state.get("_sf_rank_applied_cpf") != cpf_digits:
+                st.session_state["in_rank_v28"] = _sf_rs
+                st.session_state["_sf_rank_applied_cpf"] = cpf_digits
+                st.session_state["_sf_rank_naoencontrado_toast_cpf"] = ""
+                if hasattr(st, "toast"):
+                    try:
+                        st.toast(f"Ranking encontrado: {_sf_rs}", icon="✅")
+                    except Exception:
+                        pass
+            elif (
+                not _sf_rs
+                and _sf_code in ("sem_registo", "sem_conexao", "erro_sf")
+                and st.session_state.get("_sf_rank_naoencontrado_toast_cpf") != cpf_digits
+            ):
+                st.session_state["_sf_rank_naoencontrado_toast_cpf"] = cpf_digits
+                if hasattr(st, "toast"):
+                    try:
+                        st.toast("Ranking não encontrado.", icon="❌")
+                    except Exception:
+                        pass
         else:
-            # CPF incompleto ou vazio: não forçar ranking (o utilizador pode mudar PRATA, etc. sem CPF completo).
-            st.session_state[_DV_SF_RANK_TRACK_CPF_KEY] = ""
-            st.session_state.pop(_DV_SF_RANK_CLASSIF_OK_CPF_KEY, None)
-            st.session_state["_sf_rank_auto_applied_for_cpf"] = ""
-            st.session_state["_sf_rank_toast_ok_cpf"] = ""
+            # CPF incompleto ou vazio: permite nova consulta ao voltar a 11 dígitos
+            st.session_state["_sf_rank_applied_cpf"] = ""
             st.session_state["_sf_rank_naoencontrado_toast_cpf"] = ""
-            if cpf_digits:
+        if len(cpf_digits) == 11:
+            if _sf_rs:
+                st.markdown(
+                    f'<p class="inline-ref" style="margin-top:0;margin-bottom:0;line-height:1.45;">'
+                    f"Ranking encontrado: <strong>{html_std.escape(str(_sf_rs))}</strong></p>",
+                    unsafe_allow_html=True,
+                )
+            elif _sf_code in ("sem_registo", "sem_conexao", "erro_sf"):
                 st.markdown(
                     '<p class="inline-ref" style="margin-top:0;margin-bottom:0;line-height:1.45;">'
-                    "CPF não cadastrado. Contate o Comercial.</p>",
-                    unsafe_allow_html=True,
-                )
-
-        if len(cpf_digits) == 11:
-            _classif_ok_cpf = st.session_state.get(_DV_SF_RANK_CLASSIF_OK_CPF_KEY)
-            _pode_exibir_pos_sf = _classif_ok_cpf == cpf_digits
-            if _sf_rs and _pode_exibir_pos_sf:
-                st.markdown(
-                    f'<p class="inline-ref" style="margin-top:0;margin-bottom:0.35rem;line-height:1.45;">'
-                    f"Classificação obtida: <strong>{html_std.escape(str(_sf_rs))}</strong></p>",
-                    unsafe_allow_html=True,
-                )
-            elif _sf_code == "cpf_incompleto" and _pode_exibir_pos_sf:
-                st.markdown(
-                    '<p class="inline-ref" style="margin-top:0;margin-bottom:0.35rem;line-height:1.45;">'
-                    "CPF não cadastrado. Contate o Comercial.</p>",
-                    unsafe_allow_html=True,
-                )
-            elif (
-                _sf_code in ("sem_registo", "sem_conexao", "erro_sf")
-                and _pode_exibir_pos_sf
-            ):
-                st.markdown(
-                    '<p class="inline-ref" style="margin-top:0;margin-bottom:0.35rem;line-height:1.45;">'
                     "CPF não encontrado. Um novo contato deve ser criado no salesforce</p>",
                     unsafe_allow_html=True,
                 )
-
-        if "in_rank_v28" not in st.session_state:
-            _r0 = st.session_state.dados_cliente.get("ranking")
-            st.session_state["in_rank_v28"] = (
-                _r0 if _r0 in rank_opts else rank_opts[0]
-            )
+        _rank_now = st.session_state.get("in_rank_v28", st.session_state.dados_cliente.get("ranking", "DIAMANTE"))
+        curr_ranking = _rank_now
+        idx_ranking = rank_opts.index(curr_ranking) if curr_ranking in rank_opts else 0
         ranking = st.selectbox(
             "Ranking do Cliente (lista)",
             options=rank_opts,
+            index=idx_ranking,
             key="in_rank_v28",
         )
         _pol_saved = st.session_state.dados_cliente.get("politica")
@@ -7477,7 +6545,6 @@ def aba_simulador_automacao(
                 options=["Todos"] + emp_names_rec,
                 key="sel_emp_rec_v28",
             )
-            st.session_state.dados_cliente["filtro_emp_rec_v28"] = str(emp_rec or "Todos")
             df_pool = df_disp_total if emp_rec == "Todos" else df_disp_total[df_disp_total["Empreendimento"] == emp_rec]
 
             if df_pool.empty:
@@ -7778,22 +6845,10 @@ def aba_simulador_automacao(
         # Valores da unidade vêm do cadastro (Valor de Venda); demais valores do fluxo anterior
         u_valor = float(d.get('imovel_valor', 0) or 0)
         vc_ref_top = float(d.get('volta_caixa_ref', 0) or 0)
-        if "volta_caixa_key" not in st.session_state:
-            try:
-                _vc_seed = float(st.session_state.dados_cliente.get("volta_caixa_aplicado") or 0)
-            except (TypeError, ValueError):
-                _vc_seed = 0.0
-            st.session_state["volta_caixa_key"] = float_para_campo_texto(
-                max(0.0, _vc_seed), vazio_se_zero=True
-            )
-        if "outros_descontos_key" not in st.session_state:
-            try:
-                _od_seed = float(st.session_state.dados_cliente.get("outros_descontos") or 0)
-            except (TypeError, ValueError):
-                _od_seed = 0.0
-            st.session_state["outros_descontos_key"] = float_para_campo_texto(
-                max(0.0, _od_seed), vazio_se_zero=True
-            )
+        if 'volta_caixa_key' not in st.session_state:
+            st.session_state['volta_caixa_key'] = ""
+        if 'outros_descontos_key' not in st.session_state:
+            st.session_state['outros_descontos_key'] = ""
         if "outros_descontos_motivo_key" not in st.session_state:
             st.session_state["outros_descontos_motivo_key"] = str(
                 st.session_state.dados_cliente.get("outros_descontos_motivo") or ""
@@ -8465,9 +7520,6 @@ def aba_simulador_automacao(
             key="dv_btn_avancar_resumo",
         ):
             if abs(gap_final) <= 1.0:
-                st.session_state[_DV_SIM_DADOS_SNAPSHOT_KEY] = copy.deepcopy(
-                    st.session_state.dados_cliente
-                )
                 st.session_state.passo_simulacao = "summary"
                 scroll_to_top()
                 st.rerun()
@@ -8671,18 +7723,10 @@ def aba_simulador_automacao(
                 except: df_final_save = df_novo
                 conn_save.update(spreadsheet=ID_GERAL, worksheet=aba_destino, data=df_final_save)
                 st.cache_data.clear()
-                st.markdown(
-                    '<div class="custom-alert">Registro salvo na aba Simulações da base de dados.</div>',
-                    unsafe_allow_html=True,
-                )
-                time.sleep(2)
-                _dv_limpar_estado_simulacao_apos_concluir()
-                scroll_to_top()
-                st.rerun()
+                st.markdown(f'<div class="custom-alert">Registro salvo na aba Simulações da base de dados.</div>', unsafe_allow_html=True); time.sleep(2); st.session_state.dados_cliente = {}; st.session_state.passo_simulacao = 'sim'; scroll_to_top(); st.rerun()
             except Exception as e:
                 _dv_alerta_vermelho_texto(f"Erro ao salvar: {e}")
         if st.button("Voltar à simulação", use_container_width=True):
-            st.session_state[_DV_SIM_FORCAR_RESTORE_KEY] = True
             st.session_state.passo_simulacao = 'sim'
             scroll_to_top()
             st.rerun()
