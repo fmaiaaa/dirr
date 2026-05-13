@@ -8388,9 +8388,13 @@ def aba_simulador_automacao(
                 f_prev = min(f_prev, v_liq_prev)
                 s_prev = min(s_prev, max(0.0, v_liq_prev - f_prev))
             ps_limite_prev = float(mps_prev.get("ps_max_efetivo", 0) or 0)
-            ps_raw_prev = max(0.0, v_liq_prev - f_prev - s_prev - soma_atos_prev)
+            ps_bruto_prev = max(0.0, v_liq_prev - f_prev - s_prev)
             ps_input_prev = max(
-                0.0, min(ps_raw_prev, ps_limite_prev if ps_limite_prev > 0 else ps_raw_prev)
+                0.0,
+                min(
+                    ps_bruto_prev,
+                    ps_limite_prev if ps_limite_prev > 0 else ps_bruto_prev,
+                ),
             )
             n_min_prev = None
             meses_entrega_prev = meses_ate_entrega(d.get("unid_entrega", ""))
@@ -8824,7 +8828,10 @@ def aba_simulador_automacao(
             r3x = max(0.0, texto_moeda_para_float(st.session_state.get("ato_3_key")))
             r4x = max(0.0, texto_moeda_para_float(st.session_state.get("ato_4_key")))
             soma_atx = r1x + r2x + r3x + r4x
-            cap_atosx = max(0.0, v_liquido - f_u_input - fgts_u_input)
+            ps_bruto_disponivel = max(0.0, v_liquido - f_u_input - fgts_u_input)
+            ps_cap0 = float(ps_limite_ui2) if ps_limite_ui2 > 0 else ps_bruto_disponivel
+            ps_input_val = max(0.0, min(ps_bruto_disponivel, ps_cap0))
+            cap_atosx = max(0.0, v_liquido - f_u_input - fgts_u_input - ps_input_val)
             if soma_atx > cap_atosx + 0.01 and soma_atx > 0:
                 _kf0 = cap_atosx / soma_atx
                 r1x *= _kf0
@@ -8836,10 +8843,7 @@ def aba_simulador_automacao(
                 st.session_state["ato_3_key"] = float_para_campo_texto(r3x, vazio_se_zero=True)
                 st.session_state["ato_4_key"] = float_para_campo_texto(r4x, vazio_se_zero=True)
             soma_atx = r1x + r2x + r3x + r4x
-            ps_raw = max(0.0, v_liquido - f_u_input - fgts_u_input - soma_atx)
-            ps_cap0 = float(ps_limite_ui2) if ps_limite_ui2 > 0 else ps_raw
-            ps_input_val = max(0.0, min(ps_raw, ps_cap0))
-            if ps_raw > ps_cap0 + 1.0:
+            if ps_bruto_disponivel > ps_cap0 + 1.0:
                 _dv_alerta_vermelho_texto(
                     "O Pro Soluto calculado como resíduo ultrapassa o teto permitido pela política/estoque. "
                     "Reduza atos ou financiamento/subsídio."
@@ -8884,52 +8888,20 @@ def aba_simulador_automacao(
             st.session_state.dados_cliente["ps_mensal_simples"] = (
                 (float(ps_input_val or 0) / parc) if parc > 0 else 0.0
             )
-            _ps_parc_fmt = reais_streamlit_html(fmt_br(v_parc))
-            _ps_j8_fmt = reais_streamlit_html(fmt_br(j8_ui))
-            _pmin_par = int(_parc_ps_min_ui)
-            _pmax_par = int(parc_max_ui)
-            _combo_par_ref = [
-                "Deve ter, no mínimo, ",
-                f"<strong>{html_std.escape(str(_pmin_par))}</strong>",
-                " parcelas e, no máximo, ",
-                f"<strong>{html_std.escape(str(_pmax_par))}</strong>",
-                " parcelas.",
-            ]
-            if j8_ui > 0:
-                _combo_par_ref.extend(
-                    [
-                        " As parcelas devem ser limitadas em ",
-                        f"<strong>{_ps_j8_fmt}</strong>",
-                        ".",
-                    ]
-                )
-            _combo_par_ref.extend(
-                [
-                    " Atualmente, está sendo dividido em ",
-                    f"<strong>{html_std.escape(str(int(parc)))}x</strong>",
-                    " de ",
-                    f"<strong>{_ps_parc_fmt}</strong>",
-                    ".",
-                ]
-            )
-            st.markdown(
-                f'<p class="inline-ref" style="margin:0;line-height:1.45;">{"".join(_combo_par_ref)}</p>',
-                unsafe_allow_html=True,
-            )
             if float(ps_input_val or 0) > 0 and j8_ui > 0 and n_min_j8 is None:
                 _dv_alerta_vermelho(
                     "Com este Pro Soluto resíduo e o prazo máximo permitido, a prestação pode "
                     "ultrapassar o teto J8. Reduza os atos ou ajuste o perfil."
                 )
             ps_capacidade = max(0.0, float(v_parc) * float(parc))
-            ps_efetivo = min(float(ps_input_val or 0.0), ps_capacidade)
+            ps_efetivo = float(ps_input_val or 0.0)
             aj8 = (
                 float(ps_input_val or 0) > 0
                 and j8_ui > 0
                 and n_min_j8 is not None
                 and int(parc) < int(n_min_j8)
             )
-            acap = ps_efetivo + 0.01 < float(ps_input_val or 0.0)
+            acap = ps_capacidade + 0.01 < float(ps_input_val or 0.0)
             if aj8 or acap:
                 if aj8 and acap:
                     _dv_alerta_vermelho(
@@ -8965,38 +8937,17 @@ def aba_simulador_automacao(
 
         st.session_state.dados_cliente["ps_usado"] = ps_efetivo
 
-        # Desconto comercial no final: se o fechamento já cobria o líquido anterior, baixar o PS pelo delta do desconto.
         if u_valor > 0:
-            # Chave em string (tuplas em session_state podem falhar na igualdade entre reruns).
             _uid_fe = f"{str(d.get('unidade_id') or '').strip()}|{round(float(u_valor or 0), 2)}"
             if str(st.session_state.get("_dv_vliq_trace_uid") or "") != _uid_fe:
                 st.session_state.pop("_dv_v_liquido_fechamento_prev", None)
             st.session_state["_dv_vliq_trace_uid"] = _uid_fe
-            _ra_fe = max(0.0, texto_moeda_para_float(st.session_state.get("ato_1_key")))
-            _rb_fe = max(0.0, texto_moeda_para_float(st.session_state.get("ato_2_key")))
-            _rc_fe = max(0.0, texto_moeda_para_float(st.session_state.get("ato_3_key")))
-            _rd_fe = max(0.0, texto_moeda_para_float(st.session_state.get("ato_4_key")))
-            _sum_atos_fe = _ra_fe + _rb_fe + _rc_fe + _rd_fe
-            _vl_prev_fe = st.session_state.get("_dv_v_liquido_fechamento_prev")
-            if _vl_prev_fe is not None:
-                try:
-                    _vlp = float(_vl_prev_fe)
-                except (TypeError, ValueError):
-                    _vlp = None
-                if _vlp is not None and _vlp > float(v_liquido) + 0.01:
-                    _delta_desc_fe = _vlp - float(v_liquido)
-                    _T_fe = float(f_u_input) + float(fgts_u_input) + float(ps_efetivo) + _sum_atos_fe
-                    if _T_fe >= _vlp - 1.0 and _delta_desc_fe > 0.01:
-                        _cut_ps_desc = min(float(ps_efetivo), float(_delta_desc_fe))
-                        if _cut_ps_desc > 0.01:
-                            ps_efetivo = max(0.0, float(ps_efetivo) - float(_cut_ps_desc))
             st.session_state["_dv_v_liquido_fechamento_prev"] = float(v_liquido)
         else:
             st.session_state.pop("_dv_v_liquido_fechamento_prev", None)
             st.session_state.pop("_dv_vliq_trace_uid", None)
 
-        # Recalcular entrada: quando houver excedente, reduzir primeiro o Pro Soluto.
-        # Só ajustar atos se o excedente remanescente continuar positivo após reduzir PS.
+        # Com o PS fixado no máximo disponível, qualquer excedente deve ser absorvido pelos atos.
         r1_val = max(0.0, texto_moeda_para_float(st.session_state.get("ato_1_key")))
         r2_val = max(0.0, texto_moeda_para_float(st.session_state.get("ato_2_key")))
         r3_val = max(0.0, texto_moeda_para_float(st.session_state.get("ato_3_key")))
@@ -9004,20 +8955,15 @@ def aba_simulador_automacao(
         sum_ent = r1_val + r2_val + r3_val + r4_val
         excedente_total = (f_u_input + fgts_u_input + ps_efetivo + sum_ent) - v_liquido
         if excedente_total > 0.01:
-            reduzir_ps = min(ps_efetivo, excedente_total)
-            ps_efetivo = max(0.0, ps_efetivo - reduzir_ps)
-            excedente_total -= reduzir_ps
-            if excedente_total > 0.01:
-                sum_ent = r1_val + r2_val + r3_val + r4_val
-                alvo_atos = max(0.0, sum_ent - excedente_total)
-                if sum_ent > 0 and alvo_atos >= 0:
-                    _kf2 = alvo_atos / sum_ent
-                    r1_val *= _kf2
-                    r2_val *= _kf2
-                    r3_val *= _kf2
-                    r4_val *= _kf2
-                else:
-                    r1_val = r2_val = r3_val = r4_val = 0.0
+            alvo_atos = max(0.0, sum_ent - excedente_total)
+            if sum_ent > 0 and alvo_atos >= 0:
+                _kf2 = alvo_atos / sum_ent
+                r1_val *= _kf2
+                r2_val *= _kf2
+                r3_val *= _kf2
+                r4_val *= _kf2
+            else:
+                r1_val = r2_val = r3_val = r4_val = 0.0
 
         st.session_state.dados_cliente['ato_final'] = r1_val
         st.session_state.dados_cliente['ato_30'] = r2_val
@@ -9025,6 +8971,27 @@ def aba_simulador_automacao(
         st.session_state.dados_cliente['ato_90'] = r4_val
         total_entrada_cash = r1_val + r2_val + r3_val + r4_val
         st.session_state.dados_cliente['entrada_total'] = total_entrada_cash
+        _ps_reducao_desc = max(
+            0.0,
+            float(st.session_state.dados_cliente.get("ps_reducao_por_desconto_parcela", 0) or 0),
+        )
+        if _ps_reducao_desc > 0:
+            ps_efetivo = max(0.0, ps_efetivo - _ps_reducao_desc)
+        st.session_state.dados_cliente["ps_mensal"] = float(
+            parcela_ps_para_valor(
+                float(ps_efetivo or 0.0),
+                int(parc or 1),
+                "Direcional",
+                _prem,
+                parcela_max_j8=j8_ui if j8_ui > 0 else None,
+                meses_entrega=meses_entrega_unid,
+            )
+        ) if ps_efetivo > 0 and int(parc or 1) > 0 else 0.0
+        st.session_state.dados_cliente["ps_mensal_simples"] = (
+            (float(ps_efetivo or 0.0) / float(int(parc or 1)))
+            if ps_efetivo > 0 and int(parc or 1) > 0
+            else 0.0
+        )
         st.session_state.dados_cliente['ps_usado'] = ps_efetivo
 
         gap_final = v_liquido - f_u_input - fgts_u_input - ps_efetivo - total_entrada_cash
