@@ -7225,6 +7225,7 @@ def show_export_dialog(d):
 _DV_SIM_WIDGET_KEYS_FIXAS: tuple[str, ...] = (
     "nome_cliente_imobiliaria_opt_v1",
     "renda_familiar_total_v1",
+    "data_nascimento_key",
     "cpf_classificar_clientes_sf",
     "in_rank_v28",
     "fin_aprovado_key",
@@ -7279,6 +7280,15 @@ def _dv_restore_sim_widget_keys_from_dados(dc: dict, *, force: bool = False) -> 
         st.session_state["renda_familiar_total_v1"] = float_para_campo_texto(
             max(0.0, r), vazio_se_zero=True
         )
+    if force or "data_nascimento_key" not in st.session_state:
+        _dn = dc.get("data_nascimento")
+        if isinstance(_dn, datetime):
+            _dn_txt = _dn.strftime("%d/%m/%Y")
+        elif isinstance(_dn, date):
+            _dn_txt = _dn.strftime("%d/%m/%Y")
+        else:
+            _dn_txt = str(_dn or "").strip()
+        st.session_state["data_nascimento_key"] = "" if _dn_txt == "None" else _dn_txt
     if force or "cpf_classificar_clientes_sf" not in st.session_state:
         st.session_state["cpf_classificar_clientes_sf"] = str(dc.get("cpf") or "").strip()
     if force or "in_rank_v28" not in st.session_state:
@@ -7511,6 +7521,16 @@ def aba_simulador_automacao(
             placeholder="R$ 0,00",
         )
         renda_total_calc = max(0.0, texto_moeda_para_float(st.session_state.get("renda_familiar_total_v1")))
+        if "data_nascimento_key" not in st.session_state:
+            st.session_state["data_nascimento_key"] = str(
+                st.session_state.dados_cliente.get("data_nascimento") or ""
+            ).strip()
+        st.text_input(
+            "Data de nascimento (opcional)",
+            key="data_nascimento_key",
+            placeholder="DD/MM/AAAA",
+        )
+        data_nascimento_val = str(st.session_state.get("data_nascimento_key") or "").strip()
         if "cpf_classificar_clientes_sf" not in st.session_state:
             st.session_state["cpf_classificar_clientes_sf"] = str(
                 st.session_state.dados_cliente.get("cpf") or ""
@@ -7717,7 +7737,7 @@ def aba_simulador_automacao(
             'nome': str(_nome_ref or "").strip(),
             'nome_imobiliaria': "",
             'cpf': cpf_digits,
-            'data_nascimento': None,
+            'data_nascimento': data_nascimento_val,
             'renda': renda_total_calc,
             'rendas_lista': [renda_total_calc, 0.0, 0.0, 0.0],
             'ranking': ranking,
@@ -8720,6 +8740,15 @@ def aba_simulador_automacao(
                 float(st.session_state.dados_cliente.get("imovel_valor_real_cadastro", 0) or 0),
             )
             _ps_reduzido_principal = max(0.0, _ps_ref - _d_ps)
+            _total_base_desc = (
+                float(_r1_desc)
+                + float(_r2_desc)
+                + float(_r3_desc)
+                + float(_r4_desc)
+                + float(st.session_state.dados_cliente.get("finan_usado", 0) or 0)
+                + float(st.session_state.dados_cliente.get("fgts_sub_usado", 0) or 0)
+                + float(_ps_ref)
+            )
             _total_pos_desc = (
                 float(_r1_desc)
                 + float(_r2_desc)
@@ -8750,6 +8779,9 @@ def aba_simulador_automacao(
                     f"para atingir o valor da unidade "
                     f"(<strong>{reais_streamlit_html(fmt_br(_valor_real_desc))}</strong>)."
                 )
+            _desconto_risco_ref = max(0.0, float(_total_base_desc))
+            if _desconto_risco_ref > 0 and float(_d_ps) >= (_desconto_risco_ref * 0.03):
+                st.warning("Desconto arriscado. Falar com gerente de vendas.")
 
         _d_sinal_pos = st.session_state.dados_cliente
         _vu_sinal_pos = max(0.0, float(_d_sinal_pos.get("imovel_valor", 0) or 0))
@@ -9088,10 +9120,20 @@ def aba_simulador_automacao(
         st.session_state.dados_cliente['ps_usado'] = ps_efetivo
 
         gap_final = v_liquido - f_u_input - fgts_u_input - ps_efetivo - total_entrada_cash
-        if abs(gap_final) > 1.0:
+        _valor_real_fechamento = max(0.0, float(d.get("imovel_valor_real_cadastro", 0) or 0))
+        _poder_compra_fechamento = max(
+            0.0,
+            float(d.get("poder_compra_unidade", 0) or 0),
+        )
+        _cobre_valor_real = (
+            _valor_real_fechamento > 0
+            and _poder_compra_fechamento >= (_valor_real_fechamento - 0.01)
+        )
+        gap_final_validacao = 0.0 if (_cobre_valor_real and gap_final > 0) else gap_final
+        if abs(gap_final_validacao) > 1.0:
             _dv_alerta_vermelho(
-                f"Atenção: {'Falta cobrir' if gap_final > 0 else 'Valor excedente de'} "
-                f"<strong>{reais_streamlit_html(fmt_br(abs(gap_final)))}</strong>."
+                f"Atenção: {'Falta cobrir' if gap_final_validacao > 0 else 'Valor excedente de'} "
+                f"<strong>{reais_streamlit_html(fmt_br(abs(gap_final_validacao)))}</strong>."
             )
         parcela_fin_auto = calcular_parcela_financiamento(f_u_input, prazo_finan, taxa_fin_vigente(d), tab_fin)
         _parc_fin_ui_raw = clamp_moeda_positiva(texto_moeda_para_float(st.session_state.get("parcela_fin_edit_key")), None)
@@ -9105,7 +9147,7 @@ def aba_simulador_automacao(
             use_container_width=True,
             key="dv_btn_avancar_resumo",
         ):
-            if abs(gap_final) <= 1.0:
+            if abs(gap_final_validacao) <= 1.0:
                 st.session_state[_DV_SIM_DADOS_SNAPSHOT_KEY] = copy.deepcopy(
                     st.session_state.dados_cliente
                 )
@@ -9114,7 +9156,7 @@ def aba_simulador_automacao(
                 st.rerun()
             else:
                 _dv_alerta_vermelho(
-                    f"Não é possível avançar. Saldo pendente: <strong>{reais_streamlit_html(fmt_br(abs(gap_final)))}</strong>."
+                    f"Não é possível avançar. Saldo pendente: <strong>{reais_streamlit_html(fmt_br(abs(gap_final_validacao)))}</strong>."
                 )
         st.markdown('<hr class="dv-avancar-rule" />', unsafe_allow_html=True)
     elif passo == 'summary':
