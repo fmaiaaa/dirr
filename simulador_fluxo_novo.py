@@ -7205,6 +7205,7 @@ _DV_SIM_WIDGET_KEYS_FIXAS: tuple[str, ...] = (
     "sel_emp_rec_v28",
     "sel_emp_new_v3",
     "sel_uni_rec_v1",
+    "permitir_outras_unidades_key",
     "sinal_com_key",
     "ato_1_key",
     "ato_2_key",
@@ -7267,6 +7268,10 @@ def _dv_restore_sim_widget_keys_from_dados(dc: dict, *, force: bool = False) -> 
         ui = str(dc.get("unidade_id") or "").strip()
         if en and ui:
             st.session_state["sel_uni_rec_v1"] = f"{en}|||{ui}"
+    if force or "permitir_outras_unidades_key" not in st.session_state:
+        st.session_state["permitir_outras_unidades_key"] = bool(
+            dc.get("permitir_outras_unidades", False)
+        )
     if force or "fin_aprovado_key" not in st.session_state:
         try:
             fv = float(dc.get("finan_usado", 0) or 0)
@@ -8063,8 +8068,18 @@ def aba_simulador_automacao(
                 else df_disp_total[df_disp_total["Empreendimento"] == emp_rec]
             )
             cand_rec = candidatos_df_recomendados(df_pool, top_n=3)
+            st.checkbox(
+                "Permitir escolher outras unidades",
+                key="permitir_outras_unidades_key",
+            )
+            _permitir_outras_unidades = bool(
+                st.session_state.get("permitir_outras_unidades_key", False)
+            )
+            st.session_state.dados_cliente["permitir_outras_unidades"] = (
+                _permitir_outras_unidades
+            )
 
-            if cand_rec.empty:
+            if cand_rec.empty and not _permitir_outras_unidades:
                 st.session_state.dados_cliente["unidade_id"] = ""
                 st.session_state.dados_cliente["empreendimento_nome"] = ""
                 st.session_state.dados_cliente["imovel_valor"] = 0.0
@@ -8133,20 +8148,33 @@ def aba_simulador_automacao(
                 cards_html += "</div></div>"
                 st.markdown(cards_html, unsafe_allow_html=True)
 
-                st.caption("Escolha abaixo uma das unidades recomendadas.")
-                unidades_disp = cand_rec.drop_duplicates(
+            if _permitir_outras_unidades or not cand_rec.empty:
+                st.caption(
+                    "Escolha abaixo uma das unidades recomendadas."
+                    if not _permitir_outras_unidades
+                    else "A trava foi liberada: agora voce pode escolher outras unidades do filtro."
+                )
+                _ids_recomendados = {
+                    f"{str(r.get('Empreendimento') or '').strip()}|||{str(r.get('Identificador') or '').strip()}"
+                    for _, r in cand_rec.iterrows()
+                }
+                unidades_base = (
+                    df_pool.copy() if _permitir_outras_unidades else cand_rec.copy()
+                )
+                unidades_disp = unidades_base.drop_duplicates(
                     subset=["Empreendimento", "Identificador"], keep="first"
                 ).copy()
                 unidades_disp["_vv_sort"] = pd.to_numeric(
                     unidades_disp["Valor de Venda"], errors="coerce"
                 ).fillna(0.0)
-                unidades_disp = unidades_disp.sort_values(
-                    ["_vv_sort", "Empreendimento", "Identificador"],
-                    ascending=[False, True, True],
-                )
                 unidades_disp["_choice_key"] = unidades_disp.apply(
                     lambda r: f"{str(r.get('Empreendimento') or '').strip()}|||{str(r.get('Identificador') or '').strip()}",
                     axis=1,
+                )
+                unidades_disp["_is_rec"] = unidades_disp["_choice_key"].isin(_ids_recomendados)
+                unidades_disp = unidades_disp.sort_values(
+                    ["_is_rec", "_vv_sort", "Empreendimento", "Identificador"],
+                    ascending=[False, False, True, True],
                 )
                 current_choices = unidades_disp["_choice_key"].tolist()
                 if current_choices:
@@ -8163,12 +8191,13 @@ def aba_simulador_automacao(
                         _u = unidades_disp[unidades_disp["_choice_key"] == choice_key].iloc[0]
                         _emp_u = str(_u.get("Empreendimento") or "").strip()
                         _uid_u = str(_u.get("Identificador") or "").strip()
+                        _pref = "Recomendada | " if bool(_u.get("_is_rec")) else "Outra | "
                         if emp_rec == "Todos":
-                            return f"{_emp_u} | Unidade {_uid_u}"
-                        return f"Unidade {_uid_u}"
+                            return f"{_pref}{_emp_u} | Unidade {_uid_u}"
+                        return f"{_pref}Unidade {_uid_u}"
 
                     choice_sel = st.selectbox(
-                        "Escolha a unidade recomendada: (lista)",
+                        "Escolha a unidade: (lista)",
                         options=current_choices,
                         format_func=label_uni,
                         key="sel_uni_rec_v1",
@@ -8452,6 +8481,25 @@ def aba_simulador_automacao(
                 f'<span class="inline-ref">Parcela estimada do Pro Soluto: <strong>{reais_streamlit_html(fmt_br(_ps_mensal_prev))}</strong></span>',
                 unsafe_allow_html=True,
             )
+            _valor_real_unid = max(
+                0.0, float(st.session_state.dados_cliente.get("imovel_valor_real_cadastro", 0) or 0)
+            )
+            _total_componentes_real = float(soma_atos_prev) + float(f_prev) + float(s_prev) + float(ps_input_prev)
+            if _valor_real_unid > 0:
+                if _total_componentes_real > _valor_real_unid + 0.01:
+                    _dv_alerta_vermelho(
+                        f"A soma de atos + financiamento + FGTS/subsidio + Pro Soluto "
+                        f"(<strong>{reais_streamlit_html(fmt_br(_total_componentes_real))}</strong>) "
+                        f"ultrapassa o valor real da unidade "
+                        f"(<strong>{reais_streamlit_html(fmt_br(_valor_real_unid))}</strong>)."
+                    )
+                elif _total_componentes_real < _valor_real_unid - 0.01:
+                    _dv_alerta_vermelho(
+                        f"A soma de atos + financiamento + FGTS/subsidio + Pro Soluto "
+                        f"(<strong>{reais_streamlit_html(fmt_br(_total_componentes_real))}</strong>) "
+                        f"ainda nao compra a unidade pelo valor real "
+                        f"(<strong>{reais_streamlit_html(fmt_br(_valor_real_unid))}</strong>)."
+                    )
 
         st.markdown("---")
         st.markdown(
@@ -8537,6 +8585,31 @@ def aba_simulador_automacao(
                 f"<strong>{reais_streamlit_html(fmt_br(_d_ps))}</strong>.</p>",
                 unsafe_allow_html=True,
             )
+            _r1_desc = max(0.0, texto_moeda_para_float(st.session_state.get("ato_1_key")))
+            _r2_desc = max(0.0, texto_moeda_para_float(st.session_state.get("ato_2_key")))
+            _r3_desc = max(0.0, texto_moeda_para_float(st.session_state.get("ato_3_key")))
+            _r4_desc = max(0.0, texto_moeda_para_float(st.session_state.get("ato_4_key")))
+            _valor_real_desc = max(
+                0.0,
+                float(st.session_state.dados_cliente.get("imovel_valor_real_cadastro", 0) or 0),
+            )
+            _ps_reduzido_principal = max(0.0, _ps_ref - _d_ps)
+            _total_pos_desc = (
+                float(_r1_desc)
+                + float(_r2_desc)
+                + float(_r3_desc)
+                + float(_r4_desc)
+                + float(st.session_state.dados_cliente.get("finan_usado", 0) or 0)
+                + float(st.session_state.dados_cliente.get("fgts_sub_usado", 0) or 0)
+                + float(_ps_reduzido_principal)
+            )
+            if _valor_real_desc > 0 and _total_pos_desc < _valor_real_desc - 0.01:
+                _dv_alerta_vermelho(
+                    f"Com o desconto aplicado, a soma de atos + financiamento + FGTS/subsidio + Pro Soluto reduzido "
+                    f"(<strong>{reais_streamlit_html(fmt_br(_total_pos_desc))}</strong>) "
+                    f"nao compra a unidade pelo valor real "
+                    f"(<strong>{reais_streamlit_html(fmt_br(_valor_real_desc))}</strong>)."
+                )
 
         _d_sinal_pos = st.session_state.dados_cliente
         _vu_sinal_pos = max(0.0, float(_d_sinal_pos.get("imovel_valor", 0) or 0))
@@ -8611,20 +8684,8 @@ def aba_simulador_automacao(
             st.session_state.dados_cliente["sinal_com"] = float(_sinal_apl_pos)
             st.session_state.dados_cliente["imovel_avaliacao_curva_efetiva"] = float(_val_ef_sinal)
 
-        st.markdown("---")
-        # --- ETAPA 5: DISTRIBUIÇÃO DA ENTRADA (FECHAMENTO) ---
+        # --- ETAPA 5: CÁLCULOS INTERNOS DO FECHAMENTO ---
         d = st.session_state.dados_cliente
-        st.markdown(
-            '<h3 class="dv-titulo-secao">Fechamento: Volta ao Caixa, descontos e Pro Soluto (resíduo)</h3>',
-            unsafe_allow_html=True,
-        )
-        if float(d.get('imovel_valor', 0) or 0) <= 0 or not d.get('unidade_id'):
-            st.markdown(
-                '<p style="color:#111111;margin:0 0 0.5rem 0;">Selecione uma unidade recomendada '
-                "acima para aplicar Volta ao Caixa, descontos e calcular o Pro Soluto resíduo. "
-                "Os atos (1, 30, 60, 90) já foram definidos antes da recomendação.</p>",
-                unsafe_allow_html=True,
-            )
         # O valor da negociação usa o poder de compra calculado para a unidade selecionada.
         u_valor = float(d.get('imovel_valor', 0) or 0)
         vc_ref_top = float(d.get('volta_caixa_ref', 0) or 0)
