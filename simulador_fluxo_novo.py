@@ -713,10 +713,10 @@ def metricas_pro_soluto(
     cap_vu = cap_valor_unidade(valor_unidade, row)
     ps_cap_parcela_j8 = valor_ps_maximo_parcela_j8(j8, prazo_ps_ui, p, politica_ui)
     ps_max_calc = valor_max_ps_g15(l8, cap_vu)
+    _limites_ps_efetivo = [max(0.0, float(ps_max_calc or 0.0)), max(0.0, float(ps_cap_parcela_j8 or 0.0))]
     if ps_cap_estoque is not None and float(ps_cap_estoque) > 0:
-        ps_max_efetivo = min(ps_max_calc, float(ps_cap_estoque), cap_vu)
-    else:
-        ps_max_efetivo = ps_max_calc
+        _limites_ps_efetivo.append(max(0.0, float(ps_cap_estoque)))
+    ps_max_efetivo = min(_limites_ps_efetivo) if _limites_ps_efetivo else 0.0
 
     return {
         "politica_row": row,
@@ -8717,6 +8717,12 @@ def aba_simulador_automacao(
                 + float(st.session_state.dados_cliente.get("fgts_sub_usado", 0) or 0)
                 + float(_ps_reduzido_principal)
             )
+            _valor_oferta_pos_desc = max(float(_valor_real_desc), float(_total_pos_desc))
+            st.session_state.dados_cliente["poder_compra_unidade"] = float(_total_pos_desc)
+            st.session_state.dados_cliente["valor_oferta_unidade"] = float(_valor_oferta_pos_desc)
+            st.session_state.dados_cliente["imovel_valor"] = float(_valor_oferta_pos_desc)
+            st.session_state.dados_cliente["imovel_avaliacao"] = float(_valor_oferta_pos_desc)
+            st.session_state.dados_cliente["valor_final_unidade"] = float(_valor_oferta_pos_desc)
             st.markdown(
                 f'<p class="inline-ref" style="margin-top:0.35rem;line-height:1.5;">'
                 f"Valor da unidade (real): <strong>{reais_streamlit_html(fmt_br(_valor_real_desc))}</strong><br>"
@@ -8966,11 +8972,6 @@ def aba_simulador_automacao(
             st.session_state.dados_cliente["ps_mensal_simples"] = (
                 (float(ps_input_val or 0) / parc) if parc > 0 else 0.0
             )
-            if float(ps_input_val or 0) > 0 and j8_ui > 0 and n_min_j8 is None:
-                _dv_alerta_vermelho(
-                    "Com este Pro Soluto cheio e o prazo máximo permitido, a prestação pode "
-                    "ultrapassar o teto J8. Reduza os atos ou ajuste o perfil."
-                )
             ps_capacidade = max(0.0, float(v_parc) * float(parc))
             ps_efetivo = float(ps_input_val or 0.0)
             aj8 = (
