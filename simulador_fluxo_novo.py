@@ -8838,10 +8838,6 @@ def aba_simulador_automacao(
                 r2x *= _kf0
                 r3x *= _kf0
                 r4x *= _kf0
-                st.session_state["ato_1_key"] = float_para_campo_texto(r1x, vazio_se_zero=True)
-                st.session_state["ato_2_key"] = float_para_campo_texto(r2x, vazio_se_zero=True)
-                st.session_state["ato_3_key"] = float_para_campo_texto(r3x, vazio_se_zero=True)
-                st.session_state["ato_4_key"] = float_para_campo_texto(r4x, vazio_se_zero=True)
             soma_atx = r1x + r2x + r3x + r4x
             if ps_bruto_disponivel > ps_cap0 + 1.0:
                 _dv_alerta_vermelho_texto(
