@@ -8717,6 +8717,13 @@ def aba_simulador_automacao(
                 + float(st.session_state.dados_cliente.get("fgts_sub_usado", 0) or 0)
                 + float(_ps_reduzido_principal)
             )
+            st.markdown(
+                f'<p class="inline-ref" style="margin-top:0.35rem;line-height:1.5;">'
+                f"Valor da unidade (real): <strong>{reais_streamlit_html(fmt_br(_valor_real_desc))}</strong><br>"
+                f"Poder de compra do cliente: <strong>{reais_streamlit_html(fmt_br(_total_pos_desc))}</strong>"
+                f"</p>",
+                unsafe_allow_html=True,
+            )
             if _valor_real_desc > 0 and _total_pos_desc < _valor_real_desc - 0.01:
                 _faltante_desc = _valor_real_desc - _total_pos_desc
                 _dv_alerta_vermelho(
