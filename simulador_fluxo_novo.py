@@ -7205,6 +7205,7 @@ _DV_SIM_WIDGET_KEYS_FIXAS: tuple[str, ...] = (
     "sel_emp_rec_v28",
     "sel_emp_new_v3",
     "sel_uni_rec_v1",
+    "permitir_outras_unidades_key",
     "sinal_com_key",
     "ato_1_key",
     "ato_2_key",
@@ -7267,6 +7268,10 @@ def _dv_restore_sim_widget_keys_from_dados(dc: dict, *, force: bool = False) -> 
         ui = str(dc.get("unidade_id") or "").strip()
         if en and ui:
             st.session_state["sel_uni_rec_v1"] = f"{en}|||{ui}"
+    if force or "permitir_outras_unidades_key" not in st.session_state:
+        st.session_state["permitir_outras_unidades_key"] = bool(
+            dc.get("permitir_outras_unidades", False)
+        )
     if force or "fin_aprovado_key" not in st.session_state:
         try:
             fv = float(dc.get("finan_usado", 0) or 0)
@@ -7449,7 +7454,16 @@ def aba_simulador_automacao(
         )
 
         def _dv_cols(qtd: int = 4):
-            return st.columns(int(max(1, qtd)), gap="small")
+            qtd = int(max(1, qtd))
+            if qtd <= 2:
+                return st.columns(qtd, gap="medium")
+            cols_out = []
+            restantes = qtd
+            while restantes > 0:
+                linha = st.columns(min(2, restantes), gap="medium")
+                cols_out.extend(linha)
+                restantes -= len(linha)
+            return cols_out
 
         st.markdown(
             '<div class="dv-perfil-simulacao-anchor"><h3 class="dv-titulo-secao">Perfil da simulação</h3></div>',
@@ -8077,21 +8091,30 @@ def aba_simulador_automacao(
                     options=["Todos"] + emp_names_rec,
                     key="sel_emp_rec_v28",
                 )
+            with _imoveis_cols_top[1]:
+                st.checkbox(
+                    "Permitir escolher outras unidades",
+                    key="permitir_outras_unidades_key",
+                    help=(
+                        "Quando desmarcado, a escolha fica restrita as unidades recomendadas. "
+                        "Quando marcado, libera a lista completa do filtro atual."
+                    ),
+                )
             st.session_state.dados_cliente["filtro_emp_rec_v28"] = str(emp_rec or "Todos")
+            st.session_state.dados_cliente["permitir_outras_unidades"] = bool(
+                st.session_state.get("permitir_outras_unidades_key", False)
+            )
             df_pool = (
                 df_disp_total
                 if emp_rec == "Todos"
                 else df_disp_total[df_disp_total["Empreendimento"] == emp_rec]
             )
             cand_rec = candidatos_df_recomendados(df_pool, top_n=3)
+            _permitir_outras = bool(
+                st.session_state.get("permitir_outras_unidades_key", False)
+            )
 
             if cand_rec.empty:
-                st.session_state.dados_cliente["unidade_id"] = ""
-                st.session_state.dados_cliente["empreendimento_nome"] = ""
-                st.session_state.dados_cliente["imovel_valor"] = 0.0
-                st.session_state.dados_cliente["imovel_avaliacao"] = 0.0
-                st.session_state.dados_cliente["desconto_parcela_mensal"] = 0.0
-                st.session_state.dados_cliente["ps_reducao_por_desconto_parcela"] = 0.0
                 st.info(
                     "Nenhuma unidade está dentro do poder de compra informado para este filtro."
                 )
@@ -8154,89 +8177,129 @@ def aba_simulador_automacao(
                 cards_html += "</div></div>"
                 st.markdown(cards_html, unsafe_allow_html=True)
 
-                _imoveis_cols_bottom = _dv_cols(4)
-                with _imoveis_cols_bottom[0]:
+            _imoveis_cols_bottom = _dv_cols(4)
+            with _imoveis_cols_bottom[0]:
+                if _permitir_outras:
+                    st.caption(
+                        "Escolha abaixo qualquer unidade do filtro atual. As recomendadas continuam destacadas nos cards."
+                    )
+                else:
                     st.caption("Escolha abaixo uma das unidades recomendadas.")
-                unidades_disp = cand_rec.drop_duplicates(
-                    subset=["Empreendimento", "Identificador"], keep="first"
-                ).copy()
-                unidades_disp["_vv_sort"] = pd.to_numeric(
-                    unidades_disp["Valor de Venda"], errors="coerce"
-                ).fillna(0.0)
-                unidades_disp = unidades_disp.sort_values(
-                    ["_vv_sort", "Empreendimento", "Identificador"],
-                    ascending=[False, True, True],
-                )
+
+            unidades_base = (
+                df_pool if _permitir_outras else cand_rec
+            )
+            unidades_disp = unidades_base.drop_duplicates(
+                subset=["Empreendimento", "Identificador"], keep="first"
+            ).copy()
+            if not unidades_disp.empty:
+                _rec_keys_set = {
+                    f"{str(r.get('Empreendimento') or '').strip()}|||{str(r.get('Identificador') or '').strip()}"
+                    for _, r in cand_rec.iterrows()
+                }
                 unidades_disp["_choice_key"] = unidades_disp.apply(
                     lambda r: f"{str(r.get('Empreendimento') or '').strip()}|||{str(r.get('Identificador') or '').strip()}",
                     axis=1,
                 )
-                current_choices = unidades_disp["_choice_key"].tolist()
-                if current_choices:
-                    _choice_seed = st.session_state.get("sel_uni_rec_v1")
-                    if _choice_seed not in current_choices:
-                        _emp_cur = str(st.session_state.dados_cliente.get("empreendimento_nome") or "").strip()
-                        _uni_cur = str(st.session_state.dados_cliente.get("unidade_id") or "").strip()
-                        _choice_cur = f"{_emp_cur}|||{_uni_cur}" if _emp_cur and _uni_cur else ""
-                        st.session_state["sel_uni_rec_v1"] = (
-                            _choice_cur if _choice_cur in current_choices else current_choices[0]
-                        )
+                unidades_disp["_is_rec"] = unidades_disp["_choice_key"].isin(_rec_keys_set)
+                unidades_disp["_is_comp"] = (
+                    pd.to_numeric(unidades_disp.get("Unidade_Compativel"), errors="coerce")
+                    .fillna(0)
+                    .astype(int)
+                )
+                unidades_disp["_vv_sort"] = pd.to_numeric(
+                    unidades_disp["Valor de Venda"], errors="coerce"
+                ).fillna(0.0)
+                unidades_disp = unidades_disp.sort_values(
+                    ["_is_rec", "_is_comp", "_vv_sort", "Empreendimento", "Identificador"],
+                    ascending=[False, False, False, True, True],
+                )
+            current_choices = unidades_disp["_choice_key"].tolist() if not unidades_disp.empty else []
+            if current_choices:
+                _choice_seed = st.session_state.get("sel_uni_rec_v1")
+                if _choice_seed not in current_choices:
+                    _emp_cur = str(st.session_state.dados_cliente.get("empreendimento_nome") or "").strip()
+                    _uni_cur = str(st.session_state.dados_cliente.get("unidade_id") or "").strip()
+                    _choice_cur = f"{_emp_cur}|||{_uni_cur}" if _emp_cur and _uni_cur else ""
+                    st.session_state["sel_uni_rec_v1"] = (
+                        _choice_cur if _choice_cur in current_choices else current_choices[0]
+                    )
 
-                    def label_uni(choice_key: str) -> str:
-                        _u = unidades_disp[unidades_disp["_choice_key"] == choice_key].iloc[0]
-                        _emp_u = str(_u.get("Empreendimento") or "").strip()
-                        _uid_u = str(_u.get("Identificador") or "").strip()
-                        if emp_rec == "Todos":
-                            return f"{_emp_u} | Unidade {_uid_u}"
-                        return f"Unidade {_uid_u}"
+                def label_uni(choice_key: str) -> str:
+                    _u = unidades_disp[unidades_disp["_choice_key"] == choice_key].iloc[0]
+                    _emp_u = str(_u.get("Empreendimento") or "").strip()
+                    _uid_u = str(_u.get("Identificador") or "").strip()
+                    _eh_rec = bool(_u.get("_is_rec", False))
+                    _eh_comp = bool(_u.get("_is_comp", False))
+                    _partes = []
+                    if emp_rec == "Todos":
+                        _partes.append(f"{_emp_u} | Unidade {_uid_u}")
+                    else:
+                        _partes.append(f"Unidade {_uid_u}")
+                    if _permitir_outras and _eh_rec:
+                        _partes.append("recomendada")
+                    if _permitir_outras and not _eh_comp:
+                        _partes.append("fora do poder de compra")
+                    return " | ".join(_partes)
 
-                    with _imoveis_cols_bottom[1]:
-                        choice_sel = st.selectbox(
-                            "Escolha a unidade recomendada: (lista)",
-                            options=current_choices,
-                            format_func=label_uni,
-                            key="sel_uni_rec_v1",
+                with _imoveis_cols_bottom[1]:
+                    choice_sel = st.selectbox(
+                        (
+                            "Escolha a unidade: (lista)"
+                            if _permitir_outras
+                            else "Escolha a unidade recomendada: (lista)"
+                        ),
+                        options=current_choices,
+                        format_func=label_uni,
+                        key="sel_uni_rec_v1",
+                    )
+                if choice_sel:
+                    u_row = unidades_disp[unidades_disp["_choice_key"] == choice_sel].iloc[0]
+                    unidade_escolhida_row = u_row
+                    uni_escolhida_id = str(u_row.get("Identificador") or "").strip()
+                    emp_escolhido = str(u_row.get("Empreendimento") or "").strip()
+                    try:
+                        v_venda_real = float(u_row.get("Valor de Venda", 0) or 0)
+                    except (TypeError, ValueError):
+                        v_venda_real = 0.0
+                    try:
+                        v_negocio = float(u_row.get("Poder_Compra", 0) or 0)
+                    except (TypeError, ValueError):
+                        v_negocio = 0.0
+                    if v_negocio <= 0.0:
+                        v_negocio = v_venda_real
+                    try:
+                        v_aval_real = float(
+                            u_row.get("Valor de Avaliação Bancária", 0) or 0
                         )
-                    if choice_sel:
-                        u_row = unidades_disp[unidades_disp["_choice_key"] == choice_sel].iloc[0]
-                        unidade_escolhida_row = u_row
-                        uni_escolhida_id = str(u_row.get("Identificador") or "").strip()
-                        emp_escolhido = str(u_row.get("Empreendimento") or "").strip()
-                        try:
-                            v_venda_real = float(u_row.get("Valor de Venda", 0) or 0)
-                        except (TypeError, ValueError):
-                            v_venda_real = 0.0
-                        try:
-                            v_negocio = float(u_row.get("Poder_Compra", 0) or 0)
-                        except (TypeError, ValueError):
-                            v_negocio = 0.0
-                        if v_negocio <= 0.0:
-                            v_negocio = v_venda_real
-                        try:
-                            v_aval_real = float(
-                                u_row.get("Valor de Avaliação Bancária", 0) or 0
-                            )
-                        except (TypeError, ValueError):
-                            v_aval_real = 0.0
-                        st.session_state.dados_cliente.update(
-                            {
-                                "unidade_id": uni_escolhida_id,
-                                "empreendimento_nome": emp_escolhido,
-                                "imovel_valor": float(v_negocio),
-                                "imovel_avaliacao": float(v_negocio),
-                                "imovel_valor_real_cadastro": float(v_venda_real),
-                                "imovel_avaliacao_bancaria_real": float(v_aval_real),
-                                "finan_estimado": d.get("finan_usado", 0),
-                                "fgts_sub": d.get("fgts_sub_usado", 0),
-                                "unid_entrega": u_row.get("Data Entrega", ""),
-                                "unid_area": u_row.get("Area", ""),
-                                "unid_tipo": u_row.get("Tipologia", ""),
-                                "unid_endereco": u_row.get("Endereco", ""),
-                                "unid_bairro": u_row.get("Bairro", ""),
-                                "volta_caixa_ref": u_row.get("Volta_Caixa_Ref", 0.0),
-                            }
-                        )
-                        st.session_state.dados_cliente["prazo_ps_max"] = 84
+                    except (TypeError, ValueError):
+                        v_aval_real = 0.0
+                    st.session_state.dados_cliente.update(
+                        {
+                            "unidade_id": uni_escolhida_id,
+                            "empreendimento_nome": emp_escolhido,
+                            "imovel_valor": float(v_negocio),
+                            "imovel_avaliacao": float(v_negocio),
+                            "imovel_valor_real_cadastro": float(v_venda_real),
+                            "imovel_avaliacao_bancaria_real": float(v_aval_real),
+                            "finan_estimado": d.get("finan_usado", 0),
+                            "fgts_sub": d.get("fgts_sub_usado", 0),
+                            "unid_entrega": u_row.get("Data Entrega", ""),
+                            "unid_area": u_row.get("Area", ""),
+                            "unid_tipo": u_row.get("Tipologia", ""),
+                            "unid_endereco": u_row.get("Endereco", ""),
+                            "unid_bairro": u_row.get("Bairro", ""),
+                            "volta_caixa_ref": u_row.get("Volta_Caixa_Ref", 0.0),
+                        }
+                    )
+                    st.session_state.dados_cliente["prazo_ps_max"] = 84
+            else:
+                st.session_state.dados_cliente["unidade_id"] = ""
+                st.session_state.dados_cliente["empreendimento_nome"] = ""
+                st.session_state.dados_cliente["imovel_valor"] = 0.0
+                st.session_state.dados_cliente["imovel_avaliacao"] = 0.0
+                st.session_state.dados_cliente["desconto_parcela_mensal"] = 0.0
+                st.session_state.dados_cliente["ps_reducao_por_desconto_parcela"] = 0.0
 
         st.markdown("---")
         st.markdown(
@@ -8245,7 +8308,7 @@ def aba_simulador_automacao(
         )
         if unidade_escolhida_row is None:
             st.caption(
-                "Selecione uma unidade recomendada acima para definir prazo, parcela do financiamento e parcelas do Pro Soluto."
+                "Selecione uma unidade acima para definir prazo, parcela do financiamento e parcelas do Pro Soluto."
             )
         else:
             _cond_cols = _dv_cols(4)
@@ -8484,9 +8547,25 @@ def aba_simulador_automacao(
                     unsafe_allow_html=True,
                 )
                 st.markdown(
-                    f'<span class="inline-ref">Parcela estimada do Pro Soluto: <strong>{reais_streamlit_html(fmt_br(_ps_mensal_prev))}</strong></span>',
+                    f'<span class="inline-ref">Parcela estimada do Pro Soluto ({html_std.escape(str(_parc_prev))}x): <strong>{reais_streamlit_html(fmt_br(_ps_mensal_prev))}</strong></span>',
                     unsafe_allow_html=True,
                 )
+            _valor_real_unidade_prev = max(
+                0.0, float(d.get("imovel_valor_real_cadastro", 0) or 0)
+            )
+            _cobertura_real_prev = soma_atos_prev + f_prev + s_prev + float(ps_input_prev or 0)
+            if _valor_real_unidade_prev > 0:
+                _delta_real_prev = _cobertura_real_prev - _valor_real_unidade_prev
+                if _delta_real_prev > 1.0:
+                    _dv_alerta_vermelho_texto(
+                        "A soma de atos + financiamento + FGTS/subsídio + Pro Soluto "
+                        f"ultrapassa o valor real da unidade em R$ {fmt_br(_delta_real_prev)}."
+                    )
+                elif _delta_real_prev < -1.0:
+                    _dv_alerta_vermelho_texto(
+                        "A soma de atos + financiamento + FGTS/subsídio + Pro Soluto "
+                        f"ainda nao compra a unidade no valor real. Faltam R$ {fmt_br(abs(_delta_real_prev))}."
+                    )
 
         st.markdown("---")
         st.markdown(
@@ -8496,7 +8575,7 @@ def aba_simulador_automacao(
         if unidade_escolhida_row is None:
             st.session_state.dados_cliente["desconto_parcela_mensal"] = 0.0
             st.session_state.dados_cliente["ps_reducao_por_desconto_parcela"] = 0.0
-            st.caption("Selecione uma unidade recomendada acima para simular o desconto.")
+            st.caption("Selecione uma unidade acima para simular o desconto.")
         else:
             _desc_cols = _dv_cols(4)
             st.caption(
@@ -8583,6 +8662,33 @@ def aba_simulador_automacao(
                     f"Redução equivalente de Pro Soluto: <strong>{reais_streamlit_html(fmt_br(_d_ps))}</strong></p>",
                     unsafe_allow_html=True,
                 )
+            _sum_atos_desc = (
+                max(0.0, texto_moeda_para_float(st.session_state.get("ato_1_key")))
+                + max(0.0, texto_moeda_para_float(st.session_state.get("ato_2_key")))
+                + max(0.0, texto_moeda_para_float(st.session_state.get("ato_3_key")))
+                + max(0.0, texto_moeda_para_float(st.session_state.get("ato_4_key")))
+            )
+            _valor_real_unidade_desc = max(
+                0.0,
+                float(
+                    st.session_state.dados_cliente.get("imovel_valor_real_cadastro", 0) or 0
+                ),
+            )
+            _ps_reduzido_total = max(0.0, _ps_ref - _d_ps)
+            _cobertura_desc_real = (
+                _sum_atos_desc
+                + max(0.0, float(st.session_state.dados_cliente.get("finan_usado", 0) or 0))
+                + max(0.0, float(st.session_state.dados_cliente.get("fgts_sub_usado", 0) or 0))
+                + _ps_reduzido_total
+            )
+            if (
+                _valor_real_unidade_desc > 0
+                and _cobertura_desc_real + 1.0 < _valor_real_unidade_desc
+            ):
+                _dv_alerta_vermelho_texto(
+                    "Com o desconto aplicado, o Pro Soluto reduzido nao cobre o valor real da unidade. "
+                    f"Faltam R$ {fmt_br(_valor_real_unidade_desc - _cobertura_desc_real)}."
+                )
 
         _d_sinal_pos = st.session_state.dados_cliente
         _vu_sinal_pos = max(0.0, float(_d_sinal_pos.get("imovel_valor", 0) or 0))
@@ -8657,20 +8763,8 @@ def aba_simulador_automacao(
             st.session_state.dados_cliente["sinal_com"] = float(_sinal_apl_pos)
             st.session_state.dados_cliente["imovel_avaliacao_curva_efetiva"] = float(_val_ef_sinal)
 
-        st.markdown("---")
         # --- ETAPA 5: DISTRIBUIÇÃO DA ENTRADA (FECHAMENTO) ---
         d = st.session_state.dados_cliente
-        st.markdown(
-            '<h3 class="dv-titulo-secao">Fechamento: Volta ao Caixa, descontos e Pro Soluto (resíduo)</h3>',
-            unsafe_allow_html=True,
-        )
-        if float(d.get('imovel_valor', 0) or 0) <= 0 or not d.get('unidade_id'):
-            st.markdown(
-                '<p style="color:#111111;margin:0 0 0.5rem 0;">Selecione uma unidade recomendada '
-                "acima para aplicar Volta ao Caixa, descontos e calcular o Pro Soluto resíduo. "
-                "Os atos (1, 30, 60, 90) já foram definidos antes da recomendação.</p>",
-                unsafe_allow_html=True,
-            )
         # O valor da negociação usa o poder de compra calculado para a unidade selecionada.
         u_valor = float(d.get('imovel_valor', 0) or 0)
         vc_ref_top = float(d.get('volta_caixa_ref', 0) or 0)
@@ -8790,6 +8884,12 @@ def aba_simulador_automacao(
                     "O Pro Soluto calculado como resíduo ultrapassa o teto permitido pela política/estoque. "
                     "Reduza atos ou financiamento/subsídio."
                 )
+            _ps_desc_reduc = clamp_moeda_positiva(
+                float(d.get("ps_reducao_por_desconto_parcela", 0) or 0),
+                None,
+            )
+            if _ps_desc_reduc > 0.0:
+                ps_input_val = max(0.0, float(ps_input_val) - float(_ps_desc_reduc))
             n_min_j8 = None
             if ps_input_val > 0 and j8_ui > 0:
                 n_min_j8 = menor_prazo_parcelas_ps_respeitando_j8(
@@ -8800,12 +8900,6 @@ def aba_simulador_automacao(
                     prazo_max=parc_max_ui,
                     meses_entrega=meses_entrega_unid,
                 )
-            st.markdown(
-                '<p class="inline-ref" style="margin:0.5rem 0 0.25rem 0;line-height:1.45;">'
-                + f"Pro Soluto (resíduo): <strong>{reais_streamlit_html(fmt_br(ps_input_val))}</strong> "
-                + f"(teto referência: <strong>{reais_streamlit_html(fmt_br(ps_limite_ui2))}</strong>)</p>",
-                unsafe_allow_html=True,
-            )
             _parc_i2 = texto_inteiro(
                 st.session_state.get("parc_ps_key"), default=1, min_v=1, max_v=parc_max_ui
             )
@@ -8823,38 +8917,6 @@ def aba_simulador_automacao(
             st.session_state.dados_cliente["ps_mensal"] = v_parc
             st.session_state.dados_cliente["ps_mensal_simples"] = (
                 (float(ps_input_val or 0) / parc) if parc > 0 else 0.0
-            )
-            _ps_parc_fmt = reais_streamlit_html(fmt_br(v_parc))
-            _ps_j8_fmt = reais_streamlit_html(fmt_br(j8_ui))
-            _pmin_par = int(n_min_j8) if n_min_j8 is not None else 1
-            _pmax_par = int(parc_max_ui)
-            _combo_par_ref = [
-                "Deve ter, no mínimo, ",
-                f"<strong>{html_std.escape(str(_pmin_par))}</strong>",
-                " parcelas e, no máximo, ",
-                f"<strong>{html_std.escape(str(_pmax_par))}</strong>",
-                " parcelas.",
-            ]
-            if j8_ui > 0:
-                _combo_par_ref.extend(
-                    [
-                        " As parcelas devem ser limitadas em ",
-                        f"<strong>{_ps_j8_fmt}</strong>",
-                        ".",
-                    ]
-                )
-            _combo_par_ref.extend(
-                [
-                    " Atualmente, está sendo dividido em ",
-                    f"<strong>{html_std.escape(str(int(parc)))}x</strong>",
-                    " de ",
-                    f"<strong>{_ps_parc_fmt}</strong>",
-                    ".",
-                ]
-            )
-            st.markdown(
-                f'<p class="inline-ref" style="margin:0;line-height:1.45;">{"".join(_combo_par_ref)}</p>',
-                unsafe_allow_html=True,
             )
             if float(ps_input_val or 0) > 0 and j8_ui > 0 and n_min_j8 is None:
                 _dv_alerta_vermelho(
