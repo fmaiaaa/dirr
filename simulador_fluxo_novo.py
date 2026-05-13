@@ -3417,6 +3417,81 @@ def _poder_compra_total_linha(
     return poder_total, ps_res, ps_part, vcx_part, ps_cap
 
 
+def _meses_entrega_row_estoque(row: pd.Series) -> int:
+    return int(meses_ate_entrega(row.get("Data Entrega")))
+
+
+def _parcelas_mensais_recomendacao_row(
+    row: pd.Series, d: dict, df_politicas: pd.DataFrame, prem: dict
+) -> pd.Series:
+    """Parcela PS (84x Direcional), parcela financ. (usa ``parcela_financiamento`` do cliente se informada, senão PMT), total e PS na composição."""
+    fin = float(d.get("finan_usado", 0) or 0)
+    try:
+        prazo = int(d.get("prazo_financiamento", 420) or 420)
+    except (TypeError, ValueError):
+        prazo = 420
+    prazo = max(12, min(600, prazo))
+    sist = str(d.get("sistema_amortizacao", "PRICE") or "PRICE").strip().upper()
+    if sist not in ("SAC", "PRICE"):
+        sist = "PRICE"
+    taxa = float(resolver_taxa_financiamento_anual_pct(d or {}, prem) or 0.0)
+    _, _, ps_part, _, _ = _poder_compra_total_linha(row, d, df_politicas, prem)
+    ps_part = float(ps_part or 0.0)
+    m_ent = _meses_entrega_row_estoque(row)
+    parc_ps = float(
+        parcela_ps_pmt(ps_part, 84, prem, "Direcional", meses_entrega=m_ent)
+    )
+    try:
+        parc_fin_ui = float(d.get("parcela_financiamento", 0) or 0)
+    except (TypeError, ValueError):
+        parc_fin_ui = 0.0
+    if parc_fin_ui > 0.01:
+        parc_fin = parc_fin_ui
+    else:
+        parc_fin = float(calcular_parcela_financiamento(fin, prazo, taxa, sist))
+    tot = parc_ps + parc_fin
+    return pd.Series([parc_ps, parc_fin, tot, ps_part])
+
+
+def _delta_ps_para_reducao_parcela_mensal(
+    ps_base: float,
+    meses_entrega: int,
+    prem: dict,
+    reducao_parcela_mensal: float,
+) -> float:
+    """Redução de principal de PS (Direcional 84x) que aproxima a queda desejada na mensalidade do PS."""
+    dpar = max(0.0, float(reducao_parcela_mensal or 0.0))
+    if dpar <= 1e-9 or ps_base <= 1e-9:
+        return 0.0
+    p0 = float(
+        parcela_ps_pmt(ps_base, 84, prem, "Direcional", meses_entrega=meses_entrega)
+    )
+    if p0 <= 1e-9:
+        return 0.0
+    target = max(0.0, p0 - dpar)
+    if target <= 1e-9:
+        return float(ps_base)
+    lo, hi = 0.0, float(ps_base)
+    for _ in range(42):
+        if hi - lo < 0.02:
+            break
+        mid = (lo + hi) * 0.5
+        p_try = float(
+            parcela_ps_pmt(
+                max(0.0, ps_base - mid),
+                84,
+                prem,
+                "Direcional",
+                meses_entrega=meses_entrega,
+            )
+        )
+        if p_try >= target:
+            lo = mid
+        else:
+            hi = mid
+    return float(lo)
+
+
 def _calcular_poder_compra_linha_estoque(
     row: pd.Series, d: dict, df_politicas: pd.DataFrame, prem: dict
 ) -> pd.Series:
@@ -3482,39 +3557,41 @@ def df_estoque_com_poder_compra(
         lambda r: _metricas_lucro_unidade(r, d, df_politicas, prem),
         axis=1,
     )
+    out[["Parc_PS_84", "Parc_Fin", "Parc_Total", "PS_Part_Recom"]] = out.apply(
+        lambda r: _parcelas_mensais_recomendacao_row(r, d, df_politicas, prem),
+        axis=1,
+    )
     return out
 
 
-def candidatos_df_recomendados(df_pool: pd.DataFrame) -> pd.DataFrame:
+def candidatos_df_recomendados(df_pool: pd.DataFrame, *, top_n: int = 3) -> pd.DataFrame:
     """
-    Subconjunto recomendado por maior lucro previsto entre unidades compatíveis.
-    Se nenhuma for compatível, devolve a(s) unidade(s) com menor Valor de Venda
-    (na UI o badge fica MENOR PREÇO).
-    Espera colunas calculadas:
-    - Unidade_Compativel
-    - Lucro_Recomendacao
+    Até ``top_n`` unidades mais caras dentro do poder de compra (compatíveis).
+    Se nenhuma compatível, devolve até ``top_n`` unidades mais baratas (referência).
+    Espera colunas: Unidade_Compativel, Valor de Venda.
     """
     if df_pool.empty:
         return pd.DataFrame()
-    if "Unidade_Compativel" not in df_pool.columns or "Lucro_Recomendacao" not in df_pool.columns:
+    if "Unidade_Compativel" not in df_pool.columns or "Valor de Venda" not in df_pool.columns:
         return pd.DataFrame()
+    n = max(1, int(top_n))
     fit_sub = df_pool[df_pool["Unidade_Compativel"] == True].copy()
-    if fit_sub.empty:
-        if "Valor de Venda" not in df_pool.columns:
-            return pd.DataFrame()
-        pool_pos = df_pool.copy()
-        pool_pos["Valor de Venda"] = pd.to_numeric(pool_pos["Valor de Venda"], errors="coerce").fillna(0.0)
-        pool_pos = pool_pos[pool_pos["Valor de Venda"] > 0].copy()
-        if pool_pos.empty:
-            return pd.DataFrame()
-        min_v = pool_pos["Valor de Venda"].min()
-        rec = pool_pos[pool_pos["Valor de Venda"] == min_v].copy()
-        rec["Lucro_Recomendacao"] = rec["Valor de Venda"] * 0.019
-        rec["Unidade_Compativel"] = False
-        return rec
-    fit_sub["Lucro_Recomendacao"] = pd.to_numeric(fit_sub["Lucro_Recomendacao"], errors="coerce").fillna(-1e18)
-    max_l = fit_sub["Lucro_Recomendacao"].max()
-    return fit_sub[fit_sub["Lucro_Recomendacao"] == max_l]
+    if not fit_sub.empty:
+        fit_sub["_v_sort"] = pd.to_numeric(fit_sub["Valor de Venda"], errors="coerce").fillna(0.0)
+        fit_sub = fit_sub.sort_values(
+            ["_v_sort", "Empreendimento", "Identificador"],
+            ascending=[False, True, True],
+        ).head(n)
+        return fit_sub.drop(columns=["_v_sort"], errors="ignore")
+    pool_pos = df_pool.copy()
+    pool_pos["Valor de Venda"] = pd.to_numeric(pool_pos["Valor de Venda"], errors="coerce").fillna(0.0)
+    pool_pos = pool_pos[pool_pos["Valor de Venda"] > 0].copy()
+    if pool_pos.empty:
+        return pd.DataFrame()
+    return pool_pos.sort_values(
+        ["Valor de Venda", "Empreendimento", "Identificador"],
+        ascending=[True, True, True],
+    ).head(n)
 
 
 def ids_unidades_recomendadas_empreendimento(
@@ -3529,7 +3606,7 @@ def ids_unidades_recomendadas_empreendimento(
     if sub.empty or "Identificador" not in sub.columns:
         return set()
     sub = df_estoque_com_poder_compra(sub, d, df_politicas, prem)
-    cand = candidatos_df_recomendados(sub)
+    cand = candidatos_df_recomendados(sub, top_n=3)
     if cand.empty:
         return set()
     return {str(x).strip() for x in cand["Identificador"].unique() if x is not None and str(x).strip() != ""}
@@ -6740,8 +6817,8 @@ _DV_SIM_WIDGET_KEYS_FIXAS: tuple[str, ...] = (
     "fin_aprovado_key",
     "sub_aprovado_key",
     "prazo_aprovado_key",
-    "sist_aprovado_ui_v1",
     "parcela_fin_edit_key",
+    "desconto_parcela_key",
     "sel_emp_rec_v28",
     "sel_emp_new_v3",
     "sinal_com_key",
@@ -6822,13 +6899,6 @@ def _dv_restore_sim_widget_keys_from_dados(dc: dict, *, force: bool = False) -> 
             pz = 420
         pz = max(12, min(600, pz))
         st.session_state["prazo_aprovado_key"] = str(pz)
-    if force or "sist_aprovado_ui_v1" not in st.session_state:
-        cod = str(dc.get("sistema_amortizacao", "PRICE") or "PRICE").strip().upper()
-        if cod not in ("SAC", "PRICE"):
-            cod = "PRICE"
-        st.session_state["sist_aprovado_ui_v1"] = _AMORTIZACAO_NOME_COMPLETO.get(
-            cod, _AMORTIZACAO_NOME_COMPLETO["PRICE"]
-        )
     if force or "parcela_fin_edit_key" not in st.session_state:
         try:
             pv = float(dc.get("parcela_financiamento", 0) or 0)
@@ -6889,6 +6959,14 @@ def _dv_restore_sim_widget_keys_from_dados(dc: dict, *, force: bool = False) -> 
             a4 = 0.0
         st.session_state["ato_4_key"] = float_para_campo_texto(
             max(0.0, a4), vazio_se_zero=True
+        )
+    if force or "desconto_parcela_key" not in st.session_state:
+        try:
+            dv = float(dc.get("desconto_parcela_mensal", 0) or 0)
+        except (TypeError, ValueError):
+            dv = 0.0
+        st.session_state["desconto_parcela_key"] = float_para_campo_texto(
+            max(0.0, dv), vazio_se_zero=True
         )
     _emp_snap = str(dc.get("empreendimento_nome") or "").strip()
     _uid_snap = dc.get("unidade_id")
@@ -7374,7 +7452,7 @@ def aba_simulador_automacao(
             if abs(_f_raw - _f_ok) > 0.009:
                 st.session_state["fin_aprovado_key"] = float_para_campo_texto(_f_ok, vazio_se_zero=True)
         st.text_input(
-            "Financiamento aprovado (R$)",
+            "Financiamento estimado (R$)",
             key="fin_aprovado_key",
             placeholder="Exemplo: 250000 ou 250.000,00",
         )
@@ -7392,14 +7470,14 @@ def aba_simulador_automacao(
             if abs(_s_raw - _s_ok) > 0.009:
                 st.session_state["sub_aprovado_key"] = float_para_campo_texto(_s_ok, vazio_se_zero=True)
         st.text_input(
-            "FGTS e subsídio aprovados (R$)",
+            "FGTS e subsídio estimados (R$)",
             key="sub_aprovado_key",
             placeholder="Exemplo: 50000 ou 50.000,00",
         )
         s_u = clamp_moeda_positiva(texto_moeda_para_float(st.session_state.get("sub_aprovado_key")), None)
         st.session_state.dados_cliente['fgts_sub_usado'] = s_u
 
-        # Após FGTS: prazo e amortização editáveis (valores iniciais 420 meses e PRICE).
+        # Após FGTS: prazo do financiamento (amortização PRICE fixa na simulação).
         d = st.session_state.dados_cliente
         prazo_atual = d.get("prazo_financiamento", 420)
         try:
@@ -7418,22 +7496,7 @@ def aba_simulador_automacao(
         _pz = texto_inteiro(st.session_state.get("prazo_aprovado_key"), default=420, min_v=12, max_v=600)
         prazo_sel = int(_pz) if _pz is not None else 420
 
-        _opcoes_amort = list(_AMORTIZACAO_NOME_COMPLETO.values())
-        _cod_amort_atual = str(d.get("sistema_amortizacao", "PRICE")).strip().upper()
-        if _cod_amort_atual not in ("SAC", "PRICE"):
-            _cod_amort_atual = "PRICE"
-        _idx_amort = 1 if _cod_amort_atual == "PRICE" else 0
-        sist_sel_label = st.selectbox(
-            "Sistema de amortização do financiamento (lista)",
-            options=_opcoes_amort,
-            index=_idx_amort,
-            key="sist_aprovado_ui_v1",
-        )
-        sist_sel = (
-            "PRICE"
-            if sist_sel_label == _AMORTIZACAO_NOME_COMPLETO["PRICE"]
-            else "SAC"
-        )
+        sist_sel = "PRICE"
         st.session_state.dados_cliente["prazo_financiamento"] = int(prazo_sel)
         st.session_state.dados_cliente["sistema_amortizacao"] = sist_sel
         taxa_padrao = taxa_fin_vigente(d)
@@ -7577,64 +7640,60 @@ def aba_simulador_automacao(
             if df_pool.empty:
                 st.markdown('<div class="custom-alert">Nenhuma unidade encontrada para o filtro.</div>', unsafe_allow_html=True)
             else:
-                final_cards = []
-                cand_rec = candidatos_df_recomendados(df_pool)
-                if emp_rec == "Todos" and not df_pool.empty:
-                    fit_all = df_pool[df_pool.get("Unidade_Compativel", False) == True].copy()
-                    if not fit_all.empty and "Empreendimento" in fit_all.columns:
-                        fit_all["Lucro_Recomendacao"] = pd.to_numeric(
-                            fit_all.get("Lucro_Recomendacao", 0), errors="coerce"
-                        ).fillna(-1e18)
-                        fit_all = fit_all.sort_values(
-                            ["Empreendimento", "Lucro_Recomendacao", "Valor de Venda", "Identificador"],
-                            ascending=[True, False, False, True],
-                        )
-                        cand_rec = fit_all.groupby("Empreendimento", as_index=False).head(1)
-                comp_col = pd.to_numeric(df_pool.get("Unidade_Compativel", pd.Series(dtype=float)), errors="coerce").fillna(0.0)
+                final_cards: list[dict] = []
+                cand_rec = candidatos_df_recomendados(df_pool, top_n=3)
+                comp_col = pd.to_numeric(
+                    df_pool.get("Unidade_Compativel", pd.Series(dtype=float)),
+                    errors="coerce",
+                ).fillna(0.0)
                 alguma_cabe = (comp_col > 0).any()
-                label_rec, css_rec = ("MAIOR LUCRO", "badge-ideal") if alguma_cabe else ("MENOR PREÇO", "badge-seguro")
+                label_rec = "DENTRO DO PODER" if alguma_cabe else "REFERÊNCIA"
+                css_rec = "badge-ideal" if alguma_cabe else "badge-seguro"
 
-                def add_cards_group(label, df_group, css_class):
-                    if df_group is None or df_group.empty:
-                        return
-                    df_u = df_group.drop_duplicates(subset=["Empreendimento", "Identificador"])
-                    df_u = df_u.sort_values(
-                        ["Lucro_Recomendacao", "Valor de Venda", "Empreendimento", "Identificador"],
-                        ascending=[False, False, True, True],
-                    )
-                    for _, row in df_u.iterrows():
-                        final_cards.append({"label": label, "row": row, "css": css_class})
-
-                add_cards_group(label_rec, cand_rec, css_rec)
+                for _, row in cand_rec.iterrows():
+                    final_cards.append({"label": label_rec, "row": row, "css": css_rec})
 
                 if not final_cards:
                     st.info("Ajuste o filtro de empreendimento ou os valores aprovados para ver sugestões de unidades.")
                 else:
                     cards_html = """<div class="recommendation-cards-outer"><div class="scrolling-wrapper">"""
-                    
+
                     for card in final_cards:
-                         row = card['row']
-                         emp_name = row['Empreendimento']
-                         unid_name = row['Identificador']
-                         _mostrar_poder = alguma_cabe and bool(row.get("Unidade_Compativel", False))
-                         try:
-                             _vv_real = float(row.get("Valor de Venda", 0) or 0)
-                         except (TypeError, ValueError):
-                             _vv_real = 0.0
-                         try:
-                             _poder_lin = float(row.get("Poder_Compra", 0) or 0)
-                         except (TypeError, ValueError):
-                             _poder_lin = 0.0
-                         _v_card = _poder_lin if _mostrar_poder else _vv_real
-                         val_fmt = fmt_br(_v_card)
-                         aval_fmt = fmt_br(row['Valor de Avaliação Bancária'])
-                         lucro_fmt = fmt_br(float(row.get("Lucro_Recomendacao", 0) or 0))
-                         vcx_usado_fmt = fmt_br(float(row.get("VCX_Usado_Fechamento", 0) or 0))
-                         vcx_pres_fmt = fmt_br(float(row.get("VCX_Preservado", 0) or 0))
-                         label = card['label']
-                         css_badge = card['css']
-                         
-                         cards_html += f"""
+                        row = card["row"]
+                        emp_name = row["Empreendimento"]
+                        unid_name = row["Identificador"]
+                        _mostrar_poder = alguma_cabe and bool(
+                            row.get("Unidade_Compativel", False)
+                        )
+                        try:
+                            _poder_lin = float(row.get("Poder_Compra", 0) or 0)
+                        except (TypeError, ValueError):
+                            _poder_lin = 0.0
+                        try:
+                            _parc_ps = float(row.get("Parc_PS_84", 0) or 0)
+                        except (TypeError, ValueError):
+                            _parc_ps = 0.0
+                        try:
+                            _parc_fin = float(row.get("Parc_Fin", 0) or 0)
+                        except (TypeError, ValueError):
+                            _parc_fin = 0.0
+                        try:
+                            _parc_tot = float(row.get("Parc_Total", 0) or 0)
+                        except (TypeError, ValueError):
+                            _parc_tot = 0.0
+                        _v_card = (
+                            _poder_lin
+                            if _mostrar_poder
+                            else float(row.get("Valor de Venda", 0) or 0)
+                        )
+                        val_fmt = fmt_br(_v_card)
+                        pfin_fmt = fmt_br(_parc_fin)
+                        pps_fmt = fmt_br(_parc_ps)
+                        ptot_fmt = fmt_br(_parc_tot)
+                        label = card["label"]
+                        css_badge = card["css"]
+
+                        cards_html += f"""
                          <div class="card-item">
                             <div class="recommendation-card" style="border-top: 4px solid {COR_AZUL_ESC}; height: 100%; justify-content: flex-start;">
                                 <span style="color:#111111; opacity:0.95;">Perfil</span><br>
@@ -7644,20 +7703,73 @@ def aba_simulador_automacao(
                                     <b>Unidade: {unid_name}</b>
                                 </div>
                                 <div style="margin: 10px 0; width: 100%;">
-                                    <div style="color:#111111;">Avaliação</div>
-                                    <div style="font-weight:bold; color:#111111;">{reais_streamlit_html(aval_fmt)}</div>
-                                    <div style="color:#111111; margin-top:5px;">Valor de venda</div>
+                                    <div style="color:#111111;">Poder de compra (referência)</div>
                                     <div class="price-tag" style="margin-top:0;">{reais_streamlit_html(val_fmt)}</div>
-                                    <div style="color:#111111; margin-top:8px;">Retorno estimado</div>
-                                    <div style="font-weight:800; color:#111111;">{reais_streamlit_html(lucro_fmt)}</div>
-                                    <div style="color:#111111; opacity:0.75; margin-top:5px;">
-                                      VCX a ser usado: {reais_streamlit_html(vcx_usado_fmt)} | VCX preservado: {reais_streamlit_html(vcx_pres_fmt)}
-                                    </div>
+                                    <div style="color:#111111; margin-top:10px;">Parcela financiamento ({int(prazo_sel)}x)</div>
+                                    <div style="font-weight:bold; color:#111111;">{reais_streamlit_html(pfin_fmt)}</div>
+                                    <div style="color:#111111; margin-top:8px;">Parcela Pro Soluto (84x)</div>
+                                    <div style="font-weight:bold; color:#111111;">{reais_streamlit_html(pps_fmt)}</div>
+                                    <div style="color:#111111; margin-top:8px;">Parcela mensal total</div>
+                                    <div style="font-weight:800; color:#111111;">{reais_streamlit_html(ptot_fmt)}</div>
                                 </div>
                             </div>
                          </div>"""
                     cards_html += "</div></div>"
                     st.markdown(cards_html, unsafe_allow_html=True)
+
+                    st.markdown("---")
+                    st.markdown(
+                        '<h3 class="dv-titulo-secao">Desconto na parcela mensal</h3>',
+                        unsafe_allow_html=True,
+                    )
+                    st.caption(
+                        "Informe quanto deseja reduzir na soma das parcelas (Fin + PS). "
+                        "Calcula-se a redução equivalente de Pro Soluto na 1.ª unidade sugerida (mais cara do top 3)."
+                    )
+                    if "desconto_parcela_key" not in st.session_state:
+                        st.session_state["desconto_parcela_key"] = float_para_campo_texto(
+                            0.0, vazio_se_zero=True
+                        )
+                    st.text_input(
+                        "Desconto desejado na parcela mensal total (R$)",
+                        key="desconto_parcela_key",
+                        placeholder="0,00",
+                    )
+                    _desc_p = max(
+                        0.0,
+                        texto_moeda_para_float(st.session_state.get("desconto_parcela_key")),
+                    )
+                    st.session_state.dados_cliente["desconto_parcela_mensal"] = float(_desc_p)
+                    _ref_row = final_cards[0]["row"]
+                    _m_ref = _meses_entrega_row_estoque(_ref_row)
+                    _ps_ref = float(_ref_row.get("PS_Part_Recom", 0) or 0)
+                    _d_ps = _delta_ps_para_reducao_parcela_mensal(
+                        _ps_ref, _m_ref, _prem, _desc_p
+                    )
+                    st.session_state.dados_cliente["ps_reducao_por_desconto_parcela"] = float(
+                        _d_ps
+                    )
+                    _p_ps_n = float(
+                        parcela_ps_pmt(
+                            max(0.0, _ps_ref - _d_ps),
+                            84,
+                            _prem,
+                            "Direcional",
+                            meses_entrega=_m_ref,
+                        )
+                    )
+                    _p_fin_n = float(_ref_row.get("Parc_Fin", 0) or 0)
+                    _tot_n = _p_ps_n + _p_fin_n
+                    st.markdown(
+                        f'<p class="inline-ref" style="margin-top:0.5rem;line-height:1.5;">'
+                        f"Parcela mensal estimada após desconto: <strong>{reais_streamlit_html(fmt_br(_tot_n))}</strong> "
+                        f"({reais_streamlit_html(fmt_br(_p_fin_n))} financ. + "
+                        f"{reais_streamlit_html(fmt_br(_p_ps_n))} PS).</p>"
+                        f'<p class="inline-ref" style="margin-top:0.35rem;">'
+                        f"Redução equivalente de Pro Soluto (principal): "
+                        f"<strong>{reais_streamlit_html(fmt_br(_d_ps))}</strong>.</p>",
+                        unsafe_allow_html=True,
+                    )
 
         st.markdown("---")
         # --- ETAPA 4: ESCOLHA DE UNIDADE (lista por preço crescente) ---
@@ -7667,7 +7779,9 @@ def aba_simulador_automacao(
             unsafe_allow_html=True,
         )
         uni_escolhida_id = None
-        df_disponiveis = df_estoque.copy()
+        df_disponiveis = df_estoque_com_poder_compra(
+            df_estoque.copy(), d, df_politicas, _prem
+        )
         if df_disponiveis.empty:
             _dv_alerta_vermelho_texto("Sem estoque disponível.")
         else:
@@ -7717,7 +7831,7 @@ def aba_simulador_automacao(
                     lambda x: str(x).strip() if x is not None else ""
                 )
                 uo_rec = uni_ordered[uni_ordered["_id_norm"].isin(_rec_ids_emp)].sort_values(
-                    ["_vv_sort", "Identificador"], ascending=[True, True]
+                    ["_vv_sort", "Identificador"], ascending=[False, True]
                 )
                 uo_out = uni_ordered[~uni_ordered["_id_norm"].isin(_rec_ids_emp)].sort_values(
                     ["_vv_sort", "Identificador"], ascending=[True, True]
@@ -7747,18 +7861,21 @@ def aba_simulador_automacao(
                 def label_uni(uid):
                     u = unidades_disp[unidades_disp["Identificador"] == uid].iloc[0]
                     try:
-                        v_aval = fmt_br(float(u.get("Valor de Avaliação Bancária", 0) or 0))
+                        p_fin = float(u.get("Parc_Fin", 0) or 0)
                     except (TypeError, ValueError):
-                        v_aval = fmt_br(0)
-                    v_venda = fmt_br(u["Valor de Venda"])
+                        p_fin = 0.0
                     try:
-                        v_vc = float(u.get("Volta_Caixa_Ref", 0) or 0)
+                        p_ps = float(u.get("Parc_PS_84", 0) or 0)
                     except (TypeError, ValueError):
-                        v_vc = 0.0
-                    v_vc_fmt = fmt_br(v_vc)
+                        p_ps = 0.0
+                    try:
+                        p_tot = float(u.get("Parc_Total", 0) or 0)
+                    except (TypeError, ValueError):
+                        p_tot = p_fin + p_ps
+                    _pz_l = int(prazo_sel)
                     corpo = (
-                        f"{uid} | Avaliação: R$ {v_aval} | Venda: R$ {v_venda} | "
-                        f"Desconto Volta ao Caixa: R$ {v_vc_fmt}"
+                        f"{uid} | Parcela financ. ({_pz_l}x): R$ {fmt_br(p_fin)} | "
+                        f"Parcela PS (84x): R$ {fmt_br(p_ps)} | Total mensal: R$ {fmt_br(p_tot)}"
                     )
                     if str(uid).strip() in _rec_ids_emp:
                         return f"RECOMENDADA: {corpo}"
