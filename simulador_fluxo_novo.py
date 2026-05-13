@@ -8397,10 +8397,13 @@ def aba_simulador_automacao(
                 ps_max_real_prev = float(unidade_escolhida_row.get(col_rank_prev, 0) or 0)
             except (TypeError, ValueError):
                 ps_max_real_prev = 0.0
+            _valor_base_prev = max(0.0, float(d.get("imovel_valor_real_cadastro", 0) or 0))
+            if _valor_base_prev <= 0:
+                _valor_base_prev = max(0.0, float(d.get("imovel_valor", 0) or 0))
             try:
                 mps_prev = metricas_pro_soluto(
                     max(0.0, float(d.get("renda", 0) or 0)),
-                    float(d.get("imovel_valor", 0) or 0),
+                    float(_valor_base_prev or 0),
                     "Direcional",
                     str(d.get("ranking", "DIAMANTE")),
                     _prem,
@@ -8433,7 +8436,7 @@ def aba_simulador_automacao(
             r3_prev = max(0.0, texto_moeda_para_float(st.session_state.get("ato_3_key")))
             r4_prev = max(0.0, texto_moeda_para_float(st.session_state.get("ato_4_key")))
             soma_atos_prev = r1_prev + r2_prev + r3_prev + r4_prev
-            u_prev = max(0.0, float(d.get("imovel_valor", 0) or 0))
+            u_prev = float(_valor_base_prev or 0)
             vc_prev = max(0.0, texto_moeda_para_float(st.session_state.get("volta_caixa_key")))
             od_prev = max(0.0, texto_moeda_para_float(st.session_state.get("outros_descontos_key")))
             v_liq_prev = max(0.0, u_prev - vc_prev - od_prev)
@@ -8656,10 +8659,19 @@ def aba_simulador_automacao(
                 or unidade_escolhida_row.get("PS_Part_Recom", 0)
                 or 0
             )
+            _valor_base_desc = max(
+                0.0,
+                float(st.session_state.dados_cliente.get("imovel_valor_real_cadastro", 0) or 0),
+            )
+            if _valor_base_desc <= 0:
+                _valor_base_desc = max(
+                    0.0,
+                    float(st.session_state.dados_cliente.get("imovel_valor", 0) or 0),
+                )
             try:
                 _mps_desc = metricas_pro_soluto(
                     max(0.0, float(st.session_state.dados_cliente.get("renda", 0) or 0)),
-                    float(st.session_state.dados_cliente.get("imovel_valor", 0) or 0),
+                    float(_valor_base_desc or 0),
                     "Direcional",
                     str(st.session_state.dados_cliente.get("ranking", "DIAMANTE")),
                     _prem,
@@ -8814,8 +8826,10 @@ def aba_simulador_automacao(
 
         # --- ETAPA 5: CÁLCULOS INTERNOS DO FECHAMENTO ---
         d = st.session_state.dados_cliente
-        # O valor da negociação usa o poder de compra calculado para a unidade selecionada.
-        u_valor = float(d.get('imovel_valor', 0) or 0)
+        # O fechamento deve considerar o valor real da unidade quando ele estiver disponível.
+        u_valor_real = max(0.0, float(d.get('imovel_valor_real_cadastro', 0) or 0))
+        u_valor_oferta = max(0.0, float(d.get('imovel_valor', 0) or 0))
+        u_valor = float(u_valor_real if u_valor_real > 0 else u_valor_oferta)
         vc_ref_top = float(d.get('volta_caixa_ref', 0) or 0)
         vc_input_val = 0.0
         outros_desc = 0.0
