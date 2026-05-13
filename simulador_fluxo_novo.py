@@ -8229,7 +8229,22 @@ def aba_simulador_automacao(
                         _emp_u = str(_u.get("Empreendimento") or "").strip()
                         _uid_u = str(_u.get("Identificador") or "").strip()
                         _pref = "Recomendada | " if bool(_u.get("_is_rec")) else "Outra | "
-                        return f"{_pref}Unidade {_uid_u}"
+                        try:
+                            _parc_tot_u = float(_u.get("Parc_Total", 0) or 0)
+                        except (TypeError, ValueError):
+                            _parc_tot_u = 0.0
+                        if _parc_tot_u <= 0:
+                            try:
+                                _parc_fin_u = float(_u.get("Parc_Fin", 0) or 0)
+                            except (TypeError, ValueError):
+                                _parc_fin_u = 0.0
+                            try:
+                                _parc_ps_u = float(_u.get("Parc_PS_84", 0) or 0)
+                            except (TypeError, ValueError):
+                                _parc_ps_u = 0.0
+                            _parc_tot_u = _parc_fin_u + _parc_ps_u
+                        _parc_tot_txt = fmt_br(_parc_tot_u)
+                        return f"{_pref}Unidade {_uid_u} | Parcela total R$ {_parc_tot_txt}"
 
                     choice_sel = st.selectbox(
                         "Escolha a unidade: (lista)",
@@ -8771,17 +8786,21 @@ def aba_simulador_automacao(
                 f"</p>",
                 unsafe_allow_html=True,
             )
+            _exibiu_alerta_desc = False
             if _valor_real_desc > 0 and _total_pos_desc < _valor_real_desc - 0.01:
                 _faltante_desc = _valor_real_desc - _total_pos_desc
                 _dv_alerta_vermelho(
-                    f"O desconto pedido não é possível. Após reduzir o Pro Soluto, "
-                    f"faltariam <strong>{reais_streamlit_html(fmt_br(_faltante_desc))}</strong> "
-                    f"para atingir o valor da unidade "
-                    f"(<strong>{reais_streamlit_html(fmt_br(_valor_real_desc))}</strong>)."
+                    f"Para ter o desconto pedido, deve aumentar o ato em "
+                    f"<strong>{reais_streamlit_html(fmt_br(_faltante_desc))}</strong>."
                 )
+                _exibiu_alerta_desc = True
             _desconto_risco_ref = max(0.0, float(_total_base_desc))
-            if _desconto_risco_ref > 0 and float(_d_ps) >= (_desconto_risco_ref * 0.03):
-                st.warning("Desconto arriscado. Falar com gerente de vendas.")
+            if (
+                not _exibiu_alerta_desc
+                and _desconto_risco_ref > 0
+                and float(_d_ps) >= (_desconto_risco_ref * 0.03)
+            ):
+                _dv_alerta_vermelho("Desconto arriscado. Falar com gerente de vendas.")
 
         _d_sinal_pos = st.session_state.dados_cliente
         _vu_sinal_pos = max(0.0, float(_d_sinal_pos.get("imovel_valor", 0) or 0))
