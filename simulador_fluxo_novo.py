@@ -3735,16 +3735,28 @@ def _parcelas_mensais_recomendacao_row(
 
 def _delta_ps_para_reducao_parcela_mensal(
     ps_base: float,
+    parcelas: int,
     meses_entrega: int,
     prem: dict,
     reducao_parcela_mensal: float,
+    *,
+    politica: str = "Direcional",
+    parcela_max_j8: float | None = None,
 ) -> float:
-    """Redução de principal de PS (Direcional 84x) que aproxima a queda desejada na mensalidade do PS."""
+    """Redução de principal de PS que aproxima a queda desejada na mensalidade usando as parcelas atuais."""
     dpar = max(0.0, float(reducao_parcela_mensal or 0.0))
     if dpar <= 1e-9 or ps_base <= 1e-9:
         return 0.0
+    n = max(1, int(parcelas or 1))
     p0 = float(
-        parcela_ps_pmt(ps_base, 84, prem, "Direcional", meses_entrega=meses_entrega)
+        parcela_ps_para_valor(
+            ps_base,
+            n,
+            politica,
+            prem,
+            parcela_max_j8=parcela_max_j8,
+            meses_entrega=meses_entrega,
+        )
     )
     if p0 <= 1e-9:
         return 0.0
@@ -3757,11 +3769,12 @@ def _delta_ps_para_reducao_parcela_mensal(
             break
         mid = (lo + hi) * 0.5
         p_try = float(
-            parcela_ps_pmt(
+            parcela_ps_para_valor(
                 max(0.0, ps_base - mid),
-                84,
+                n,
+                politica,
                 prem,
-                "Direcional",
+                parcela_max_j8=parcela_max_j8,
                 meses_entrega=meses_entrega,
             )
         )
@@ -8329,6 +8342,13 @@ def aba_simulador_automacao(
                 parcela_max_j8=j8_prev if j8_prev > 0 else None,
                 meses_entrega=meses_entrega_prev,
             )
+            st.session_state.dados_cliente["meses_ate_entrega"] = meses_entrega_prev
+            st.session_state.dados_cliente["ps_usado"] = float(ps_input_prev or 0)
+            st.session_state.dados_cliente["ps_parcelas"] = int(_parc_prev)
+            st.session_state.dados_cliente["ps_mensal"] = float(_ps_mensal_prev)
+            st.session_state.dados_cliente["ps_mensal_simples"] = (
+                (float(ps_input_prev or 0) / float(_parc_prev)) if _parc_prev > 0 else 0.0
+            )
             st.markdown(
                 f'<span class="inline-ref">Parcela estimada do Pro Soluto: <strong>{reais_streamlit_html(fmt_br(_ps_mensal_prev))}</strong></span>',
                 unsafe_allow_html=True,
@@ -8362,29 +8382,57 @@ def aba_simulador_automacao(
             )
             st.session_state.dados_cliente["desconto_parcela_mensal"] = float(_desc_p)
             _m_ref = _meses_entrega_row_estoque(unidade_escolhida_row)
-            _ps_ref = float(unidade_escolhida_row.get("PS_Part_Recom", 0) or 0)
+            try:
+                _parc_ps_sel = int(st.session_state.dados_cliente.get("ps_parcelas", 1) or 1)
+            except (TypeError, ValueError):
+                _parc_ps_sel = 1
+            _parc_ps_sel = max(1, _parc_ps_sel)
+            _ps_ref = float(
+                st.session_state.dados_cliente.get("ps_usado", 0)
+                or unidade_escolhida_row.get("PS_Part_Recom", 0)
+                or 0
+            )
+            try:
+                _mps_desc = metricas_pro_soluto(
+                    max(0.0, float(st.session_state.dados_cliente.get("renda", 0) or 0)),
+                    float(st.session_state.dados_cliente.get("imovel_valor", 0) or 0),
+                    "Direcional",
+                    str(st.session_state.dados_cliente.get("ranking", "DIAMANTE")),
+                    _prem,
+                    df_politicas,
+                )
+                _j8_desc = float(_mps_desc.get("parcela_max_j8") or 0)
+            except Exception:
+                _j8_desc = 0.0
             _d_ps = _delta_ps_para_reducao_parcela_mensal(
-                _ps_ref, _m_ref, _prem, _desc_p
+                _ps_ref,
+                _parc_ps_sel,
+                _m_ref,
+                _prem,
+                _desc_p,
+                politica="Direcional",
+                parcela_max_j8=_j8_desc if _j8_desc > 0 else None,
             )
             st.session_state.dados_cliente["ps_reducao_por_desconto_parcela"] = float(
                 _d_ps
             )
             _p_ps_n = float(
-                parcela_ps_pmt(
+                parcela_ps_para_valor(
                     max(0.0, _ps_ref - _d_ps),
-                    84,
-                    _prem,
+                    _parc_ps_sel,
                     "Direcional",
+                    _prem,
+                    parcela_max_j8=_j8_desc if _j8_desc > 0 else None,
                     meses_entrega=_m_ref,
                 )
             )
-            _p_fin_n = float(unidade_escolhida_row.get("Parc_Fin", 0) or 0)
+            _p_fin_n = float(st.session_state.dados_cliente.get("parcela_financiamento", 0) or 0)
             _tot_n = _p_ps_n + _p_fin_n
             st.markdown(
                 f'<p class="inline-ref" style="margin-top:0.5rem;line-height:1.5;">'
                 f"Parcela mensal estimada após desconto: <strong>{reais_streamlit_html(fmt_br(_tot_n))}</strong> "
                 f"({reais_streamlit_html(fmt_br(_p_fin_n))} financ. + "
-                f"{reais_streamlit_html(fmt_br(_p_ps_n))} PS).</p>"
+                f"{reais_streamlit_html(fmt_br(_p_ps_n))} PS em {_parc_ps_sel}x).</p>"
                 f'<p class="inline-ref" style="margin-top:0.35rem;">'
                 f"Redução equivalente de Pro Soluto (principal): "
                 f"<strong>{reais_streamlit_html(fmt_br(_d_ps))}</strong>.</p>",
