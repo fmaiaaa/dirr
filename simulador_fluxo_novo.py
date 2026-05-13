@@ -8411,10 +8411,20 @@ def aba_simulador_automacao(
             except Exception:
                 mps_prev = {
                     "parcela_max_j8": 0.0,
+                    "parcela_max_g14": 0.0,
                     "ps_max_efetivo": float(ps_max_real_prev or 0),
+                    "ps_max_comparador_politica": 0.0,
+                    "cap_valor_unidade": 0.0,
+                    "k3": 0.0,
+                    "ps_cap_parcela_j8": 0.0,
                     "prazo_ps_politica": int(d.get("prazo_ps_max", 84) or 84),
                 }
             j8_prev = float(mps_prev.get("parcela_max_j8") or 0)
+            g14_prev = float(mps_prev.get("parcela_max_g14") or 0)
+            ps_cap_renda_prev = float(mps_prev.get("ps_cap_parcela_j8") or 0)
+            ps_cap_unid_prev = float(mps_prev.get("cap_valor_unidade") or 0)
+            ps_max_pol_prev = float(mps_prev.get("ps_max_comparador_politica") or 0)
+            ps_k3_prev = float(mps_prev.get("k3") or 0)
             prazo_cap_prev = int(d.get("prazo_ps_max", 84) or 84)
             pol_prazo_prev = int(mps_prev.get("prazo_ps_politica", prazo_cap_prev) or prazo_cap_prev)
             parc_max_prev = max(1, min(pol_prazo_prev, prazo_cap_prev))
@@ -8533,13 +8543,30 @@ def aba_simulador_automacao(
                 parcela_max_j8=j8_prev if j8_prev > 0 else None,
                 meses_entrega=meses_entrega_prev,
             )
+            _ps_capacidade_prev = max(0.0, float(_ps_mensal_prev) * float(_parc_prev))
+            _ps_efetivo_prev = min(float(ps_input_prev or 0.0), _ps_capacidade_prev)
             st.session_state.dados_cliente["meses_ate_entrega"] = meses_entrega_prev
-            st.session_state.dados_cliente["ps_usado"] = float(ps_input_prev or 0)
+            st.session_state.dados_cliente["ps_usado"] = float(_ps_efetivo_prev)
             st.session_state.dados_cliente["ps_parcelas"] = int(_parc_prev)
-            st.session_state.dados_cliente["ps_mensal"] = float(_ps_mensal_prev)
+            st.session_state.dados_cliente["ps_mensal"] = float(
+                parcela_ps_para_valor(
+                    float(_ps_efetivo_prev or 0.0),
+                    _parc_prev,
+                    "Direcional",
+                    _prem,
+                    parcela_max_j8=j8_prev if j8_prev > 0 else None,
+                    meses_entrega=meses_entrega_prev,
+                )
+            ) if _ps_efetivo_prev > 0 and _parc_prev > 0 else 0.0
             st.session_state.dados_cliente["ps_mensal_simples"] = (
-                (float(ps_input_prev or 0) / float(_parc_prev)) if _parc_prev > 0 else 0.0
+                (float(_ps_efetivo_prev or 0) / float(_parc_prev)) if _parc_prev > 0 else 0.0
             )
+            st.session_state.dados_cliente["ps_parcela_max_j8"] = float(j8_prev)
+            st.session_state.dados_cliente["ps_parcela_max_g14"] = float(g14_prev)
+            st.session_state.dados_cliente["ps_cap_parcela_j8"] = float(ps_cap_renda_prev)
+            st.session_state.dados_cliente["ps_cap_valor_unidade"] = float(ps_cap_unid_prev)
+            st.session_state.dados_cliente["ps_max_comparador_politica"] = float(ps_max_pol_prev)
+            st.session_state.dados_cliente["ps_k3_lambda"] = float(ps_k3_prev)
             _ps_parc_fmt_prev = reais_streamlit_html(fmt_br(_ps_mensal_prev))
             _ps_j8_fmt_prev = reais_streamlit_html(fmt_br(j8_prev))
             _combo_par_ref_prev = [
@@ -8851,9 +8878,15 @@ def aba_simulador_automacao(
                 "cap_valor_unidade": 0.0,
                 "prazo_ps_politica": int(d.get("prazo_ps_max", 84) or 84),
                 "ps_cap_parcela_j8": 0.0,
+                "k3": 0.0,
             }
 
         j8_ui = float(mps.get("parcela_max_j8") or 0)
+        g14_ui = float(mps.get("parcela_max_g14") or 0)
+        ps_cap_renda_ui = float(mps.get("ps_cap_parcela_j8") or 0)
+        ps_cap_unid_ui = float(mps.get("cap_valor_unidade") or 0)
+        ps_max_pol_ui = float(mps.get("ps_max_comparador_politica") or 0)
+        ps_k3_ui = float(mps.get("k3") or 0)
         prazo_cap_app = int(d.get("prazo_ps_max", 84) or 84)
         pol_prazo = int(mps.get("prazo_ps_politica", prazo_cap_app) or prazo_cap_app)
         parc_max_ui = max(1, min(pol_prazo, prazo_cap_app))
@@ -8861,6 +8894,12 @@ def aba_simulador_automacao(
         meses_entrega_unid = meses_ate_entrega(d.get("unid_entrega", ""))
         st.session_state.dados_cliente["meses_ate_entrega"] = meses_entrega_unid
         ps_limite_ui2 = float(mps.get("ps_max_efetivo", 0) or 0)
+        st.session_state.dados_cliente["ps_parcela_max_j8"] = float(j8_ui)
+        st.session_state.dados_cliente["ps_parcela_max_g14"] = float(g14_ui)
+        st.session_state.dados_cliente["ps_cap_parcela_j8"] = float(ps_cap_renda_ui)
+        st.session_state.dados_cliente["ps_cap_valor_unidade"] = float(ps_cap_unid_ui)
+        st.session_state.dados_cliente["ps_max_comparador_politica"] = float(ps_max_pol_ui)
+        st.session_state.dados_cliente["ps_k3_lambda"] = float(ps_k3_ui)
 
         ps_efetivo = 0.0
         ps_input_val = 0.0
@@ -8909,6 +8948,17 @@ def aba_simulador_automacao(
                 + f"(teto referência: <strong>{reais_streamlit_html(fmt_br(ps_limite_ui2))}</strong>)</p>",
                 unsafe_allow_html=True,
             )
+            _ps_limites_txt = (
+                "Limites considerados no cálculo: "
+                f"G14 de <strong>{reais_streamlit_html(fmt_br(g14_ui))}</strong>, "
+                f"J8 de <strong>{reais_streamlit_html(fmt_br(j8_ui))}</strong>, "
+                f"cap por renda de <strong>{reais_streamlit_html(fmt_br(ps_cap_renda_ui))}</strong> "
+                f"e cap da unidade/política de <strong>{reais_streamlit_html(fmt_br(min(ps_cap_unid_ui, ps_max_pol_ui) if ps_cap_unid_ui > 0 and ps_max_pol_ui > 0 else max(ps_cap_unid_ui, ps_max_pol_ui)))}</strong>."
+            )
+            st.markdown(
+                f'<p class="inline-ref" style="margin:0 0 0.35rem 0;line-height:1.45;">{_ps_limites_txt}</p>',
+                unsafe_allow_html=True,
+            )
             _parc_i2 = texto_inteiro(
                 st.session_state.get("parc_ps_key"),
                 default=_parc_ps_min_ui,
@@ -8936,7 +8986,7 @@ def aba_simulador_automacao(
                     "ultrapassar o teto J8. Reduza os atos ou ajuste o perfil."
                 )
             ps_capacidade = max(0.0, float(v_parc) * float(parc))
-            ps_efetivo = float(ps_input_val or 0.0)
+            ps_efetivo = min(float(ps_input_val or 0.0), ps_capacidade)
             aj8 = (
                 float(ps_input_val or 0) > 0
                 and j8_ui > 0
