@@ -8418,6 +8418,9 @@ def aba_simulador_automacao(
                 round(float(j8_prev or 0), 2),
                 int(meses_entrega_prev),
             )
+            _parc_ps_min_prev = int(
+                max(1, min(int(n_min_prev), parc_max_prev))
+            ) if n_min_prev is not None else 1
 
             if "parc_ps_key" not in st.session_state:
                 st.session_state["parc_ps_key"] = str(_parc_ps_auto_ref)
@@ -8440,6 +8443,8 @@ def aba_simulador_automacao(
                         _alinhar_auto_ps = True
                     if _alinhar_auto_ps:
                         _pi = _parc_ps_auto_ref
+                if _pi < _parc_ps_min_prev:
+                    _pi = _parc_ps_min_prev
                 st.session_state["parc_ps_key"] = str(_pi)
             st.session_state["_parc_ps_auto_sig"] = _parc_ps_auto_sig
             st.session_state["_parc_ps_auto_ref_prev"] = int(_parc_ps_auto_ref)
@@ -8456,11 +8461,19 @@ def aba_simulador_automacao(
             )
             _parc_prev = texto_inteiro(
                 st.session_state.get("parc_ps_key"),
-                default=1,
-                min_v=1,
+                default=_parc_ps_min_prev,
+                min_v=_parc_ps_min_prev,
                 max_v=parc_max_prev,
             )
-            _parc_prev = int(max(1, min(_parc_prev if _parc_prev is not None else 1, parc_max_prev)))
+            _parc_prev = int(
+                max(
+                    _parc_ps_min_prev,
+                    min(
+                        _parc_prev if _parc_prev is not None else _parc_ps_min_prev,
+                        parc_max_prev,
+                    ),
+                )
+            )
             st.session_state.dados_cliente["ps_parcelas"] = _parc_prev
             _ps_mensal_prev = parcela_ps_para_valor(
                 float(ps_input_prev or 0),
@@ -8477,8 +8490,34 @@ def aba_simulador_automacao(
             st.session_state.dados_cliente["ps_mensal_simples"] = (
                 (float(ps_input_prev or 0) / float(_parc_prev)) if _parc_prev > 0 else 0.0
             )
+            _ps_parc_fmt_prev = reais_streamlit_html(fmt_br(_ps_mensal_prev))
+            _ps_j8_fmt_prev = reais_streamlit_html(fmt_br(j8_prev))
+            _combo_par_ref_prev = [
+                "Deve ter, no mínimo, ",
+                f"<strong>{html_std.escape(str(int(_parc_ps_min_prev)))}</strong>",
+                " parcelas e, no máximo, ",
+                f"<strong>{html_std.escape(str(int(parc_max_prev)))}</strong>",
+                " parcelas.",
+            ]
+            if j8_prev > 0:
+                _combo_par_ref_prev.extend(
+                    [
+                        " As parcelas devem ser limitadas em ",
+                        f"<strong>{_ps_j8_fmt_prev}</strong>",
+                        ".",
+                    ]
+                )
+            _combo_par_ref_prev.extend(
+                [
+                    " Atualmente, está sendo dividido em ",
+                    f"<strong>{html_std.escape(str(int(_parc_prev)))}x</strong>",
+                    " de ",
+                    f"<strong>{_ps_parc_fmt_prev}</strong>",
+                    ".",
+                ]
+            )
             st.markdown(
-                f'<span class="inline-ref">Parcela estimada do Pro Soluto: <strong>{reais_streamlit_html(fmt_br(_ps_mensal_prev))}</strong></span>',
+                f'<p class="inline-ref" style="margin:0;line-height:1.45;">{"".join(_combo_par_ref_prev)}</p>',
                 unsafe_allow_html=True,
             )
             _valor_real_unid = max(
@@ -8815,6 +8854,9 @@ def aba_simulador_automacao(
                     prazo_max=parc_max_ui,
                     meses_entrega=meses_entrega_unid,
                 )
+            _parc_ps_min_ui = int(
+                max(1, min(int(n_min_j8), parc_max_ui))
+            ) if n_min_j8 is not None else 1
             st.markdown(
                 '<p class="inline-ref" style="margin:0.5rem 0 0.25rem 0;line-height:1.45;">'
                 + f"Pro Soluto (resíduo): <strong>{reais_streamlit_html(fmt_br(ps_input_val))}</strong> "
@@ -8822,10 +8864,14 @@ def aba_simulador_automacao(
                 unsafe_allow_html=True,
             )
             _parc_i2 = texto_inteiro(
-                st.session_state.get("parc_ps_key"), default=1, min_v=1, max_v=parc_max_ui
+                st.session_state.get("parc_ps_key"),
+                default=_parc_ps_min_ui,
+                min_v=_parc_ps_min_ui,
+                max_v=parc_max_ui,
             )
-            parc = _parc_i2 if _parc_i2 is not None else 1
-            parc = int(max(1, min(parc, parc_max_ui)))
+            parc = _parc_i2 if _parc_i2 is not None else _parc_ps_min_ui
+            parc = int(max(_parc_ps_min_ui, min(parc, parc_max_ui)))
+            st.session_state["parc_ps_key"] = str(parc)
             st.session_state.dados_cliente["ps_parcelas"] = parc
             v_parc = parcela_ps_para_valor(
                 float(ps_input_val or 0),
@@ -8841,7 +8887,7 @@ def aba_simulador_automacao(
             )
             _ps_parc_fmt = reais_streamlit_html(fmt_br(v_parc))
             _ps_j8_fmt = reais_streamlit_html(fmt_br(j8_ui))
-            _pmin_par = int(n_min_j8) if n_min_j8 is not None else 1
+            _pmin_par = int(_parc_ps_min_ui)
             _pmax_par = int(parc_max_ui)
             _combo_par_ref = [
                 "Deve ter, no mínimo, ",
