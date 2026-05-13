@@ -3801,10 +3801,10 @@ def _poder_compra_total_linha(
 ) -> tuple[float, float, float, float, float]:
     """
     Poder de compra na linha: atos + financiamento + FGTS/subsídio + PS máximo da unidade.
-    Valor real da unidade: valor de venda menos volta ao caixa de referência.
-    Valor de oferta: valor real da unidade quando o poder não cobre, senão o próprio poder de compra.
+    Valor da unidade: valor de venda da própria unidade.
+    Valor de oferta: valor da unidade quando o poder não cobre, senão o próprio poder de compra.
 
-    Retorna (poder_total, valor_real_unidade, ps_part, valor_oferta, falta_para_comprar).
+    Retorna (poder_total, valor_unidade, ps_part, valor_oferta, falta_para_comprar).
     """
     fin = float(d.get("finan_usado", 0) or 0)
     sub = float(d.get("fgts_sub_usado", 0) or 0)
@@ -3813,11 +3813,7 @@ def _poder_compra_total_linha(
         v_venda = float(row.get("Valor de Venda", 0) or 0)
     except (TypeError, ValueError):
         v_venda = 0.0
-    try:
-        vcx_teto = max(0.0, float(row.get("Volta_Caixa_Ref", 0) or 0))
-    except (TypeError, ValueError):
-        vcx_teto = 0.0
-    valor_real_unidade = max(0.0, v_venda - vcx_teto)
+    valor_unidade = max(0.0, v_venda)
     ren = float(d.get("renda", 0) or 0)
     ps_stock = max(0.0, _ps_max_estoque_row_cliente(row, d))
     ps_cap = float(ps_stock)
@@ -3836,9 +3832,9 @@ def _poder_compra_total_linha(
         ps_cap = float(ps_stock)
     ps_part = max(0.0, ps_cap)
     poder_total = fin + sub + soma_atos + ps_part
-    falta_para_comprar = max(0.0, valor_real_unidade - poder_total)
-    valor_oferta = max(valor_real_unidade, poder_total)
-    return poder_total, valor_real_unidade, ps_part, valor_oferta, falta_para_comprar
+    falta_para_comprar = max(0.0, valor_unidade - poder_total)
+    valor_oferta = max(valor_unidade, poder_total)
+    return poder_total, valor_unidade, ps_part, valor_oferta, falta_para_comprar
 
 
 def _meses_entrega_row_estoque(row: pd.Series) -> int:
@@ -3935,18 +3931,18 @@ def _calcular_poder_compra_linha_estoque(
     """Anexa poder de compra, valor real líquido, valor de oferta e falta para compra."""
     fin = float(d.get("finan_usado", 0) or 0)
     sub = float(d.get("fgts_sub_usado", 0) or 0)
-    poder_total, valor_real_unidade, _, valor_oferta, falta_para_comprar = _poder_compra_total_linha(
+    poder_total, valor_unidade, _, valor_oferta, falta_para_comprar = _poder_compra_total_linha(
         row, d, df_politicas, prem
     )
-    cobertura = (poder_total / valor_real_unidade) * 100.0 if valor_real_unidade > 0 else 0.0
-    return pd.Series([poder_total, cobertura, fin, sub, valor_real_unidade, valor_oferta, falta_para_comprar])
+    cobertura = (poder_total / valor_unidade) * 100.0 if valor_unidade > 0 else 0.0
+    return pd.Series([poder_total, cobertura, fin, sub, valor_unidade, valor_oferta, falta_para_comprar])
 
 
 def _metricas_lucro_unidade(
     row: pd.Series, d: dict, df_politicas: pd.DataFrame, prem: dict
 ) -> pd.Series:
     """
-    Compatível quando o poder de compra cobre o valor real da unidade (valor de venda menos VCX).
+    Compatível quando o poder de compra cobre o valor da unidade.
     """
     eps = 1e-6
     try:
@@ -3957,13 +3953,13 @@ def _metricas_lucro_unidade(
         vcx_teto = max(0.0, float(row.get("Volta_Caixa_Ref", 0) or 0))
     except (TypeError, ValueError):
         vcx_teto = 0.0
-    poder_total, valor_real_unidade, _, _, falta_para_comprar = _poder_compra_total_linha(
+    poder_total, valor_unidade, _, _, falta_para_comprar = _poder_compra_total_linha(
         row, d, df_politicas, prem
     )
-    compativel = bool(valor_real_unidade > 0 and poder_total + eps >= valor_real_unidade)
+    compativel = bool(valor_unidade > 0 and poder_total + eps >= valor_unidade)
     vcx_usado = 0.0
     vcx_preservado = float(vcx_teto)
-    lucro = float(valor_real_unidade if compativel else -1e18)
+    lucro = float(valor_unidade if compativel else -1e18)
     saldo_teto_vcx = float(vcx_teto - max(0.0, falta_para_comprar))
     return pd.Series([compativel, vcx_usado, vcx_preservado, lucro, saldo_teto_vcx])
 
@@ -8259,24 +8255,17 @@ def aba_simulador_automacao(
                         except (TypeError, ValueError):
                             v_poder = 0.0
                         try:
-                            v_real_liq = float(u_row.get("Valor_Real_Unidade", 0) or 0)
+                            v_unidade = float(u_row.get("Valor_Real_Unidade", 0) or 0)
                         except (TypeError, ValueError):
-                            v_real_liq = 0.0
-                        if v_real_liq <= 0.0:
-                            try:
-                                _vcx_ref_row = float(u_row.get("Volta_Caixa_Ref", 0) or 0)
-                            except (TypeError, ValueError):
-                                _vcx_ref_row = 0.0
-                            v_real_liq = max(
-                                0.0,
-                                v_venda_real - _vcx_ref_row,
-                            )
+                            v_unidade = 0.0
+                        if v_unidade <= 0.0:
+                            v_unidade = max(0.0, v_venda_real)
                         try:
                             v_oferta = float(u_row.get("Valor_Oferta", 0) or 0)
                         except (TypeError, ValueError):
                             v_oferta = 0.0
                         if v_oferta <= 0.0:
-                            v_oferta = max(v_poder, v_real_liq)
+                            v_oferta = max(v_poder, v_unidade)
                         try:
                             v_falta = float(u_row.get("Falta_Para_Comprar", 0) or 0)
                         except (TypeError, ValueError):
@@ -8293,7 +8282,7 @@ def aba_simulador_automacao(
                                 "empreendimento_nome": emp_escolhido,
                                 "imovel_valor": float(v_oferta),
                                 "imovel_avaliacao": float(v_oferta),
-                                "imovel_valor_real_cadastro": float(v_real_liq),
+                                "imovel_valor_real_cadastro": float(v_unidade),
                                 "imovel_valor_tabela": float(v_venda_real),
                                 "poder_compra_unidade": float(v_poder),
                                 "valor_oferta_unidade": float(v_oferta),
@@ -8312,12 +8301,12 @@ def aba_simulador_automacao(
                         st.session_state.dados_cliente["prazo_ps_max"] = 84
                         if v_falta > 0.01:
                             st.warning(
-                                f"Faltam R$ {fmt_br(v_falta)} para comprar esta unidade pelo valor real. "
-                                "A oferta considerada permanece no valor real da unidade."
+                                f"Faltam R$ {fmt_br(v_falta)} em atos para comprar esta unidade. "
+                                "A oferta considerada permanece no valor da unidade."
                             )
-                        elif v_oferta > v_real_liq + 0.01:
+                        elif v_oferta > v_unidade + 0.01:
                             st.info(
-                                f"O poder de compra supera o valor real da unidade. "
+                                f"O poder de compra supera o valor da unidade. "
                                 f"A oferta considerada será de R$ {fmt_br(v_oferta)}."
                             )
 
@@ -8476,14 +8465,7 @@ def aba_simulador_automacao(
                 f_prev = min(f_prev, v_liq_prev)
                 s_prev = min(s_prev, max(0.0, v_liq_prev - f_prev))
             ps_limite_prev = float(mps_prev.get("ps_max_efetivo", 0) or 0)
-            ps_bruto_prev = max(0.0, v_liq_prev - f_prev - s_prev)
-            ps_input_prev = max(
-                0.0,
-                min(
-                    ps_bruto_prev,
-                    ps_limite_prev if ps_limite_prev > 0 else ps_bruto_prev,
-                ),
-            )
+            ps_input_prev = max(0.0, ps_limite_prev)
             n_min_prev = None
             meses_entrega_prev = meses_ate_entrega(d.get("unid_entrega", ""))
             if ps_input_prev > 0 and j8_prev > 0:
@@ -8632,13 +8614,13 @@ def aba_simulador_automacao(
             _valor_real_unid = max(
                 0.0, float(st.session_state.dados_cliente.get("imovel_valor_real_cadastro", 0) or 0)
             )
-            _total_componentes_real = float(soma_atos_prev) + float(f_prev) + float(s_prev) + float(ps_input_prev)
+            _total_componentes_real = float(soma_atos_prev) + float(f_prev) + float(s_prev) + float(_ps_efetivo_prev)
             if _valor_real_unid > 0:
                 if _total_componentes_real < _valor_real_unid - 0.01:
                     _faltante_real = _valor_real_unid - _total_componentes_real
                     _dv_alerta_vermelho(
-                        f"Faltam <strong>{reais_streamlit_html(fmt_br(_faltante_real))}</strong> "
-                        f"para comprar a unidade pelo valor real "
+                        f"Faltam <strong>{reais_streamlit_html(fmt_br(_faltante_real))}</strong> em atos "
+                        f"para comprar a unidade "
                         f"(<strong>{reais_streamlit_html(fmt_br(_valor_real_unid))}</strong>)."
                     )
 
@@ -8939,9 +8921,8 @@ def aba_simulador_automacao(
             r3x = max(0.0, texto_moeda_para_float(st.session_state.get("ato_3_key")))
             r4x = max(0.0, texto_moeda_para_float(st.session_state.get("ato_4_key")))
             soma_atx = r1x + r2x + r3x + r4x
-            ps_bruto_disponivel = max(0.0, v_liquido - f_u_input - fgts_u_input)
-            ps_cap0 = float(ps_limite_ui2) if ps_limite_ui2 > 0 else ps_bruto_disponivel
-            ps_input_val = max(0.0, min(ps_bruto_disponivel, ps_cap0))
+            ps_cap0 = float(ps_limite_ui2)
+            ps_input_val = max(0.0, ps_cap0)
             cap_atosx = max(0.0, v_liquido - f_u_input - fgts_u_input - ps_input_val)
             if soma_atx > cap_atosx + 0.01 and soma_atx > 0:
                 _kf0 = cap_atosx / soma_atx
@@ -8950,11 +8931,6 @@ def aba_simulador_automacao(
                 r3x *= _kf0
                 r4x *= _kf0
             soma_atx = r1x + r2x + r3x + r4x
-            if ps_bruto_disponivel > ps_cap0 + 1.0:
-                _dv_alerta_vermelho_texto(
-                    "O Pro Soluto calculado como resíduo ultrapassa o teto permitido pela política/estoque. "
-                    "Reduza atos ou financiamento/subsídio."
-                )
             n_min_j8 = None
             if ps_input_val > 0 and j8_ui > 0:
                 n_min_j8 = menor_prazo_parcelas_ps_respeitando_j8(
@@ -8970,7 +8946,7 @@ def aba_simulador_automacao(
             ) if n_min_j8 is not None else 1
             st.markdown(
                 '<p class="inline-ref" style="margin:0.5rem 0 0.25rem 0;line-height:1.45;">'
-                + f"Pro Soluto (resíduo): <strong>{reais_streamlit_html(fmt_br(ps_input_val))}</strong> "
+                + f"Pro Soluto: <strong>{reais_streamlit_html(fmt_br(ps_input_val))}</strong> "
                 + f"(teto referência: <strong>{reais_streamlit_html(fmt_br(ps_limite_ui2))}</strong>)</p>",
                 unsafe_allow_html=True,
             )
@@ -9008,7 +8984,7 @@ def aba_simulador_automacao(
             )
             if float(ps_input_val or 0) > 0 and j8_ui > 0 and n_min_j8 is None:
                 _dv_alerta_vermelho(
-                    "Com este Pro Soluto resíduo e o prazo máximo permitido, a prestação pode "
+                    "Com este Pro Soluto cheio e o prazo máximo permitido, a prestação pode "
                     "ultrapassar o teto J8. Reduza os atos ou ajuste o perfil."
                 )
             ps_capacidade = max(0.0, float(v_parc) * float(parc))
@@ -9030,7 +9006,7 @@ def aba_simulador_automacao(
                         "para este valor (ou reduza o Pro Soluto). "
                         f"Com essas parcelas, a arrecadação máxima é "
                         f"<strong>{reais_streamlit_html(fmt_br(ps_capacidade))}</strong> "
-                        f"(resíduo: <strong>{reais_streamlit_html(fmt_br(ps_input_val))}</strong>)."
+                        f"(valor cheio: <strong>{reais_streamlit_html(fmt_br(ps_input_val))}</strong>)."
                     )
                 elif aj8:
                     _dv_alerta_vermelho(
@@ -9042,7 +9018,7 @@ def aba_simulador_automacao(
                     )
                 else:
                     _dv_alerta_vermelho(
-                        f"O Pro Soluto resíduo é <strong>{reais_streamlit_html(fmt_br(ps_input_val))}</strong>, "
+                        f"O Pro Soluto cheio é <strong>{reais_streamlit_html(fmt_br(ps_input_val))}</strong>, "
                         f"mas com {html_std.escape(str(parc))} parcelas e mensalidade <strong>{reais_streamlit_html(fmt_br(v_parc))}</strong> "
                         f"a arrecadação máxima é <strong>{reais_streamlit_html(fmt_br(ps_capacidade))}</strong>."
                     )
