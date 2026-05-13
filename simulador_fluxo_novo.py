@@ -1145,16 +1145,31 @@ def _dv_sf_rank_debug_status_snapshot(
     }
 
 
+_SF_RANKING_FIELDS_INVALIDOS: set[str] = set()
+
+
+def _sf_excecao_campo_invalido_salesforce(exc: Exception | str | None) -> bool:
+    msg = str(exc or "")
+    return ("INVALID_FIELD" in msg) or ("No such column" in msg)
+
+
+def _sf_marcar_ranking_field_invalido(field_name: str | None) -> None:
+    fld = str(field_name or "").strip()
+    if not fld:
+        return
+    _SF_RANKING_FIELDS_INVALIDOS.add(fld)
+
+
 def _sf_ranking_field_candidates() -> list[str]:
     seen: set[str] = set()
     out: list[str] = []
     for raw in (
         (os.environ.get("SALESFORCE_RANKING_FIELD") or "").strip(),
-        "Ranking_Cliente__c",
         "Ranking__c",
+        "Ranking_Cliente__c",
     ):
         fld = str(raw or "").strip()
-        if not fld or fld in seen:
+        if not fld or fld in seen or fld in _SF_RANKING_FIELDS_INVALIDOS:
             continue
         seen.add(fld)
         out.append(fld)
@@ -1583,9 +1598,18 @@ def _sf_get_ranking_account_rest(
 ) -> str | None:
     aid = account_id.strip()
     if isinstance(rfield, (list, tuple)):
-        campos_rank = [str(x).strip() for x in rfield if str(x).strip()]
+        campos_rank = [
+            str(x).strip()
+            for x in rfield
+            if str(x).strip() and str(x).strip() not in _SF_RANKING_FIELDS_INVALIDOS
+        ]
     else:
-        campos_rank = [str(rfield).strip()] if str(rfield).strip() else []
+        _campo_unico = str(rfield).strip()
+        campos_rank = (
+            [_campo_unico]
+            if _campo_unico and _campo_unico not in _SF_RANKING_FIELDS_INVALIDOS
+            else []
+        )
     if not campos_rank:
         campos_rank = _sf_ranking_field_candidates()
     _sf_logger.debug(
@@ -1629,6 +1653,13 @@ def _sf_get_ranking_account_rest(
                 list(row.keys())[:20],
             )
         except Exception as ex:
+            if _sf_excecao_campo_invalido_salesforce(ex):
+                _sf_marcar_ranking_field_invalido(campo)
+                _sf_logger.warning(
+                    "Salesforce Account REST: campo de ranking ignorado por inexistir no org. campo=%s",
+                    campo,
+                )
+                continue
             _sf_logger.warning(
                 "Salesforce Account REST: falha ao consultar account_id=%s campo=%s erro=%s",
                 aid,
@@ -1653,10 +1684,18 @@ def _sf_poll_ranking_na_account(
     """GET sobjects/Account/<Id> em loop até rfield vir preenchido ou timeout."""
     aid = account_id.strip()
     _campos_rank = (
-        [str(x).strip() for x in rfield if str(x).strip()]
+        [
+            str(x).strip()
+            for x in rfield
+            if str(x).strip() and str(x).strip() not in _SF_RANKING_FIELDS_INVALIDOS
+        ]
         if isinstance(rfield, (list, tuple))
-        else [str(rfield).strip()]
+        else [
+            str(rfield).strip()
+        ] if str(rfield).strip() and str(rfield).strip() not in _SF_RANKING_FIELDS_INVALIDOS else []
     )
+    if not _campos_rank:
+        _campos_rank = _sf_ranking_field_candidates()
     _sf_logger.info(
         "Salesforce Poll: iniciando espera por ranking na conta. account_id=%s campos=%s timeout_total=%ss intervalo=%ss",
         aid,
@@ -1783,6 +1822,13 @@ def _sf_consultar_por_cpf(sf: Any, cpf_bruto: str) -> tuple[dict | None, str | N
             return registros[0], None
         except Exception as e:
             _ultimo_erro = e
+            if _sf_excecao_campo_invalido_salesforce(e):
+                _sf_marcar_ranking_field_invalido(_campo_rank)
+                _sf_logger.warning(
+                    "Salesforce Opportunity: campo de ranking ignorado por inexistir no org. campo=%s",
+                    _campo_rank,
+                )
+                continue
             _sf_logger.warning(
                 "Salesforce Opportunity: falha ao consultar com campo=%s erro=%s",
                 _campo_rank,
