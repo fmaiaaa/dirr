@@ -8871,7 +8871,6 @@ def aba_simulador_automacao(
             )
             parc = _parc_i2 if _parc_i2 is not None else _parc_ps_min_ui
             parc = int(max(_parc_ps_min_ui, min(parc, parc_max_ui)))
-            st.session_state["parc_ps_key"] = str(parc)
             st.session_state.dados_cliente["ps_parcelas"] = parc
             v_parc = parcela_ps_para_valor(
                 float(ps_input_val or 0),
