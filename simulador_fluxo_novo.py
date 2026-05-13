@@ -1065,6 +1065,10 @@ class _DvSfRankSessionLogHandler(logging.Handler):
 
 
 def _dv_sf_rank_log_attach_session_handler() -> None:
+    try:
+        _sf_logger.setLevel(logging.DEBUG)
+    except Exception:
+        pass
     for h in _sf_logger.handlers:
         if isinstance(h, _DvSfRankSessionLogHandler):
             return
@@ -1095,6 +1099,34 @@ def _dv_sf_rank_debug_text() -> str:
     if not isinstance(linhas, list):
         return ""
     return "\n".join(str(x) for x in linhas if str(x).strip())
+
+
+def _dv_sf_rank_debug_status_snapshot(
+    cpf_digits: str,
+    ranking: str | None,
+    code: str | None,
+) -> dict[str, str]:
+    memo = st.session_state.get(_DV_SF_RANK_MEMO_KEY)
+    memo_ent = memo.get(cpf_digits) if isinstance(memo, dict) and cpf_digits else None
+    memo_at = ""
+    if isinstance(memo_ent, dict):
+        try:
+            memo_at = time.strftime("%H:%M:%S", time.localtime(float(memo_ent.get("t", 0) or 0)))
+        except Exception:
+            memo_at = ""
+    pending = str(st.session_state.get(_DV_SF_CPF_RANK_LOOKUP_PENDING_KEY) or "").strip()
+    classif_ok = str(st.session_state.get(_DV_SF_RANK_CLASSIF_OK_CPF_KEY) or "").strip()
+    auto_applied = str(st.session_state.get("_sf_rank_auto_applied_for_cpf") or "").strip()
+    return {
+        "cpf_campo": _sf_cpf_mascarado_br(cpf_digits) if len(cpf_digits) == 11 else (cpf_digits or "vazio"),
+        "busca_pendente": "sim" if pending == cpf_digits and cpf_digits else "nao",
+        "ranking_memorizado": str(ranking or "-"),
+        "codigo_memorizado": str(code or "-"),
+        "memo_atualizado_em": memo_at or "-",
+        "classificacao_confirmada_para_cpf": "sim" if classif_ok == cpf_digits and cpf_digits else "nao",
+        "ranking_aplicado_no_campo": "sim" if auto_applied == cpf_digits and cpf_digits else "nao",
+        "linhas_log": str(len(st.session_state.get(_DV_SF_RANK_LOG_LINES_KEY) or [])),
+    }
 
 
 _DV_SF_RANK_TRACK_CPF_KEY = "_sf_rank_tracked_cpf_ui"
@@ -1142,6 +1174,7 @@ def _sf_normalizar_cpf(cpf: str | None) -> str:
 
 def _sf_conectar_salesforce(verbose: bool = False) -> Any | None:
     _injetar_secrets_salesforce_no_env()
+    _sf_logger.debug("Salesforce: iniciando tentativa de conexão.")
     if Salesforce is None:
         if verbose:
             _sf_logger.warning("Pacote simple_salesforce não instalado.")
@@ -1156,6 +1189,12 @@ def _sf_conectar_salesforce(verbose: bool = False) -> Any | None:
         domain = "login"
     elif domain in ("sandbox", "test", "dev"):
         domain = "test"
+    _sf_logger.debug(
+        "Salesforce: configuração de conexão preparada. domain=%s token_presente=%s user_preenchido=%s",
+        domain,
+        "sim" if bool(token) else "nao",
+        "sim" if bool(username) else "nao",
+    )
 
     if not username or not password:
         if verbose:
@@ -1353,18 +1392,34 @@ def _sf_extrair_account_id_do_erro_validacao(mensagem: str) -> str | None:
 
 def _sf_buscar_account_id_por_cpf(sf: Any, cpf_digitos: str) -> str | None:
     campo = _sf_account_cpf_field_name()
+    _sf_logger.debug(
+        "Salesforce Account: iniciando busca por CPF. campo=%s variantes=%s",
+        campo,
+        _sf_cpf_valores_equivalentes_soql(cpf_digitos),
+    )
     for val in _sf_cpf_valores_equivalentes_soql(cpf_digitos):
         safe = _sf_soql_escape_literal(val)
         q = f"SELECT Id FROM Account WHERE {campo} = '{safe}' LIMIT 1"
         try:
+            _sf_logger.debug("Salesforce Account: consultando variante CPF=%s", val)
             r = sf.query(q)
             recs = r.get("records") or []
             if recs:
                 i = recs[0].get("Id")
                 if i:
+                    _sf_logger.info(
+                        "Salesforce Account: conta encontrada por CPF. account_id=%s variante=%s",
+                        str(i).strip(),
+                        val,
+                    )
                     return str(i).strip()
+            _sf_logger.debug("Salesforce Account: nenhuma conta encontrada para variante=%s", val)
         except Exception:
+            _sf_logger.exception(
+                "Salesforce Account: erro ao consultar variante CPF=%s", val
+            )
             pass
+    _sf_logger.info("Salesforce Account: nenhuma conta encontrada para o CPF informado.")
     return None
 
 
@@ -1381,11 +1436,21 @@ def _sf_resolver_account_apos_falha_cpf_duplicado(
 
 def _sf_criar_conta_pf_ranking(sf: Any, cpf_digitos: str) -> tuple[str | None, str | None]:
     payload = _sf_montar_payload_conta_pf_ranking(cpf_digitos)
+    _sf_logger.info(
+        "Salesforce PF Account: iniciando criação de Person Account temporária para CPF=%s",
+        _sf_cpf_mascarado_br(cpf_digitos),
+    )
     try:
         res = sf.Account.create(payload)
         aid = (res.get("id") or "").strip()
+        _sf_logger.info(
+            "Salesforce PF Account: criação concluída. account_id=%s sucesso=%s",
+            aid or "-",
+            "sim" if bool(aid) else "nao",
+        )
         return (aid if aid else None, None)
     except Exception as e:
+        _sf_logger.warning("Salesforce PF Account: falha ao criar conta temporária: %s", e)
         return (None, str(e))
 
 
@@ -1485,6 +1550,12 @@ def _sf_get_ranking_account_rest(
     sf: Any, account_id: str, rfield: str, http_timeout: float
 ) -> str | None:
     aid = account_id.strip()
+    _sf_logger.debug(
+        "Salesforce Account REST: lendo campo de ranking. account_id=%s campo=%s timeout=%s",
+        aid,
+        rfield,
+        http_timeout,
+    )
     try:
         rec = sf.restful(f"sobjects/Account/{aid}", method="GET", timeout=http_timeout)
         if _sf_truthy_env_ranking("SALESFORCE_RISK3_DUMP_STEPS"):
@@ -1499,7 +1570,17 @@ def _sf_get_ranking_account_rest(
         if isinstance(rec, dict):
             val = rec.get(rfield)
             if val is not None and str(val).strip() != "":
+                _sf_logger.info(
+                    "Salesforce Account REST: ranking encontrado na conta. account_id=%s valor=%s",
+                    aid,
+                    str(val).strip(),
+                )
                 return str(val).strip()
+            _sf_logger.debug(
+                "Salesforce Account REST: resposta sem ranking preenchido. account_id=%s chaves=%s",
+                aid,
+                list(rec.keys())[:20],
+            )
     except Exception as ex:
         _sf_logger.debug("SF GET Account %s: %s", aid, ex)
     return None
@@ -1519,18 +1600,39 @@ def _sf_poll_ranking_na_account(
 ) -> str | None:
     """GET sobjects/Account/<Id> em loop até rfield vir preenchido ou timeout."""
     aid = account_id.strip()
+    _sf_logger.info(
+        "Salesforce Poll: iniciando espera por ranking na conta. account_id=%s campo=%s timeout_total=%ss intervalo=%ss",
+        aid,
+        rfield,
+        poll_sec,
+        poll_iv,
+    )
     t0 = time.monotonic()
     deadline = t0 + max(1.0, float(poll_sec))
     last_log = time.monotonic()
     ps = max(1.0, float(poll_sec))
     span = max(float(prog_hi) - float(prog_lo), 1e-6)
+    tentativa = 0
     while time.monotonic() < deadline:
+        tentativa += 1
         rank = _sf_get_ranking_account_rest(sf, aid, rfield, http_timeout)
         if rank:
+            _sf_logger.info(
+                "Salesforce Poll: ranking encontrado durante o polling. account_id=%s tentativa=%s valor=%s",
+                aid,
+                tentativa,
+                rank,
+            )
             if progress_p:
                 progress_p(1.0, _SF_RANK_PROGRESS_MSG_SUCESSO)
             return rank
         elapsed = time.monotonic() - t0
+        _sf_logger.debug(
+            "Salesforce Poll: ranking ainda não disponível. account_id=%s tentativa=%s elapsed=%.1fs",
+            aid,
+            tentativa,
+            elapsed,
+        )
         if progress_p:
             frac = float(prog_lo) + min(span, (elapsed / ps) * span)
             progress_p(
@@ -1542,6 +1644,13 @@ def _sf_poll_ranking_na_account(
             _sf_logger.info("Salesforce: aguardando %s na Account %s…", rfield, aid)
             last_log = now
         time.sleep(max(0.5, float(poll_iv)))
+    _sf_logger.warning(
+        "Salesforce Poll: tempo esgotado sem ranking. account_id=%s campo=%s timeout_total=%ss tentativas=%s",
+        aid,
+        rfield,
+        poll_sec,
+        tentativa,
+    )
     return None
 
 
@@ -1562,9 +1671,18 @@ def _sf_consultar_por_cpf(sf: Any, cpf_bruto: str) -> tuple[dict | None, str | N
     """
     cpf_digitos = _sf_normalizar_cpf(cpf_bruto)
     if not cpf_digitos or len(cpf_digitos) != 11 or not cpf_digitos.isdigit():
+        _sf_logger.warning(
+            "Salesforce Opportunity: CPF inválido para consulta. valor_recebido=%s",
+            str(cpf_bruto or ""),
+        )
         return None, "Informe um CPF válido com 11 dígitos."
 
     cpf_vals = _sf_cpf_valores_equivalentes_soql(cpf_digitos)
+    _sf_logger.info(
+        "Salesforce Opportunity: iniciando consulta por CPF. cpf=%s variantes=%s",
+        _sf_cpf_mascarado_br(cpf_digitos),
+        cpf_vals,
+    )
     in_list = ",".join(f"'{_sf_soql_escape_literal(v)}'" for v in cpf_vals)
     _acct_cpf = _sf_account_cpf_soql_dotted()
     soql = f"""
@@ -1587,10 +1705,28 @@ def _sf_consultar_por_cpf(sf: Any, cpf_bruto: str) -> tuple[dict | None, str | N
     try:
         res = sf.query(soql)
         registros = res.get("records", [])
+        _sf_logger.info(
+            "Salesforce Opportunity: consulta concluída. quantidade_registros=%s",
+            len(registros),
+        )
         if not registros:
+            _sf_logger.info(
+                "Salesforce Opportunity: nenhuma Opportunity encontrada para o CPF informado."
+            )
             return None, "Nenhum registro encontrado para o CPF informado."
+        try:
+            _sf_logger.debug(
+                "Salesforce Opportunity: primeiro registro encontrado. opp_id=%s account_id=%s ranking_opp=%s ranking_account=%s",
+                str(registros[0].get("Id") or "").strip(),
+                str(registros[0].get("AccountId") or "").strip(),
+                str(registros[0].get("Ranking__c") or "").strip(),
+                str((registros[0].get("Account") or {}).get("Ranking__c") or "").strip(),
+            )
+        except Exception:
+            pass
         return registros[0], None
     except Exception as e:
+        _sf_logger.exception("Salesforce Opportunity: falha ao consultar Opportunity por CPF.")
         return None, f"Erro ao consultar o Salesforce: {e}"
 
 
@@ -1621,12 +1757,18 @@ def _sf_classificar_ranking_cpf_11(
     """
     cpf = _sf_normalizar_cpf(cpf_11)
     if len(cpf) != 11:
+        _sf_logger.warning("Fluxo Ranking: CPF incompleto ou inválido. cpf=%s", str(cpf_11 or ""))
         return None, "cpf_incompleto"
 
     if Salesforce is None:
+        _sf_logger.warning("Fluxo Ranking: simple_salesforce não disponível no ambiente.")
         return None, "pacote_ausente"
 
     t_all = time.monotonic()
+    _sf_logger.info(
+        "Fluxo Ranking: iniciando classificação para CPF=%s",
+        _sf_cpf_mascarado_br(cpf),
+    )
 
     def _p(frac: float, msg: str) -> None:
         if progress:
@@ -1643,14 +1785,35 @@ def _sf_classificar_ranking_cpf_11(
     poll_sec = _sf_float_env_ranking("SALESFORCE_RISK3_POLL_SECONDS", 90.0)
     poll_iv = _sf_float_env_ranking("SALESFORCE_RISK3_POLL_INTERVAL", 2.0)
     http_timeout = max(5.0, _sf_float_env_ranking("SALESFORCE_REST_TIMEOUT", 45.0))
+    _sf_logger.debug(
+        "Fluxo Ranking: parâmetros resolvidos. campo_ranking=%s poll_sec=%s poll_interval=%s http_timeout=%s autocriar_pf=%s",
+        rfield,
+        poll_sec,
+        poll_iv,
+        http_timeout,
+        "sim" if _sf_autocriar_pf_account() else "nao",
+    )
 
     def _ranking_conta(account_id: str) -> str | None:
+        _sf_logger.info(
+            "Fluxo Ranking: tentando obter ranking direto/poll na conta. account_id=%s",
+            account_id,
+        )
         _p(0.28, "Consultando a classificação do cliente…")
         bruto = _sf_get_ranking_account_rest(sf, account_id, rfield, http_timeout)
         if bruto:
+            _sf_logger.info(
+                "Fluxo Ranking: ranking obtido diretamente na conta. account_id=%s valor=%s",
+                account_id,
+                bruto,
+            )
             _p(1.0, _SF_RANK_PROGRESS_MSG_SUCESSO)
             return bruto
         _p(0.35, "Aguardando a classificação ficar disponível…")
+        _sf_logger.info(
+            "Fluxo Ranking: ranking ainda vazio na conta. Iniciando polling. account_id=%s",
+            account_id,
+        )
 
         def _pp_sub(frac: float, m: str) -> None:
             _p(frac, m)
@@ -1673,11 +1836,22 @@ def _sf_classificar_ranking_cpf_11(
         return None, "cpf_incompleto"
     if err and "Erro ao consultar" in (err or ""):
         _sf_logger.warning("Salesforce Opportunity: %s", err)
+    elif err:
+        _sf_logger.info("Fluxo Ranking: consulta em Opportunity sem resultado útil. detalhe=%s", err)
 
     if opp is not None:
+        _sf_logger.info(
+            "Fluxo Ranking: Opportunity encontrada. opp_id=%s account_id=%s",
+            str(opp.get("Id") or "").strip(),
+            str(opp.get("AccountId") or "").strip(),
+        )
         info = _sf_extrair_ranking_ui_de_opportunity(opp)
         texto_opp = info.get("ranking_exibir")
         if texto_opp:
+            _sf_logger.info(
+                "Fluxo Ranking: ranking encontrado diretamente na Opportunity/Account aninhada. valor=%s",
+                texto_opp,
+            )
             _p(1.0, _SF_RANK_PROGRESS_MSG_SUCESSO)
             return _sf_ranking_bruto_para_ui(str(texto_opp)), None
 
@@ -1692,38 +1866,82 @@ def _sf_classificar_ranking_cpf_11(
         raw_aid = opp.get("AccountId")
         if raw_aid:
             aid = str(raw_aid).strip()
+            _sf_logger.info(
+                "Fluxo Ranking: reutilizando AccountId vindo da Opportunity. account_id=%s",
+                aid,
+            )
     if not aid:
         _p(0.24, "Procurando cadastro com este CPF…")
         aid = _sf_buscar_account_id_por_cpf(sf, cpf)
 
     if aid:
+        _sf_logger.info(
+            "Fluxo Ranking: conta localizada para continuar consulta. account_id=%s",
+            aid,
+        )
         bruto = _ranking_conta(aid)
         if bruto:
+            _sf_logger.info(
+                "Fluxo Ranking: ranking final obtido via conta existente. valor=%s",
+                bruto,
+            )
             return _sf_ranking_bruto_para_ui(bruto), None
+        _sf_logger.warning(
+            "Fluxo Ranking: conta encontrada, mas ranking não foi preenchido dentro do fluxo. account_id=%s",
+            aid,
+        )
         return None, "sem_registo"
 
     if not _sf_autocriar_pf_account():
+        _sf_logger.warning(
+            "Fluxo Ranking: nenhuma conta encontrada e autocriar PF está desativado."
+        )
         return None, "sem_registo"
 
     _p(0.26, "Cliente não cadastrado. Incluindo no sistema…")
     new_aid, create_err = _sf_criar_conta_pf_ranking(sf, cpf)
     conta_criada_neste_fluxo = bool(new_aid)
     if not new_aid and create_err:
+        _sf_logger.warning(
+            "Fluxo Ranking: criação da conta falhou; tentando resolver conta existente por erro de duplicidade. erro=%s",
+            create_err,
+        )
         new_aid = _sf_resolver_account_apos_falha_cpf_duplicado(sf, cpf, create_err)
         conta_criada_neste_fluxo = False
     if not new_aid:
         _sf_logger.warning("Salesforce PF Account: %s", create_err or "sem Id")
         return None, "sem_registo"
+    _sf_logger.info(
+        "Fluxo Ranking: conta disponível para o restante do fluxo. account_id=%s criada_neste_fluxo=%s",
+        new_aid,
+        "sim" if conta_criada_neste_fluxo else "nao",
+    )
     _p(0.30, "Cadastro concluído. Obtendo a classificação…")
 
     bruto = _ranking_conta(new_aid)
     if bruto:
+        _sf_logger.info(
+            "Fluxo Ranking: ranking obtido após criar/recuperar conta. valor=%s",
+            bruto,
+        )
         if conta_criada_neste_fluxo:
+            _sf_logger.info(
+                "Fluxo Ranking: iniciando limpeza de registros temporários criados no fluxo. account_id=%s",
+                new_aid,
+            )
             opp_id_limpeza = _sf_buscar_oportunidade_recente_da_conta(sf, new_aid, http_timeout)
             _sf_excluir_relacionamento_comprador_da_oportunidade(sf, opp_id_limpeza, http_timeout)
             _sf_excluir_oportunidade_por_id(sf, opp_id_limpeza, http_timeout)
             _sf_excluir_account_criada_simulacao(sf, new_aid, http_timeout)
+            _sf_logger.info(
+                "Fluxo Ranking: limpeza concluída para registros temporários. account_id=%s",
+                new_aid,
+            )
         return _sf_ranking_bruto_para_ui(bruto), None
+    _sf_logger.warning(
+        "Fluxo Ranking: fluxo encerrado sem ranking, mesmo após criação/recuperação de conta. account_id=%s",
+        new_aid,
+    )
     return None, "sem_registo"
 
 
@@ -1732,6 +1950,10 @@ def _dv_sf_classificar_ranking_cpf_com_barra_progresso(
 ) -> tuple[str | None, str | None]:
     """Classificação no Salesforce com barra/estados na UI (executar só no corpo principal, não em on_change)."""
     _sf_rank_prog_ph = st.empty()
+    _sf_logger.info(
+        "UI Ranking: executando consulta com barra de progresso. cpf=%s",
+        _sf_cpf_mascarado_br(_sf_normalizar_cpf(cpf11)) if len(_sf_normalizar_cpf(cpf11)) == 11 else str(cpf11 or ""),
+    )
 
     def _sf_prog_cb(frac: float, msg: str, elapsed: float) -> None:
         _sf_rank_prog_ph.markdown(
@@ -1766,6 +1988,11 @@ def _dv_sf_classificar_ranking_cpf_com_barra_progresso(
             )
         except Exception:
             pass
+    _sf_logger.info(
+        "UI Ranking: consulta finalizada. ranking=%s codigo=%s",
+        _rs or "-",
+        _code or "-",
+    )
     return _rs, _code
 
 
@@ -6883,6 +7110,8 @@ _DV_SIM_SESS_AUX_KEYS: tuple[str, ...] = (
     "_parc_fin_auto_sig",
     "_parc_fin_auto_ref_prev",
     "_parc_fin_last_sistema",
+    "_parc_ps_auto_sig",
+    "_parc_ps_auto_ref_prev",
 )
 # Cópia de dados_cliente ao avançar para o resumo; ao voltar, repõe tudo (PDF/e-mail não alteram isto).
 _DV_SIM_DADOS_SNAPSHOT_KEY = "_dv_sim_dados_cliente_snapshot"
@@ -7150,7 +7379,7 @@ def aba_simulador_automacao(
         _buscar_ranking_cpf = st.button(
             "Buscar ranking no Salesforce",
             key="buscar_ranking_cpf_sf_btn",
-            use_container_width=False,
+            use_container_width=True,
         )
         rank_opts = ["DIAMANTE", "OURO", "PRATA", "BRONZE", "AÇO"]
         _cpf11_ant = st.session_state.get(_DV_SF_CPF11_ANTERIOR_CAMPO_KEY)
@@ -7218,7 +7447,26 @@ def aba_simulador_automacao(
                     level="INFO",
                 )
                 st.session_state.pop(_DV_SF_CPF_RANK_LOOKUP_PENDING_KEY, None)
+        _dbg_ranking = None
+        _dbg_code = None
+        _dbg_memo = _dv_sf_rank_memo_get(cpf_digits) if len(cpf_digits) == 11 else None
+        if _dbg_memo is not None:
+            _dbg_ranking, _dbg_code = _dbg_memo
         with st.expander("Log da busca de ranking (debug)", expanded=False):
+            _snapshot_dbg = _dv_sf_rank_debug_status_snapshot(
+                cpf_digits,
+                _dbg_ranking,
+                _dbg_code,
+            )
+            _snapshot_lines = "\n".join(
+                f"- **{k.replace('_', ' ').capitalize()}:** {html_std.escape(str(v))}"
+                for k, v in _snapshot_dbg.items()
+            )
+            st.markdown(_snapshot_lines, unsafe_allow_html=True)
+            st.caption(
+                "Leitura rápida: veja se a busca ficou pendente, se houve memoização, "
+                "qual código retornou e quantas linhas de log foram capturadas."
+            )
             _rank_debug_text = _dv_sf_rank_debug_text()
             if _rank_debug_text:
                 st.code(_rank_debug_text, language="text")
@@ -7672,7 +7920,7 @@ def aba_simulador_automacao(
         # --- ETAPA 3: RECOMENDAÇÃO + ESCOLHA DE UNIDADE ---
         d = st.session_state.dados_cliente
         st.markdown(
-            '<h3 class="dv-titulo-secao">Recomendação de Imóveis</h3>',
+            '<h3 class="dv-titulo-secao">Escolha de Imóveis</h3>',
             unsafe_allow_html=True,
         )
 
@@ -7716,9 +7964,18 @@ def aba_simulador_automacao(
                 )
             else:
                 final_cards: list[dict] = []
-                for _, row in cand_rec.iterrows():
+                _ord_cards = (
+                    "Primeiro imovel recomendado",
+                    "Segundo imovel recomendado",
+                    "Terceiro imovel recomendado",
+                )
+                for _idx_card, (_, row) in enumerate(cand_rec.iterrows()):
                     final_cards.append(
-                        {"label": "DENTRO DO PODER", "row": row, "css": "badge-ideal"}
+                        {
+                            "label": _ord_cards[_idx_card] if _idx_card < len(_ord_cards) else "Imovel recomendado",
+                            "row": row,
+                            "css": "badge-ideal",
+                        }
                     )
 
                 cards_html = """<div class="recommendation-cards-outer"><div class="scrolling-wrapper">"""
@@ -7743,16 +8000,14 @@ def aba_simulador_automacao(
                     ptot_fmt = fmt_br(_parc_tot)
                     label = card["label"]
                     css_badge = card["css"]
+                    badge_txt = unid_name
 
                     cards_html += f"""
                      <div class="card-item">
                         <div class="recommendation-card" style="border-top: 4px solid {COR_AZUL_ESC}; height: 100%; justify-content: flex-start;">
-                            <span style="color:#111111; opacity:0.95;">Perfil</span><br>
-                            <div style="margin-top:5px; margin-bottom:15px;"><span class="{css_badge}">{label}</span></div>
+                            <span style="color:#111111; opacity:0.95;">{label}</span><br>
+                            <div style="margin-top:5px; margin-bottom:15px;"><span class="{css_badge}">{badge_txt}</span></div>
                             <b style="color:#111111;">{emp_name}</b><br>
-                            <div style="color:#111111; text-align:center; border-top:1px solid #eee; padding-top:10px; width:100%;">
-                                <b>Unidade: {unid_name}</b>
-                            </div>
                             <div style="margin: 10px 0; width: 100%;">
                                 <div style="color:#111111; margin-top:10px;">Parcela financiamento ({int(prazo_sel)}x)</div>
                                 <div style="font-weight:bold; color:#111111;">{reais_streamlit_html(pfin_fmt)}</div>
@@ -7766,14 +8021,7 @@ def aba_simulador_automacao(
                 cards_html += "</div></div>"
                 st.markdown(cards_html, unsafe_allow_html=True)
 
-                st.markdown("---")
-                st.markdown(
-                    '<h3 class="dv-titulo-secao">Escolha de Unidade</h3>',
-                    unsafe_allow_html=True,
-                )
-                st.caption(
-                    "A lista abaixo mostra somente as 3 unidades recomendadas dentro do poder de compra."
-                )
+                st.caption("Escolha abaixo uma das unidades recomendadas.")
                 unidades_disp = cand_rec.drop_duplicates(
                     subset=["Empreendimento", "Identificador"], keep="first"
                 ).copy()
@@ -7808,7 +8056,7 @@ def aba_simulador_automacao(
                         return f"Unidade {_uid_u}"
 
                     choice_sel = st.selectbox(
-                        "Escolha a Unidade: (lista)",
+                        "Escolha a unidade recomendada: (lista)",
                         options=current_choices,
                         format_func=label_uni,
                         key="sel_uni_rec_v1",
@@ -8014,14 +8262,24 @@ def aba_simulador_automacao(
                     prazo_max=parc_max_prev,
                     meses_entrega=meses_entrega_prev,
                 )
+            _parc_ps_auto_ref = int(
+                max(
+                    1,
+                    min(
+                        int(n_min_prev) if n_min_prev is not None else 1,
+                        parc_max_prev,
+                    ),
+                )
+            )
+            _parc_ps_auto_sig = (
+                round(float(ps_input_prev or 0), 2),
+                int(parc_max_prev),
+                round(float(j8_prev or 0), 2),
+                int(meses_entrega_prev),
+            )
 
             if "parc_ps_key" not in st.session_state:
-                try:
-                    _p0 = int(d.get("ps_parcelas", min(84, parc_max_prev)) or 1)
-                except (TypeError, ValueError):
-                    _p0 = 1
-                _p0 = max(1, min(_p0, parc_max_prev))
-                st.session_state["parc_ps_key"] = str(_p0)
+                st.session_state["parc_ps_key"] = str(_parc_ps_auto_ref)
             else:
                 _pi = texto_inteiro(
                     st.session_state.get("parc_ps_key"),
@@ -8031,15 +8289,19 @@ def aba_simulador_automacao(
                 )
                 _pi = _pi if _pi is not None else 1
                 _pi = int(max(1, min(_pi, parc_max_prev)))
-                _prev_ps = st.session_state.get("_ps_val_sync_parc_prev")
-                _ps_cmp = round(float(ps_input_prev or 0), 2)
-                if _prev_ps is None or abs(float(_prev_ps) - _ps_cmp) > 0.009:
-                    st.session_state["_ps_val_sync_parc_prev"] = _ps_cmp
-                    if n_min_prev is not None:
-                        _pi = int(max(1, min(int(n_min_prev), parc_max_prev)))
-                if n_min_prev is not None and _pi < int(n_min_prev):
-                    _pi = int(n_min_prev)
+                _parc_ps_auto_prev = st.session_state.get("_parc_ps_auto_ref_prev")
+                _parc_ps_sig_prev = st.session_state.get("_parc_ps_auto_sig")
+                if _parc_ps_sig_prev != _parc_ps_auto_sig:
+                    _alinhar_auto_ps = False
+                    if _parc_ps_auto_prev is not None and int(_pi) == int(_parc_ps_auto_prev):
+                        _alinhar_auto_ps = True
+                    elif abs(float(_pi)) < 0.001:
+                        _alinhar_auto_ps = True
+                    if _alinhar_auto_ps:
+                        _pi = _parc_ps_auto_ref
                 st.session_state["parc_ps_key"] = str(_pi)
+            st.session_state["_parc_ps_auto_sig"] = _parc_ps_auto_sig
+            st.session_state["_parc_ps_auto_ref_prev"] = int(_parc_ps_auto_ref)
 
             st.markdown(
                 '<p class="inline-ref" style="margin:0.5rem 0 0.25rem 0;line-height:1.45;">'
