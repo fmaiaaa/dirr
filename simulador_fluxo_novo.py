@@ -8744,13 +8744,20 @@ def aba_simulador_automacao(
             st.session_state.dados_cliente["imovel_avaliacao"] = float(_valor_oferta_pos_desc)
             st.session_state.dados_cliente["valor_final_unidade"] = float(_valor_oferta_pos_desc)
             _exibiu_alerta_desc = False
-            _aumento_ato_desc = max(0.0, float(_d_ps or 0.0))
-            if float(_desc_p or 0.0) > 0.01 and _aumento_ato_desc > 0.01:
-                _dv_alerta_vermelho(
-                    f"Para ter o desconto pedido, deve aumentar o ato em "
-                    f"<strong>{reais_streamlit_html(fmt_br(_aumento_ato_desc))}</strong>."
-                )
-                _exibiu_alerta_desc = True
+            _aumento_ato_desc = max(0.0, float(_d_ps or 0.0) * 0.25)
+            if float(_desc_p or 0.0) > 0.01:
+                if float(_total_pos_desc) >= float(_valor_real_desc) - 0.01:
+                    if _aumento_ato_desc > 0.01:
+                        _dv_alerta_vermelho(
+                            f"Para ter o desconto pedido, deve aumentar o ato em "
+                            f"<strong>{reais_streamlit_html(fmt_br(_aumento_ato_desc))}</strong>."
+                        )
+                        _exibiu_alerta_desc = True
+                else:
+                    _dv_alerta_vermelho(
+                        "O desconto e impossivel. Caso queira prosseguir, deve contatar o gerente."
+                    )
+                    _exibiu_alerta_desc = True
             _desconto_risco_ref = max(0.0, float(_total_base_desc))
             if (
                 not _exibiu_alerta_desc
