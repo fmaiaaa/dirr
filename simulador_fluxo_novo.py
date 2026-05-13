@@ -8017,37 +8017,15 @@ def aba_simulador_automacao(
             "O Pro Soluto não é escolhido manualmente: na etapa de fechamento será usado "
             "o teto cheio permitido para a unidade, respeitando a política e o ranking."
         )
-        _renda_cli_pre = max(0.0, float(st.session_state.dados_cliente.get("renda", 0) or 0))
-        _sug_min_ato1_pre = 2.0 * _renda_cli_pre
-        _sug_min_meio_pre = _renda_cli_pre / 2.0 if _renda_cli_pre > 0 else 0.0
-        _dv_sug_style_pre = (
-            "margin:0 0 0.35rem 0;padding:0;font-size:0.8125rem;line-height:1.35;"
-            "color:#000000;text-align:center;"
-        )
-
-        def _dv_linha_sug_pre(val_fmt: str) -> None:
-            st.markdown(
-                f'<p class="dv-sug-min-ato" style="{_dv_sug_style_pre}">Tente pegar no mínimo '
-                f"<strong>{reais_streamlit_html(html_std.escape(val_fmt))}</strong>.</p>",
-                unsafe_allow_html=True,
-            )
 
         st.text_input(
             "Ato 1 (Entrada Imediata) (R$)",
             key="ato_1_key",
             placeholder="0,00",
         )
-        if _renda_cli_pre > 0:
-            _dv_linha_sug_pre(fmt_br(_sug_min_ato1_pre))
         st.text_input("Ato 30 (R$)", key="ato_2_key", placeholder="0,00")
-        if _renda_cli_pre > 0:
-            _dv_linha_sug_pre(fmt_br(_sug_min_meio_pre))
         st.text_input("Ato 60 (R$)", key="ato_3_key", placeholder="0,00")
-        if _renda_cli_pre > 0:
-            _dv_linha_sug_pre(fmt_br(_sug_min_meio_pre))
         st.text_input("Ato 90 (R$)", key="ato_4_key", placeholder="0,00")
-        if _renda_cli_pre > 0:
-            _dv_linha_sug_pre(fmt_br(_sug_min_meio_pre))
         _r1p = max(0.0, texto_moeda_para_float(st.session_state.get("ato_1_key")))
         _r2p = max(0.0, texto_moeda_para_float(st.session_state.get("ato_2_key")))
         _r3p = max(0.0, texto_moeda_para_float(st.session_state.get("ato_3_key")))
@@ -8303,11 +8281,6 @@ def aba_simulador_automacao(
                                 f"Faltam R$ {fmt_br(v_falta)} em atos para comprar esta unidade. "
                                 "A oferta considerada permanece no valor da unidade."
                             )
-                        elif v_oferta > v_unidade + 0.01:
-                            st.info(
-                                f"O poder de compra supera o valor da unidade. "
-                                f"A oferta considerada será de R$ {fmt_br(v_oferta)}."
-                            )
 
         st.markdown("---")
         st.markdown(
@@ -8476,11 +8449,14 @@ def aba_simulador_automacao(
                     prazo_max=parc_max_prev,
                     meses_entrega=meses_entrega_prev,
                 )
+            _ps_sem_enquadramento_prev = bool(
+                float(ps_input_prev or 0) > 0 and j8_prev > 0 and n_min_prev is None
+            )
             _parc_ps_auto_ref = int(
                 max(
                     1,
                     min(
-                        int(n_min_prev) if n_min_prev is not None else 1,
+                        int(n_min_prev) if n_min_prev is not None else parc_max_prev if _ps_sem_enquadramento_prev else 1,
                         parc_max_prev,
                     ),
                 )
@@ -8493,7 +8469,7 @@ def aba_simulador_automacao(
             )
             _parc_ps_min_prev = int(
                 max(1, min(int(n_min_prev), parc_max_prev))
-            ) if n_min_prev is not None else 1
+            ) if n_min_prev is not None else int(parc_max_prev if _ps_sem_enquadramento_prev else 1)
 
             if "parc_ps_key" not in st.session_state:
                 st.session_state["parc_ps_key"] = str(_parc_ps_auto_ref)
@@ -8557,7 +8533,7 @@ def aba_simulador_automacao(
                 meses_entrega=meses_entrega_prev,
             )
             _ps_capacidade_prev = max(0.0, float(_ps_mensal_prev) * float(_parc_prev))
-            _ps_efetivo_prev = min(float(ps_input_prev or 0.0), _ps_capacidade_prev)
+            _ps_efetivo_prev = float(ps_input_prev or 0.0)
             st.session_state.dados_cliente["meses_ate_entrega"] = meses_entrega_prev
             st.session_state.dados_cliente["ps_usado"] = float(_ps_efetivo_prev)
             st.session_state.dados_cliente["ps_parcelas"] = int(_parc_prev)
@@ -8582,30 +8558,43 @@ def aba_simulador_automacao(
             st.session_state.dados_cliente["ps_k3_lambda"] = float(ps_k3_prev)
             _ps_parc_fmt_prev = reais_streamlit_html(fmt_br(_ps_mensal_prev))
             _ps_j8_fmt_prev = reais_streamlit_html(fmt_br(j8_prev))
-            _combo_par_ref_prev = [
-                "Deve ter, no mínimo, ",
-                f"<strong>{html_std.escape(str(int(_parc_ps_min_prev)))}</strong>",
-                " parcelas e, no máximo, ",
-                f"<strong>{html_std.escape(str(int(parc_max_prev)))}</strong>",
-                " parcelas.",
-            ]
-            if j8_prev > 0:
-                _combo_par_ref_prev.extend(
-                    [
-                        " As parcelas devem ser limitadas em ",
-                        f"<strong>{_ps_j8_fmt_prev}</strong>",
-                        ".",
-                    ]
-                )
-            _combo_par_ref_prev.extend(
-                [
-                    " Atualmente, está sendo dividido em ",
+            if _ps_sem_enquadramento_prev:
+                _combo_par_ref_prev = [
+                    "Mesmo no prazo máximo de ",
+                    f"<strong>{html_std.escape(str(int(parc_max_prev)))}</strong>",
+                    " parcelas, a parcela deve respeitar o teto de ",
+                    f"<strong>{_ps_j8_fmt_prev}</strong>",
+                    ". Atualmente, está sendo dividido em ",
                     f"<strong>{html_std.escape(str(int(_parc_prev)))}x</strong>",
                     " de ",
                     f"<strong>{_ps_parc_fmt_prev}</strong>",
                     ".",
                 ]
-            )
+            else:
+                _combo_par_ref_prev = [
+                    "Deve ter, no mínimo, ",
+                    f"<strong>{html_std.escape(str(int(_parc_ps_min_prev)))}</strong>",
+                    " parcelas e, no máximo, ",
+                    f"<strong>{html_std.escape(str(int(parc_max_prev)))}</strong>",
+                    " parcelas.",
+                ]
+                if j8_prev > 0:
+                    _combo_par_ref_prev.extend(
+                        [
+                            " As parcelas devem ser limitadas em ",
+                            f"<strong>{_ps_j8_fmt_prev}</strong>",
+                            ".",
+                        ]
+                    )
+                _combo_par_ref_prev.extend(
+                    [
+                        " Atualmente, está sendo dividido em ",
+                        f"<strong>{html_std.escape(str(int(_parc_prev)))}x</strong>",
+                        " de ",
+                        f"<strong>{_ps_parc_fmt_prev}</strong>",
+                        ".",
+                    ]
+                )
             st.markdown(
                 f'<p class="inline-ref" style="margin:0;line-height:1.45;">{"".join(_combo_par_ref_prev)}</p>',
                 unsafe_allow_html=True,
@@ -8940,9 +8929,12 @@ def aba_simulador_automacao(
                     prazo_max=parc_max_ui,
                     meses_entrega=meses_entrega_unid,
                 )
+            _ps_sem_enquadramento_ui = bool(
+                float(ps_input_val or 0) > 0 and j8_ui > 0 and n_min_j8 is None
+            )
             _parc_ps_min_ui = int(
                 max(1, min(int(n_min_j8), parc_max_ui))
-            ) if n_min_j8 is not None else 1
+            ) if n_min_j8 is not None else int(parc_max_ui if _ps_sem_enquadramento_ui else 1)
             st.markdown(
                 '<p class="inline-ref" style="margin:0.5rem 0 0.25rem 0;line-height:1.45;">'
                 + f"Pro Soluto: <strong>{reais_streamlit_html(fmt_br(ps_input_val))}</strong> "
@@ -8981,13 +8973,56 @@ def aba_simulador_automacao(
             st.session_state.dados_cliente["ps_mensal_simples"] = (
                 (float(ps_input_val or 0) / parc) if parc > 0 else 0.0
             )
+            _ps_parc_fmt = reais_streamlit_html(fmt_br(v_parc))
+            _ps_j8_fmt = reais_streamlit_html(fmt_br(j8_ui))
+            if _ps_sem_enquadramento_ui:
+                _combo_par_ref_ui = [
+                    "Mesmo no prazo máximo de ",
+                    f"<strong>{html_std.escape(str(int(parc_max_ui)))}</strong>",
+                    " parcelas, a parcela deve respeitar o teto de ",
+                    f"<strong>{_ps_j8_fmt}</strong>",
+                    ". Atualmente, está sendo dividido em ",
+                    f"<strong>{html_std.escape(str(int(parc)))}x</strong>",
+                    " de ",
+                    f"<strong>{_ps_parc_fmt}</strong>",
+                    ".",
+                ]
+            else:
+                _combo_par_ref_ui = [
+                    "Deve ter, no mínimo, ",
+                    f"<strong>{html_std.escape(str(int(_parc_ps_min_ui)))}</strong>",
+                    " parcelas e, no máximo, ",
+                    f"<strong>{html_std.escape(str(int(parc_max_ui)))}</strong>",
+                    " parcelas.",
+                ]
+                if j8_ui > 0:
+                    _combo_par_ref_ui.extend(
+                        [
+                            " As parcelas devem ser limitadas em ",
+                            f"<strong>{_ps_j8_fmt}</strong>",
+                            ".",
+                        ]
+                    )
+                _combo_par_ref_ui.extend(
+                    [
+                        " Atualmente, está sendo dividido em ",
+                        f"<strong>{html_std.escape(str(int(parc)))}x</strong>",
+                        " de ",
+                        f"<strong>{_ps_parc_fmt}</strong>",
+                        ".",
+                    ]
+                )
+            st.markdown(
+                f'<p class="inline-ref" style="margin:0;line-height:1.45;">{"".join(_combo_par_ref_ui)}</p>',
+                unsafe_allow_html=True,
+            )
             if float(ps_input_val or 0) > 0 and j8_ui > 0 and n_min_j8 is None:
                 _dv_alerta_vermelho(
                     "Com este Pro Soluto cheio e o prazo máximo permitido, a prestação pode "
                     "ultrapassar o teto J8. Reduza os atos ou ajuste o perfil."
                 )
             ps_capacidade = max(0.0, float(v_parc) * float(parc))
-            ps_efetivo = min(float(ps_input_val or 0.0), ps_capacidade)
+            ps_efetivo = float(ps_input_val or 0.0)
             aj8 = (
                 float(ps_input_val or 0) > 0
                 and j8_ui > 0
