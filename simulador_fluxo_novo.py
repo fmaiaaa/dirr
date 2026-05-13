@@ -2320,7 +2320,7 @@ def montar_mensagem_whatsapp_resumo(
         return f"R$ {fmt_br(d.get(key, default))}"
 
     amort = nome_sistema_amortizacao_completo(str(d.get("sistema_amortizacao", "SAC")))
-    prazo = d.get("prazo_financiamento", 360)
+    prazo = d.get("prazo_financiamento", 420)
 
     try:
         vc_apl = max(0.0, float(volta_caixa_val or 0))
@@ -6770,7 +6770,7 @@ def gerar_resumo_pdf(d, volta_caixa_val: float = 0.0):
         pdf.ln(2)
         secao("Financiamento")
         linha("Financiamento utilizado", f"R$ {fmt_br(d.get('finan_usado', 0))}")
-        prazo = d.get('prazo_financiamento', 360)
+        prazo = d.get('prazo_financiamento', 420)
         linha(
             "Sistema de amortização e prazo",
             f"{nome_sistema_amortizacao_completo(str(d.get('sistema_amortizacao', 'SAC')))} - {prazo} meses",
@@ -8061,18 +8061,26 @@ def aba_simulador_automacao(
                 ["Valor de Venda", "Identificador"], ascending=[True, True]
             )
 
-            emp_names_rec = sorted(df_disp_total["Empreendimento"].unique().tolist())
-            emp_rec = st.selectbox(
-                "Escolha o empreendimento para recomendar: (lista)",
-                options=["Todos"] + emp_names_rec,
-                key="sel_emp_rec_v28",
-            )
-            st.session_state.dados_cliente["filtro_emp_rec_v28"] = str(emp_rec or "Todos")
-            df_pool = (
-                df_disp_total
-                if emp_rec == "Todos"
-                else df_disp_total[df_disp_total["Empreendimento"] == emp_rec]
-            )
+            emp_names_rec = [
+                str(x).strip()
+                for x in sorted(df_disp_total["Empreendimento"].dropna().unique().tolist())
+                if str(x).strip()
+            ]
+            if not emp_names_rec:
+                st.markdown(
+                    '<div class="custom-alert">Sem empreendimentos válidos para recomendação.</div>',
+                    unsafe_allow_html=True,
+                )
+                df_pool = df_disp_total.iloc[0:0].copy()
+                emp_rec = ""
+            else:
+                emp_rec = st.selectbox(
+                    "Escolha o empreendimento para recomendar: (lista)",
+                    options=emp_names_rec,
+                    key="sel_emp_rec_v28",
+                )
+                st.session_state.dados_cliente["filtro_emp_rec_v28"] = str(emp_rec or "")
+                df_pool = df_disp_total[df_disp_total["Empreendimento"] == emp_rec]
             cand_rec = candidatos_df_recomendados(df_pool, top_n=3)
             _permitir_outras_unidades = bool(
                 st.session_state.get("permitir_outras_unidades_key", False)
@@ -8201,8 +8209,6 @@ def aba_simulador_automacao(
                         _emp_u = str(_u.get("Empreendimento") or "").strip()
                         _uid_u = str(_u.get("Identificador") or "").strip()
                         _pref = "Recomendada | " if bool(_u.get("_is_rec")) else "Outra | "
-                        if emp_rec == "Todos":
-                            return f"{_pref}{_emp_u} | Unidade {_uid_u}"
                         return f"{_pref}Unidade {_uid_u}"
 
                     choice_sel = st.selectbox(
@@ -8690,10 +8696,7 @@ def aba_simulador_automacao(
                 f'<p class="inline-ref" style="margin-top:0.5rem;line-height:1.5;">'
                 f"Parcela mensal estimada após desconto: <strong>{reais_streamlit_html(fmt_br(_tot_n))}</strong> "
                 f"({reais_streamlit_html(fmt_br(_p_fin_n))} financ. + "
-                f"{reais_streamlit_html(fmt_br(_p_ps_n))} PS em {_parc_ps_sel}x).</p>"
-                f'<p class="inline-ref" style="margin-top:0.35rem;">'
-                f"Redução equivalente de Pro Soluto (principal): "
-                f"<strong>{reais_streamlit_html(fmt_br(_d_ps))}</strong>.</p>",
+                f"{reais_streamlit_html(fmt_br(_p_ps_n))} PS em {_parc_ps_sel}x).</p>",
                 unsafe_allow_html=True,
             )
             _r1_desc = max(0.0, texto_moeda_para_float(st.session_state.get("ato_1_key")))
@@ -8819,7 +8822,7 @@ def aba_simulador_automacao(
         if u_valor > 0:
             f_u_input = min(f_u_input, v_liquido)
             fgts_u_input = min(fgts_u_input, max(0.0, v_liquido - f_u_input))
-        prazo_finan = int(d.get('prazo_financiamento', 360))
+        prazo_finan = int(d.get('prazo_financiamento', 420))
         tab_fin = d.get('sistema_amortizacao', 'SAC')
         st.session_state.dados_cliente['finan_usado'] = f_u_input
         st.session_state.dados_cliente['fgts_sub_usado'] = fgts_u_input
@@ -8935,23 +8938,6 @@ def aba_simulador_automacao(
             _parc_ps_min_ui = int(
                 max(1, min(int(n_min_j8), parc_max_ui))
             ) if n_min_j8 is not None else int(parc_max_ui if _ps_sem_enquadramento_ui else 1)
-            st.markdown(
-                '<p class="inline-ref" style="margin:0.5rem 0 0.25rem 0;line-height:1.45;">'
-                + f"Pro Soluto: <strong>{reais_streamlit_html(fmt_br(ps_input_val))}</strong> "
-                + f"(teto referência: <strong>{reais_streamlit_html(fmt_br(ps_limite_ui2))}</strong>)</p>",
-                unsafe_allow_html=True,
-            )
-            _ps_limites_txt = (
-                "Limites considerados no cálculo: "
-                f"G14 de <strong>{reais_streamlit_html(fmt_br(g14_ui))}</strong>, "
-                f"J8 de <strong>{reais_streamlit_html(fmt_br(j8_ui))}</strong>, "
-                f"cap por renda de <strong>{reais_streamlit_html(fmt_br(ps_cap_renda_ui))}</strong> "
-                f"e cap da unidade/política de <strong>{reais_streamlit_html(fmt_br(min(ps_cap_unid_ui, ps_max_pol_ui) if ps_cap_unid_ui > 0 and ps_max_pol_ui > 0 else max(ps_cap_unid_ui, ps_max_pol_ui)))}</strong>."
-            )
-            st.markdown(
-                f'<p class="inline-ref" style="margin:0 0 0.35rem 0;line-height:1.45;">{_ps_limites_txt}</p>',
-                unsafe_allow_html=True,
-            )
             _parc_i2 = texto_inteiro(
                 st.session_state.get("parc_ps_key"),
                 default=_parc_ps_min_ui,
@@ -8972,49 +8958,6 @@ def aba_simulador_automacao(
             st.session_state.dados_cliente["ps_mensal"] = v_parc
             st.session_state.dados_cliente["ps_mensal_simples"] = (
                 (float(ps_input_val or 0) / parc) if parc > 0 else 0.0
-            )
-            _ps_parc_fmt = reais_streamlit_html(fmt_br(v_parc))
-            _ps_j8_fmt = reais_streamlit_html(fmt_br(j8_ui))
-            if _ps_sem_enquadramento_ui:
-                _combo_par_ref_ui = [
-                    "Mesmo no prazo máximo de ",
-                    f"<strong>{html_std.escape(str(int(parc_max_ui)))}</strong>",
-                    " parcelas, a parcela deve respeitar o teto de ",
-                    f"<strong>{_ps_j8_fmt}</strong>",
-                    ". Atualmente, está sendo dividido em ",
-                    f"<strong>{html_std.escape(str(int(parc)))}x</strong>",
-                    " de ",
-                    f"<strong>{_ps_parc_fmt}</strong>",
-                    ".",
-                ]
-            else:
-                _combo_par_ref_ui = [
-                    "Deve ter, no mínimo, ",
-                    f"<strong>{html_std.escape(str(int(_parc_ps_min_ui)))}</strong>",
-                    " parcelas e, no máximo, ",
-                    f"<strong>{html_std.escape(str(int(parc_max_ui)))}</strong>",
-                    " parcelas.",
-                ]
-                if j8_ui > 0:
-                    _combo_par_ref_ui.extend(
-                        [
-                            " As parcelas devem ser limitadas em ",
-                            f"<strong>{_ps_j8_fmt}</strong>",
-                            ".",
-                        ]
-                    )
-                _combo_par_ref_ui.extend(
-                    [
-                        " Atualmente, está sendo dividido em ",
-                        f"<strong>{html_std.escape(str(int(parc)))}x</strong>",
-                        " de ",
-                        f"<strong>{_ps_parc_fmt}</strong>",
-                        ".",
-                    ]
-                )
-            st.markdown(
-                f'<p class="inline-ref" style="margin:0;line-height:1.45;">{"".join(_combo_par_ref_ui)}</p>',
-                unsafe_allow_html=True,
             )
             if float(ps_input_val or 0) > 0 and j8_ui > 0 and n_min_j8 is None:
                 _dv_alerta_vermelho(
@@ -9230,8 +9173,13 @@ def aba_simulador_automacao(
                 f"{html_std.escape(str(d.get('unid_bairro')))}"
             )
 
-        prazo_txt = d.get("prazo_financiamento", 360)
+        prazo_txt = d.get("prazo_financiamento", 420)
         _amort_res = nome_sistema_amortizacao_completo(str(d.get("sistema_amortizacao", "SAC")))
+        _valor_real_resumo = max(0.0, float(d.get("imovel_valor_real_cadastro", 0) or 0))
+        _poder_compra_resumo = max(
+            0.0,
+            float(d.get("poder_compra_unidade", 0) or 0),
+        )
         _fin_inner = (
             f"<b>Financiamento utilizado:</b> {reais_streamlit_html(fmt_br(d.get('finan_usado', 0)))}<br>"
             f"<b>Sistema de amortização e prazo:</b> {_amort_res} — {prazo_txt} meses<br>"
@@ -9269,6 +9217,8 @@ def aba_simulador_automacao(
             f"{_linha_resumo_ato_90}"
             f"<hr style=\"border:0;border-top:1px solid #e2e8f0;margin:var(--dv-stack-gap) 0;\">"
             f"<b>Entrada total (atos e Pro Soluto):</b> {reais_streamlit_html(fmt_br(_ent_resumo))}<br>"
+            f"<b>Valor real da unidade:</b> {reais_streamlit_html(fmt_br(_valor_real_resumo))}<br>"
+            f"<b>Poder de compra:</b> {reais_streamlit_html(fmt_br(_poder_compra_resumo))}<br>"
         )
 
         _cartoes = (
@@ -9338,7 +9288,7 @@ def aba_simulador_automacao(
                     "Canal/Imobiliária": st.session_state.get('user_imobiliaria', ''),
                     "Data/Horário": datetime.now(pytz.timezone('America/Sao_Paulo')).strftime("%d/%m/%Y %H:%M:%S"),
                     "Sistema de Amortização": d.get('sistema_amortizacao', 'SAC'),
-                    "Quantidade Parcelas Financiamento": d.get('prazo_financiamento', 360),
+                    "Quantidade Parcelas Financiamento": d.get('prazo_financiamento', 420),
                     "Quantidade Parcelas Pro Soluto": d.get('ps_parcelas', 0),
                     "Volta ao Caixa": st.session_state.get('volta_caixa_key', 0.0) # Adicionado ao salvamento
                 }
