@@ -26,6 +26,9 @@ URL_FINAN = f"https://docs.google.com/spreadsheets/d/{ID_GERAL}/edit#gid=0"
 URL_RANKING = f"https://docs.google.com/spreadsheets/d/{ID_GERAL}/edit#gid=0"
 URL_ESTOQUE = f"https://docs.google.com/spreadsheets/d/{ID_GERAL}/edit#gid=0"
 
+# Aba de resultados de classificação Risk3 (CPF → RANKING), preenchida por scripts/live_sf_casimiro_classify.py
+WS_BD_RANKING_CPF = "BD Ranking CPF"
+
 URL_FAVICON_RESERVA = "https://direcional.com.br/wp-content/uploads/2021/04/cropped-favicon-direcional-32x32.png"
 URL_LOGO_DIRECIONAL_BIG = "https://logodownload.org/wp-content/uploads/2021/04/direcional-engenharia-logo.png"
 
@@ -41,7 +44,7 @@ COR_BORDA = "#eef2f6"
 COR_TEXTO_MUTED = "#64748b"
 COR_INPUT_BG = "#ffffff"
 COR_INPUT_TEXTO = "#000000"
-COR_TEXTO_LABEL = "#000000"
+COR_TEXTO_LABEL = "#1e293b"
 COR_VERMELHO_ESCURO = "#c40510"
 
 
@@ -740,6 +743,169 @@ def menor_prazo_parcelas_ps_respeitando_j8(
     return min(candidatos) if candidatos else None
 
 
+def calcular_fluxo_pro_soluto_completo(
+    *,
+    valor_nao_corrigido: float,
+    quantidade_mensais: int,
+    tipo_fluxo: str,
+    politica_ui: str,
+    premissas: Optional[Mapping[str, float]] = None,
+    meses_entrega: int = 0,
+    valor_intercaladas: float = 0.0,
+    quantidade_intercaladas: int = 0,
+    meses_carencia: int = 0,
+    taxa_carencia_mensal: Optional[float] = None,
+    limite_parcela_renda: Optional[float] = None,
+    limite_pro_soluto_imovel: Optional[float] = None,
+    valor_imovel_liquido: Optional[float] = None,
+    saldo_disponivel: Optional[float] = None,
+) -> Dict[str, Any]:
+    """
+    Réplica calibrada da calculadora Salesforce (``salesforce_tools.pro_soluto_sf``).
+
+    Paridade verificada no domínio testado (harvest de Quotes nativas).
+    Mantém busca binária de limites de renda/imóvel/saldo da UI.
+    """
+    from salesforce_tools.pro_soluto_sf import calcular_fluxo_pro_soluto_completo_sf
+
+    p = dict(DEFAULT_PREMISSAS)
+    if premissas:
+        p.update({k: float(v) for k, v in premissas.items() if v is not None})
+
+    desejado = max(0.0, float(valor_nao_corrigido or 0.0))
+    n = max(1, int(quantidade_mensais or 1))
+    qtd_inter = max(0, int(quantidade_intercaladas or 0))
+    inter_desejado = min(desejado, max(0.0, float(valor_intercaladas or 0.0)))
+    tipo = (
+        "Escalonado"
+        if str(tipo_fluxo or "").strip().casefold().startswith("escal")
+        else "Linear"
+    )
+
+    if taxa_carencia_mensal is None:
+        if _politica_emcash_ui(politica_ui):
+            taxa_carencia = excel_e1(
+                p["tx_emcash_b5"], excel_e4_mensal(p["ipca_aa"])
+            )
+        else:
+            taxa_carencia = float(p["dire_pre_m"])
+    else:
+        taxa_carencia = max(0.0, float(taxa_carencia_mensal))
+    carencia = max(0, int(meses_carencia or 0))
+    taxa_pre_pct = float(p["dire_pre_m"]) * 100.0
+    taxa_pos_pct = float(p["dire_pos_m"]) * 100.0
+    # Emcash: carência usa taxa composta; pré/pós do fluxo mantêm DIRE
+    if taxa_carencia_mensal is not None or _politica_emcash_ui(politica_ui):
+        # taxa de carência explícita já entra via meses + override no motor SF
+        pass
+
+    teto_parcela = (
+        max(0.0, float(limite_parcela_renda))
+        if limite_parcela_renda is not None
+        else None
+    )
+    teto_imovel = (
+        max(0.0, float(limite_pro_soluto_imovel))
+        if limite_pro_soluto_imovel is not None
+        else None
+    )
+    teto_saldo = (
+        max(0.0, float(saldo_disponivel))
+        if saldo_disponivel is not None
+        else None
+    )
+    base_imovel = (
+        max(0.0, float(valor_imovel_liquido))
+        if valor_imovel_liquido is not None
+        else None
+    )
+
+    def _calcular(total_sem_correcao: float) -> Dict[str, Any]:
+        escala = total_sem_correcao / desejado if desejado > 0 else 0.0
+        total_inter = inter_desejado * escala
+        total_mensal = max(0.0, total_sem_correcao - total_inter)
+        # Só força taxa de carência quando Emcash ou o caller passou override;
+        # caso contrário o motor SF escolhe j1/j2 conforme n_pre (obra entregue → j2).
+        taxa_car_override = None
+        if taxa_carencia_mensal is not None or _politica_emcash_ui(politica_ui):
+            taxa_car_override = taxa_carencia
+        out = calcular_fluxo_pro_soluto_completo_sf(
+            valor_total=0.0,
+            valor_nao_corrigido=total_sem_correcao,
+            quantidade_mensais=n,
+            tipo_fluxo=tipo,
+            taxa_pre_pct=taxa_pre_pct,
+            taxa_pos_pct=taxa_pos_pct,
+            meses_carencia=carencia,
+            taxa_carencia_mensal=taxa_car_override,
+            meses_entrega=int(meses_entrega or 0),
+            valor_intercaladas=total_inter,
+            quantidade_intercaladas=qtd_inter,
+            valor_imovel_liquido=base_imovel,
+            pro_soluto_mensal_override=total_mensal,
+        )
+        # Intercaladas corrigidas (mesmo fator de carência do motor SF)
+        fator = float(out.get("fator_carencia") or 1.0)
+        intercaladas_corr = []
+        if total_inter > 0 and qtd_inter > 0:
+            intercaladas_corr = [(total_inter * fator) / qtd_inter] * qtd_inter
+        out["parcelas_intercaladas_corrigidas"] = intercaladas_corr
+        out["pro_soluto_mensal_intercaladas"] = total_sem_correcao
+        out["pro_soluto_mensal_sem_correcao"] = total_mensal
+        out["intercaladas_sem_correcao"] = total_inter
+        out["tipo_fluxo_pro_soluto"] = tipo
+        out["taxa_carencia_mensal"] = float(out.get("taxa_carencia_mensal") or taxa_carencia)
+        # Inclui intercaladas no maior/menor quando existirem
+        candidatos = list(out.get("parcelas_mensais_corrigidas") or [])
+        candidatos.extend(intercaladas_corr)
+        if candidatos:
+            out["maior_valor_pro_soluto"] = max(candidatos)
+            out["menor_valor_pro_soluto"] = min(candidatos)
+            out["valor_total_fluxo_corrigido"] = sum(candidatos)
+        return out
+
+    def _respeita_limites(resultado: Mapping[str, Any]) -> bool:
+        eps = 1e-7
+        if teto_saldo is not None and resultado["pro_soluto_mensal_intercaladas"] > teto_saldo + eps:
+            return False
+        if teto_imovel is not None and resultado["pro_soluto_com_carencia"] > teto_imovel + eps:
+            return False
+        if teto_parcela is not None and resultado["maior_valor_pro_soluto"] > teto_parcela + eps:
+            return False
+        return True
+
+    inicial = _calcular(desejado)
+    if _respeita_limites(inicial):
+        efetivo = desejado
+        resultado = inicial
+    else:
+        baixo, alto = 0.0, desejado
+        resultado = _calcular(0.0)
+        for _ in range(64):
+            meio = (baixo + alto) / 2.0
+            candidato = _calcular(meio)
+            if _respeita_limites(candidato):
+                baixo = meio
+                resultado = candidato
+            else:
+                alto = meio
+        efetivo = baixo
+
+    resultado["valor_solicitado"] = desejado
+    resultado["valor_efetivo"] = efetivo
+    resultado["valor_reduzido_por_limites"] = max(0.0, desejado - efetivo)
+    resultado["limitado"] = efetivo + 0.01 < desejado
+    resultado["limite_parcela_renda"] = teto_parcela
+    resultado["limite_pro_soluto_imovel"] = teto_imovel
+    resultado["limite_saldo_disponivel"] = teto_saldo
+    resultado["percentual_valor_imovel"] = (
+        (resultado["pro_soluto_com_carencia"] / base_imovel) * 100.0
+        if base_imovel and base_imovel > 0
+        else 0.0
+    )
+    return resultado
+
+
 # ========================================================================
 # core/comparador_emcash.py
 # ========================================================================
@@ -755,8 +921,8 @@ def _politica_emcash(politica: Any) -> bool:
 
 # Aviso Emcash (parcelas 30/60): UI, PDF, e-mail, WhatsApp (hífen ASCII)
 _EMCASH_NOTA_PARCELAS = (
-    "As parcelas EMCASH incluem correção monetária (+IPCA) além dos juros"
-    "."
+    "Emcash - parcelas incluem correção monetária (+IPCA) além dos juros; "
+    "não equivalem a parcelas apenas com juros sobre saldo."
 )
 
 
@@ -1131,6 +1297,78 @@ def _sf_classificar_ranking_cpf_11(cpf_11: str) -> tuple[str | None, str | None]
     return None, "sem_registo"
 
 
+def _sf_classificar_criando_ausentes(cpf_11: str) -> tuple[dict[str, Any] | None, str | None]:
+    """
+    Cria, de forma idempotente, a Person Account e a Opportunity necessárias
+    para disparar a classificação do CPF e aguarda o Ranking__c.
+
+    A mutação só é chamada por ação explícita do usuário na interface.
+    """
+    cpf = _sf_normalizar_cpf(cpf_11)
+    if len(cpf) != 11:
+        return None, "Informe um CPF válido com 11 dígitos."
+
+    try:
+        from salesforce_tools.auth import fetch_org_info
+        from salesforce_tools.classify import classify_cpf
+        from salesforce_tools.config import ToolsConfig
+    except Exception as exc:
+        return None, f"Módulo de classificação Salesforce indisponível: {exc}"
+
+    sf = _sf_conectar_salesforce(verbose=False)
+    if sf is None:
+        return None, "Não foi possível conectar ao Salesforce."
+
+    try:
+        org = fetch_org_info(sf)
+        if not org.org_id:
+            return None, "Não foi possível confirmar a organização Salesforce."
+
+        cfg_path = Path(__file__).with_name("salesforce_tools.toml")
+        cfg = ToolsConfig.from_toml(cfg_path if cfg_path.is_file() else None)
+        # A UI já exige clique explícito no botão e confirma a org obtida da sessão.
+        cfg.expected_org_id = org.org_id
+        # A org consultada armazena CPF no formato 000.000.000-00.
+        cfg.account.cpf_store_masked = True
+
+        # Se o StageName configurado não existir nesta org, usar o primeiro
+        # valor ativo disponível para não falhar na criação da Opportunity.
+        try:
+            opp_desc = sf.Opportunity.describe()
+            stage_meta = next(
+                (
+                    field
+                    for field in (opp_desc.get("fields") or [])
+                    if field.get("name") == "StageName"
+                ),
+                None,
+            )
+            active_stages = [
+                str(item.get("value"))
+                for item in ((stage_meta or {}).get("picklistValues") or [])
+                if item.get("active", True) and item.get("value")
+            ]
+            if active_stages and cfg.opportunity.stage_name not in active_stages:
+                cfg.opportunity.stage_name = active_stages[0]
+        except Exception:
+            pass
+
+        result = classify_cpf(
+            sf,
+            org,
+            cfg,
+            cpf,
+            execute=True,
+            confirm_cpf=cpf,
+            confirm_org=org.org_id,
+            poll=True,
+        )
+        return result.to_dict(), None
+    except Exception as exc:
+        _sf_logger.exception("Falha ao classificar/criar CPF no Salesforce")
+        return None, str(exc)
+
+
 def _sf_extrair_ranking_ui_de_opportunity(opp: Any) -> dict[str, Any]:
     """Extrai ranking a partir do registo Opportunity (Account aninhada)."""
     conta = opp.get("Account") or {}
@@ -1363,9 +1601,20 @@ def montar_mensagem_whatsapp_resumo(
         linhas.append(item("Política de Pro Soluto", _pol_ps_label))
     linhas.extend(
         [
-            item("Pro Soluto (valor)", brs("ps_usado", 0)),
+            item(
+                "Pro Soluto (Mensal + Intercaladas), sem correção",
+                f"R$ {fmt_br(d.get('ps_mensal_intercaladas', d.get('ps_usado', 0)))}",
+            ),
+            item(
+                "Tipo de fluxo Pro Soluto escolhido",
+                d.get("tipo_fluxo_pro_soluto", "Linear"),
+            ),
             item("Número de parcelas do Pro Soluto", d.get("ps_parcelas", "-")),
-            item("Mensalidade do Pro Soluto", brs("ps_mensal", 0)),
+            item("Mensalidade corrigida do Pro Soluto", brs("ps_mensal", 0)),
+            item("Maior valor pro soluto", brs("ps_maior_valor", 0)),
+            item("Menor valor pro soluto", brs("ps_menor_valor", 0)),
+            item("Pro soluto com carência (corrigido)", brs("ps_com_carencia", 0)),
+            item("Valor total das parcelas corrigidas", brs("ps_total_corrigido", 0)),
             item("Ato 1 (Entrada Imediata)", brs("ato_final", 0)),
         ]
     )
@@ -3004,7 +3253,6 @@ def configurar_layout():
             --dv-radius-sm: 10px;
             --dv-input-radius: 10px;
             --dv-input-height: 48px;
-            /* Igual ao padding horizontal do .block-container (alertas em largura total) */
             --dv-block-pad-x: clamp(1.1rem, 2.8vw, 2.25rem);
             --dv-radius-md: 14px;
             --dv-radius-lg: 18px;
@@ -3410,7 +3658,6 @@ def configurar_layout():
             margin-right: 0 !important;
             box-sizing: border-box !important;
         }}
-        /* Wrapper interno da coluna (Streamlit): mesma largura útil que os campos fora de st.columns */
         .block-container [data-testid="stHorizontalBlock"] > div[data-testid="column"] > div {{
             width: 100% !important;
             max-width: 100% !important;
@@ -3619,6 +3866,10 @@ def configurar_layout():
             letter-spacing: -0.02em;
             line-height: 1.28;
         }}
+        h5, h6 {{
+            font-weight: 600 !important;
+            color: {COR_TEXTO_MUTED} !important;
+        }}
         .header-title {{
             font-family: 'Montserrat', 'Inter', sans-serif !important;
             font-size: var(--dv-hero-title-font-size) !important;
@@ -3650,16 +3901,10 @@ def configurar_layout():
         /* Textos de apoio no cartão: centralizados (rótulos de widgets mantêm-se à esquerda) */
         .block-container div[data-testid="stMarkdown"] p,
         .block-container div[data-testid="stMarkdownContainer"] p {{
-            color: #000000;
+            color: #334155;
             line-height: 1.58;
             text-align: center !important;
             text-wrap: pretty;
-        }}
-        .block-container div[data-testid="stMarkdownContainer"] p.inline-ref,
-        .block-container div[data-testid="stMarkdownContainer"] .inline-ref {{
-            color: #000000 !important;
-            -webkit-text-fill-color: #000000 !important;
-            opacity: 1 !important;
         }}
         h1, h2, h3, .home-banners-section-title, .dv-titulo-secao {{
             text-wrap: balance;
@@ -3710,7 +3955,7 @@ def configurar_layout():
         }}
 
         /* Títulos em markdown: margens (tamanho = regra global h1–h6 / .dv-titulo-secao) */
-        .stMarkdown h1 {{ text-align: center !important; margin: 0 !important; font-weight: 800 !important; color: {COR_AZUL_ESC} !important; }}
+        .stMarkdown h1 {{ text-align: center !important; margin: 0 !important; font-weight: 800 !important; }}
         .stMarkdown h1.header-title {{
             margin-top: 0 !important;
             margin-bottom: 0 !important;
@@ -3720,27 +3965,34 @@ def configurar_layout():
             letter-spacing: -0.03em !important;
         }}
         .stMarkdown h2 {{ text-align: center !important; margin: 0 !important; color: {COR_AZUL_ESC} !important; }}
-        .stMarkdown h3 {{ text-align: center !important; margin: 0 !important; color: {COR_AZUL_ESC} !important; }}
-        .stMarkdown h4 {{ text-align: center !important; margin: 0 !important; color: {COR_AZUL_ESC} !important; }}
-        .stMarkdown h5, .stMarkdown h6,
-        [data-testid="stMarkdownContainer"] h5,
-        [data-testid="stMarkdownContainer"] h6 {{
-            display: none !important;
+        .stMarkdown h3 {{ text-align: center !important; margin: 0 !important; }}
+        .stMarkdown h4 {{ text-align: center !important; margin: 0 !important; }}
+        .stMarkdown h5, .stMarkdown h6 {{
+            text-align: center !important;
+            margin: 0 !important;
+            font-weight: 600 !important;
+            color: {COR_TEXTO_MUTED} !important;
         }}
         .dv-titulo-secao {{
             margin: 0 !important;
-            color: {COR_AZUL_ESC} !important;
         }}
-        /* Sem subtítulos Streamlit (st.caption) em toda a app */
-        [data-testid="stCaption"] {{
-            display: none !important;
-            height: 0 !important;
-            max-height: 0 !important;
-            overflow: hidden !important;
-            margin: 0 !important;
-            padding: 0 !important;
-            visibility: hidden !important;
-            pointer-events: none !important;
+        .block-container [data-testid="stCaption"] {{
+            font-family: 'Inter', sans-serif !important;
+            color: #475569 !important;
+            font-size: var(--dv-body-font-size) !important;
+            line-height: 1.5 !important;
+            text-align: center !important;
+            justify-content: center !important;
+            align-items: center !important;
+            width: 100% !important;
+            display: flex !important;
+            flex-direction: column !important;
+        }}
+        .block-container [data-testid="stCaption"] > *,
+        .block-container [data-testid="stCaption"] [data-testid="stMarkdownContainer"],
+        .block-container [data-testid="stCaption"] [data-testid="stMarkdownContainer"] p {{
+            text-align: center !important;
+            width: 100% !important;
         }}
 
         /* Largura total da coluna para todos os widgets editáveis */
@@ -3889,7 +4141,6 @@ def configurar_layout():
                 flex: 1 1 auto !important;
                 min-width: 0 !important;
             }}
-            /* Não usar só :has(svg) — tags do multiselect têm ícones na primeira coluna. */
             [data-testid="stSelectbox"] div[data-baseweb="select"] > div > div:not(:first-of-type):has(svg),
             [data-testid="stMultiSelect"] div[data-baseweb="select"] > div > div:not(:first-of-type):has(svg) {{
                 display: flex !important;
@@ -3913,7 +4164,6 @@ def configurar_layout():
                 display: block !important;
                 margin: 0 !important;
             }}
-            /* Setinha sem wrapper (svg filho direto da linha do controlo): coluna fixa à direita */
             [data-testid="stSelectbox"] div[data-baseweb="select"] > div > svg:last-of-type,
             [data-testid="stMultiSelect"] div[data-baseweb="select"] > div > svg:last-of-type {{
                 flex: 0 0 2.375rem !important;
@@ -4026,7 +4276,6 @@ def configurar_layout():
                 -webkit-line-clamp: unset !important;
                 margin: 0 !important;
             }}
-            /* Não usar só :has(svg) — tags do multiselect têm ícones na primeira coluna. */
             [data-testid="stSelectbox"] div[data-baseweb="select"] > div > div:not(:first-of-type):has(svg),
             [data-testid="stMultiSelect"] div[data-baseweb="select"] > div > div:not(:first-of-type):has(svg) {{
                 display: flex !important;
@@ -5058,7 +5307,6 @@ def configurar_layout():
             letter-spacing: -0.02em !important;
             line-height: 1.25 !important;
         }}
-        /* Centrar o bloco de login no viewport; mesma lateralidade que o resto (padding do .block-container) */
         .block-container:has(.dv-login-page) > div > [data-testid="stVerticalBlock"],
         .block-container:has(.dv-login-page) > [data-testid="stVerticalBlock"] {{
             min-height: calc(100dvh - clamp(4.5rem, 12vh, 8rem)) !important;
@@ -5136,14 +5384,14 @@ def configurar_layout():
             box-shadow: var(--dv-shadow-xs);
         }}
         .dv-prosa-secao {{
-            color: #000000 !important;
+            color: #111111 !important;
             margin: 0 0 var(--dv-stack-gap) 0 !important;
             text-align: center !important;
         }}
         .finan-subsidios-note {{
-            color: #000000;
+            color: #111111;
             margin: 0 0 var(--dv-stack-gap) 0 !important;
-            opacity: 1;
+            opacity: 0.72;
             text-align: center !important;
         }}
         /* Tabela financiamentos/subsídios: quebra linhas na largura disponível (sem esprem texto nem scroll horizontal). */
@@ -5331,7 +5579,7 @@ def configurar_layout():
         }}
         .inline-ref {{
             font-size: var(--dv-body-font-size) !important;
-            color: #000000 !important;
+            color: #111111;
             margin-top: 0 !important;
             margin-bottom: 0 !important;
             padding-top: 0.05rem;
@@ -5341,14 +5589,13 @@ def configurar_layout():
             display: block;
             width: 100%;
             text-align: center !important;
-            opacity: 1;
+            opacity: 0.72;
             position: relative;
             z-index: 0;
         }}
         .dv-campo-resumo-movel {{
             text-align: center !important;
         }}
-        /* Volta ao Caixa: duas referências empilhadas (sem barra no meio) em qualquer largura */
         .inline-ref-vcx-linhas {{
             display: flex !important;
             flex-direction: column !important;
@@ -5368,6 +5615,15 @@ def configurar_layout():
         @media (max-width: 768px) {{
             .block-container div[data-testid="stMarkdown"] p,
             .block-container div[data-testid="stMarkdownContainer"] p {{
+                text-align: justify !important;
+                text-align-last: center !important;
+                hyphens: auto;
+                -webkit-hyphens: auto;
+            }}
+            .block-container [data-testid="stCaption"],
+            .block-container [data-testid="stCaption"] > *,
+            .block-container [data-testid="stCaption"] [data-testid="stMarkdownContainer"],
+            .block-container [data-testid="stCaption"] [data-testid="stMarkdownContainer"] p {{
                 text-align: justify !important;
                 text-align-last: center !important;
                 hyphens: auto;
@@ -5401,8 +5657,8 @@ def configurar_layout():
         }}
 
         .metric-label {{
-            color: #000000 !important;
-            opacity: 1;
+            color: {COR_AZUL_ESC} !important;
+            opacity: 0.7;
             font-size: var(--dv-body-font-size) !important;
             font-weight: 700;
             text-transform: uppercase;
@@ -5410,7 +5666,7 @@ def configurar_layout():
             margin-bottom: 8px;
         }}
         .metric-value {{
-            color: #000000 !important;
+            color: {COR_AZUL_ESC} !important;
             font-size: var(--dv-body-font-size) !important;
             font-weight: 800;
             font-family: 'Montserrat', 'Inter', sans-serif;
@@ -5633,9 +5889,20 @@ def gerar_resumo_pdf(d, volta_caixa_val: float = 0.0):
             )
         else:
             linha("Política de Pro Soluto", _pdf_text_seguro(_pol_pdf_label))
-        linha("Pro Soluto (valor)", f"R$ {fmt_br(d.get('ps_usado', 0))}")
+        linha(
+            "Pro Soluto (Mensal + Intercaladas), sem correção",
+            f"R$ {fmt_br(d.get('ps_mensal_intercaladas', d.get('ps_usado', 0)))}",
+        )
+        linha(
+            "Tipo de fluxo Pro Soluto escolhido",
+            _pdf_text_seguro(d.get("tipo_fluxo_pro_soluto", "Linear")),
+        )
         linha("Número de parcelas do Pro Soluto", _pdf_text_seguro(d.get("ps_parcelas")))
-        linha("Mensalidade do Pro Soluto", f"R$ {fmt_br(d.get('ps_mensal', 0))}")
+        linha("Mensalidade corrigida do Pro Soluto", f"R$ {fmt_br(d.get('ps_mensal', 0))}")
+        linha("Maior valor pro soluto", f"R$ {fmt_br(d.get('ps_maior_valor', 0))}")
+        linha("Menor valor pro soluto", f"R$ {fmt_br(d.get('ps_menor_valor', 0))}")
+        linha("Pro soluto com carência (corrigido)", f"R$ {fmt_br(d.get('ps_com_carencia', 0))}")
+        linha("Valor total das parcelas corrigidas", f"R$ {fmt_br(d.get('ps_total_corrigido', 0))}")
         linha("Ato 1 (Entrada Imediata)", f"R$ {fmt_br(d.get('ato_final', 0))}")
         if _politica_emcash(d.get("politica")):
             linha("Ato 30", f"R$ {fmt_br(d.get('ato_30', 0))}")
@@ -5997,6 +6264,7 @@ def show_export_dialog(d):
         unsafe_allow_html=True,
     )
     st.markdown(f"<h3 style='text-align: center; color: {COR_AZUL_ESC}; margin: 0;'>Resumo da Simulação</h3>", unsafe_allow_html=True)
+    st.caption("Baixe o PDF, envie o relatório por e-mail ao cliente ou abra o WhatsApp.")
 
     d["corretor_nome"] = st.session_state.get("user_name", "")
     d["corretor_email"] = st.session_state.get("user_email", "")
@@ -6189,9 +6457,57 @@ def aba_simulador_automacao(
             elif _sf_code in ("sem_registo", "sem_conexao", "erro_sf"):
                 st.markdown(
                     '<p class="inline-ref" style="margin-top:0;margin-bottom:0;line-height:1.45;">'
-                    "CPF não encontrado. Um novo contato deve ser criado no salesforce</p>",
+                    "CPF não encontrado. É possível criar a conta e a oportunidade para solicitar "
+                    "a classificação no Salesforce.</p>",
                     unsafe_allow_html=True,
                 )
+                if st.button(
+                    "Criar conta/oportunidade e classificar CPF",
+                    key=f"sf_criar_classificar_{cpf_digits}",
+                    use_container_width=True,
+                    help=(
+                        "Cria somente os registros ausentes, de forma idempotente, e aguarda "
+                        "a automação de Ranking do Salesforce."
+                    ),
+                ):
+                    with st.spinner(
+                        "Criando registros ausentes e aguardando a classificação..."
+                    ):
+                        _novo_resultado, _novo_erro = _sf_classificar_criando_ausentes(
+                            cpf_digits
+                        )
+                    if _novo_erro:
+                        _dv_alerta_vermelho_texto(_novo_erro)
+                    elif _novo_resultado:
+                        _novo_codigo = str(_novo_resultado.get("code") or "")
+                        _novo_ranking = _sf_mapear_ranking_para_ui(
+                            _novo_resultado.get("ranking")
+                        )
+                        if _novo_ranking in rank_opts:
+                            st.session_state["in_rank_v28"] = _novo_ranking
+                            st.session_state["_sf_rank_applied_cpf"] = cpf_digits
+                            try:
+                                _lookup_ranking_salesforce_cached.clear()
+                            except Exception:
+                                pass
+                            st.success(
+                                f"Classificação concluída: {_novo_ranking}. "
+                                f"Conta {_novo_resultado.get('account_id') or '-'}; "
+                                f"oportunidade {_novo_resultado.get('opportunity_id') or '-'}."
+                            )
+                            st.rerun()
+                        elif _novo_codigo == "sem_ranking":
+                            st.warning(
+                                "Conta e oportunidade estão prontas, mas o Ranking ainda está "
+                                "sendo processado pelo Salesforce. Tente consultar novamente em instantes."
+                            )
+                        else:
+                            _dv_alerta_vermelho_texto(
+                                str(
+                                    _novo_resultado.get("message")
+                                    or "Não foi possível concluir a classificação."
+                                )
+                            )
         _rank_now = st.session_state.get("in_rank_v28", st.session_state.dados_cliente.get("ranking", "DIAMANTE"))
         curr_ranking = _rank_now
         idx_ranking = rank_opts.index(curr_ranking) if curr_ranking in rank_opts else 0
@@ -6232,7 +6548,7 @@ def aba_simulador_automacao(
         # --- ETAPA 2: VALORES APROVADOS (FECHAMENTO FINANCEIRO) ---
         d = st.session_state.dados_cliente
         st.markdown(
-            '<h3 class="dv-titulo-secao">Valores Aprovados</h3>',
+            '<h3 class="dv-titulo-secao">Valores Aprovados (Fechamento Financeiro)</h3>',
             unsafe_allow_html=True,
         )
 
@@ -6337,7 +6653,7 @@ def aba_simulador_automacao(
         st.markdown(
             f'<p class="finan-subsidios-note">Subsídios da curva inferiores a '
             f"<strong>{reais_streamlit_html(fmt_br(SUBSIDIO_MINIMO_CURVA))}</strong> são desconsiderados (tratados como "
-            f"<strong>{reais_streamlit_html('0,00')}</strong>). "
+            f"<strong>{reais_streamlit_html('0,00')}</strong>), alinhado à regra da planilha comercial. "
             f"A tabela acima é só referência; financiamento e subsídio aprovados podem ser outros valores.</p>",
             unsafe_allow_html=True,
         )
@@ -6433,7 +6749,7 @@ def aba_simulador_automacao(
             if abs(_s_raw - _s_ok) > 0.009:
                 st.session_state["sub_aprovado_key"] = float_para_campo_texto(_s_ok, vazio_se_zero=True)
         st.text_input(
-            "FGTS e subsídio aprovados (R$)",
+            "Subsídio e FGTS aprovados (R$)",
             key="sub_aprovado_key",
             placeholder="Exemplo: 50000 ou 50.000,00",
         )
@@ -6611,10 +6927,10 @@ def aba_simulador_automacao(
                                     <div style="font-weight:bold; color:#111111;">{reais_streamlit_html(aval_fmt)}</div>
                                     <div style="color:#111111; margin-top:5px;">Valor de venda</div>
                                     <div class="price-tag" style="margin-top:0;">{reais_streamlit_html(val_fmt)}</div>
-                                    <div style="color:#111111; margin-top:8px;">Retorno estimado</div>
+                                    <div style="color:#111111; margin-top:8px;">Lucro recomendado</div>
                                     <div style="font-weight:800; color:#111111;">{reais_streamlit_html(lucro_fmt)}</div>
                                     <div style="color:#111111; opacity:0.75; margin-top:5px;">
-                                      VCX a ser usado: {reais_streamlit_html(vcx_usado_fmt)} | VCX preservado: {reais_streamlit_html(vcx_pres_fmt)}
+                                      VCX usado: {reais_streamlit_html(vcx_usado_fmt)} | VCX preservado: {reais_streamlit_html(vcx_pres_fmt)}
                                     </div>
                                 </div>
                             </div>
@@ -6728,7 +7044,7 @@ def aba_simulador_automacao(
                     return corpo
 
                 uni_escolhida_id = st.selectbox(
-                    "Escolha a Unidade: (lista)",
+                    "Escolha a Unidade (recomendadas primeiro; depois por preço crescente): (lista)",
                     options=current_uni_ids,
                     index=min(idx_uni, len(current_uni_ids) - 1) if current_uni_ids else 0,
                     format_func=label_uni,
@@ -6773,7 +7089,7 @@ def aba_simulador_automacao(
                 '<p class="dv-sinal-com-prosa">'
                 "O campo Sinal com tem a finalidade de abater da avaliação bancária "
                 "unidades pouco acima do limite da faixa anterior, a fim de que o cliente possa pegar maior financiamento. "
-                "Os valores de financiamento e subsídio automáticos seguirão o valor da unidade após abatimento "
+                "Os valores de financiamento automáticos seguirão o valor da unidade após abatimento "
                 "(caso seja feito), não só o valor da unidade cheio. "
                 "Faixa 2: imóveis até <strong>275 mil</strong>; Faixa 3: imóveis até <strong>400 mil</strong>. "
                 "Caso o valor seja pouco acima disso, use o campo para abater.</p>",
@@ -6833,7 +7149,7 @@ def aba_simulador_automacao(
         # --- ETAPA 5: DISTRIBUIÇÃO DA ENTRADA (FECHAMENTO) ---
         d = st.session_state.dados_cliente
         st.markdown(
-            '<h3 class="dv-titulo-secao">Distribuição da Entrada</h3>',
+            '<h3 class="dv-titulo-secao">Distribuição da Entrada (Fechamento)</h3>',
             unsafe_allow_html=True,
         )
         if float(d.get('imovel_valor', 0) or 0) <= 0 or not d.get('unidade_id'):
@@ -6959,7 +7275,6 @@ def aba_simulador_automacao(
 
         _parc_sync = int(st.session_state["parc_ps_key"] or "1")
         _parc_sync = max(1, min(_parc_sync, parc_max_ui))
-
         ps_limite_ui = float(mps.get("ps_max_efetivo", 0) or 0)
 
         if 'ps_u_key' not in st.session_state:
@@ -7143,7 +7458,7 @@ def aba_simulador_automacao(
         st.write("")
         if is_emcash:
             st.text_input(
-                "Ato 30 (R$)",
+                "Ato 30 - prestação entrada (juros + correção +IPCA) (R$)",
                 key="ato_2_key",
                 placeholder="0,00",
             )
@@ -7153,7 +7468,7 @@ def aba_simulador_automacao(
                 0.0, texto_moeda_para_float(st.session_state.get("ato_2_key"))
             )
             st.text_input(
-                "Ato 60 (R$)",
+                "Ato 60 - prestação entrada (juros + correção +IPCA) (R$)",
                 key="ato_3_key",
                 placeholder="0,00",
             )
@@ -7206,6 +7521,70 @@ def aba_simulador_automacao(
         if "_dv_ps_u_key_deferred" in st.session_state:
             st.session_state["ps_u_key"] = st.session_state.pop("_dv_ps_u_key_deferred")
 
+        _tipo_fluxo_salvo = str(d.get("tipo_fluxo_pro_soluto") or "Linear")
+        _tipo_fluxo_idx = 1 if _tipo_fluxo_salvo.casefold().startswith("escal") else 0
+        tipo_fluxo_ps = st.selectbox(
+            "Tipo de fluxo Pro Soluto escolhido",
+            options=["Linear", "Escalonado"],
+            index=_tipo_fluxo_idx,
+            key="tipo_fluxo_ps_key",
+            help=(
+                "Linear mantém a prestação mensal corrigida constante. Escalonado aplica "
+                "as correções pré e pós-chaves progressivamente em cada vencimento."
+            ),
+        )
+        st.session_state.dados_cliente["tipo_fluxo_pro_soluto"] = tipo_fluxo_ps
+
+        if "ps_intercaladas_key" not in st.session_state:
+            st.session_state["ps_intercaladas_key"] = float_para_campo_texto(
+                d.get("ps_intercaladas", 0.0), vazio_se_zero=True
+            )
+        st.text_input(
+            "Total das parcelas intercaladas do Pro Soluto (R$)",
+            key="ps_intercaladas_key",
+            placeholder="0,00",
+        )
+        valor_intercaladas_ps = max(
+            0.0, texto_moeda_para_float(st.session_state.get("ps_intercaladas_key"))
+        )
+
+        if "ps_qtd_intercaladas_key" not in st.session_state:
+            st.session_state["ps_qtd_intercaladas_key"] = str(
+                int(d.get("ps_qtd_intercaladas", 0) or 0)
+            )
+        st.text_input(
+            "Quantidade de parcelas intercaladas (inteiro)",
+            key="ps_qtd_intercaladas_key",
+            placeholder="0",
+        )
+        qtd_intercaladas_ps = texto_inteiro(
+            st.session_state.get("ps_qtd_intercaladas_key"),
+            default=0,
+            min_v=0,
+            max_v=24,
+        ) or 0
+        if qtd_intercaladas_ps == 0:
+            valor_intercaladas_ps = 0.0
+
+        if "ps_carencia_meses_key" not in st.session_state:
+            st.session_state["ps_carencia_meses_key"] = str(
+                int(d.get("ps_carencia_meses", 4) or 0)
+            )
+        st.text_input(
+            "Carência do Pro Soluto (meses)",
+            key="ps_carencia_meses_key",
+            placeholder="0",
+        )
+        meses_carencia_ps = texto_inteiro(
+            st.session_state.get("ps_carencia_meses_key"),
+            default=0,
+            min_v=0,
+            max_v=120,
+        ) or 0
+        st.session_state.dados_cliente["ps_intercaladas"] = valor_intercaladas_ps
+        st.session_state.dados_cliente["ps_qtd_intercaladas"] = qtd_intercaladas_ps
+        st.session_state.dados_cliente["ps_carencia_meses"] = meses_carencia_ps
+
         st.text_input("Valor do Pro Soluto (R$)", key="ps_u_key", placeholder="0,00")
         ps_input_val = clamp_moeda_positiva(
             texto_moeda_para_float(st.session_state.get("ps_u_key")), _teto_ps_final
@@ -7218,9 +7597,21 @@ def aba_simulador_automacao(
             unsafe_allow_html=True,
         )
         n_min_j8 = None
-        if float(ps_input_val or 0) > 0 and j8_ui > 0:
+        _taxa_carencia_prazo = (
+            excel_e1(_prem["tx_emcash_b5"], excel_e4_mensal(_prem["ipca_aa"]))
+            if is_emcash
+            else float(_prem["dire_pre_m"])
+        )
+        _principal_mensal_prazo = max(
+            0.0, float(ps_input_val or 0) - float(valor_intercaladas_ps or 0)
+        ) * ((1.0 + _taxa_carencia_prazo) ** int(meses_carencia_ps))
+        if (
+            _principal_mensal_prazo > 0
+            and j8_ui > 0
+            and tipo_fluxo_ps == "Linear"
+        ):
             n_min_j8 = menor_prazo_parcelas_ps_respeitando_j8(
-                float(ps_input_val or 0),
+                _principal_mensal_prazo,
                 j8_ui,
                 pol_ui,
                 _prem,
@@ -7251,14 +7642,47 @@ def aba_simulador_automacao(
         _parc_i = texto_inteiro(st.session_state.get("parc_ps_key"), default=1, min_v=1, max_v=parc_max_ui)
         parc = _parc_i if _parc_i is not None else 1
         st.session_state.dados_cliente["ps_parcelas"] = parc
-        v_parc = parcela_ps_para_valor(
-            float(ps_input_val or 0),
-            parc,
-            pol_ui,
-            _prem,
-            parcela_max_j8=j8_ui if j8_ui > 0 else None,
+        fluxo_ps = calcular_fluxo_pro_soluto_completo(
+            valor_nao_corrigido=float(ps_input_val or 0),
+            quantidade_mensais=parc,
+            tipo_fluxo=tipo_fluxo_ps,
+            politica_ui=pol_ui,
+            premissas=_prem,
             meses_entrega=meses_entrega_unid,
+            valor_intercaladas=valor_intercaladas_ps,
+            quantidade_intercaladas=qtd_intercaladas_ps,
+            meses_carencia=meses_carencia_ps,
+            limite_parcela_renda=j8_ui if j8_ui > 0 else None,
+            limite_pro_soluto_imovel=ps_limite_ui2 if ps_limite_ui2 > 0 else None,
+            valor_imovel_liquido=v_liquido,
+            saldo_disponivel=max(0.0, v_liquido - f_u_input - fgts_u_input),
         )
+        ps_input_val = float(fluxo_ps["valor_efetivo"])
+        v_parc = float(fluxo_ps["valor_parcela_mensal_corrigida"])
+        st.session_state.dados_cliente.update(
+            {
+                "ps_usado": ps_input_val,
+                "ps_mensal_intercaladas": fluxo_ps[
+                    "pro_soluto_mensal_intercaladas"
+                ],
+                "ps_com_carencia": fluxo_ps["pro_soluto_com_carencia"],
+                "ps_maior_valor": fluxo_ps["maior_valor_pro_soluto"],
+                "ps_menor_valor": fluxo_ps["menor_valor_pro_soluto"],
+                "ps_total_corrigido": fluxo_ps["valor_total_fluxo_corrigido"],
+                "ps_percentual_imovel": fluxo_ps["percentual_valor_imovel"],
+                "ps_taxa_carencia_mensal": fluxo_ps["taxa_carencia_mensal"],
+            }
+        )
+        if fluxo_ps["limitado"]:
+            _ps_limitado_fmt = float_para_campo_texto(ps_input_val, vazio_se_zero=True)
+            if str(st.session_state.get("ps_u_key") or "") != str(_ps_limitado_fmt):
+                st.session_state["_dv_ps_u_key_deferred"] = _ps_limitado_fmt
+            _dv_alerta_vermelho(
+                "O Pro Soluto foi reduzido para "
+                f"<strong>{reais_streamlit_html(fmt_br(ps_input_val))}</strong>, pois o "
+                "valor corrigido ultrapassaria o comprometimento de renda, a representação "
+                "máxima do imóvel ou o saldo disponível."
+            )
         st.session_state.dados_cliente['ps_mensal'] = v_parc
         st.session_state.dados_cliente['ps_mensal_simples'] = (float(ps_input_val or 0) / parc) if parc > 0 else 0.0
         _ps_parc_fmt = reais_streamlit_html(fmt_br(v_parc))
@@ -7299,48 +7723,39 @@ def aba_simulador_automacao(
                     "Com este valor de Pro Soluto e o prazo máximo permitido, a prestação pode "
                     "ultrapassar o teto J8. Reduza o PS ou ajuste o perfil."
                 )
-        ps_capacidade = max(0.0, float(v_parc) * float(parc))
-        ps_efetivo = min(float(ps_input_val or 0.0), ps_capacidade)
-        aj8 = (
-            float(ps_input_val or 0) > 0
-            and j8_ui > 0
-            and n_min_j8 is not None
-            and int(parc) < int(n_min_j8)
+        if is_emcash:
+            st.caption(_EMCASH_NOTA_PARCELAS)
+        ps_efetivo = float(fluxo_ps["valor_efetivo"])
+        st.markdown(
+            '<div class="dv-campo-resumo-movel" '
+            'style="margin-top:0.6rem;line-height:1.55;color:#111;">'
+            f"<b>Pro Soluto (Mensal + Intercaladas), sem correção:</b> "
+            f"{reais_streamlit_html(fmt_br(fluxo_ps['pro_soluto_mensal_intercaladas']))}<br>"
+            f"<b>Tipo de fluxo Pro Soluto escolhido:</b> "
+            f"{html_std.escape(str(fluxo_ps['tipo_fluxo_pro_soluto']))}<br>"
+            f"<b>Maior valor pro soluto:</b> "
+            f"{reais_streamlit_html(fmt_br(fluxo_ps['maior_valor_pro_soluto']))}<br>"
+            f"<b>Menor valor pro soluto:</b> "
+            f"{reais_streamlit_html(fmt_br(fluxo_ps['menor_valor_pro_soluto']))}<br>"
+            f"<b>Pro soluto com carência (corrigido):</b> "
+            f"{reais_streamlit_html(fmt_br(fluxo_ps['pro_soluto_com_carencia']))}<br>"
+            f"<b>Valor total das parcelas corrigidas:</b> "
+            f"{reais_streamlit_html(fmt_br(fluxo_ps['valor_total_fluxo_corrigido']))}<br>"
+            f"<b>Representação no valor do imóvel:</b> "
+            f"{float(fluxo_ps['percentual_valor_imovel']):.2f}%"
+            "</div>",
+            unsafe_allow_html=True,
         )
-        acap = ps_efetivo + 0.01 < float(ps_input_val or 0.0)
-        if aj8 or acap:
-            if aj8 and acap:
-                _dv_alerta_vermelho(
-                    f"Com {html_std.escape(str(parc))} parcelas, a mensalidade do Pro Soluto "
-                    f"(<strong>{reais_streamlit_html(fmt_br(v_parc))}</strong>/mês) ultrapassa o teto J8 "
-                    f"(<strong>{reais_streamlit_html(fmt_br(j8_ui))}</strong>/mês). "
-                    f"São necessárias pelo menos {html_std.escape(str(int(n_min_j8)))} parcelas "
-                    "para este valor (ou reduza o Pro Soluto). "
-                    f"Com essas parcelas, a arrecadação máxima é "
-                    f"<strong>{reais_streamlit_html(fmt_br(ps_capacidade))}</strong> "
-                    f"(valor informado: <strong>{reais_streamlit_html(fmt_br(ps_input_val))}</strong>)."
-                )
-            elif aj8:
-                _dv_alerta_vermelho(
-                    f"Com {html_std.escape(str(parc))} parcelas, a mensalidade do Pro Soluto "
-                    f"(<strong>{reais_streamlit_html(fmt_br(v_parc))}</strong>/mês) ultrapassa o teto J8 "
-                    f"(<strong>{reais_streamlit_html(fmt_br(j8_ui))}</strong>/mês). "
-                    f"Use pelo menos {html_std.escape(str(int(n_min_j8)))} parcelas "
-                    "(ou reduza o valor do Pro Soluto)."
-                )
-            else:
-                _dv_alerta_vermelho(
-                    f"O valor de Pro Soluto informado é <strong>{reais_streamlit_html(fmt_br(ps_input_val))}</strong>, "
-                    f"mas com {html_std.escape(str(parc))} parcelas e mensalidade <strong>{reais_streamlit_html(fmt_br(v_parc))}</strong> "
-                    f"a arrecadação máxima é <strong>{reais_streamlit_html(fmt_br(ps_capacidade))}</strong>."
-                )
         st.session_state.dados_cliente["ps_usado"] = ps_efetivo
 
         if u_valor > 0:
             st.markdown("---")
             st.markdown(
-                '<h3 class="dv-titulo-secao">Condições comerciais: Volta ao Caixa</h3>',
+                '<h3 class="dv-titulo-secao">Condição comercial: Volta ao Caixa</h3>',
                 unsafe_allow_html=True,
+            )
+            st.caption(
+                "Valor de desconto negociado dentro da **folga Volta ao Caixa** cadastrada na unidade (teto automático)."
             )
             if "_dv_volta_caixa_key_deferred" in st.session_state:
                 st.session_state["volta_caixa_key"] = st.session_state.pop("_dv_volta_caixa_key_deferred")
@@ -7382,8 +7797,11 @@ def aba_simulador_automacao(
 
             st.markdown("---")
             st.markdown(
-                '<h3 class="dv-titulo-secao">Condições comerciais: demais descontos</h3>',
+                '<h3 class="dv-titulo-secao">Condição comercial: demais descontos</h3>',
                 unsafe_allow_html=True,
+            )
+            st.caption(
+                "Outros abatimentos sobre o preço de lista **sem teto** no simulador; limitados ao saldo após o Volta ao Caixa."
             )
             if "_dv_outros_descontos_key_deferred" in st.session_state:
                 st.session_state["outros_descontos_key"] = st.session_state.pop(
@@ -7427,7 +7845,6 @@ def aba_simulador_automacao(
 
         # Desconto comercial no final: se o fechamento já cobria o líquido anterior, baixar o PS pelo delta do desconto.
         if u_valor > 0:
-            # Chave em string (tuplas em session_state podem falhar na igualdade entre reruns).
             _uid_fe = f"{str(d.get('unidade_id') or '').strip()}|{round(float(u_valor or 0), 2)}"
             if str(st.session_state.get("_dv_vliq_trace_uid") or "") != _uid_fe:
                 st.session_state.pop("_dv_v_liquido_fechamento_prev", None)
@@ -7487,7 +7904,6 @@ def aba_simulador_automacao(
                 st.session_state["_dv_ps_u_key_deferred"] = _ps_show
                 st.rerun()
         else:
-            # Ex.: PS baixado pelo desconto comercial e excedente já zerado — o input ainda mostrava o PS antigo.
             _ps_show_else = float_para_campo_texto(ps_efetivo, vazio_se_zero=True)
             if str(st.session_state.get("ps_u_key") or "") != str(_ps_show_else):
                 st.session_state["_dv_ps_u_key_deferred"] = _ps_show_else
@@ -7499,7 +7915,46 @@ def aba_simulador_automacao(
         st.session_state.dados_cliente['ato_90'] = r4_val
         total_entrada_cash = r1_val + r2_val + r3_val + r4_val
         st.session_state.dados_cliente['entrada_total'] = total_entrada_cash
+        fluxo_ps_final = calcular_fluxo_pro_soluto_completo(
+            valor_nao_corrigido=ps_efetivo,
+            quantidade_mensais=parc,
+            tipo_fluxo=tipo_fluxo_ps,
+            politica_ui=pol_ui,
+            premissas=_prem,
+            meses_entrega=meses_entrega_unid,
+            valor_intercaladas=min(valor_intercaladas_ps, ps_efetivo),
+            quantidade_intercaladas=qtd_intercaladas_ps,
+            meses_carencia=meses_carencia_ps,
+            limite_parcela_renda=j8_ui if j8_ui > 0 else None,
+            limite_pro_soluto_imovel=ps_limite_ui2 if ps_limite_ui2 > 0 else None,
+            valor_imovel_liquido=v_liquido,
+            saldo_disponivel=max(
+                0.0,
+                v_liquido
+                - f_u_input
+                - fgts_u_input
+                - total_entrada_cash,
+            ),
+        )
+        ps_efetivo = float(fluxo_ps_final["valor_efetivo"])
+        _ps_final_texto = float_para_campo_texto(ps_efetivo, vazio_se_zero=True)
+        if str(st.session_state.get("ps_u_key") or "") != str(_ps_final_texto):
+            st.session_state["_dv_ps_u_key_deferred"] = _ps_final_texto
+            st.rerun()
         st.session_state.dados_cliente['ps_usado'] = ps_efetivo
+        st.session_state.dados_cliente.update(
+            {
+                "ps_mensal": fluxo_ps_final["valor_parcela_mensal_corrigida"],
+                "ps_mensal_intercaladas": fluxo_ps_final[
+                    "pro_soluto_mensal_intercaladas"
+                ],
+                "ps_com_carencia": fluxo_ps_final["pro_soluto_com_carencia"],
+                "ps_maior_valor": fluxo_ps_final["maior_valor_pro_soluto"],
+                "ps_menor_valor": fluxo_ps_final["menor_valor_pro_soluto"],
+                "ps_total_corrigido": fluxo_ps_final["valor_total_fluxo_corrigido"],
+                "ps_percentual_imovel": fluxo_ps_final["percentual_valor_imovel"],
+            }
+        )
 
         gap_final = v_liquido - f_u_input - fgts_u_input - ps_efetivo - total_entrada_cash
         if abs(gap_final) > 1.0:
@@ -7636,9 +8091,20 @@ def aba_simulador_automacao(
         else:
             _entrada_pro_inner += f"<b>Política de Pro Soluto:</b> {html_std.escape(_pol_sum_label)}<br>"
         _entrada_pro_inner += (
-            f"<b>Pro Soluto (valor):</b> {reais_streamlit_html(fmt_br(d.get('ps_usado', 0)))}<br>"
+            f"<b>Pro Soluto (Mensal + Intercaladas), sem correção:</b> "
+            f"{reais_streamlit_html(fmt_br(d.get('ps_mensal_intercaladas', d.get('ps_usado', 0))))}<br>"
+            f"<b>Tipo de fluxo Pro Soluto escolhido:</b> "
+            f"{html_std.escape(str(d.get('tipo_fluxo_pro_soluto', 'Linear')))}<br>"
             f"<b>Número de parcelas do Pro Soluto:</b> {html_std.escape(str(d.get('ps_parcelas')))}<br>"
-            f"<b>Mensalidade do Pro Soluto:</b> {reais_streamlit_html(fmt_br(d.get('ps_mensal', 0)))}<br>"
+            f"<b>Mensalidade corrigida do Pro Soluto:</b> {reais_streamlit_html(fmt_br(d.get('ps_mensal', 0)))}<br>"
+            f"<b>Maior valor pro soluto:</b> {reais_streamlit_html(fmt_br(d.get('ps_maior_valor', 0)))}<br>"
+            f"<b>Menor valor pro soluto:</b> {reais_streamlit_html(fmt_br(d.get('ps_menor_valor', 0)))}<br>"
+            f"<b>Pro soluto com carência (corrigido):</b> "
+            f"{reais_streamlit_html(fmt_br(d.get('ps_com_carencia', 0)))}<br>"
+            f"<b>Valor total das parcelas corrigidas:</b> "
+            f"{reais_streamlit_html(fmt_br(d.get('ps_total_corrigido', 0)))}<br>"
+            f"<b>Representação no valor do imóvel:</b> "
+            f"{float(d.get('ps_percentual_imovel', 0) or 0):.2f}%<br>"
             f"<b>Ato 1 (Entrada Imediata):</b> {reais_streamlit_html(fmt_br(_a1))}<br>"
             f"<b>Ato 30:</b> {reais_streamlit_html(fmt_br(_a2))}<br>"
             f"<b>Ato 60:</b> {reais_streamlit_html(fmt_br(_a3))}<br>"
@@ -7705,8 +8171,17 @@ def aba_simulador_automacao(
                     "Poder de Aquisição Médio": (2 * d.get('renda', 0)) + d.get('finan_f_ref', 0) + d.get('sub_f_ref', 0) + (d.get('imovel_valor', 0) * 0.10),
                     "Empreendimento Final": d.get('empreendimento_nome'), "Unidade Final": d.get('unidade_id'),
                     "Preço Unidade Final": d.get('imovel_valor', 0), "Financiamento Final": d.get('finan_usado', 0),
-                    "FGTS + Subsídio Final": d.get('fgts_sub_usado', 0), "Pro Soluto Final": d.get('ps_usado', 0),
-                    "Número de Parcelas do Pro Soluto": d.get('ps_parcelas', 0), "Mensalidade PS": d.get('ps_mensal', 0),
+                    "FGTS + Subsídio Final": d.get('fgts_sub_usado', 0),
+                    "Pro Soluto Final": d.get('ps_usado', 0),
+                    "Pro Soluto (Mensal + Intercaladas)": d.get('ps_mensal_intercaladas', d.get('ps_usado', 0)),
+                    "Tipo de fluxo Pro Soluto escolhido": d.get('tipo_fluxo_pro_soluto', 'Linear'),
+                    "Maior valor pro soluto": d.get('ps_maior_valor', 0),
+                    "Menor valor pro soluto": d.get('ps_menor_valor', 0),
+                    "Pro soluto com carência": d.get('ps_com_carencia', 0),
+                    "Valor total das parcelas corrigidas": d.get('ps_total_corrigido', 0),
+                    "Percentual Pro Soluto no imóvel": d.get('ps_percentual_imovel', 0),
+                    "Número de Parcelas do Pro Soluto": d.get('ps_parcelas', 0),
+                    "Mensalidade PS": d.get('ps_mensal', 0),
                     "Ato": d.get('ato_final', 0), "Ato 30": d.get('ato_30', 0), "Ato 60": d.get('ato_60', 0), "Ato 90": d.get('ato_90', 0),
                     "Renda Part. 2": rendas_ind[1], "Nome do Corretor": st.session_state.get('user_name', ''),
                     "Canal/Imobiliária": st.session_state.get('user_imobiliaria', ''),
