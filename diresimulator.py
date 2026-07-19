@@ -32,7 +32,8 @@ RANKING_PIPELINE_BUDGET_S = 9.5
 RANKING_CACHE_TTL_HOURS = 24
 RANKING_UI_POLL_FAST_S = 1.0
 RANKING_UI_POLL_SLOW_S = 2.0
-RANKING_UI_POLL_FAST_WINDOW_S = 10.0
+RANKING_UI_POLL_FAST_WINDOW_S = 90.0
+RANKING_DEBUG_LOG_MAX = 40
 RANKING_SHEETS_COLS = (
     "CPF",
     "Ranking",
@@ -1942,74 +1943,160 @@ def _sf_warmup_meta(sf: Any | None = None) -> bool:
     return True
 
 
-def _sf_ler_ranking_atual(
+def _sf_consultar_ranking_detalhado(
     cpf_11: str,
     *,
     account_id: str | None = None,
     opportunity_id: str | None = None,
-) -> tuple[str | None, Any, str | None]:
-    """Consulta SOMENTE-LEITURA do ``Ranking__c`` atual (não cria nem altera nada).
+) -> dict[str, Any]:
+    """Consulta detalhada do Ranking__c (Account + todas Opportunities do CPF).
 
-    O Risk3 pode gravar o ranking primeiro na Account ou em qualquer Opportunity
-    ligada à conta (incluindo oportunidades criadas pela automação, não só a
-    que o simulador criou). Por isso a busca cobre todas as Opportunities.
+    Retorna ranking mapeado, código e payload de debug para a UI.
     """
+    t0 = time.monotonic()
+    logs: list[str] = []
     cpf = _sf_normalizar_cpf(cpf_11)
+    out: dict[str, Any] = {
+        "ranking": None,
+        "raw": None,
+        "code": "sem_ranking",
+        "account_id": str(account_id or "") or None,
+        "opportunity_id": str(opportunity_id or "") or None,
+        "account_ranking_raw": None,
+        "opportunities": [],
+        "elapsed_ms": 0,
+        "logs": logs,
+        "error": None,
+    }
     if len(cpf) != 11:
-        return None, None, "cpf_incompleto"
+        out["code"] = "cpf_incompleto"
+        logs.append("CPF incompleto após normalização.")
+        out["elapsed_ms"] = int((time.monotonic() - t0) * 1000)
+        return out
+
     sf = _sf_conectar_salesforce(verbose=False)
     if sf is None:
-        return None, None, "sem_conexao"
-    try:
-        raw = None
-        acc_id = str(account_id or "").strip() or None
+        out["code"] = "sem_conexao"
+        out["error"] = "sem_conexao"
+        logs.append("Falha: sem conexão Salesforce.")
+        out["elapsed_ms"] = int((time.monotonic() - t0) * 1000)
+        return out
 
+    try:
+        literais = _sf_literais_cpf(cpf)
+        logs.append(f"CPF={cpf} variantes SOQL ok.")
+
+        acc_id = str(account_id or "").strip() or None
+        conta = None
+
+        # 1) Account por Id (se ainda existir)
         if acc_id:
             recs = (
                 sf.query(
-                    "SELECT Id, Ranking__c FROM Account "
+                    "SELECT Id, Ranking__c, Ranking_Score__c, CPF__c FROM Account "
                     f"WHERE Id = '{_sf_soql_escape_literal(acc_id)}' LIMIT 1"
                 ).get("records")
                 or []
             )
+            logs.append(f"Account por Id={acc_id}: {len(recs)} registro(s).")
             if recs:
-                raw = recs[0].get("Ranking__c")
-                ranking = _sf_mapear_ranking_para_ui(raw)
-                if ranking:
-                    return ranking, raw, "ok"
+                conta = recs[0]
+            else:
+                logs.append("Account Id não encontrado (possível merge Risk3).")
+                acc_id = None
 
-        literais = _sf_literais_cpf(cpf)
+        # 2) Account por CPF (fonte da verdade após merge)
         recs = (
             sf.query(
-                "SELECT Id, Ranking__c FROM Account "
-                f"WHERE CPF__c IN ({literais}) ORDER BY CreatedDate DESC LIMIT 1"
+                "SELECT Id, Ranking__c, Ranking_Score__c, CPF__c FROM Account "
+                f"WHERE CPF__c IN ({literais}) ORDER BY CreatedDate DESC LIMIT 5"
             ).get("records")
             or []
         )
+        logs.append(f"Account por CPF: {len(recs)} registro(s).")
         if recs:
-            if not acc_id:
-                acc_id = str(recs[0].get("Id") or "") or None
-            raw = recs[0].get("Ranking__c")
-            ranking = _sf_mapear_ranking_para_ui(raw)
-            if ranking:
-                return ranking, raw, "ok"
+            # Prefere a conta que já tem ranking; senão a mais recente.
+            escolhida = None
+            for rec in recs:
+                if _sf_mapear_ranking_para_ui(rec.get("Ranking__c")):
+                    escolhida = rec
+                    break
+            conta = escolhida or recs[0]
+            acc_id = str(conta.get("Id") or "") or acc_id
 
-        # Opportunity: todas as da conta (a nossa + as da automação Risk3).
+        if conta:
+            out["account_id"] = acc_id
+            out["account_ranking_raw"] = conta.get("Ranking__c")
+            raw_acc = conta.get("Ranking__c")
+            rk_acc = _sf_mapear_ranking_para_ui(raw_acc)
+            logs.append(
+                f"Account {acc_id}: Ranking__c={raw_acc!r} → {rk_acc!r}"
+            )
+            if rk_acc:
+                out["ranking"] = rk_acc
+                out["raw"] = raw_acc
+                out["code"] = "ok"
+                out["elapsed_ms"] = int((time.monotonic() - t0) * 1000)
+                return out
+
+        # 3) Opportunities por AccountId e também por CPF da conta
+        opps: list[dict[str, Any]] = []
         if acc_id:
-            opps = (
+            opps.extend(
                 sf.query(
-                    "SELECT Id, Ranking__c FROM Opportunity "
+                    "SELECT Id, Name, AccountId, Ranking__c, Ranking_Score__c, CreatedDate "
+                    "FROM Opportunity "
                     f"WHERE AccountId = '{_sf_soql_escape_literal(acc_id)}' "
                     "ORDER BY CreatedDate DESC LIMIT 20"
                 ).get("records")
                 or []
             )
-            for opp in opps:
-                rk = _sf_mapear_ranking_para_ui(opp.get("Ranking__c"))
-                if rk:
-                    return rk, opp.get("Ranking__c"), "ok"
+        opps_cpf = (
+            sf.query(
+                "SELECT Id, Name, AccountId, Ranking__c, Ranking_Score__c, CreatedDate "
+                "FROM Opportunity "
+                f"WHERE Account.CPF__c IN ({literais}) "
+                "ORDER BY CreatedDate DESC LIMIT 20"
+            ).get("records")
+            or []
+        )
+        seen_opp: set[str] = set()
+        merged_opps: list[dict[str, Any]] = []
+        for opp in list(opps) + list(opps_cpf):
+            oid = str(opp.get("Id") or "")
+            if not oid or oid in seen_opp:
+                continue
+            seen_opp.add(oid)
+            merged_opps.append(opp)
+        logs.append(f"Opportunities encontradas: {len(merged_opps)}.")
 
-        elif opportunity_id:
+        for opp in merged_opps:
+            oid = str(opp.get("Id") or "")
+            raw_opp = opp.get("Ranking__c")
+            rk_opp = _sf_mapear_ranking_para_ui(raw_opp)
+            out["opportunities"].append(
+                {
+                    "id": oid,
+                    "name": opp.get("Name"),
+                    "account_id": opp.get("AccountId"),
+                    "ranking_raw": raw_opp,
+                    "ranking": rk_opp,
+                }
+            )
+            logs.append(f"Opp {oid}: Ranking__c={raw_opp!r} → {rk_opp!r}")
+            if rk_opp and not out["ranking"]:
+                out["ranking"] = rk_opp
+                out["raw"] = raw_opp
+                out["opportunity_id"] = oid
+                out["code"] = "ok"
+
+        if out["ranking"]:
+            out["elapsed_ms"] = int((time.monotonic() - t0) * 1000)
+            logs.append(f"Ranking resolvido: {out['ranking']}")
+            return out
+
+        # 4) Fallback na Opportunity original guardada no pending
+        if opportunity_id and str(opportunity_id) not in seen_opp:
             recs = (
                 sf.query(
                     "SELECT Id, Ranking__c FROM Opportunity "
@@ -2017,19 +2104,98 @@ def _sf_ler_ranking_atual(
                 ).get("records")
                 or []
             )
+            logs.append(f"Opp pending {opportunity_id}: {len(recs)} registro(s).")
             if recs:
-                rk = _sf_mapear_ranking_para_ui(recs[0].get("Ranking__c"))
-                if rk:
-                    return rk, recs[0].get("Ranking__c"), "ok"
-                raw = raw if raw is not None else recs[0].get("Ranking__c")
+                raw_opp = recs[0].get("Ranking__c")
+                rk_opp = _sf_mapear_ranking_para_ui(raw_opp)
+                out["opportunities"].append(
+                    {
+                        "id": str(recs[0].get("Id")),
+                        "ranking_raw": raw_opp,
+                        "ranking": rk_opp,
+                    }
+                )
+                if rk_opp:
+                    out["ranking"] = rk_opp
+                    out["raw"] = raw_opp
+                    out["code"] = "ok"
+                    out["elapsed_ms"] = int((time.monotonic() - t0) * 1000)
+                    return out
 
-        ranking = _sf_mapear_ranking_para_ui(raw)
-        if ranking:
-            return ranking, raw, "ok"
-        return None, raw, "sem_ranking"
+        out["code"] = "sem_ranking"
+        logs.append("Nenhum Ranking__c preenchido ainda.")
     except Exception as exc:  # noqa: BLE001
-        _sf_logger.exception("Falha ao ler ranking atual do CPF")
-        return None, None, str(exc)
+        _sf_logger.exception("Falha ao consultar ranking detalhado")
+        out["code"] = "erro_sf"
+        out["error"] = str(exc)
+        logs.append(f"ERRO: {exc}")
+    out["elapsed_ms"] = int((time.monotonic() - t0) * 1000)
+    return out
+
+
+def _sf_ler_ranking_atual(
+    cpf_11: str,
+    *,
+    account_id: str | None = None,
+    opportunity_id: str | None = None,
+) -> tuple[str | None, Any, str | None]:
+    """Compatível com callers antigos — delega à consulta detalhada."""
+    det = _sf_consultar_ranking_detalhado(
+        cpf_11, account_id=account_id, opportunity_id=opportunity_id
+    )
+    return det.get("ranking"), det.get("raw"), det.get("code")
+
+
+def _ranking_debug_append(linha: str) -> None:
+    """Acumula linhas de debug na sessão (máx. RANKING_DEBUG_LOG_MAX)."""
+    try:
+        bag = list(st.session_state.get("_sf_rank_debug_logs") or [])
+    except Exception:
+        return
+    ts = datetime.now().strftime("%H:%M:%S")
+    bag.append(f"[{ts}] {linha}")
+    st.session_state["_sf_rank_debug_logs"] = bag[-RANKING_DEBUG_LOG_MAX:]
+
+
+def _ranking_debug_render(detalhe: Mapping[str, Any] | None = None) -> None:
+    """Painel visível de debug da classificação Salesforce."""
+    logs = list(st.session_state.get("_sf_rank_debug_logs") or [])
+    with st.expander("Debug classificação Salesforce", expanded=True):
+        pending = st.session_state.get("_sf_pending") or {}
+        st.caption(
+            f"pending_cpf={pending.get('cpf')!r} | "
+            f"account_id={pending.get('account_id')!r} | "
+            f"opportunity_id={pending.get('opportunity_id')!r}"
+        )
+        if detalhe:
+            st.caption(
+                f"última consulta: code={detalhe.get('code')!r} | "
+                f"ranking={detalhe.get('ranking')!r} | "
+                f"raw={detalhe.get('raw')!r} | "
+                f"{detalhe.get('elapsed_ms')} ms"
+            )
+            acc_raw = detalhe.get("account_ranking_raw")
+            st.write(f"Account.Ranking__c = `{acc_raw!r}`")
+            opps = detalhe.get("opportunities") or []
+            if opps:
+                for opp in opps:
+                    st.write(
+                        f"Opp `{opp.get('id')}`: Ranking__c=`{opp.get('ranking_raw')!r}` "
+                        f"→ `{opp.get('ranking')!r}`"
+                    )
+            else:
+                st.write("Nenhuma Opportunity retornada nesta consulta.")
+            with st.expander("Detalhe da última SOQL", expanded=False):
+                st.code(
+                    "\n".join(str(x) for x in (detalhe.get("logs") or [])),
+                    language="text",
+                )
+        if logs:
+            st.markdown("**Histórico**")
+            st.code("\n".join(logs[-RANKING_DEBUG_LOG_MAX:]), language="text")
+        else:
+            st.caption("Sem logs ainda.")
+
 
 
 def _sf_ler_rankings_lote_por_accounts(
@@ -7665,21 +7831,26 @@ def aba_simulador_automacao(
             _poll_t0 = float(_sf_pending.get("t0") or time.monotonic())
             _poll_decorrido = max(0.0, time.monotonic() - _poll_t0)
             _poll_int = _sf_poll_ui_interval(_poll_decorrido)
-            _poll_rk, _poll_raw, _poll_code = _sf_ler_ranking_atual(
-                cpf_digits,
-                account_id=_sf_pending.get("account_id"),
-                opportunity_id=_sf_pending.get("opportunity_id"),
-            )
-            if _poll_rk in rank_opts:
-                st.session_state["in_rank_v28"] = _poll_rk
+
+            def _aplicar_ranking_resolvido(_rk: str, _det: Mapping[str, Any]) -> None:
+                if _rk in rank_opts:
+                    st.session_state["in_rank_v28"] = _rk
                 st.session_state["_sf_rank_applied_cpf"] = cpf_digits
+                if _det.get("account_id"):
+                    st.session_state["_sf_pending"] = {
+                        **(st.session_state.get("_sf_pending") or {}),
+                        "account_id": _det.get("account_id"),
+                        "opportunity_id": _det.get("opportunity_id")
+                        or (st.session_state.get("_sf_pending") or {}).get("opportunity_id"),
+                    }
                 _resolved = _ranking_resultado(
-                    status="ok",
-                    ranking=_poll_rk,
+                    status="ok" if _rk in rank_opts else "terminal",
+                    ranking=_rk,
                     source="salesforce_poll",
                     cpf=cpf_digits,
-                    account_id=_sf_pending.get("account_id"),
-                    opportunity_id=_sf_pending.get("opportunity_id"),
+                    account_id=_det.get("account_id") or _sf_pending.get("account_id"),
+                    opportunity_id=_det.get("opportunity_id")
+                    or _sf_pending.get("opportunity_id"),
                     elapsed_seconds=_poll_decorrido,
                     message="Ranking obtido via polling automático.",
                 )
@@ -7690,40 +7861,141 @@ def aba_simulador_automacao(
                     _lookup_ranking_salesforce_cached.clear()
                 except Exception:
                     pass
+                _ranking_debug_append(f"RESOLVIDO ranking={_rk}")
                 if hasattr(st, "toast"):
                     try:
-                        st.toast(f"Ranking classificado: {_poll_rk}", icon="✅")
+                        st.toast(f"Ranking classificado: {_rk}", icon="✅")
                     except Exception:
                         pass
-                st.rerun()
-            elif _poll_rk in ("NÃO ELEGÍVEL", "INFORMAÇÃO NÃO DISPONÍVEL"):
-                st.session_state["_sf_rank_applied_cpf"] = cpf_digits
-                st.session_state.pop("_sf_pending", None)
-                st.warning(
-                    f"Resposta ao vivo do Salesforce: {_poll_rk}. "
-                    "Não há ranking comercial elegível para este CPF."
-                )
-            else:
-                _poll_parar = st.button(
-                    "Parar de aguardar a classificação",
-                    key=f"sf_parar_poll_{cpf_digits}",
-                    use_container_width=True,
-                )
-                if _poll_parar or _poll_decorrido >= _poll_max:
-                    st.session_state.pop("_sf_pending", None)
-                    st.info(
-                        "A classificação ainda está sendo processada pelo Salesforce "
-                        "(Risk3 é assíncrono e pode levar alguns minutos). A busca será "
-                        "retomada automaticamente quando você interagir novamente com este CPF."
+
+            # Fragmento periódico: não trava a página com time.sleep.
+            _frag = getattr(st, "fragment", None)
+            if callable(_frag):
+                @_frag(run_every=timedelta(seconds=max(1.0, float(_poll_int))))
+                def _poll_ranking_fragment() -> None:
+                    pending_now = st.session_state.get("_sf_pending") or {}
+                    if str(pending_now.get("cpf") or "") != cpf_digits:
+                        return
+                    t0p = float(pending_now.get("t0") or time.monotonic())
+                    decorrido = max(0.0, time.monotonic() - t0p)
+                    det = _sf_consultar_ranking_detalhado(
+                        cpf_digits,
+                        account_id=pending_now.get("account_id"),
+                        opportunity_id=pending_now.get("opportunity_id"),
                     )
+                    st.session_state["_sf_rank_last_detail"] = det
+                    _ranking_debug_append(
+                        f"poll code={det.get('code')} ranking={det.get('ranking')!r} "
+                        f"acc_raw={det.get('account_ranking_raw')!r} "
+                        f"opps={len(det.get('opportunities') or [])} "
+                        f"{det.get('elapsed_ms')}ms decorrido={int(decorrido)}s"
+                    )
+                    # Atualiza IDs se o merge trouxe outra conta.
+                    if det.get("account_id") and det.get("account_id") != pending_now.get(
+                        "account_id"
+                    ):
+                        pending_now = dict(pending_now)
+                        pending_now["account_id"] = det.get("account_id")
+                        if det.get("opportunity_id"):
+                            pending_now["opportunity_id"] = det.get("opportunity_id")
+                        st.session_state["_sf_pending"] = pending_now
+                        _ranking_debug_append(
+                            f"Account Id atualizado após merge: {det.get('account_id')}"
+                        )
+
+                    rk = det.get("ranking")
+                    st.info(
+                        "Classificação em andamento no Salesforce (Risk3). "
+                        f"Consulta a cada {int(_sf_poll_ui_interval(decorrido))}s. "
+                        f"Tempo decorrido: {int(decorrido)}s."
+                    )
+                    _ranking_debug_render(det)
+
+                    if rk in rank_opts or rk in (
+                        "NÃO ELEGÍVEL",
+                        "INFORMAÇÃO NÃO DISPONÍVEL",
+                    ):
+                        _aplicar_ranking_resolvido(str(rk), det)
+                        if rk not in rank_opts:
+                            st.warning(
+                                f"Resposta ao vivo do Salesforce: {rk}. "
+                                "Não há ranking comercial elegível para este CPF."
+                            )
+                        st.rerun()
+                        return
+
+                    if det.get("code") in ("sem_conexao", "erro_sf"):
+                        _dv_alerta_vermelho_texto(
+                            f"Falha na consulta Salesforce durante o poll: "
+                            f"{det.get('error') or det.get('code')}"
+                        )
+
+                    c1, c2 = st.columns(2)
+                    with c1:
+                        if st.button(
+                            "Consultar agora",
+                            key=f"sf_poll_now_{cpf_digits}",
+                            use_container_width=True,
+                        ):
+                            st.rerun()
+                    with c2:
+                        if st.button(
+                            "Parar de aguardar",
+                            key=f"sf_parar_poll_{cpf_digits}",
+                            use_container_width=True,
+                        ) or decorrido >= _poll_max:
+                            st.session_state.pop("_sf_pending", None)
+                            _ranking_debug_append(
+                                f"Poll encerrado decorrido={int(decorrido)}s"
+                            )
+                            st.info(
+                                "A classificação ainda pode estar em processamento no Risk3. "
+                                "Você pode seguir com o ranking manual; ao digitar o CPF de "
+                                "novo, a consulta será retomada."
+                            )
+                            st.rerun()
+
+                _poll_ranking_fragment()
+            else:
+                # Fallback sem fragment (Streamlit antigo): uma consulta por rerun.
+                det = _sf_consultar_ranking_detalhado(
+                    cpf_digits,
+                    account_id=_sf_pending.get("account_id"),
+                    opportunity_id=_sf_pending.get("opportunity_id"),
+                )
+                st.session_state["_sf_rank_last_detail"] = det
+                _poll_rk = det.get("ranking")
+                if _poll_rk in rank_opts or _poll_rk in (
+                    "NÃO ELEGÍVEL",
+                    "INFORMAÇÃO NÃO DISPONÍVEL",
+                ):
+                    _aplicar_ranking_resolvido(str(_poll_rk), det)
+                    if _poll_rk not in rank_opts:
+                        st.warning(
+                            f"Resposta ao vivo do Salesforce: {_poll_rk}. "
+                            "Não há ranking comercial elegível para este CPF."
+                        )
+                    else:
+                        st.rerun()
                 else:
                     st.info(
                         "Classificação em andamento no Salesforce (Risk3). "
-                        "Costuma levar cerca de 1 minuto. "
                         f"Tempo decorrido: {int(_poll_decorrido)}s."
                     )
-                    time.sleep(_poll_int)
-                    st.rerun()
+                    _ranking_debug_render(det)
+                    if st.button(
+                        "Parar de aguardar a classificação",
+                        key=f"sf_parar_poll_{cpf_digits}",
+                        use_container_width=True,
+                    ) or _poll_decorrido >= _poll_max:
+                        st.session_state.pop("_sf_pending", None)
+                        st.info(
+                            "A classificação ainda pode estar em processamento no Risk3. "
+                            "Você pode seguir com o ranking manual."
+                        )
+                    else:
+                        time.sleep(min(2.0, _poll_int))
+                        st.rerun()
         elif len(cpf_digits) == 11:
             _sf_rs, _sf_code = _lookup_ranking_salesforce_cached(cpf_digits)
             if _sf_rs and _sf_rs in rank_opts and st.session_state.get("_sf_rank_applied_cpf") != cpf_digits:
@@ -7808,12 +8080,20 @@ def aba_simulador_automacao(
                                 "Não há ranking comercial elegível para este CPF."
                             )
                         elif _novo_codigo == "sem_ranking":
+                            st.session_state["_sf_rank_debug_logs"] = []
                             st.session_state["_sf_pending"] = {
                                 "cpf": cpf_digits,
                                 "account_id": _novo_resultado.get("account_id"),
                                 "opportunity_id": _novo_resultado.get("opportunity_id"),
                                 "t0": time.monotonic(),
                             }
+                            _ranking_debug_append(
+                                "CREATE pending | "
+                                f"account={_novo_resultado.get('account_id')} | "
+                                f"opp={_novo_resultado.get('opportunity_id')} | "
+                                f"elapsed={_novo_resultado.get('elapsed_seconds')}s | "
+                                f"source={_novo_resultado.get('source')}"
+                            )
                             st.info(
                                 "Registros criados no Salesforce. Iniciando o acompanhamento "
                                 "automático do ranking (Risk3)…"
