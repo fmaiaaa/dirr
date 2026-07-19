@@ -14,7 +14,6 @@ from __future__ import annotations
 # Nota: static/, credentials e .streamlit/secrets continuam ficheiros à parte.
 # =============================================================================
 
-
 # ========================================================================
 # config/constants.py
 # ========================================================================
@@ -28,6 +27,23 @@ URL_ESTOQUE = f"https://docs.google.com/spreadsheets/d/{ID_GERAL}/edit#gid=0"
 
 # Aba de resultados de classificação Risk3 (CPF → RANKING), preenchida por scripts/live_sf_casimiro_classify.py
 WS_BD_RANKING_CPF = "BD Ranking CPF"
+# Pipeline de ranking: orçamento global da chamada + TTL do cache externo.
+RANKING_PIPELINE_BUDGET_S = 9.5
+RANKING_CACHE_TTL_HOURS = 24
+RANKING_UI_POLL_FAST_S = 1.0
+RANKING_UI_POLL_SLOW_S = 2.0
+RANKING_UI_POLL_FAST_WINDOW_S = 10.0
+RANKING_SHEETS_COLS = (
+    "CPF",
+    "Ranking",
+    "Status",
+    "Source",
+    "AccountId",
+    "OpportunityId",
+    "RequestedAt",
+    "ResolvedAt",
+    "ExpiresAt",
+)
 
 URL_FAVICON_RESERVA = "https://direcional.com.br/wp-content/uploads/2021/04/cropped-favicon-direcional-32x32.png"
 URL_LOGO_DIRECIONAL_BIG = "https://logodownload.org/wp-content/uploads/2021/04/direcional-engenharia-logo.png"
@@ -743,6 +759,174 @@ def menor_prazo_parcelas_ps_respeitando_j8(
     return min(candidatos) if candidatos else None
 
 
+def _calcular_fluxo_pro_soluto_sf_inline(
+    *,
+    valor_total: float,
+    valor_nao_corrigido: Optional[float] = None,
+    quantidade_mensais: int = 84,
+    tipo_fluxo: str = "Linear",
+    taxa_pre_pct: float = 0.5,
+    taxa_pos_pct: float = 1.5,
+    meses_carencia: int = 0,
+    taxa_carencia_mensal: Optional[float] = None,
+    meses_entrega: int = 0,
+    valor_intercaladas: float = 0.0,
+    quantidade_intercaladas: int = 0,
+    valor_imovel_liquido: Optional[float] = None,
+    pro_soluto_mensal_override: Optional[float] = None,
+    **_: Any,
+) -> Dict[str, Any]:
+    """Motor Pró-Soluto autocontido, calibrado com a calculadora Salesforce."""
+    from decimal import Decimal, ROUND_HALF_UP, localcontext
+
+    def dec(valor: Any) -> Decimal:
+        if valor is None or valor == "":
+            return Decimal("0")
+        if isinstance(valor, Decimal):
+            return valor
+        return Decimal(str(valor))
+
+    def moeda(valor: Decimal) -> Decimal:
+        return valor.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+
+    def fator_mes(
+        indice: int, qtd_pre: int, taxa_pre: Decimal, taxa_pos: Decimal
+    ) -> Decimal:
+        if indice <= qtd_pre:
+            return Decimal("1") / ((Decimal("1") + taxa_pre) ** indice)
+        return Decimal("1") / (
+            ((Decimal("1") + taxa_pre) ** qtd_pre)
+            * ((Decimal("1") + taxa_pos) ** (indice - qtd_pre))
+        )
+
+    def soma_fatores(
+        inicio: int,
+        quantidade: int,
+        qtd_pre: int,
+        taxa_pre: Decimal,
+        taxa_pos: Decimal,
+    ) -> Decimal:
+        return sum(
+            (
+                fator_mes(i, qtd_pre, taxa_pre, taxa_pos)
+                for i in range(inicio, inicio + quantidade)
+            ),
+            Decimal("0"),
+        )
+
+    with localcontext() as ctx:
+        ctx.prec = 50
+        qtd = max(1, int(quantidade_mensais or 1))
+        j1 = dec(taxa_pre_pct) / Decimal("100")
+        j2 = dec(taxa_pos_pct) / Decimal("100")
+        inter = max(Decimal("0"), dec(valor_intercaladas))
+        if pro_soluto_mensal_override is not None:
+            ps_mensal = max(Decimal("0"), dec(pro_soluto_mensal_override))
+        elif valor_nao_corrigido is not None:
+            ps_mensal = max(Decimal("0"), dec(valor_nao_corrigido) - inter)
+        else:
+            ps_mensal = max(Decimal("0"), dec(valor_total) - inter)
+
+        qtd_pre = max(0, min(qtd, int(meses_entrega or 0)))
+        qtd_pos = qtd - qtd_pre
+        carencia = max(0, int(meses_carencia or 0))
+        j_carencia = (
+            dec(taxa_carencia_mensal)
+            if taxa_carencia_mensal is not None
+            else (j2 if qtd_pre == 0 else j1)
+        )
+        fator_carencia = (Decimal("1") + j_carencia) ** carencia
+        ps_total = ps_mensal + inter
+        ps_corrigido = ps_total * fator_carencia
+        ps_mensal_corrigido = ps_mensal * fator_carencia
+
+        fator_total = soma_fatores(1, qtd, qtd_pre, j1, j2)
+        if fator_total <= 0:
+            fator_total = Decimal("1")
+        parcela_linear = moeda(ps_mensal_corrigido / fator_total)
+
+        escalonado = str(tipo_fluxo or "").strip().casefold().startswith("escal")
+        faixas: list[dict[str, Any]] = []
+        parcelas: list[float] = []
+        if escalonado:
+            base, resto = divmod(qtd, 4)
+            quantidades = [base + (1 if i < resto else 0) for i in range(4)]
+            percentuais = [
+                Decimal("40"),
+                Decimal("30"),
+                Decimal("20"),
+                Decimal("10"),
+            ]
+            inicio = 1
+            valores: list[Decimal] = []
+            for numero, (qtd_faixa, percentual) in enumerate(
+                zip(quantidades, percentuais), 1
+            ):
+                if qtd_faixa <= 0:
+                    continue
+                saldo = ps_mensal * percentual / Decimal("100")
+                fator_faixa = soma_fatores(
+                    inicio, qtd_faixa, qtd_pre, j1, j2
+                ) or Decimal("1")
+                valor = moeda((saldo * fator_carencia) / fator_faixa)
+                valores.append(valor)
+                parcelas.extend([float(valor)] * qtd_faixa)
+                faixas.append(
+                    {
+                        "numero": numero,
+                        "quantidade": qtd_faixa,
+                        "percentual": float(percentual),
+                        "saldo_sem_carencia": float(moeda(saldo)),
+                        "valor_reajustado_pre": float(valor),
+                        "valor_reajustado_pos": float(valor),
+                    }
+                )
+                inicio += qtd_faixa
+            maior = max(valores) if valores else Decimal("0")
+            menor = min(valores) if valores else Decimal("0")
+            tipo_saida = "Escalonado"
+        else:
+            maior = menor = parcela_linear
+            parcelas = [float(parcela_linear)] * qtd
+            tipo_saida = "Linear"
+
+        base_imovel = dec(valor_imovel_liquido or valor_total)
+        percentual_imovel = (
+            float(ps_corrigido / base_imovel * Decimal("100"))
+            if base_imovel > 0
+            else 0.0
+        )
+        return {
+            "pro_soluto_mensal": float(moeda(ps_mensal)),
+            "intercaladas": float(moeda(inter)),
+            "pro_soluto_mensal_intercaladas": float(moeda(ps_total)),
+            "pro_soluto_com_carencia": float(ps_corrigido),
+            "tipo_fluxo_pro_soluto": tipo_saida,
+            "quantidade_mensais": qtd,
+            "meses_carencia": carencia,
+            "taxa_carencia_mensal": float(j_carencia),
+            "n_pre": qtd_pre,
+            "n_pos": qtd_pos,
+            "valor_parcela_com_juros": float(parcela_linear),
+            "valor_parcela_mensal_corrigida": float(maior),
+            "maior_valor_pro_soluto": float(maior),
+            "menor_valor_pro_soluto": float(menor),
+            "valor_ps_linear": float(moeda(ps_mensal)),
+            "percentual_pro_soluto": percentual_imovel,
+            "faixas": faixas,
+            "parcelas_mensais_corrigidas": parcelas,
+            "valor_total_fluxo_corrigido": sum(parcelas),
+            "fator_carencia": float(fator_carencia),
+            "pro_soluto_mensal_sem_correcao": float(moeda(ps_mensal)),
+            "intercaladas_sem_correcao": float(moeda(inter)),
+            "valor_solicitado": float(ps_total),
+            "valor_efetivo": float(ps_total),
+            "valor_reduzido_por_limites": 0.0,
+            "limitado": False,
+            "percentual_valor_imovel": percentual_imovel,
+        }
+
+
 def calcular_fluxo_pro_soluto_completo(
     *,
     valor_nao_corrigido: float,
@@ -761,13 +945,11 @@ def calcular_fluxo_pro_soluto_completo(
     saldo_disponivel: Optional[float] = None,
 ) -> Dict[str, Any]:
     """
-    Réplica calibrada da calculadora Salesforce (``salesforce_tools.pro_soluto_sf``).
+    Réplica calibrada e incorporada diretamente neste arquivo.
 
     Paridade verificada no domínio testado (harvest de Quotes nativas).
     Mantém busca binária de limites de renda/imóvel/saldo da UI.
     """
-    from salesforce_tools.pro_soluto_sf import calcular_fluxo_pro_soluto_completo_sf
-
     p = dict(DEFAULT_PREMISSAS)
     if premissas:
         p.update({k: float(v) for k, v in premissas.items() if v is not None})
@@ -829,7 +1011,7 @@ def calcular_fluxo_pro_soluto_completo(
         taxa_car_override = None
         if taxa_carencia_mensal is not None or _politica_emcash_ui(politica_ui):
             taxa_car_override = taxa_carencia
-        out = calcular_fluxo_pro_soluto_completo_sf(
+        out = _calcular_fluxo_pro_soluto_sf_inline(
             valor_total=0.0,
             valor_nao_corrigido=total_sem_correcao,
             quantidade_mensais=n,
@@ -904,6 +1086,68 @@ def calcular_fluxo_pro_soluto_completo(
         else 0.0
     )
     return resultado
+
+
+PS_VALOR_MINIMO_PARCELA = 150.0
+PS_LIMITE_ANUAL_RENDA_PCT = 0.50
+
+
+def avaliar_travas_pro_soluto(
+    fluxo: Mapping[str, Any],
+    *,
+    renda: float,
+    limite_parcela_renda: Optional[float],
+    limite_percentual_imovel: Optional[float],
+    anuais: Optional[list[float]] = None,
+    valor_minimo_parcela: float = PS_VALOR_MINIMO_PARCELA,
+) -> Dict[str, Any]:
+    """Avalia travas do PS sem alterar silenciosamente os valores informados."""
+    maior = max(0.0, float(fluxo.get("maior_valor_pro_soluto") or 0.0))
+    menor = max(0.0, float(fluxo.get("menor_valor_pro_soluto") or 0.0))
+    mensais = [
+        max(0.0, float(v or 0.0))
+        for v in (fluxo.get("parcelas_mensais_corrigidas") or [])
+    ]
+    maior_mensal = max(mensais) if mensais else 0.0
+    menor_mensal = min(mensais) if mensais else 0.0
+    corrigido = max(0.0, float(fluxo.get("pro_soluto_com_carencia") or 0.0))
+    teto_renda = (
+        max(0.0, float(limite_parcela_renda))
+        if limite_parcela_renda is not None
+        else 0.0
+    )
+    teto_imovel = (
+        max(0.0, float(limite_percentual_imovel))
+        if limite_percentual_imovel is not None
+        else 0.0
+    )
+    renda_v = max(0.0, float(renda or 0.0))
+    teto_anual = renda_v * PS_LIMITE_ANUAL_RENDA_PCT
+    anuais_v = [max(0.0, float(v or 0.0)) for v in (anuais or [])]
+
+    violacoes: list[str] = []
+    if teto_renda > 0 and maior_mensal > teto_renda + 0.01:
+        violacoes.append("parcela_acima_comprometimento_renda")
+    if teto_imovel > 0 and corrigido > teto_imovel + 0.01:
+        violacoes.append("ps_corrigido_acima_percentual_imovel")
+    if mensais and menor_mensal + 0.01 < max(0.0, float(valor_minimo_parcela)):
+        violacoes.append("parcela_abaixo_minimo")
+    if teto_anual > 0 and any(v > teto_anual + 0.01 for v in anuais_v):
+        violacoes.append("anual_acima_comprometimento_renda")
+
+    return {
+        "ok": not violacoes,
+        "violacoes": violacoes,
+        "pro_soluto_corrigido": corrigido,
+        "maior_parcela": maior,
+        "menor_parcela": menor,
+        "maior_parcela_mensal": maior_mensal,
+        "menor_parcela_mensal": menor_mensal,
+        "limite_parcela_renda": teto_renda,
+        "limite_percentual_imovel": teto_imovel,
+        "limite_parcela_anual": teto_anual,
+        "valor_minimo_parcela": max(0.0, float(valor_minimo_parcela)),
+    }
 
 
 # ========================================================================
@@ -1012,6 +1256,7 @@ def resolver_taxa_financiamento_anual_pct(
 
 import logging
 import streamlit as st
+from typing import Any, Mapping
 
 
 def _st_iframe_html_snippet(html: str, *, height: int = 0, width: int | None = None) -> None:
@@ -1083,6 +1328,8 @@ def _injetar_secrets_salesforce_no_env() -> None:
             "SALESFORCE_DOMAIN",
             "SALESFORCE_CPF_FIELD",
             "SALESFORCE_RANKING_FIELD",
+            "RISK3_SYNC_URL",
+            "RISK3_SYNC_TOKEN",
         ):
             if hasattr(sec, "get"):
                 _set(key, sec.get(key))
@@ -1102,6 +1349,20 @@ def _injetar_secrets_salesforce_no_env() -> None:
                         _set(_chave_env_salesforce_desde_toml(str(k).strip()), v)
             except Exception:
                 pass
+        # [risk3] opcional — API síncrona
+        blk_r3 = None
+        if hasattr(sec, "get"):
+            blk_r3 = sec.get("risk3")
+        if blk_r3 is not None and hasattr(blk_r3, "items"):
+            try:
+                for k, v in blk_r3.items():
+                    kk = str(k).strip().upper()
+                    if kk in ("URL", "SYNC_URL"):
+                        _set("RISK3_SYNC_URL", v)
+                    elif kk in ("TOKEN", "SYNC_TOKEN", "API_KEY"):
+                        _set("RISK3_SYNC_TOKEN", v)
+            except Exception:
+                pass
     except Exception:
         pass
 
@@ -1116,12 +1377,17 @@ except ImportError:  # pragma: no cover
     SalesforceAuthenticationFailed = Exception  # type: ignore[misc, assignment]
 
 _sf_logger = logging.getLogger(__name__)
+_SF_CLIENT_CACHE: dict[str, Any] = {"sf": None, "key": None}
 
 
 def _sf_normalizar_cpf(cpf: str | None) -> str:
     if cpf is None:
         return ""
-    return re.sub(r"\D", "", str(cpf).strip())
+    digits = re.sub(r"\D", "", str(cpf).strip())
+    # Muitos formulários omitem o zero à esquerda (10 dígitos).
+    if len(digits) == 10:
+        digits = digits.zfill(11)
+    return digits
 
 
 def _sf_conectar_salesforce(verbose: bool = False) -> Any | None:
@@ -1146,6 +1412,11 @@ def _sf_conectar_salesforce(verbose: bool = False) -> Any | None:
             _sf_logger.info("Salesforce: SALESFORCE_USER ou SALESFORCE_PASSWORD ausentes.")
         return None
 
+    cache_key = f"{username}|{domain}|{bool(token)}"
+    cached = _SF_CLIENT_CACHE.get("sf")
+    if cached is not None and _SF_CLIENT_CACHE.get("key") == cache_key:
+        return cached
+
     try:
         if token:
             sf = Salesforce(
@@ -1156,13 +1427,19 @@ def _sf_conectar_salesforce(verbose: bool = False) -> Any | None:
             )
         else:
             sf = Salesforce(username=username, password=password, domain=domain)
+        _SF_CLIENT_CACHE["sf"] = sf
+        _SF_CLIENT_CACHE["key"] = cache_key
         if verbose:
             _sf_logger.info("Salesforce: conectado como %s", username)
         return sf
     except SalesforceAuthenticationFailed as e:
+        _SF_CLIENT_CACHE["sf"] = None
+        _SF_CLIENT_CACHE["key"] = None
         _sf_logger.warning("Salesforce: falha de autenticação: %s", e)
         return None
     except Exception as e:
+        _SF_CLIENT_CACHE["sf"] = None
+        _SF_CLIENT_CACHE["key"] = None
         _sf_logger.warning("Salesforce: erro ao conectar: %s", e)
         return None
 
@@ -1194,6 +1471,12 @@ def _sf_mapear_ranking_para_ui(valor: Any) -> str | None:
         "bronze": "BRONZE",
         "aco": "AÇO",
         "aço": "AÇO",
+        # Respostas terminais devolvidas ao vivo pelo Risk3. Não são
+        # convertidas em um ranking comercial elegível.
+        "nao elegivel": "NÃO ELEGÍVEL",
+        "não elegível": "NÃO ELEGÍVEL",
+        "informacao nao disponivel": "INFORMAÇÃO NÃO DISPONÍVEL",
+        "informação não disponível": "INFORMAÇÃO NÃO DISPONÍVEL",
     }
     for needle, rank in mapping.items():
         if needle in key_norm or needle in key:
@@ -1297,76 +1580,36 @@ def _sf_classificar_ranking_cpf_11(cpf_11: str) -> tuple[str | None, str | None]
     return None, "sem_registo"
 
 
-def _sf_classificar_criando_ausentes(cpf_11: str) -> tuple[dict[str, Any] | None, str | None]:
-    """
-    Cria, de forma idempotente, a Person Account e a Opportunity necessárias
-    para disparar a classificação do CPF e aguarda o Ranking__c.
+def _sf_cpf_valido(digitos: str) -> bool:
+    if len(digitos) != 11 or not digitos.isdigit() or len(set(digitos)) == 1:
+        return False
+    soma1 = sum(int(digitos[i]) * (10 - i) for i in range(9))
+    dv1 = (soma1 * 10) % 11
+    dv1 = 0 if dv1 == 10 else dv1
+    soma2 = sum(int(digitos[i]) * (11 - i) for i in range(10))
+    dv2 = (soma2 * 10) % 11
+    dv2 = 0 if dv2 == 10 else dv2
+    return dv1 == int(digitos[9]) and dv2 == int(digitos[10])
 
-    A mutação só é chamada por ação explícita do usuário na interface.
-    """
-    cpf = _sf_normalizar_cpf(cpf_11)
-    if len(cpf) != 11:
-        return None, "Informe um CPF válido com 11 dígitos."
 
-    try:
-        from salesforce_tools.auth import fetch_org_info
-        from salesforce_tools.classify import classify_cpf
-        from salesforce_tools.config import ToolsConfig
-    except Exception as exc:
-        return None, f"Módulo de classificação Salesforce indisponível: {exc}"
-
-    sf = _sf_conectar_salesforce(verbose=False)
-    if sf is None:
-        return None, "Não foi possível conectar ao Salesforce."
-
-    try:
-        org = fetch_org_info(sf)
-        if not org.org_id:
-            return None, "Não foi possível confirmar a organização Salesforce."
-
-        cfg_path = Path(__file__).with_name("salesforce_tools.toml")
-        cfg = ToolsConfig.from_toml(cfg_path if cfg_path.is_file() else None)
-        # A UI já exige clique explícito no botão e confirma a org obtida da sessão.
-        cfg.expected_org_id = org.org_id
-        # A org consultada armazena CPF no formato 000.000.000-00.
-        cfg.account.cpf_store_masked = True
-
-        # Se o StageName configurado não existir nesta org, usar o primeiro
-        # valor ativo disponível para não falhar na criação da Opportunity.
-        try:
-            opp_desc = sf.Opportunity.describe()
-            stage_meta = next(
-                (
-                    field
-                    for field in (opp_desc.get("fields") or [])
-                    if field.get("name") == "StageName"
-                ),
-                None,
-            )
-            active_stages = [
-                str(item.get("value"))
-                for item in ((stage_meta or {}).get("picklistValues") or [])
-                if item.get("active", True) and item.get("value")
+def _sf_variantes_cpf(cpf: str) -> list[str]:
+    cpf_mascarado = _sf_cpf_mascarado_br(cpf)
+    variantes = [cpf_mascarado, cpf]
+    if cpf.startswith("0"):
+        sem_zero = cpf[1:]
+        variantes.extend(
+            [
+                sem_zero,
+                f"{sem_zero[0:2]}.{sem_zero[2:5]}.{sem_zero[5:8]}-{sem_zero[8:10]}",
             ]
-            if active_stages and cfg.opportunity.stage_name not in active_stages:
-                cfg.opportunity.stage_name = active_stages[0]
-        except Exception:
-            pass
-
-        result = classify_cpf(
-            sf,
-            org,
-            cfg,
-            cpf,
-            execute=True,
-            confirm_cpf=cpf,
-            confirm_org=org.org_id,
-            poll=True,
         )
-        return result.to_dict(), None
-    except Exception as exc:
-        _sf_logger.exception("Falha ao classificar/criar CPF no Salesforce")
-        return None, str(exc)
+    return list(dict.fromkeys(variantes))
+
+
+def _sf_literais_cpf(cpf: str) -> str:
+    return ", ".join(
+        f"'{_sf_soql_escape_literal(v)}'" for v in _sf_variantes_cpf(cpf)
+    )
 
 
 def _sf_extrair_ranking_ui_de_opportunity(opp: Any) -> dict[str, Any]:
@@ -1376,7 +1619,7 @@ def _sf_extrair_ranking_ui_de_opportunity(opp: Any) -> dict[str, Any]:
     raw_opp = opp.get("Ranking__c")
     m_acc = _sf_mapear_ranking_para_ui(raw_acc)
     m_opp = _sf_mapear_ranking_para_ui(raw_opp)
-    texto = m_acc or m_opp or (raw_acc if raw_acc else None) or (raw_opp if raw_opp else None)
+    texto = m_acc or m_opp
     return {
         "ranking_exibir": texto,
         "ranking_score_conta": conta.get("Ranking_Score__c"),
@@ -1386,10 +1629,939 @@ def _sf_extrair_ranking_ui_de_opportunity(opp: Any) -> dict[str, Any]:
     }
 
 
+def _ranking_resultado(
+    *,
+    status: str,
+    ranking: str | None = None,
+    source: str | None = None,
+    elapsed_seconds: float = 0.0,
+    cpf: str = "",
+    account_id: str | None = None,
+    opportunity_id: str | None = None,
+    account_created: bool = False,
+    opportunity_created: bool = False,
+    message: str = "",
+    code: str | None = None,
+    extras: Mapping[str, Any] | None = None,
+) -> dict[str, Any]:
+    out: dict[str, Any] = {
+        "status": status,
+        "code": code or status,
+        "ranking": ranking,
+        "source": source,
+        "elapsed_seconds": round(float(elapsed_seconds), 3),
+        "cpf": cpf,
+        "cpf_masked": _sf_cpf_mascarado_br(cpf) if len(cpf) == 11 else "",
+        "account_id": account_id,
+        "opportunity_id": opportunity_id,
+        "account_created": bool(account_created),
+        "opportunity_created": bool(opportunity_created),
+        "message": message,
+        "requested_at": datetime.now(timezone.utc).isoformat(),
+        "resolved_at": (
+            datetime.now(timezone.utc).isoformat()
+            if status in ("ok", "terminal") and ranking
+            else None
+        ),
+    }
+    if extras:
+        out.update(dict(extras))
+    return out
+
+
+_RANKING_MEM_CACHE: dict[str, dict[str, Any]] = {}
+_SF_META_CACHE: dict[str, Any] = {}
+
+
+def _ranking_mem_get(cpf: str) -> dict[str, Any] | None:
+    hit = _RANKING_MEM_CACHE.get(cpf)
+    if not hit:
+        try:
+            sess = getattr(st, "session_state", None)
+            if sess is not None:
+                bag = sess.get("_ranking_mem_cache") or {}
+                hit = bag.get(cpf)
+        except Exception:
+            hit = None
+    if not hit:
+        return None
+    exp = hit.get("expires_at_ts")
+    if exp is not None and time.time() > float(exp):
+        _RANKING_MEM_CACHE.pop(cpf, None)
+        return None
+    if hit.get("status") == "pending" or not hit.get("ranking"):
+        return None
+    return dict(hit)
+
+
+def _ranking_mem_put(cpf: str, payload: Mapping[str, Any]) -> None:
+    item = dict(payload)
+    item["expires_at_ts"] = time.time() + RANKING_CACHE_TTL_HOURS * 3600
+    _RANKING_MEM_CACHE[cpf] = item
+    try:
+        sess = getattr(st, "session_state", None)
+        if sess is not None:
+            bag = dict(sess.get("_ranking_mem_cache") or {})
+            bag[cpf] = item
+            sess["_ranking_mem_cache"] = bag
+    except Exception:
+        pass
+
+
+def _spreadsheet_id_geral() -> str:
+    m = re.search(r"/d/([a-zA-Z0-9-_]+)", str(ID_GERAL))
+    return m.group(1) if m else str(ID_GERAL).strip()
+
+
+def _ranking_sheets_conn():
+    """Retorna conexão GSheets quando disponível; senão None."""
+    try:
+        return st.connection("gsheets", type=GSheetsConnection)
+    except Exception:
+        return None
+
+
+def _ranking_sheets_read_index() -> dict[str, dict[str, Any]]:
+    """Índice CPF → linha da aba BD Ranking CPF (somente resolvidos válidos)."""
+    idx: dict[str, dict[str, Any]] = {}
+    conn = _ranking_sheets_conn()
+    if conn is None:
+        return idx
+    try:
+        df = conn.read(spreadsheet=ID_GERAL, worksheet=WS_BD_RANKING_CPF)
+    except Exception:
+        return idx
+    if df is None or getattr(df, "empty", True):
+        return idx
+    try:
+        df.columns = [str(c).strip() for c in df.columns]
+    except Exception:
+        return idx
+    agora = datetime.now(timezone.utc)
+    for _, row in df.iterrows():
+        cpf = _sf_normalizar_cpf(row.get("CPF"))
+        if len(cpf) != 11:
+            continue
+        status = str(row.get("Status") or "").strip().lower()
+        ranking = _sf_mapear_ranking_para_ui(row.get("Ranking"))
+        if status == "pending" or not ranking:
+            continue
+        exp_raw = row.get("ExpiresAt")
+        if exp_raw not in (None, ""):
+            try:
+                exp = datetime.fromisoformat(str(exp_raw).replace("Z", "+00:00"))
+                if exp.tzinfo is None:
+                    exp = exp.replace(tzinfo=timezone.utc)
+                if exp < agora:
+                    continue
+            except Exception:
+                pass
+        idx[cpf] = {
+            "cpf": cpf,
+            "ranking": ranking,
+            "status": "ok",
+            "source": str(row.get("Source") or "sheets"),
+            "account_id": str(row.get("AccountId") or "") or None,
+            "opportunity_id": str(row.get("OpportunityId") or "") or None,
+            "resolved_at": str(row.get("ResolvedAt") or "") or None,
+            "expires_at": str(row.get("ExpiresAt") or "") or None,
+        }
+    return idx
+
+
+def _ranking_sheets_upsert(payload: Mapping[str, Any]) -> bool:
+    """Upsert na aba BD Ranking CPF. Falha silenciosa (não bloqueia classificação)."""
+    cpf = _sf_normalizar_cpf(payload.get("cpf"))
+    if len(cpf) != 11:
+        return False
+    conn = _ranking_sheets_conn()
+    if conn is None:
+        return False
+    try:
+        try:
+            df = conn.read(spreadsheet=ID_GERAL, worksheet=WS_BD_RANKING_CPF)
+            if df is None or getattr(df, "empty", True):
+                df = pd.DataFrame(columns=list(RANKING_SHEETS_COLS))
+            else:
+                df.columns = [str(c).strip() for c in df.columns]
+                for col in RANKING_SHEETS_COLS:
+                    if col not in df.columns:
+                        df[col] = ""
+        except Exception:
+            df = pd.DataFrame(columns=list(RANKING_SHEETS_COLS))
+
+        agora = datetime.now(timezone.utc)
+        expires = agora + timedelta(hours=RANKING_CACHE_TTL_HOURS)
+        nova = {
+            "CPF": cpf,
+            "Ranking": payload.get("ranking") or "",
+            "Status": payload.get("status") or "",
+            "Source": payload.get("source") or "",
+            "AccountId": payload.get("account_id") or "",
+            "OpportunityId": payload.get("opportunity_id") or "",
+            "RequestedAt": payload.get("requested_at") or agora.isoformat(),
+            "ResolvedAt": payload.get("resolved_at") or "",
+            "ExpiresAt": expires.isoformat(),
+        }
+        mask = df["CPF"].astype(str).map(_sf_normalizar_cpf) == cpf
+        if mask.any():
+            for k, v in nova.items():
+                df.loc[mask, k] = v
+        else:
+            df = pd.concat([df, pd.DataFrame([nova])], ignore_index=True)
+        conn.update(spreadsheet=ID_GERAL, worksheet=WS_BD_RANKING_CPF, data=df)
+        return True
+    except Exception:
+        _sf_logger.exception("Falha ao upsert ranking na planilha")
+        return False
+
+
+def _risk3_sync_lookup(cpf: str, *, timeout_s: float) -> dict[str, Any]:
+    """Adaptador REST opcional. Sem URL/credencial → skipped_unconfigured."""
+    url = (os.environ.get("RISK3_SYNC_URL") or "").strip()
+    token = (os.environ.get("RISK3_SYNC_TOKEN") or "").strip()
+    if not url:
+        return {"status": "skipped_unconfigured", "ranking": None, "raw": None}
+    try:
+        import requests as _requests
+
+        headers = {"Accept": "application/json"}
+        if token:
+            headers["Authorization"] = f"Bearer {token}"
+        resp = _requests.get(
+            url,
+            params={"cpf": cpf},
+            headers=headers,
+            timeout=max(0.2, float(timeout_s)),
+        )
+        if resp.status_code >= 400:
+            return {
+                "status": "error",
+                "ranking": None,
+                "raw": None,
+                "message": f"HTTP {resp.status_code}",
+            }
+        data = resp.json() if resp.content else {}
+        if isinstance(data, dict):
+            raw = data.get("ranking") or data.get("Ranking__c") or data.get("ranking_ui")
+        else:
+            raw = data
+        ranking = _sf_mapear_ranking_para_ui(raw)
+        if ranking:
+            return {"status": "ok", "ranking": ranking, "raw": raw}
+        return {"status": "empty", "ranking": None, "raw": raw}
+    except Exception as exc:  # noqa: BLE001
+        return {"status": "error", "ranking": None, "raw": None, "message": str(exc)}
+
+
+def _sf_meta_record_type_id(sf: Any) -> str | None:
+    cached = _SF_META_CACHE.get("record_type_id")
+    if cached:
+        return str(cached)
+    tipos = (
+        sf.query(
+            "SELECT Id FROM RecordType WHERE SobjectType = 'Account' "
+            "AND IsActive = true AND IsPersonType = true "
+            "AND DeveloperName = 'ClientePessoaFisica' LIMIT 5"
+        ).get("records")
+        or []
+    )
+    if len(tipos) != 1:
+        return None
+    rid = str(tipos[0]["Id"])
+    _SF_META_CACHE["record_type_id"] = rid
+    return rid
+
+
+def _sf_meta_stage_name(sf: Any) -> str:
+    cached = _SF_META_CACHE.get("stage_name")
+    if cached:
+        return str(cached)
+    stage_name = "Prospecting"
+    try:
+        opp_desc = sf.Opportunity.describe()
+        stage_meta = next(
+            (
+                field
+                for field in (opp_desc.get("fields") or [])
+                if field.get("name") == "StageName"
+            ),
+            None,
+        )
+        active_stages = [
+            str(item.get("value"))
+            for item in ((stage_meta or {}).get("picklistValues") or [])
+            if item.get("active", True) and item.get("value")
+        ]
+        if active_stages and stage_name not in active_stages:
+            stage_name = active_stages[0]
+    except Exception:
+        pass
+    _SF_META_CACHE["stage_name"] = stage_name
+    return stage_name
+
+
+def _sf_consultar_account_opp_consolidado(
+    sf: Any, cpf: str
+) -> tuple[dict[str, Any] | None, dict[str, Any] | None, str | None]:
+    """Uma consulta Account; Opportunity só se a conta existir."""
+    literais = _sf_literais_cpf(cpf)
+    contas = (
+        sf.query(
+            "SELECT Id, Name, CPF__c, Ranking__c, Ranking_Score__c, CreatedDate "
+            f"FROM Account WHERE CPF__c IN ({literais}) "
+            "ORDER BY CreatedDate DESC LIMIT 5"
+        ).get("records")
+        or []
+    )
+    if len(contas) > 1:
+        return None, None, f"CPF ambíguo: {len(contas)} contas encontradas."
+    conta = contas[0] if contas else None
+    if conta is None:
+        return None, None, None
+    oportunidades = (
+        sf.query(
+            "SELECT Id, Name, AccountId, Ranking__c, Ranking_Score__c, "
+            "Account.Ranking__c, Account.Ranking_Score__c, CreatedDate "
+            f"FROM Opportunity WHERE AccountId = '{_sf_soql_escape_literal(str(conta['Id']))}' "
+            "ORDER BY CreatedDate DESC LIMIT 5"
+        ).get("records")
+        or []
+    )
+    oportunidade = oportunidades[0] if oportunidades else None
+    return conta, oportunidade, None
+
+
+def _sf_warmup_meta(sf: Any | None = None) -> bool:
+    """Pré-aquece conexão + RecordType + StageName (fora do cronômetro do CPF)."""
+    client = sf or _sf_conectar_salesforce(verbose=False)
+    if client is None:
+        return False
+    _sf_meta_record_type_id(client)
+    _sf_meta_stage_name(client)
+    return True
+
+
+def _sf_ler_ranking_atual(
+    cpf_11: str,
+    *,
+    account_id: str | None = None,
+    opportunity_id: str | None = None,
+) -> tuple[str | None, Any, str | None]:
+    """Consulta SOMENTE-LEITURA do ``Ranking__c`` atual (não cria nem altera nada)."""
+    cpf = _sf_normalizar_cpf(cpf_11)
+    if len(cpf) != 11:
+        return None, None, "cpf_incompleto"
+    sf = _sf_conectar_salesforce(verbose=False)
+    if sf is None:
+        return None, None, "sem_conexao"
+    try:
+        raw = None
+        if account_id:
+            recs = (
+                sf.query(
+                    "SELECT Id, Ranking__c FROM Account "
+                    f"WHERE Id = '{_sf_soql_escape_literal(account_id)}' LIMIT 1"
+                ).get("records")
+                or []
+            )
+            if recs:
+                raw = recs[0].get("Ranking__c")
+        if raw is None:
+            literais = _sf_literais_cpf(cpf)
+            recs = (
+                sf.query(
+                    "SELECT Id, Ranking__c FROM Account "
+                    f"WHERE CPF__c IN ({literais}) ORDER BY CreatedDate DESC LIMIT 1"
+                ).get("records")
+                or []
+            )
+            if recs:
+                raw = recs[0].get("Ranking__c")
+        if raw is None and opportunity_id:
+            recs = (
+                sf.query(
+                    "SELECT Id, Ranking__c FROM Opportunity "
+                    f"WHERE Id = '{_sf_soql_escape_literal(opportunity_id)}' LIMIT 1"
+                ).get("records")
+                or []
+            )
+            if recs:
+                raw = recs[0].get("Ranking__c")
+        ranking = _sf_mapear_ranking_para_ui(raw)
+        if ranking:
+            return ranking, raw, "ok"
+        return None, raw, "sem_ranking"
+    except Exception as exc:  # noqa: BLE001
+        _sf_logger.exception("Falha ao ler ranking atual do CPF")
+        return None, None, str(exc)
+
+
+def _sf_ler_rankings_lote_por_accounts(
+    account_ids: list[str],
+) -> dict[str, dict[str, Any]]:
+    """Uma SOQL para vários Account Ids (+ Opportunities) — poll em lote."""
+    ids = [str(i).strip() for i in account_ids if str(i).strip()]
+    if not ids:
+        return {}
+    sf = _sf_conectar_salesforce(verbose=False)
+    if sf is None:
+        return {}
+    literais = ", ".join(f"'{_sf_soql_escape_literal(i)}'" for i in ids)
+    out: dict[str, dict[str, Any]] = {}
+    try:
+        recs = (
+            sf.query(
+                "SELECT Id, Ranking__c, Ranking_Score__c FROM Account "
+                f"WHERE Id IN ({literais})"
+            ).get("records")
+            or []
+        )
+        for rec in recs:
+            rid = str(rec.get("Id") or "")
+            raw = rec.get("Ranking__c")
+            out[rid] = {
+                "ranking": _sf_mapear_ranking_para_ui(raw),
+                "raw": raw,
+                "score": rec.get("Ranking_Score__c"),
+            }
+        # Ranking pode chegar primeiro na Opportunity criada pela automação.
+        opps = (
+            sf.query(
+                "SELECT Id, AccountId, Ranking__c, Ranking_Score__c FROM Opportunity "
+                f"WHERE AccountId IN ({literais}) ORDER BY CreatedDate DESC"
+            ).get("records")
+            or []
+        )
+        for opp in opps:
+            acc = str(opp.get("AccountId") or "")
+            if not acc:
+                continue
+            rk = _sf_mapear_ranking_para_ui(opp.get("Ranking__c"))
+            if not rk:
+                continue
+            atual = out.get(acc) or {}
+            if not atual.get("ranking"):
+                out[acc] = {
+                    "ranking": rk,
+                    "raw": opp.get("Ranking__c"),
+                    "score": opp.get("Ranking_Score__c"),
+                    "from_opportunity": True,
+                }
+    except Exception:
+        _sf_logger.exception("Falha SOQL lote de rankings")
+        return out
+    return out
+
+
+def _sf_poll_ui_interval(decorrido_s: float) -> float:
+    """1 s nos primeiros 10 s; depois 2 s."""
+    if decorrido_s <= RANKING_UI_POLL_FAST_WINDOW_S:
+        return RANKING_UI_POLL_FAST_S
+    return RANKING_UI_POLL_SLOW_S
+
+
+def _sf_poll_ui_config() -> tuple[float, float]:
+    """Teto total e intervalo base (segundos) do polling automático da interface."""
+    try:
+        maximo = max(
+            10.0, float(os.environ.get("SALESFORCE_RANKING_UI_POLL_MAX", "300"))
+        )
+    except (TypeError, ValueError):
+        maximo = 300.0
+    return maximo, RANKING_UI_POLL_FAST_S
+
+
+def _sf_criar_account_opp_rapido(
+    sf: Any,
+    cpf: str,
+    *,
+    conta: dict[str, Any] | None,
+    oportunidade: dict[str, Any] | None,
+    deadline: float,
+) -> dict[str, Any]:
+    """Cria Account/Opportunity ausentes sem polling bloqueante."""
+    import secrets
+    import string
+
+    cpf_mascarado = _sf_cpf_mascarado_br(cpf)
+    literais = _sf_literais_cpf(cpf)
+    account_id = str(conta.get("Id")) if conta else None
+    opportunity_id = str(oportunidade.get("Id")) if oportunidade else None
+    account_created = False
+    opportunity_created = False
+
+    if account_id is None:
+        if time.monotonic() > deadline:
+            return {
+                "error": "Tempo esgotado antes de criar a conta.",
+                "account_id": None,
+                "opportunity_id": None,
+            }
+        rt = _sf_meta_record_type_id(sf)
+        if not rt:
+            return {
+                "error": "Record Type ClientePessoaFisica não encontrado.",
+                "account_id": None,
+                "opportunity_id": None,
+            }
+        alfabeto = string.ascii_lowercase + string.digits
+        sufixo = "".join(secrets.choice(alfabeto) for _ in range(10))
+        telefone = "219" + "".join(secrets.choice(string.digits) for _ in range(8))
+        email = f"diresimulator+{sufixo}@gmail.com"
+        payload_conta = {
+            "RecordTypeId": rt,
+            "Salutation": "Sr.",
+            "FirstName": "Diresimulator",
+            "LastName": sufixo,
+            "CPF__c": cpf_mascarado,
+            "AccountSource": "Stand",
+            "Regional__c": "RJ",
+            "Regional_Comercial__c": "RJ",
+            "TelefoneAdicional__c": telefone,
+            "Email_Adicional__c": email,
+            "PersonEmail": email,
+            "Unidade_de_negocio__c": "Direcional",
+        }
+        try:
+            criado = sf.Account.create(payload_conta)
+            account_id = str(criado.get("id") or "").strip() or None
+            account_created = bool(account_id)
+        except Exception as exc_criar:
+            recuperadas = (
+                sf.query(
+                    "SELECT Id FROM Account "
+                    f"WHERE CPF__c IN ({literais}) LIMIT 2"
+                ).get("records")
+                or []
+            )
+            if len(recuperadas) == 1:
+                account_id = str(recuperadas[0]["Id"])
+            else:
+                match_id = None
+                content = getattr(exc_criar, "content", None)
+                if isinstance(content, list):
+                    for item in content:
+                        dup = (item or {}).get("duplicateResult") or {}
+                        for mr in dup.get("matchResults") or []:
+                            for rec in mr.get("matchRecords") or []:
+                                rid = ((rec or {}).get("record") or {}).get("Id")
+                                if rid:
+                                    match_id = str(rid)
+                                    break
+                            if match_id:
+                                break
+                        if match_id:
+                            break
+                if match_id:
+                    account_id = match_id
+                else:
+                    raise
+
+    if not account_id:
+        return {
+            "error": "Não foi possível obter ou criar a conta do cliente.",
+            "account_id": None,
+            "opportunity_id": None,
+        }
+
+    if opportunity_id is None:
+        if time.monotonic() > deadline:
+            return {
+                "error": "Tempo esgotado antes de criar a oportunidade.",
+                "account_id": account_id,
+                "opportunity_id": None,
+                "account_created": account_created,
+            }
+        stage_name = _sf_meta_stage_name(sf)
+        payload_opp = {
+            "AccountId": account_id,
+            "Name": f"Classificacao Ranking {cpf_mascarado}"[:120],
+            "StageName": stage_name,
+            "CloseDate": (date.today() + timedelta(days=30)).isoformat(),
+        }
+        criado = sf.Opportunity.create(payload_opp)
+        opportunity_id = str(criado.get("id") or "").strip() or None
+        opportunity_created = bool(opportunity_id)
+
+    return {
+        "error": None,
+        "account_id": account_id,
+        "opportunity_id": opportunity_id,
+        "account_created": account_created,
+        "opportunity_created": opportunity_created,
+    }
+
+
+def _sf_cleanup_teste_ranking(
+    account_id: str,
+    *,
+    only_diresimulator: bool = True,
+) -> dict[str, Any]:
+    """
+    Exclui objetos de teste na ordem:
+    RelacionamentoComprador__c → Opportunity → Account.
+    """
+    sf = _sf_conectar_salesforce(verbose=False)
+    if sf is None:
+        return {"ok": False, "error": "sem_conexao"}
+    acc_id = str(account_id or "").strip()
+    if not acc_id:
+        return {"ok": False, "error": "account_id_vazio"}
+    try:
+        contas = (
+            sf.query(
+                "SELECT Id, Name, FirstName FROM Account "
+                f"WHERE Id = '{_sf_soql_escape_literal(acc_id)}' LIMIT 1"
+            ).get("records")
+            or []
+        )
+        if not contas:
+            return {"ok": True, "already_gone": True}
+        nome = str(contas[0].get("Name") or "")
+        first = str(contas[0].get("FirstName") or "")
+        if only_diresimulator and (
+            first.strip().casefold() != "diresimulator"
+            and not nome.strip().casefold().startswith("diresimulator")
+        ):
+            return {"ok": False, "error": "conta_nao_e_teste", "name": nome}
+
+        apagados_rel = 0
+        # 1) Relacionamentos com comprador
+        for campo in ("AccountId", "BuyerId", "BuyerAccountId", "Conta__c"):
+            try:
+                rels = (
+                    sf.query(
+                        "SELECT Id FROM RelacionamentoComprador__c "
+                        f"WHERE {campo} = '{_sf_soql_escape_literal(acc_id)}' LIMIT 100"
+                    ).get("records")
+                    or []
+                )
+            except Exception:
+                continue
+            for rel in rels:
+                sf.RelacionamentoComprador__c.delete(str(rel["Id"]))
+                apagados_rel += 1
+
+        # 2) Opportunities
+        opps = (
+            sf.query(
+                "SELECT Id FROM Opportunity "
+                f"WHERE AccountId = '{_sf_soql_escape_literal(acc_id)}' LIMIT 50"
+            ).get("records")
+            or []
+        )
+        apagados_opp = 0
+        for opp in opps:
+            # relacionamentos ligados à opportunity, se houver
+            try:
+                rels_opp = (
+                    sf.query(
+                        "SELECT Id FROM RelacionamentoComprador__c "
+                        f"WHERE OpportunityId = '{_sf_soql_escape_literal(opp['Id'])}' "
+                        "LIMIT 50"
+                    ).get("records")
+                    or []
+                )
+                for rel in rels_opp:
+                    sf.RelacionamentoComprador__c.delete(str(rel["Id"]))
+                    apagados_rel += 1
+            except Exception:
+                pass
+            sf.Opportunity.delete(str(opp["Id"]))
+            apagados_opp += 1
+
+        restam_opp = (
+            sf.query(
+                "SELECT Id FROM Opportunity "
+                f"WHERE AccountId = '{_sf_soql_escape_literal(acc_id)}' LIMIT 1"
+            ).get("records")
+            or []
+        )
+        if restam_opp:
+            return {
+                "ok": False,
+                "error": "opportunity_ainda_existe",
+                "opportunity_id": restam_opp[0]["Id"],
+                "deleted_rels": apagados_rel,
+                "deleted_opps": apagados_opp,
+            }
+
+        # 3) Account
+        sf.Account.delete(acc_id)
+        restam_acc = (
+            sf.query(
+                "SELECT Id FROM Account "
+                f"WHERE Id = '{_sf_soql_escape_literal(acc_id)}' LIMIT 1"
+            ).get("records")
+            or []
+        )
+        if restam_acc:
+            return {
+                "ok": False,
+                "error": "account_ainda_existe",
+                "deleted_rels": apagados_rel,
+                "deleted_opps": apagados_opp,
+            }
+        return {
+            "ok": True,
+            "deleted_rels": apagados_rel,
+            "deleted_opps": apagados_opp,
+            "deleted_account": True,
+        }
+    except Exception as exc:  # noqa: BLE001
+        _sf_logger.exception("Falha no cleanup de teste")
+        return {"ok": False, "error": str(exc)}
+
+
+def classificar_ranking_cpf_pipeline(
+    cpf_11: str,
+    *,
+    bypass_cache: bool = False,
+    create_if_missing: bool = True,
+    budget_s: float = RANKING_PIPELINE_BUDGET_S,
+) -> dict[str, Any]:
+    """
+    Pipeline ordenado por velocidade, com orçamento global (~9,5 s):
+    memória → planilha (24 h) → Risk3 sync (opcional) → SOQL → criar+pendente.
+    """
+    t0 = time.monotonic()
+    deadline = t0 + max(0.5, float(budget_s))
+    cpf = _sf_normalizar_cpf(cpf_11)
+    if len(cpf) != 11:
+        return _ranking_resultado(
+            status="error",
+            code="cpf_incompleto",
+            cpf=cpf,
+            elapsed_seconds=time.monotonic() - t0,
+            message="Informe um CPF válido com 11 dígitos.",
+        )
+    if not _sf_cpf_valido(cpf):
+        return _ranking_resultado(
+            status="error",
+            code="cpf_invalido",
+            cpf=cpf,
+            elapsed_seconds=time.monotonic() - t0,
+            message="CPF inválido (dígitos verificadores).",
+        )
+
+    # 1) Memória da sessão
+    if not bypass_cache:
+        mem = _ranking_mem_get(cpf)
+        if mem and mem.get("ranking"):
+            return _ranking_resultado(
+                status="ok",
+                ranking=str(mem["ranking"]),
+                source="memory",
+                cpf=cpf,
+                account_id=mem.get("account_id"),
+                opportunity_id=mem.get("opportunity_id"),
+                elapsed_seconds=time.monotonic() - t0,
+                message="Ranking em memória local.",
+            )
+
+    # 2) Planilha externa (TTL 24 h)
+    if not bypass_cache and time.monotonic() < deadline:
+        try:
+            sheets_idx = _ranking_sheets_read_index()
+            hit = sheets_idx.get(cpf)
+            if hit and hit.get("ranking"):
+                _ranking_mem_put(cpf, hit)
+                return _ranking_resultado(
+                    status="ok",
+                    ranking=str(hit["ranking"]),
+                    source="sheets",
+                    cpf=cpf,
+                    account_id=hit.get("account_id"),
+                    opportunity_id=hit.get("opportunity_id"),
+                    elapsed_seconds=time.monotonic() - t0,
+                    message="Ranking na base externa (válido por 24 h).",
+                )
+        except Exception:
+            _sf_logger.exception("Falha ao ler cache de ranking na planilha")
+
+    # 3) API síncrona Risk3 (opcional)
+    restante = deadline - time.monotonic()
+    if restante > 0.3:
+        sync = _risk3_sync_lookup(cpf, timeout_s=min(2.0, restante - 0.1))
+        if sync.get("status") == "ok" and sync.get("ranking"):
+            payload = _ranking_resultado(
+                status="ok",
+                ranking=str(sync["ranking"]),
+                source="risk3_sync",
+                cpf=cpf,
+                elapsed_seconds=time.monotonic() - t0,
+                message="Ranking via API síncrona Risk3.",
+            )
+            _ranking_mem_put(cpf, payload)
+            _ranking_sheets_upsert(payload)
+            return payload
+
+    # 4) SOQL ao vivo consolidado
+    _injetar_secrets_salesforce_no_env()
+    sf = _sf_conectar_salesforce(verbose=False)
+    if sf is None:
+        return _ranking_resultado(
+            status="error",
+            code="sem_conexao",
+            cpf=cpf,
+            elapsed_seconds=time.monotonic() - t0,
+            message="Não foi possível conectar ao Salesforce.",
+        )
+    if time.monotonic() > deadline:
+        return _ranking_resultado(
+            status="error",
+            code="timeout",
+            cpf=cpf,
+            elapsed_seconds=time.monotonic() - t0,
+            message="Tempo esgotado antes da consulta Salesforce.",
+        )
+    try:
+        conta, oportunidade, err_amb = _sf_consultar_account_opp_consolidado(sf, cpf)
+        if err_amb:
+            return _ranking_resultado(
+                status="error",
+                code="ambiguo",
+                cpf=cpf,
+                elapsed_seconds=time.monotonic() - t0,
+                message=err_amb,
+            )
+        info = _sf_extrair_ranking_ui_de_opportunity(
+            oportunidade
+            or {
+                "Account": conta or {},
+                "Ranking__c": None,
+                "Ranking_Score__c": None,
+            }
+        )
+        ranking = info.get("ranking_exibir")
+        account_id = str(conta.get("Id")) if conta else None
+        opportunity_id = str(oportunidade.get("Id")) if oportunidade else None
+        if ranking:
+            status = (
+                "terminal"
+                if ranking in ("NÃO ELEGÍVEL", "INFORMAÇÃO NÃO DISPONÍVEL")
+                else "ok"
+            )
+            payload = _ranking_resultado(
+                status=status,
+                ranking=str(ranking),
+                source="salesforce",
+                cpf=cpf,
+                account_id=account_id,
+                opportunity_id=opportunity_id,
+                elapsed_seconds=time.monotonic() - t0,
+                message="Ranking já presente no Salesforce.",
+            )
+            if status == "ok":
+                _ranking_mem_put(cpf, payload)
+                _ranking_sheets_upsert(payload)
+            return payload
+
+        # 5) Criação otimizada + pendente (sem poll bloqueante)
+        if not create_if_missing:
+            return _ranking_resultado(
+                status="pending",
+                code="sem_registo",
+                cpf=cpf,
+                account_id=account_id,
+                opportunity_id=opportunity_id,
+                elapsed_seconds=time.monotonic() - t0,
+                message="CPF sem ranking e criação desabilitada nesta chamada.",
+            )
+        criado = _sf_criar_account_opp_rapido(
+            sf,
+            cpf,
+            conta=conta,
+            oportunidade=oportunidade,
+            deadline=deadline,
+        )
+        if criado.get("error"):
+            return _ranking_resultado(
+                status="error",
+                code="erro_criar",
+                cpf=cpf,
+                account_id=criado.get("account_id"),
+                opportunity_id=criado.get("opportunity_id"),
+                account_created=bool(criado.get("account_created")),
+                opportunity_created=bool(criado.get("opportunity_created")),
+                elapsed_seconds=time.monotonic() - t0,
+                message=str(criado["error"]),
+            )
+        payload = _ranking_resultado(
+            status="pending",
+            code="sem_ranking",
+            cpf=cpf,
+            account_id=criado.get("account_id"),
+            opportunity_id=criado.get("opportunity_id"),
+            account_created=bool(criado.get("account_created")),
+            opportunity_created=bool(criado.get("opportunity_created")),
+            elapsed_seconds=time.monotonic() - t0,
+            message=(
+                "Conta/oportunidade prontas; Ranking__c ainda pendente no Risk3."
+            ),
+            source="salesforce_create",
+        )
+        _ranking_sheets_upsert(payload)
+        return payload
+    except Exception as exc:  # noqa: BLE001
+        _sf_logger.exception("Falha no pipeline de ranking")
+        return _ranking_resultado(
+            status="error",
+            code="erro_sf",
+            cpf=cpf,
+            elapsed_seconds=time.monotonic() - t0,
+            message=str(exc),
+        )
+
+
+def _sf_classificar_criando_ausentes(cpf_11: str) -> tuple[dict[str, Any] | None, str | None]:
+    """
+    Compatível com a UI antiga: cria ausentes e devolve imediatamente.
+    Sem polling bloqueante (Risk3 é acompanhado em background na interface).
+    """
+    res = classificar_ranking_cpf_pipeline(
+        cpf_11, bypass_cache=True, create_if_missing=True
+    )
+    if res.get("status") == "error" and res.get("code") in (
+        "cpf_incompleto",
+        "cpf_invalido",
+        "sem_conexao",
+        "ambiguo",
+        "erro_criar",
+        "erro_sf",
+        "timeout",
+    ):
+        return None, str(res.get("message") or "Falha ao classificar CPF.")
+    # Mantém chaves esperadas pelos callers antigos.
+    return {
+        "code": res.get("code") or res.get("status"),
+        "message": res.get("message"),
+        "cpf": res.get("cpf"),
+        "cpf_masked": res.get("cpf_masked"),
+        "account_id": res.get("account_id"),
+        "account_created": res.get("account_created"),
+        "opportunity_id": res.get("opportunity_id"),
+        "opportunity_created": res.get("opportunity_created"),
+        "ranking": res.get("ranking"),
+        "elapsed_seconds": res.get("elapsed_seconds"),
+        "source": res.get("source"),
+        "status": res.get("status"),
+    }, None
+
+
 @st.cache_data(ttl=300, show_spinner=False)
 def _lookup_ranking_salesforce_cached(cpf11: str) -> tuple[str | None, str | None]:
     _injetar_secrets_salesforce_no_env()
-    return _sf_classificar_ranking_cpf_11(cpf11)
+    res = classificar_ranking_cpf_pipeline(
+        cpf11, bypass_cache=False, create_if_missing=False
+    )
+    if res.get("ranking"):
+        return str(res["ranking"]), None
+    code = str(res.get("code") or res.get("status") or "sem_registo")
+    if code in ("ok", "terminal"):
+        return None, "sem_registo"
+    return None, code if code != "pending" else "sem_registo"
 
 
 @st.cache_data(ttl=300, show_spinner=False)
@@ -1602,19 +2774,17 @@ def montar_mensagem_whatsapp_resumo(
     linhas.extend(
         [
             item(
-                "Pro Soluto (Mensal + Intercaladas), sem correção",
-                f"R$ {fmt_br(d.get('ps_mensal_intercaladas', d.get('ps_usado', 0)))}",
+                "Valor do Pro Soluto",
+                f"R$ {fmt_br(d.get('ps_usado', 0))}",
             ),
             item(
-                "Tipo de fluxo Pro Soluto escolhido",
+                "Tipo de fluxo",
                 d.get("tipo_fluxo_pro_soluto", "Linear"),
             ),
-            item("Número de parcelas do Pro Soluto", d.get("ps_parcelas", "-")),
-            item("Mensalidade corrigida do Pro Soluto", brs("ps_mensal", 0)),
-            item("Maior valor pro soluto", brs("ps_maior_valor", 0)),
-            item("Menor valor pro soluto", brs("ps_menor_valor", 0)),
-            item("Pro soluto com carência (corrigido)", brs("ps_com_carencia", 0)),
-            item("Valor total das parcelas corrigidas", brs("ps_total_corrigido", 0)),
+            item("Quantidade de parcelas", d.get("ps_parcelas", "-")),
+            item("Pro Soluto corrigido (com carência)", brs("ps_com_carencia", 0)),
+            item("Maior valor de parcela", brs("ps_maior_valor", 0)),
+            item("Menor valor de parcela", brs("ps_menor_valor", 0)),
             item("Ato 1 (Entrada Imediata)", brs("ato_final", 0)),
         ]
     )
@@ -1625,8 +2795,14 @@ def montar_mensagem_whatsapp_resumo(
         linhas.append(item("Ato 30", brs("ato_30", 0)))
         linhas.append(item("Ato 60", brs("ato_60", 0)))
         linhas.append(item("Ato 90", brs("ato_90", 0)))
-    _ent_tot = float(d.get("entrada_total", 0) or 0) + float(d.get("ps_usado", 0) or 0)
-    linhas.append(item("Entrada total (atos e Pro Soluto)", f"R$ {fmt_br(_ent_tot)}"))
+    for _idx_anual in range(1, 4):
+        linhas.append(item(f"Anual {_idx_anual}", brs(f"anual_{_idx_anual}", 0)))
+    _ent_tot = (
+        float(d.get("entrada_total", 0) or 0)
+        + float(d.get("ps_usado", 0) or 0)
+        + sum(float(d.get(f"anual_{i}", 0) or 0) for i in range(1, 4))
+    )
+    linhas.append(item("Entrada total (atos, anuais e Pro Soluto)", f"R$ {fmt_br(_ent_tot)}"))
 
     nc = (nome_consultor or "").strip()
     if nc:
@@ -5890,19 +7066,17 @@ def gerar_resumo_pdf(d, volta_caixa_val: float = 0.0):
         else:
             linha("Política de Pro Soluto", _pdf_text_seguro(_pol_pdf_label))
         linha(
-            "Pro Soluto (Mensal + Intercaladas), sem correção",
-            f"R$ {fmt_br(d.get('ps_mensal_intercaladas', d.get('ps_usado', 0)))}",
+            "Valor do Pro Soluto",
+            f"R$ {fmt_br(d.get('ps_usado', 0))}",
         )
         linha(
-            "Tipo de fluxo Pro Soluto escolhido",
+            "Tipo de fluxo",
             _pdf_text_seguro(d.get("tipo_fluxo_pro_soluto", "Linear")),
         )
-        linha("Número de parcelas do Pro Soluto", _pdf_text_seguro(d.get("ps_parcelas")))
-        linha("Mensalidade corrigida do Pro Soluto", f"R$ {fmt_br(d.get('ps_mensal', 0))}")
-        linha("Maior valor pro soluto", f"R$ {fmt_br(d.get('ps_maior_valor', 0))}")
-        linha("Menor valor pro soluto", f"R$ {fmt_br(d.get('ps_menor_valor', 0))}")
-        linha("Pro soluto com carência (corrigido)", f"R$ {fmt_br(d.get('ps_com_carencia', 0))}")
-        linha("Valor total das parcelas corrigidas", f"R$ {fmt_br(d.get('ps_total_corrigido', 0))}")
+        linha("Quantidade de parcelas", _pdf_text_seguro(d.get("ps_parcelas")))
+        linha("Pro Soluto corrigido (com carência)", f"R$ {fmt_br(d.get('ps_com_carencia', 0))}")
+        linha("Maior valor de parcela", f"R$ {fmt_br(d.get('ps_maior_valor', 0))}")
+        linha("Menor valor de parcela", f"R$ {fmt_br(d.get('ps_menor_valor', 0))}")
         linha("Ato 1 (Entrada Imediata)", f"R$ {fmt_br(d.get('ato_final', 0))}")
         if _politica_emcash(d.get("politica")):
             linha("Ato 30", f"R$ {fmt_br(d.get('ato_30', 0))}")
@@ -5911,8 +7085,17 @@ def gerar_resumo_pdf(d, volta_caixa_val: float = 0.0):
             linha("Ato 30", f"R$ {fmt_br(d.get('ato_30', 0))}")
             linha("Ato 60", f"R$ {fmt_br(d.get('ato_60', 0))}")
             linha("Ato 90", f"R$ {fmt_br(d.get('ato_90', 0))}")
-        _ent_ps = float(d.get('entrada_total', 0) or 0) + float(d.get('ps_usado', 0) or 0)
-        linha("Entrada total (atos e Pro Soluto)", f"R$ {fmt_br(_ent_ps)}", True)
+        for _idx_anual in range(1, 4):
+            linha(
+                f"Anual {_idx_anual}",
+                f"R$ {fmt_br(d.get(f'anual_{_idx_anual}', 0))}",
+            )
+        _ent_ps = (
+            float(d.get('entrada_total', 0) or 0)
+            + float(d.get('ps_usado', 0) or 0)
+            + sum(float(d.get(f"anual_{i}", 0) or 0) for i in range(1, 4))
+        )
+        linha("Entrada total (atos, anuais e Pro Soluto)", f"R$ {fmt_br(_ent_ps)}", True)
 
         # ===============================
         # RODAPÉ (DADOS CORRETOR)
@@ -6009,6 +7192,9 @@ def enviar_email_smtp(destinatario, nome_cliente, pdf_bytes, dados_cliente, tipo
     a30 = fmt_br(dados_cliente.get('ato_30', 0))
     a60 = fmt_br(dados_cliente.get('ato_60', 0))
     a90 = fmt_br(dados_cliente.get('ato_90', 0))
+    anual1 = fmt_br(dados_cliente.get('anual_1', 0))
+    anual2 = fmt_br(dados_cliente.get('anual_2', 0))
+    anual3 = fmt_br(dados_cliente.get('anual_3', 0))
     _emcash_corretor = _politica_emcash(dados_cliente.get("politica"))
     _html_linha_ato_90 = (
         ""
@@ -6211,6 +7397,18 @@ def enviar_email_smtp(destinatario, nome_cliente, pdf_bytes, dados_cliente, tipo
                                              <td align="right">R$ {a60}</td>
                                         </tr>
                                         {_html_linha_ato_90}
+                                        <tr>
+                                            <td>&nbsp;&nbsp;↳ Anual 1</td>
+                                            <td align="right">R$ {anual1}</td>
+                                        </tr>
+                                        <tr>
+                                            <td>&nbsp;&nbsp;↳ Anual 2</td>
+                                            <td align="right">R$ {anual2}</td>
+                                        </tr>
+                                        <tr>
+                                            <td>&nbsp;&nbsp;↳ Anual 3</td>
+                                            <td align="right">R$ {anual3}</td>
+                                        </tr>
                                         <tr style="background-color: #f2f2f2;">
                                             <td>Financiamento</td>
                                             <td align="right">R$ {finan}</td>
@@ -6421,7 +7619,76 @@ def aba_simulador_automacao(
         rank_opts = ["DIAMANTE", "OURO", "PRATA", "BRONZE", "AÇO"]
         _sf_rs: str | None = None
         _sf_code: str | None = None
-        if len(cpf_digits) == 11:
+        _sf_pending = st.session_state.get("_sf_pending") or {}
+        _sf_pending_ativo = (
+            len(cpf_digits) == 11
+            and str(_sf_pending.get("cpf") or "") == cpf_digits
+            and st.session_state.get("_sf_rank_applied_cpf") != cpf_digits
+        )
+        if _sf_pending_ativo:
+            _poll_max, _ = _sf_poll_ui_config()
+            _poll_t0 = float(_sf_pending.get("t0") or time.monotonic())
+            _poll_decorrido = max(0.0, time.monotonic() - _poll_t0)
+            _poll_int = _sf_poll_ui_interval(_poll_decorrido)
+            _poll_rk, _poll_raw, _poll_code = _sf_ler_ranking_atual(
+                cpf_digits,
+                account_id=_sf_pending.get("account_id"),
+                opportunity_id=_sf_pending.get("opportunity_id"),
+            )
+            if _poll_rk in rank_opts:
+                st.session_state["in_rank_v28"] = _poll_rk
+                st.session_state["_sf_rank_applied_cpf"] = cpf_digits
+                _resolved = _ranking_resultado(
+                    status="ok",
+                    ranking=_poll_rk,
+                    source="salesforce_poll",
+                    cpf=cpf_digits,
+                    account_id=_sf_pending.get("account_id"),
+                    opportunity_id=_sf_pending.get("opportunity_id"),
+                    elapsed_seconds=_poll_decorrido,
+                    message="Ranking obtido via polling automático.",
+                )
+                _ranking_mem_put(cpf_digits, _resolved)
+                _ranking_sheets_upsert(_resolved)
+                st.session_state.pop("_sf_pending", None)
+                try:
+                    _lookup_ranking_salesforce_cached.clear()
+                except Exception:
+                    pass
+                if hasattr(st, "toast"):
+                    try:
+                        st.toast(f"Ranking classificado: {_poll_rk}", icon="✅")
+                    except Exception:
+                        pass
+                st.rerun()
+            elif _poll_rk in ("NÃO ELEGÍVEL", "INFORMAÇÃO NÃO DISPONÍVEL"):
+                st.session_state["_sf_rank_applied_cpf"] = cpf_digits
+                st.session_state.pop("_sf_pending", None)
+                st.warning(
+                    f"Resposta ao vivo do Salesforce: {_poll_rk}. "
+                    "Não há ranking comercial elegível para este CPF."
+                )
+            else:
+                _poll_parar = st.button(
+                    "Parar de aguardar a classificação",
+                    key=f"sf_parar_poll_{cpf_digits}",
+                    use_container_width=True,
+                )
+                if _poll_parar or _poll_decorrido >= _poll_max:
+                    st.session_state.pop("_sf_pending", None)
+                    st.info(
+                        "A classificação ainda está sendo processada pelo Salesforce "
+                        "(Risk3 é assíncrono e pode levar alguns minutos). A busca será "
+                        "retomada automaticamente quando você interagir novamente com este CPF."
+                    )
+                else:
+                    st.info(
+                        "Classificação em andamento no Salesforce (Risk3). Aguardando o "
+                        f"ranking automaticamente… tempo decorrido: {int(_poll_decorrido)}s."
+                    )
+                    time.sleep(_poll_int)
+                    st.rerun()
+        elif len(cpf_digits) == 11:
             _sf_rs, _sf_code = _lookup_ranking_salesforce_cached(cpf_digits)
             if _sf_rs and _sf_rs in rank_opts and st.session_state.get("_sf_rank_applied_cpf") != cpf_digits:
                 st.session_state["in_rank_v28"] = _sf_rs
@@ -6447,7 +7714,7 @@ def aba_simulador_automacao(
             # CPF incompleto ou vazio: permite nova consulta ao voltar a 11 dígitos
             st.session_state["_sf_rank_applied_cpf"] = ""
             st.session_state["_sf_rank_naoencontrado_toast_cpf"] = ""
-        if len(cpf_digits) == 11:
+        if len(cpf_digits) == 11 and not _sf_pending_ativo:
             if _sf_rs:
                 st.markdown(
                     f'<p class="inline-ref" style="margin-top:0;margin-bottom:0;line-height:1.45;">'
@@ -6496,11 +7763,26 @@ def aba_simulador_automacao(
                                 f"oportunidade {_novo_resultado.get('opportunity_id') or '-'}."
                             )
                             st.rerun()
-                        elif _novo_codigo == "sem_ranking":
+                        elif _novo_ranking in (
+                            "NÃO ELEGÍVEL",
+                            "INFORMAÇÃO NÃO DISPONÍVEL",
+                        ):
                             st.warning(
-                                "Conta e oportunidade estão prontas, mas o Ranking ainda está "
-                                "sendo processado pelo Salesforce. Tente consultar novamente em instantes."
+                                f"Resposta ao vivo do Salesforce: {_novo_ranking}. "
+                                "Não há ranking comercial elegível para este CPF."
                             )
+                        elif _novo_codigo == "sem_ranking":
+                            st.session_state["_sf_pending"] = {
+                                "cpf": cpf_digits,
+                                "account_id": _novo_resultado.get("account_id"),
+                                "opportunity_id": _novo_resultado.get("opportunity_id"),
+                                "t0": time.monotonic(),
+                            }
+                            st.info(
+                                "Registros criados no Salesforce. Iniciando o acompanhamento "
+                                "automático do ranking (Risk3)…"
+                            )
+                            st.rerun()
                         else:
                             _dv_alerta_vermelho_texto(
                                 str(
@@ -7217,6 +8499,10 @@ def aba_simulador_automacao(
             st.session_state.dados_cliente['ato_60'] = 0.0
         if 'ato_90' not in st.session_state.dados_cliente:
             st.session_state.dados_cliente['ato_90'] = 0.0
+        for _idx_anual in range(1, 4):
+            _campo_anual = f"anual_{_idx_anual}"
+            if _campo_anual not in st.session_state.dados_cliente:
+                st.session_state.dados_cliente[_campo_anual] = 0.0
 
         is_emcash = _politica_emcash(d.get("politica"))
 
@@ -7281,8 +8567,6 @@ def aba_simulador_automacao(
             st.session_state['ps_u_key'] = float_para_campo_texto(st.session_state.dados_cliente.get('ps_usado', 0.0), vazio_se_zero=True)
         _ps0 = texto_moeda_para_float(st.session_state.get('ps_u_key'))
         _teto_ps_opts = []
-        if ps_limite_ui > 0:
-            _teto_ps_opts.append(ps_limite_ui)
         if u_valor > 0:
             _teto_ps_opts.append(max(0.0, v_liquido - f_u_input - fgts_u_input))
         _teto_ps = min(_teto_ps_opts) if _teto_ps_opts else None
@@ -7303,15 +8587,28 @@ def aba_simulador_automacao(
             st.session_state["ato_4_key"] = float_para_campo_texto(
                 st.session_state.dados_cliente.get("ato_90", 0.0), vazio_se_zero=True
             )
+        for _idx_anual in range(1, 4):
+            _key_anual = f"anual_{_idx_anual}_key"
+            if _key_anual not in st.session_state:
+                st.session_state[_key_anual] = float_para_campo_texto(
+                    st.session_state.dados_cliente.get(f"anual_{_idx_anual}", 0.0),
+                    vazio_se_zero=True,
+                )
+        _anuais_pre = [
+            max(0.0, texto_moeda_para_float(st.session_state.get(f"anual_{i}_key")))
+            for i in range(1, 4)
+        ]
+        _total_anuais_pre = sum(_anuais_pre)
 
         _teto_cap = []
-        if ps_limite_ui > 0:
-            _teto_cap.append(ps_limite_ui)
         if u_valor > 0:
             _teto_cap.append(max(0.0, v_liquido - f_u_input - fgts_u_input))
         _teto_ps_cap = min(_teto_cap) if _teto_cap else None
         _ps_cap = clamp_moeda_positiva(texto_moeda_para_float(st.session_state.get('ps_u_key')), _teto_ps_cap)
-        cap_atos = max(0.0, v_liquido - f_u_input - fgts_u_input - _ps_cap)
+        cap_atos = max(
+            0.0,
+            v_liquido - f_u_input - fgts_u_input - _ps_cap - _total_anuais_pre,
+        )
 
         r1s = max(0.0, texto_moeda_para_float(st.session_state.get("ato_1_key")))
         r2s = max(0.0, texto_moeda_para_float(st.session_state.get("ato_2_key")))
@@ -7331,8 +8628,6 @@ def aba_simulador_automacao(
                 st.session_state["ato_4_key"] = float_para_campo_texto(r4s, vazio_se_zero=True)
 
         _opts_ps_btn = []
-        if ps_limite_ui > 0:
-            _opts_ps_btn.append(ps_limite_ui)
         if u_valor > 0:
             _opts_ps_btn.append(max(0.0, v_liquido - f_u_input - fgts_u_input))
         _teto_ps_btn = min(_opts_ps_btn) if _opts_ps_btn else 0.0
@@ -7353,7 +8648,11 @@ def aba_simulador_automacao(
             a2 = max(0.0, texto_moeda_para_float(st.session_state.get("ato_2_key")))
             a3 = max(0.0, texto_moeda_para_float(st.session_state.get("ato_3_key")))
             a4 = 0.0 if em else max(0.0, texto_moeda_para_float(st.session_state.get("ato_4_key")))
-            gap = max(0.0, v_alvo - fi - su - a1 - a2 - a3 - a4)
+            anuais_cb = sum(
+                max(0.0, texto_moeda_para_float(st.session_state.get(f"anual_{i}_key")))
+                for i in range(1, 4)
+            )
+            gap = max(0.0, v_alvo - fi - su - a1 - a2 - a3 - a4 - anuais_cb)
             teto_b = float(st.session_state.get("_ps_teto_para_botao", 0) or 0)
             novo = min(gap, teto_b) if teto_b > 0 else gap
             st.session_state["ps_u_key"] = float_para_campo_texto(novo, vazio_se_zero=True)
@@ -7389,8 +8688,6 @@ def aba_simulador_automacao(
             a1_atual = max(0.0, texto_moeda_para_float(st.session_state.get('ato_1_key')))
             ps_atual_cb = texto_moeda_para_float(st.session_state.get('ps_u_key'))
             _opts_cb = []
-            if ps_limite_ui > 0:
-                _opts_cb.append(ps_limite_ui)
             if u_valor > 0:
                 _opts_cb.append(max(0.0, v_liquido - f_u_input - fgts_u_input))
             _teto_cb = min(_opts_cb) if _opts_cb else None
@@ -7497,6 +8794,28 @@ def aba_simulador_automacao(
                 0.0, texto_moeda_para_float(st.session_state.get("ato_4_key"))
             )
 
+        st.markdown(
+            '<h4 style="margin:0.75rem 0 0.35rem 0;color:#111;">Parcelas anuais do Pro Soluto</h4>',
+            unsafe_allow_html=True,
+        )
+        _anuais_ps: list[float] = []
+        for _idx_anual in range(1, 4):
+            st.text_input(
+                f"Anual {_idx_anual} (R$)",
+                key=f"anual_{_idx_anual}_key",
+                placeholder="0,00",
+            )
+            _valor_anual = max(
+                0.0,
+                texto_moeda_para_float(
+                    st.session_state.get(f"anual_{_idx_anual}_key")
+                ),
+            )
+            _anuais_ps.append(_valor_anual)
+            st.session_state.dados_cliente[f"anual_{_idx_anual}"] = _valor_anual
+        valor_intercaladas_ps = sum(_anuais_ps)
+        qtd_intercaladas_ps = sum(1 for _valor_anual in _anuais_ps if _valor_anual > 0.009)
+
         st.write("")
         st.button(
             "Preencher valor restante no Pro Soluto",
@@ -7512,10 +8831,16 @@ def aba_simulador_automacao(
         meses_entrega_unid = meses_ate_entrega(d.get("unid_entrega", ""))
         st.session_state.dados_cliente["meses_ate_entrega"] = meses_entrega_unid
         _ps_opts_f: list[float] = []
-        if ps_limite_ui2 > 0:
-            _ps_opts_f.append(ps_limite_ui2)
         if u_valor > 0:
-            _ps_opts_f.append(max(0.0, v_liquido - f_u_input - fgts_u_input))
+            _ps_opts_f.append(
+                max(
+                    0.0,
+                    v_liquido
+                    - f_u_input
+                    - fgts_u_input
+                    - valor_intercaladas_ps,
+                )
+            )
         _teto_ps_final = min(_ps_opts_f) if _ps_opts_f else None
 
         if "_dv_ps_u_key_deferred" in st.session_state:
@@ -7524,63 +8849,36 @@ def aba_simulador_automacao(
         _tipo_fluxo_salvo = str(d.get("tipo_fluxo_pro_soluto") or "Linear")
         _tipo_fluxo_idx = 1 if _tipo_fluxo_salvo.casefold().startswith("escal") else 0
         tipo_fluxo_ps = st.selectbox(
-            "Tipo de fluxo Pro Soluto escolhido",
+            "Tipo de fluxo Pro Soluto",
             options=["Linear", "Escalonado"],
             index=_tipo_fluxo_idx,
             key="tipo_fluxo_ps_key",
             help=(
                 "Linear mantém a prestação mensal corrigida constante. Escalonado aplica "
-                "as correções pré e pós-chaves progressivamente em cada vencimento."
+                "as faixas 40/30/20/10 progressivamente."
             ),
         )
         st.session_state.dados_cliente["tipo_fluxo_pro_soluto"] = tipo_fluxo_ps
 
-        if "ps_intercaladas_key" not in st.session_state:
-            st.session_state["ps_intercaladas_key"] = float_para_campo_texto(
-                d.get("ps_intercaladas", 0.0), vazio_se_zero=True
+        _atos_carencia = [
+            max(0.0, texto_moeda_para_float(st.session_state.get("ato_1_key"))),
+            max(0.0, texto_moeda_para_float(st.session_state.get("ato_2_key"))),
+            max(0.0, texto_moeda_para_float(st.session_state.get("ato_3_key"))),
+        ]
+        if not is_emcash:
+            _atos_carencia.append(
+                max(0.0, texto_moeda_para_float(st.session_state.get("ato_4_key")))
             )
-        st.text_input(
-            "Total das parcelas intercaladas do Pro Soluto (R$)",
-            key="ps_intercaladas_key",
-            placeholder="0,00",
+        meses_carencia_ps = sum(
+            1 for _valor_pagamento in (_atos_carencia + _anuais_ps)
+            if _valor_pagamento > 0.009
         )
-        valor_intercaladas_ps = max(
-            0.0, texto_moeda_para_float(st.session_state.get("ps_intercaladas_key"))
+        st.caption(
+            f"Carência aplicada automaticamente: {meses_carencia_ps} "
+            f"{'mês' if meses_carencia_ps == 1 else 'meses'} "
+            "(1 mês por ato ou anual preenchido)."
         )
 
-        if "ps_qtd_intercaladas_key" not in st.session_state:
-            st.session_state["ps_qtd_intercaladas_key"] = str(
-                int(d.get("ps_qtd_intercaladas", 0) or 0)
-            )
-        st.text_input(
-            "Quantidade de parcelas intercaladas (inteiro)",
-            key="ps_qtd_intercaladas_key",
-            placeholder="0",
-        )
-        qtd_intercaladas_ps = texto_inteiro(
-            st.session_state.get("ps_qtd_intercaladas_key"),
-            default=0,
-            min_v=0,
-            max_v=24,
-        ) or 0
-        if qtd_intercaladas_ps == 0:
-            valor_intercaladas_ps = 0.0
-
-        if "ps_carencia_meses_key" not in st.session_state:
-            st.session_state["ps_carencia_meses_key"] = str(
-                int(d.get("ps_carencia_meses", 4) or 0)
-            )
-        st.text_input(
-            "Carência do Pro Soluto (meses)",
-            key="ps_carencia_meses_key",
-            placeholder="0",
-        )
-        meses_carencia_ps = texto_inteiro(
-            st.session_state.get("ps_carencia_meses_key"),
-            default=0,
-            min_v=0,
-            max_v=120,
-        ) or 0
         st.session_state.dados_cliente["ps_intercaladas"] = valor_intercaladas_ps
         st.session_state.dados_cliente["ps_qtd_intercaladas"] = qtd_intercaladas_ps
         st.session_state.dados_cliente["ps_carencia_meses"] = meses_carencia_ps
@@ -7602,9 +8900,9 @@ def aba_simulador_automacao(
             if is_emcash
             else float(_prem["dire_pre_m"])
         )
-        _principal_mensal_prazo = max(
-            0.0, float(ps_input_val or 0) - float(valor_intercaladas_ps or 0)
-        ) * ((1.0 + _taxa_carencia_prazo) ** int(meses_carencia_ps))
+        _principal_mensal_prazo = max(0.0, float(ps_input_val or 0)) * (
+            (1.0 + _taxa_carencia_prazo) ** int(meses_carencia_ps)
+        )
         if (
             _principal_mensal_prazo > 0
             and j8_ui > 0
@@ -7635,33 +8933,40 @@ def aba_simulador_automacao(
                 st.session_state["parc_ps_key"] = str(_n_need)
 
         st.text_input(
-            "Número de parcelas do Pro Soluto (inteiro)",
+            "Quantidade de parcelas do Pro Soluto",
             key="parc_ps_key",
             placeholder=f"1 a {parc_max_ui}",
         )
         _parc_i = texto_inteiro(st.session_state.get("parc_ps_key"), default=1, min_v=1, max_v=parc_max_ui)
         parc = _parc_i if _parc_i is not None else 1
         st.session_state.dados_cliente["ps_parcelas"] = parc
+        _meses_entrega_fluxo = max(0, int(meses_entrega_unid) - int(meses_carencia_ps))
         fluxo_ps = calcular_fluxo_pro_soluto_completo(
-            valor_nao_corrigido=float(ps_input_val or 0),
+            valor_nao_corrigido=float(ps_input_val or 0) + valor_intercaladas_ps,
             quantidade_mensais=parc,
             tipo_fluxo=tipo_fluxo_ps,
             politica_ui=pol_ui,
             premissas=_prem,
-            meses_entrega=meses_entrega_unid,
+            meses_entrega=_meses_entrega_fluxo,
             valor_intercaladas=valor_intercaladas_ps,
             quantidade_intercaladas=qtd_intercaladas_ps,
             meses_carencia=meses_carencia_ps,
-            limite_parcela_renda=j8_ui if j8_ui > 0 else None,
-            limite_pro_soluto_imovel=ps_limite_ui2 if ps_limite_ui2 > 0 else None,
             valor_imovel_liquido=v_liquido,
-            saldo_disponivel=max(0.0, v_liquido - f_u_input - fgts_u_input),
         )
-        ps_input_val = float(fluxo_ps["valor_efetivo"])
         v_parc = float(fluxo_ps["valor_parcela_mensal_corrigida"])
+        _travas_ps = avaliar_travas_pro_soluto(
+            fluxo_ps,
+            renda=_renda_cli,
+            limite_parcela_renda=j8_ui if j8_ui > 0 else None,
+            limite_percentual_imovel=ps_limite_ui2 if ps_limite_ui2 > 0 else None,
+            anuais=_anuais_ps,
+        )
         st.session_state.dados_cliente.update(
             {
                 "ps_usado": ps_input_val,
+                "ps_anuais_total": valor_intercaladas_ps,
+                "ps_limites_ok": _travas_ps["ok"],
+                "ps_violacoes": list(_travas_ps["violacoes"]),
                 "ps_mensal_intercaladas": fluxo_ps[
                     "pro_soluto_mensal_intercaladas"
                 ],
@@ -7673,15 +8978,29 @@ def aba_simulador_automacao(
                 "ps_taxa_carencia_mensal": fluxo_ps["taxa_carencia_mensal"],
             }
         )
-        if fluxo_ps["limitado"]:
-            _ps_limitado_fmt = float_para_campo_texto(ps_input_val, vazio_se_zero=True)
-            if str(st.session_state.get("ps_u_key") or "") != str(_ps_limitado_fmt):
-                st.session_state["_dv_ps_u_key_deferred"] = _ps_limitado_fmt
+        if not _travas_ps["ok"]:
+            _descricoes_trava = {
+                "parcela_acima_comprometimento_renda": (
+                    f"a maior parcela ultrapassa o teto de {fmt_br(j8_ui)}"
+                ),
+                "ps_corrigido_acima_percentual_imovel": (
+                    f"o Pro Soluto corrigido ultrapassa o teto de {fmt_br(ps_limite_ui2)}"
+                ),
+                "parcela_abaixo_minimo": (
+                    f"há parcela abaixo do mínimo de {fmt_br(PS_VALOR_MINIMO_PARCELA)}"
+                ),
+                "anual_acima_comprometimento_renda": (
+                    f"há anual acima do teto de {fmt_br(_travas_ps['limite_parcela_anual'])}"
+                ),
+            }
+            _motivos_trava = "; ".join(
+                _descricoes_trava[v]
+                for v in _travas_ps["violacoes"]
+                if v in _descricoes_trava
+            )
             _dv_alerta_vermelho(
-                "O Pro Soluto foi reduzido para "
-                f"<strong>{reais_streamlit_html(fmt_br(ps_input_val))}</strong>, pois o "
-                "valor corrigido ultrapassaria o comprometimento de renda, a representação "
-                "máxima do imóvel ou o saldo disponível."
+                "Condição de Pro Soluto bloqueada: "
+                f"<strong>{html_std.escape(_motivos_trava)}</strong>."
             )
         st.session_state.dados_cliente['ps_mensal'] = v_parc
         st.session_state.dados_cliente['ps_mensal_simples'] = (float(ps_input_val or 0) / parc) if parc > 0 else 0.0
@@ -7725,24 +9044,16 @@ def aba_simulador_automacao(
                 )
         if is_emcash:
             st.caption(_EMCASH_NOTA_PARCELAS)
-        ps_efetivo = float(fluxo_ps["valor_efetivo"])
+        ps_efetivo = float(ps_input_val)
         st.markdown(
             '<div class="dv-campo-resumo-movel" '
             'style="margin-top:0.6rem;line-height:1.55;color:#111;">'
-            f"<b>Pro Soluto (Mensal + Intercaladas), sem correção:</b> "
-            f"{reais_streamlit_html(fmt_br(fluxo_ps['pro_soluto_mensal_intercaladas']))}<br>"
-            f"<b>Tipo de fluxo Pro Soluto escolhido:</b> "
-            f"{html_std.escape(str(fluxo_ps['tipo_fluxo_pro_soluto']))}<br>"
-            f"<b>Maior valor pro soluto:</b> "
-            f"{reais_streamlit_html(fmt_br(fluxo_ps['maior_valor_pro_soluto']))}<br>"
-            f"<b>Menor valor pro soluto:</b> "
-            f"{reais_streamlit_html(fmt_br(fluxo_ps['menor_valor_pro_soluto']))}<br>"
-            f"<b>Pro soluto com carência (corrigido):</b> "
+            f"<b>Pro Soluto corrigido (com carência):</b> "
             f"{reais_streamlit_html(fmt_br(fluxo_ps['pro_soluto_com_carencia']))}<br>"
-            f"<b>Valor total das parcelas corrigidas:</b> "
-            f"{reais_streamlit_html(fmt_br(fluxo_ps['valor_total_fluxo_corrigido']))}<br>"
-            f"<b>Representação no valor do imóvel:</b> "
-            f"{float(fluxo_ps['percentual_valor_imovel']):.2f}%"
+            f"<b>Maior valor de parcela:</b> "
+            f"{reais_streamlit_html(fmt_br(fluxo_ps['maior_valor_pro_soluto']))}<br>"
+            f"<b>Menor valor de parcela:</b> "
+            f"{reais_streamlit_html(fmt_br(fluxo_ps['menor_valor_pro_soluto']))}"
             "</div>",
             unsafe_allow_html=True,
         )
@@ -7866,7 +9177,13 @@ def aba_simulador_automacao(
                     _vlp = None
                 if _vlp is not None and _vlp > float(v_liquido) + 0.01:
                     _delta_desc_fe = _vlp - float(v_liquido)
-                    _T_fe = float(f_u_input) + float(fgts_u_input) + float(ps_efetivo) + _sum_atos_fe
+                    _T_fe = (
+                        float(f_u_input)
+                        + float(fgts_u_input)
+                        + float(ps_efetivo)
+                        + float(valor_intercaladas_ps)
+                        + _sum_atos_fe
+                    )
                     if _T_fe >= _vlp - 1.0 and _delta_desc_fe > 0.01:
                         _cut_ps_desc = min(float(ps_efetivo), float(_delta_desc_fe))
                         if _cut_ps_desc > 0.01:
@@ -7883,7 +9200,13 @@ def aba_simulador_automacao(
         r3_val = max(0.0, texto_moeda_para_float(st.session_state.get("ato_3_key")))
         r4_val = max(0.0, texto_moeda_para_float(st.session_state.get("ato_4_key"))) if not is_emcash else 0.0
         sum_ent = r1_val + r2_val + r3_val + r4_val
-        excedente_total = (f_u_input + fgts_u_input + ps_efetivo + sum_ent) - v_liquido
+        excedente_total = (
+            f_u_input
+            + fgts_u_input
+            + ps_efetivo
+            + valor_intercaladas_ps
+            + sum_ent
+        ) - v_liquido
         if excedente_total > 0.01:
             reduzir_ps = min(ps_efetivo, excedente_total)
             ps_efetivo = max(0.0, ps_efetivo - reduzir_ps)
@@ -7916,34 +9239,34 @@ def aba_simulador_automacao(
         total_entrada_cash = r1_val + r2_val + r3_val + r4_val
         st.session_state.dados_cliente['entrada_total'] = total_entrada_cash
         fluxo_ps_final = calcular_fluxo_pro_soluto_completo(
-            valor_nao_corrigido=ps_efetivo,
+            valor_nao_corrigido=ps_efetivo + valor_intercaladas_ps,
             quantidade_mensais=parc,
             tipo_fluxo=tipo_fluxo_ps,
             politica_ui=pol_ui,
             premissas=_prem,
-            meses_entrega=meses_entrega_unid,
-            valor_intercaladas=min(valor_intercaladas_ps, ps_efetivo),
+            meses_entrega=_meses_entrega_fluxo,
+            valor_intercaladas=valor_intercaladas_ps,
             quantidade_intercaladas=qtd_intercaladas_ps,
             meses_carencia=meses_carencia_ps,
-            limite_parcela_renda=j8_ui if j8_ui > 0 else None,
-            limite_pro_soluto_imovel=ps_limite_ui2 if ps_limite_ui2 > 0 else None,
             valor_imovel_liquido=v_liquido,
-            saldo_disponivel=max(
-                0.0,
-                v_liquido
-                - f_u_input
-                - fgts_u_input
-                - total_entrada_cash,
-            ),
         )
-        ps_efetivo = float(fluxo_ps_final["valor_efetivo"])
         _ps_final_texto = float_para_campo_texto(ps_efetivo, vazio_se_zero=True)
         if str(st.session_state.get("ps_u_key") or "") != str(_ps_final_texto):
             st.session_state["_dv_ps_u_key_deferred"] = _ps_final_texto
             st.rerun()
+        _travas_ps_final = avaliar_travas_pro_soluto(
+            fluxo_ps_final,
+            renda=_renda_cli,
+            limite_parcela_renda=j8_ui if j8_ui > 0 else None,
+            limite_percentual_imovel=ps_limite_ui2 if ps_limite_ui2 > 0 else None,
+            anuais=_anuais_ps,
+        )
         st.session_state.dados_cliente['ps_usado'] = ps_efetivo
         st.session_state.dados_cliente.update(
             {
+                "ps_anuais_total": valor_intercaladas_ps,
+                "ps_limites_ok": _travas_ps_final["ok"],
+                "ps_violacoes": list(_travas_ps_final["violacoes"]),
                 "ps_mensal": fluxo_ps_final["valor_parcela_mensal_corrigida"],
                 "ps_mensal_intercaladas": fluxo_ps_final[
                     "pro_soluto_mensal_intercaladas"
@@ -7956,7 +9279,14 @@ def aba_simulador_automacao(
             }
         )
 
-        gap_final = v_liquido - f_u_input - fgts_u_input - ps_efetivo - total_entrada_cash
+        gap_final = (
+            v_liquido
+            - f_u_input
+            - fgts_u_input
+            - ps_efetivo
+            - valor_intercaladas_ps
+            - total_entrada_cash
+        )
         if abs(gap_final) > 1.0:
             _dv_alerta_vermelho(
                 f"Atenção: {'Falta cobrir' if gap_final > 0 else 'Valor excedente de'} "
@@ -7974,10 +9304,14 @@ def aba_simulador_automacao(
             use_container_width=True,
             key="dv_btn_avancar_resumo",
         ):
-            if abs(gap_final) <= 1.0:
+            if abs(gap_final) <= 1.0 and _travas_ps_final["ok"]:
                 st.session_state.passo_simulacao = "summary"
                 scroll_to_top()
                 st.rerun()
+            elif not _travas_ps_final["ok"]:
+                _dv_alerta_vermelho(
+                    "Não é possível avançar: corrija as travas de Pro Soluto indicadas acima."
+                )
             else:
                 _dv_alerta_vermelho(
                     f"Não é possível avançar. Saldo pendente: <strong>{reais_streamlit_html(fmt_br(abs(gap_final)))}</strong>."
@@ -8080,7 +9414,12 @@ def aba_simulador_automacao(
         _a1 = float(d.get("ato_final", 0) or 0)
         _a2 = float(d.get("ato_30", 0) or 0)
         _a3 = float(d.get("ato_60", 0) or 0)
-        _ent_resumo = float(d.get("entrada_total", 0) or 0) + float(d.get("ps_usado", 0) or 0)
+        _anuais_resumo = sum(float(d.get(f"anual_{i}", 0) or 0) for i in range(1, 4))
+        _ent_resumo = (
+            float(d.get("entrada_total", 0) or 0)
+            + float(d.get("ps_usado", 0) or 0)
+            + _anuais_resumo
+        )
         _nota_emcash_paren = html_std.escape(_EMCASH_NOTA_PARCELAS)
         _entrada_pro_inner = ""
         if _em_sum:
@@ -8091,26 +9430,24 @@ def aba_simulador_automacao(
         else:
             _entrada_pro_inner += f"<b>Política de Pro Soluto:</b> {html_std.escape(_pol_sum_label)}<br>"
         _entrada_pro_inner += (
-            f"<b>Pro Soluto (Mensal + Intercaladas), sem correção:</b> "
-            f"{reais_streamlit_html(fmt_br(d.get('ps_mensal_intercaladas', d.get('ps_usado', 0))))}<br>"
-            f"<b>Tipo de fluxo Pro Soluto escolhido:</b> "
+            f"<b>Valor do Pro Soluto:</b> "
+            f"{reais_streamlit_html(fmt_br(d.get('ps_usado', 0)))}<br>"
+            f"<b>Tipo de fluxo:</b> "
             f"{html_std.escape(str(d.get('tipo_fluxo_pro_soluto', 'Linear')))}<br>"
-            f"<b>Número de parcelas do Pro Soluto:</b> {html_std.escape(str(d.get('ps_parcelas')))}<br>"
-            f"<b>Mensalidade corrigida do Pro Soluto:</b> {reais_streamlit_html(fmt_br(d.get('ps_mensal', 0)))}<br>"
-            f"<b>Maior valor pro soluto:</b> {reais_streamlit_html(fmt_br(d.get('ps_maior_valor', 0)))}<br>"
-            f"<b>Menor valor pro soluto:</b> {reais_streamlit_html(fmt_br(d.get('ps_menor_valor', 0)))}<br>"
-            f"<b>Pro soluto com carência (corrigido):</b> "
+            f"<b>Quantidade de parcelas:</b> {html_std.escape(str(d.get('ps_parcelas')))}<br>"
+            f"<b>Pro Soluto corrigido (com carência):</b> "
             f"{reais_streamlit_html(fmt_br(d.get('ps_com_carencia', 0)))}<br>"
-            f"<b>Valor total das parcelas corrigidas:</b> "
-            f"{reais_streamlit_html(fmt_br(d.get('ps_total_corrigido', 0)))}<br>"
-            f"<b>Representação no valor do imóvel:</b> "
-            f"{float(d.get('ps_percentual_imovel', 0) or 0):.2f}%<br>"
+            f"<b>Maior valor de parcela:</b> {reais_streamlit_html(fmt_br(d.get('ps_maior_valor', 0)))}<br>"
+            f"<b>Menor valor de parcela:</b> {reais_streamlit_html(fmt_br(d.get('ps_menor_valor', 0)))}<br>"
             f"<b>Ato 1 (Entrada Imediata):</b> {reais_streamlit_html(fmt_br(_a1))}<br>"
             f"<b>Ato 30:</b> {reais_streamlit_html(fmt_br(_a2))}<br>"
             f"<b>Ato 60:</b> {reais_streamlit_html(fmt_br(_a3))}<br>"
             f"{_linha_resumo_ato_90}"
+            f"<b>Anual 1:</b> {reais_streamlit_html(fmt_br(d.get('anual_1', 0)))}<br>"
+            f"<b>Anual 2:</b> {reais_streamlit_html(fmt_br(d.get('anual_2', 0)))}<br>"
+            f"<b>Anual 3:</b> {reais_streamlit_html(fmt_br(d.get('anual_3', 0)))}<br>"
             f"<hr style=\"border:0;border-top:1px solid #e2e8f0;margin:var(--dv-stack-gap) 0;\">"
-            f"<b>Entrada total (atos e Pro Soluto):</b> {reais_streamlit_html(fmt_br(_ent_resumo))}<br>"
+            f"<b>Entrada total (atos, anuais e Pro Soluto):</b> {reais_streamlit_html(fmt_br(_ent_resumo))}<br>"
         )
 
         _cartoes = (
@@ -8160,7 +9497,11 @@ def aba_simulador_automacao(
                 aba_destino = 'BD Simulações' 
                 rendas_ind = d.get('rendas_lista', [])
                 while len(rendas_ind) < 4: rendas_ind.append(0.0)
-                capacidade_entrada = d.get('entrada_total', 0) + d.get('ps_usado', 0)
+                capacidade_entrada = (
+                    d.get('entrada_total', 0)
+                    + d.get('ps_usado', 0)
+                    + d.get('ps_anuais_total', 0)
+                )
                 nova_linha = {
                     "Nome": d.get('nome'), "CPF": d.get('cpf'), "Data de Nascimento": str(d.get('data_nascimento')),
                     "Prazo Financiamento": d.get('prazo_financiamento'), "Renda Part. 1": rendas_ind[0], "Renda Part. 4": rendas_ind[3],
@@ -8173,16 +9514,17 @@ def aba_simulador_automacao(
                     "Preço Unidade Final": d.get('imovel_valor', 0), "Financiamento Final": d.get('finan_usado', 0),
                     "FGTS + Subsídio Final": d.get('fgts_sub_usado', 0),
                     "Pro Soluto Final": d.get('ps_usado', 0),
-                    "Pro Soluto (Mensal + Intercaladas)": d.get('ps_mensal_intercaladas', d.get('ps_usado', 0)),
-                    "Tipo de fluxo Pro Soluto escolhido": d.get('tipo_fluxo_pro_soluto', 'Linear'),
-                    "Maior valor pro soluto": d.get('ps_maior_valor', 0),
-                    "Menor valor pro soluto": d.get('ps_menor_valor', 0),
-                    "Pro soluto com carência": d.get('ps_com_carencia', 0),
-                    "Valor total das parcelas corrigidas": d.get('ps_total_corrigido', 0),
-                    "Percentual Pro Soluto no imóvel": d.get('ps_percentual_imovel', 0),
+                    "Pro Soluto corrigido (com carência)": d.get('ps_com_carencia', 0),
+                    "Tipo de fluxo Pro Soluto": d.get('tipo_fluxo_pro_soluto', 'Linear'),
+                    "Maior valor de parcela": d.get('ps_maior_valor', 0),
+                    "Menor valor de parcela": d.get('ps_menor_valor', 0),
                     "Número de Parcelas do Pro Soluto": d.get('ps_parcelas', 0),
                     "Mensalidade PS": d.get('ps_mensal', 0),
+                    "Pro Soluto (Mensal + Intercaladas)": d.get('ps_mensal_intercaladas', d.get('ps_usado', 0)),
+                    "Valor total das parcelas corrigidas": d.get('ps_total_corrigido', 0),
+                    "Percentual Pro Soluto no imóvel": d.get('ps_percentual_imovel', 0),
                     "Ato": d.get('ato_final', 0), "Ato 30": d.get('ato_30', 0), "Ato 60": d.get('ato_60', 0), "Ato 90": d.get('ato_90', 0),
+                    "Anual 1": d.get('anual_1', 0), "Anual 2": d.get('anual_2', 0), "Anual 3": d.get('anual_3', 0),
                     "Renda Part. 2": rendas_ind[1], "Nome do Corretor": st.session_state.get('user_name', ''),
                     "Canal/Imobiliária": st.session_state.get('user_imobiliaria', ''),
                     "Data/Horário": datetime.now(pytz.timezone('America/Sao_Paulo')).strftime("%d/%m/%Y %H:%M:%S"),
