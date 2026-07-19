@@ -760,7 +760,7 @@ def menor_prazo_parcelas_ps_respeitando_j8(
     return min(candidatos) if candidatos else None
 
 
-def _calcular_fluxo_pro_soluto_sf_inline(
+def _calcular_fluxo_pro_soluto_sf_inline_legacy(
     *,
     valor_total: float,
     valor_nao_corrigido: Optional[float] = None,
@@ -775,9 +775,10 @@ def _calcular_fluxo_pro_soluto_sf_inline(
     quantidade_intercaladas: int = 0,
     valor_imovel_liquido: Optional[float] = None,
     pro_soluto_mensal_override: Optional[float] = None,
+    calibration_scope: Optional[str] = None,
     **_: Any,
 ) -> Dict[str, Any]:
-    """Motor Pró-Soluto autocontido, calibrado com a calculadora Salesforce."""
+    """Implementação histórica mantida apenas para rastreabilidade."""
     from decimal import Decimal, ROUND_HALF_UP, localcontext
 
     def dec(valor: Any) -> Decimal:
@@ -928,6 +929,45 @@ def _calcular_fluxo_pro_soluto_sf_inline(
         }
 
 
+def _calcular_fluxo_pro_soluto_sf_inline(
+    *,
+    valor_total: float,
+    valor_nao_corrigido: Optional[float] = None,
+    quantidade_mensais: int = 84,
+    tipo_fluxo: str = "Linear",
+    taxa_pre_pct: float = 0.5,
+    taxa_pos_pct: float = 1.5,
+    meses_carencia: int = 0,
+    taxa_carencia_mensal: Optional[float] = None,
+    meses_entrega: int = 0,
+    valor_intercaladas: float = 0.0,
+    quantidade_intercaladas: int = 0,
+    valor_imovel_liquido: Optional[float] = None,
+    pro_soluto_mensal_override: Optional[float] = None,
+    calibration_scope: Optional[str] = None,
+    **_: Any,
+) -> Dict[str, Any]:
+    """Réplica estrita do motor oficial, inclusive split e arredondamento pré/pós."""
+    from salesforce_tools.pro_soluto_sf import calcular_fluxo_pro_soluto_completo_sf
+
+    return calcular_fluxo_pro_soluto_completo_sf(
+        valor_total=valor_total,
+        valor_nao_corrigido=valor_nao_corrigido,
+        quantidade_mensais=quantidade_mensais,
+        tipo_fluxo=tipo_fluxo,
+        taxa_pre_pct=taxa_pre_pct,
+        taxa_pos_pct=taxa_pos_pct,
+        meses_carencia=meses_carencia,
+        taxa_carencia_mensal=taxa_carencia_mensal,
+        meses_entrega=meses_entrega,
+        valor_intercaladas=valor_intercaladas,
+        quantidade_intercaladas=quantidade_intercaladas,
+        valor_imovel_liquido=valor_imovel_liquido,
+        pro_soluto_mensal_override=pro_soluto_mensal_override,
+        calibration_scope=calibration_scope,
+    )
+
+
 def calcular_fluxo_pro_soluto_completo(
     *,
     valor_nao_corrigido: float,
@@ -944,6 +984,7 @@ def calcular_fluxo_pro_soluto_completo(
     limite_pro_soluto_imovel: Optional[float] = None,
     valor_imovel_liquido: Optional[float] = None,
     saldo_disponivel: Optional[float] = None,
+    calibration_scope: Optional[str] = None,
 ) -> Dict[str, Any]:
     """
     Réplica calibrada e incorporada diretamente neste arquivo.
@@ -1026,6 +1067,7 @@ def calcular_fluxo_pro_soluto_completo(
             quantidade_intercaladas=qtd_inter,
             valor_imovel_liquido=base_imovel,
             pro_soluto_mensal_override=total_mensal,
+            calibration_scope=calibration_scope,
         )
         # Intercaladas corrigidas (mesmo fator de carência do motor SF)
         fator = float(out.get("fator_carencia") or 1.0)
@@ -2146,6 +2188,119 @@ def _sf_ler_ranking_atual(
     return det.get("ranking"), det.get("raw"), det.get("code")
 
 
+def _sf_acionar_consultar_status_cpf(
+    *,
+    account_id: str,
+    opportunity_id: str | None = None,
+    bypass_risk3: bool = False,
+) -> dict[str, Any]:
+    """
+    Aciona o mesmo botão da UI: Quick Action «Consultar Status CPF»
+    (Account.Consultar_Status_CPF / Opportunity.Consultar_Status_CPFOP →
+    Flow Consultar_Status_CPF_Serasa → Apex IntegracaoRisk3).
+    """
+    import requests
+
+    out: dict[str, Any] = {"ok": False, "attempts": []}
+    aid = str(account_id or "").strip()
+    if not aid:
+        out["error"] = "account_id_vazio"
+        return out
+    sf = _sf_conectar_salesforce(verbose=False)
+    if sf is None:
+        out["error"] = "sem_conexao"
+        return out
+    headers = {
+        "Authorization": f"Bearer {sf.session_id}",
+        "Content-Type": "application/json",
+    }
+    base = str(sf.base_url).rstrip("/")
+
+    def _post(via: str, url: str, payload: dict[str, Any]) -> None:
+        try:
+            resp = requests.post(url, headers=headers, json=payload, timeout=90)
+            out["attempts"].append(
+                {
+                    "via": via,
+                    "status": resp.status_code,
+                    "body": (resp.text or "")[:600],
+                }
+            )
+            if 200 <= int(resp.status_code) < 300:
+                out["ok"] = True
+        except Exception as exc:  # noqa: BLE001
+            out["attempts"].append({"via": via, "error": str(exc)})
+
+    _post(
+        "Account.Consultar_Status_CPF",
+        f"{base}/sobjects/Account/quickActions/Consultar_Status_CPF",
+        {"contextId": aid},
+    )
+    oid = str(opportunity_id or "").strip() or None
+    if oid:
+        _post(
+            "Opportunity.Consultar_Status_CPFOP",
+            f"{base}/sobjects/Opportunity/quickActions/Consultar_Status_CPFOP",
+            {"contextId": oid},
+        )
+    # Backend direto do botão (pode falhar por Apex Class Access).
+    try:
+        acc = (
+            sf.query(
+                "SELECT Id, Name, CPF__c, CNPJ__c, Id_Risk3__c, Ranking__c, "
+                "UltimaConsultaCPF__c, Regional__c, Regional_Comercial__c "
+                f"FROM Account WHERE Id = '{_sf_soql_escape_literal(aid)}' LIMIT 1"
+            ).get("records")
+            or [None]
+        )[0]
+        opp = None
+        if oid:
+            opp = (
+                sf.query(
+                    "SELECT Id, Name, AccountId, Ranking__c FROM Opportunity "
+                    f"WHERE Id = '{_sf_soql_escape_literal(oid)}' LIMIT 1"
+                ).get("records")
+                or [None]
+            )[0]
+        payload = {
+            "inputs": [
+                {
+                    "Account": {
+                        k: (acc or {}).get(k)
+                        for k in (
+                            "Id",
+                            "Name",
+                            "CPF__c",
+                            "CNPJ__c",
+                            "Id_Risk3__c",
+                            "Ranking__c",
+                            "UltimaConsultaCPF__c",
+                            "Regional__c",
+                            "Regional_Comercial__c",
+                        )
+                    },
+                    "Opportunity": (
+                        {
+                            k: opp.get(k)
+                            for k in ("Id", "Name", "AccountId", "Ranking__c")
+                        }
+                        if opp
+                        else None
+                    ),
+                    "bypassRisk3": bool(bypass_risk3),
+                }
+            ]
+        }
+        _post(
+            "Apex.IntegracaoRisk3",
+            f"{base}/actions/custom/apex/IntegracaoRisk3",
+            payload,
+        )
+    except Exception as exc:  # noqa: BLE001
+        out["attempts"].append({"via": "Apex.IntegracaoRisk3", "error": str(exc)})
+    return out
+
+
 def _ranking_debug_append(linha: str) -> None:
     """Acumula linhas de debug na sessão (máx. RANKING_DEBUG_LOG_MAX)."""
     try:
@@ -2703,6 +2858,25 @@ def classificar_ranking_cpf_pipeline(
             ),
             source="salesforce_create",
         )
+        # Aciona o botão oficial «Consultar Status CPF» (best-effort).
+        try:
+            btn = _sf_acionar_consultar_status_cpf(
+                account_id=str(criado.get("account_id") or ""),
+                opportunity_id=(
+                    str(criado.get("opportunity_id"))
+                    if criado.get("opportunity_id")
+                    else None
+                ),
+            )
+            payload["button_consultar_status_cpf"] = {
+                "ok": bool(btn.get("ok")),
+                "attempts": btn.get("attempts") or [],
+            }
+        except Exception as exc_btn:  # noqa: BLE001
+            payload["button_consultar_status_cpf"] = {
+                "ok": False,
+                "error": str(exc_btn),
+            }
         _ranking_sheets_upsert(payload)
         return payload
     except Exception as exc:  # noqa: BLE001
@@ -8087,13 +8261,38 @@ def aba_simulador_automacao(
                                 "opportunity_id": _novo_resultado.get("opportunity_id"),
                                 "t0": time.monotonic(),
                             }
+                            _btn_info = _novo_resultado.get(
+                                "button_consultar_status_cpf"
+                            ) or {}
                             _ranking_debug_append(
                                 "CREATE pending | "
                                 f"account={_novo_resultado.get('account_id')} | "
                                 f"opp={_novo_resultado.get('opportunity_id')} | "
                                 f"elapsed={_novo_resultado.get('elapsed_seconds')}s | "
-                                f"source={_novo_resultado.get('source')}"
+                                f"source={_novo_resultado.get('source')} | "
+                                f"botao_ok={_btn_info.get('ok')} | "
+                                f"botao={_btn_info.get('attempts') or _btn_info.get('error')}"
                             )
+                            # Reforço: aciona o botão novamente no início do poll.
+                            try:
+                                _btn2 = _sf_acionar_consultar_status_cpf(
+                                    account_id=str(
+                                        _novo_resultado.get("account_id") or ""
+                                    ),
+                                    opportunity_id=(
+                                        str(_novo_resultado.get("opportunity_id"))
+                                        if _novo_resultado.get("opportunity_id")
+                                        else None
+                                    ),
+                                )
+                                _ranking_debug_append(
+                                    f"BOTAO Consultar Status CPF ok={_btn2.get('ok')} "
+                                    f"attempts={_btn2.get('attempts')}"
+                                )
+                            except Exception as _exc_btn:  # noqa: BLE001
+                                _ranking_debug_append(
+                                    f"BOTAO Consultar Status CPF erro={_exc_btn}"
+                                )
                             st.info(
                                 "Registros criados no Salesforce. Iniciando o acompanhamento "
                                 "automático do ranking (Risk3)…"
@@ -9268,6 +9467,7 @@ def aba_simulador_automacao(
             quantidade_intercaladas=qtd_intercaladas_ps,
             meses_carencia=meses_carencia_ps,
             valor_imovel_liquido=v_liquido,
+            calibration_scope=str(d.get("empreendimento_nome") or "") or None,
         )
         v_parc = float(fluxo_ps["valor_parcela_mensal_corrigida"])
         _travas_ps = avaliar_travas_pro_soluto(
