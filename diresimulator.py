@@ -1948,7 +1948,12 @@ def _sf_ler_ranking_atual(
     account_id: str | None = None,
     opportunity_id: str | None = None,
 ) -> tuple[str | None, Any, str | None]:
-    """Consulta SOMENTE-LEITURA do ``Ranking__c`` atual (não cria nem altera nada)."""
+    """Consulta SOMENTE-LEITURA do ``Ranking__c`` atual (não cria nem altera nada).
+
+    O Risk3 pode gravar o ranking primeiro na Account ou em qualquer Opportunity
+    ligada à conta (incluindo oportunidades criadas pela automação, não só a
+    que o simulador criou). Por isso a busca cobre todas as Opportunities.
+    """
     cpf = _sf_normalizar_cpf(cpf_11)
     if len(cpf) != 11:
         return None, None, "cpf_incompleto"
@@ -1957,37 +1962,67 @@ def _sf_ler_ranking_atual(
         return None, None, "sem_conexao"
     try:
         raw = None
-        if account_id:
+        acc_id = str(account_id or "").strip() or None
+
+        if acc_id:
             recs = (
                 sf.query(
                     "SELECT Id, Ranking__c FROM Account "
-                    f"WHERE Id = '{_sf_soql_escape_literal(account_id)}' LIMIT 1"
+                    f"WHERE Id = '{_sf_soql_escape_literal(acc_id)}' LIMIT 1"
                 ).get("records")
                 or []
             )
             if recs:
                 raw = recs[0].get("Ranking__c")
-        if raw is None:
-            literais = _sf_literais_cpf(cpf)
-            recs = (
+                ranking = _sf_mapear_ranking_para_ui(raw)
+                if ranking:
+                    return ranking, raw, "ok"
+
+        literais = _sf_literais_cpf(cpf)
+        recs = (
+            sf.query(
+                "SELECT Id, Ranking__c FROM Account "
+                f"WHERE CPF__c IN ({literais}) ORDER BY CreatedDate DESC LIMIT 1"
+            ).get("records")
+            or []
+        )
+        if recs:
+            if not acc_id:
+                acc_id = str(recs[0].get("Id") or "") or None
+            raw = recs[0].get("Ranking__c")
+            ranking = _sf_mapear_ranking_para_ui(raw)
+            if ranking:
+                return ranking, raw, "ok"
+
+        # Opportunity: todas as da conta (a nossa + as da automação Risk3).
+        if acc_id:
+            opps = (
                 sf.query(
-                    "SELECT Id, Ranking__c FROM Account "
-                    f"WHERE CPF__c IN ({literais}) ORDER BY CreatedDate DESC LIMIT 1"
+                    "SELECT Id, Ranking__c FROM Opportunity "
+                    f"WHERE AccountId = '{_sf_soql_escape_literal(acc_id)}' "
+                    "ORDER BY CreatedDate DESC LIMIT 20"
                 ).get("records")
                 or []
             )
-            if recs:
-                raw = recs[0].get("Ranking__c")
-        if raw is None and opportunity_id:
+            for opp in opps:
+                rk = _sf_mapear_ranking_para_ui(opp.get("Ranking__c"))
+                if rk:
+                    return rk, opp.get("Ranking__c"), "ok"
+
+        elif opportunity_id:
             recs = (
                 sf.query(
                     "SELECT Id, Ranking__c FROM Opportunity "
-                    f"WHERE Id = '{_sf_soql_escape_literal(opportunity_id)}' LIMIT 1"
+                    f"WHERE Id = '{_sf_soql_escape_literal(str(opportunity_id))}' LIMIT 1"
                 ).get("records")
                 or []
             )
             if recs:
-                raw = recs[0].get("Ranking__c")
+                rk = _sf_mapear_ranking_para_ui(recs[0].get("Ranking__c"))
+                if rk:
+                    return rk, recs[0].get("Ranking__c"), "ok"
+                raw = raw if raw is not None else recs[0].get("Ranking__c")
+
         ranking = _sf_mapear_ranking_para_ui(raw)
         if ranking:
             return ranking, raw, "ok"
@@ -7615,7 +7650,7 @@ def aba_simulador_automacao(
             key="cpf_classificar_clientes_sf",
             placeholder="000.000.000-00",
         )
-        cpf_digits = re.sub(r"\D", "", st.session_state.get("cpf_classificar_clientes_sf") or "")
+        cpf_digits = _sf_normalizar_cpf(st.session_state.get("cpf_classificar_clientes_sf") or "")
         rank_opts = ["DIAMANTE", "OURO", "PRATA", "BRONZE", "AÇO"]
         _sf_rs: str | None = None
         _sf_code: str | None = None
@@ -7683,8 +7718,9 @@ def aba_simulador_automacao(
                     )
                 else:
                     st.info(
-                        "Classificação em andamento no Salesforce (Risk3). Aguardando o "
-                        f"ranking automaticamente… tempo decorrido: {int(_poll_decorrido)}s."
+                        "Classificação em andamento no Salesforce (Risk3). "
+                        "Costuma levar cerca de 1 minuto. "
+                        f"Tempo decorrido: {int(_poll_decorrido)}s."
                     )
                     time.sleep(_poll_int)
                     st.rerun()
